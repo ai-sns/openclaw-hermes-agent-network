@@ -1,0 +1,52 @@
+import asyncio
+from slixmpp import ClientXMPP
+from slixmpp.plugins.xep_0047 import XEP_0047
+from slixmpp.plugins.xep_0199 import XEP_0199
+
+class MyXMPPClient(ClientXMPP):
+    def __init__(self, jid, password):
+        super().__init__(jid, password)
+
+        # 注册插件
+        self.add_plugin('xep_0199')  # XEP-0199: XMPP Ping
+
+        # 设置心跳间隔（以秒为单位）
+        self.heartbeat_interval = 30  
+        self.heartbeat_task = None
+
+        # 处理连接成功事件
+        self.add_event_handler("session_start", self.start)
+
+    async def start(self, event):
+        # 在登录后开始心跳机制
+        self.send_presence()
+        await self.get_roster()
+
+        # 启动心跳任务
+        self.heartbeat_task = asyncio.create_task(self.heartbeat())
+
+    async def heartbeat(self):
+        while True:
+            # 发送 Ping 消息到服务器
+            try:
+                await self['xep_0199'].ping()
+                print("Ping sent to the server.")
+            except Exception as e:
+                print(f"Failed to ping server: {e}")
+
+            # 等待指定的心跳间隔
+            await asyncio.sleep(self.heartbeat_interval)
+
+    def stop_heartbeat(self):
+        if self.heartbeat_task is not None:
+            self.heartbeat_task.cancel()
+            self.heartbeat_task = None
+
+
+if __name__ == "__main__":
+    # 创建 XMPP 客户端实例
+    xmpp = MyXMPPClient("your_jid@example.com", "your_password")
+
+    # 启动客户端
+    xmpp.connect()
+    xmpp.loop()

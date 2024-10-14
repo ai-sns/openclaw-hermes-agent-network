@@ -1,0 +1,13 @@
+api_key: sk-l2qbn7fNEsJfP9GEZaTgxTDqzsSCx3SfZmBxOiz3NMgHZOnw
+custom_params: false
+description: "\u767E\u5DDDhttp://61.241.103.97:8501/v1/chat/completions"
+max_tokens: 4000
+model: gpt-4o
+parameters: "{\n    \"model\": \"baichuan-inc/Baichuan-13B-Chat\",\n    \"max_tokens\"\
+  : 4000,\n    \"temperature\": 0.6,\n    \"top_p\": 0.9,\n    \"stream\": false,\n\
+  \    \"n\": 1,\n    \"stop\": null,\n    \"frequency_penalty\": 0.0,\n    \"presence_penalty\"\
+  : 0.6\n}"
+stream: true
+temperature: 0.8
+top_p: 0.7
+url: https://api.chatanywhere.tech/v1/chat/completions

@@ -1,0 +1,7 @@
+# 假设get_weather_for_city是一个已经定义的函数
+from functions import get_weather_for_city
+
+# 获取上海的天气信息
+city_name = "上海"
+weather_info = get_weather_for_city(city_name)
+print(f"城市: {city_name}\n天气状况: {weather_info}")

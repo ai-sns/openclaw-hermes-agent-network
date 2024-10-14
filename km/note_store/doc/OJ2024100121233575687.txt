@@ -1,0 +1,31 @@
+pipx 是一个 Python 工具，用于安装和管理 Python 应用程序的独立环境。与传统的 pip 工具不同，pipx 使得每个应用程序在一个单独的虚拟环境中运行，从而避免了依赖冲突和污染全局 Python 环境的问题。
+主要特点
+隔离环境： 每个通过 pipx 安装的应用程序都在自己的虚拟环境中运行，确保它们之间不会相互影响。
+便捷的命令行工具： pipx 允许用户通过简洁的命令行界面轻松安装、更新和卸载应用程序。
+支持 Python 可执行包： pipx 主要用于安装 Python 可执行包（即命令行工具），如 black、flake8、httpie 等。
+自动处理依赖： 在安装应用程序时，pipx 会自动处理这些应用程序所需的所有依赖，确保它们能够正常工作。
+安装 pipx
+你可以通过以下命令来安装 pipx：
+BASH操作▼python3 -m pip install --user pipx
+python3 -m pipx ensurepath
+
+常用命令
+安装应用程序：
+BASH操作▼pipx install <package_name>
+
+更新应用程序：
+BASH操作▼pipx upgrade <package_name>
+
+卸载应用程序：
+BASH操作▼pipx uninstall <package_name>
+
+列出已安装的应用程序：
+BASH操作▼pipx list
+
+示例
+假设你想安装 httpie，可以使用以下命令：
+BASH操作▼pipx install httpie
+
+安装完成后，你可以在命令行中直接使用 http 命令。
+小结
+pipx 是一个非常实用的工具，适用于那些频繁使用 Python 命令行工具的开发者。它提供了简单的命令来管理 Python 应用程序的安装和运行，同时保持环境之间的隔离，使得依赖管理更加清晰和安全。

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown and Syntax Highlighting</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei';
+            background-color: #f0f0f0;
+            padding: 20px;
+            font-size: 14pt;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        pre {
+            position: relative;
+            background: #f0f0f0;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            border: solid 1px gray;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11pt;
+            font-family: "Microsoft YaHei";
+        }
+
+        .code-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            background-color: #555;
+            color: white;
+        }
+
+        td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        .innermenu {
+            border: 1px solid #ccc;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            border-radius: 8px;
+            padding: 5px;
+            font-size: 10pt;
+            font-family: 'Microsoft YaHei';
+        }
+
+        .innermenu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+        }
+
+        .innermenu li {
+            padding: 5px;
+            cursor: pointer;
+            font-size: 10pt;
+            font-family: "Microsoft YaHei";
+            display: flex;
+            align-items: center;
+            margin-right: 10px;
+        }
+
+        .innermenu li:hover {
+            background: #f0f0f0;
+        }
+
+        .innermenu li img {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+        }
+
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1001;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+            opacity: 0;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: black;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+    <script src="qwebchannel.js"></script>
+</head>
+<body>
+<div id="allcontent">
+    <!-- 用户信息容器 -->
+    <div id="hover-div" data-value="001" style='display: inline'
+         onmouseover="handleMouseOver(this)"
+         onmouseleave="handleMouseLeave(event)">
+        <strong><em><span style='color: darkred; font-size: 14px;'>用户: </span>
+        <span style='color: #c0c0c0; font-size: 14px;'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>
+        <input type="checkbox" id="msg_checkbox_01" data-value="001"
+               onclick="add_to_selected_msg(this, 'question')" class="styled-checkbox">
+    </div>
+    <br>cjrok
+
+    <div id="hover-div2" data-value="002" style='display: inline'
+         onmouseover="handleMouseOver(this)"
+         onmouseleave="handleMouseLeave(event)">
+        <strong><em><span style='color: darkred; font-size: 14px;'>用户: </span>
+        <span style='color: #c0c0c0; font-size: 14px;'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>
+        <input type="checkbox" id="msg_checkbox_02"
+               data-value="002"
+               onclick="add_to_selected_msg(this, 'question')" class="styled-checkbox">
+    </div>
+
+        <div id="hover-div3" data-value="003" style='display: inline'
+         onmouseover="handleMouseOver(this)"
+         onmouseleave="handleMouseLeave(event)">
+        <strong><em><span style='color: darkred; font-size: 14px;'>用户: </span>
+        <span style='color: #c0c0c0; font-size: 14px;'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>
+        <input type="checkbox" id="msg_checkbox_03"
+               data-value="002"
+               onclick="add_to_selected_msg(this, 'question')" class="styled-checkbox">
+    </div>
+</div>
+<div id="content"></div>
+<!-- 菜单模板 -->
+<div id="innermenu" class="innermenu" style="display: none; position: absolute;">
+    <ul>
+        <li onclick="getcontent()" data-tooltip="复制内容">
+            <img src="../images/edit.png" alt="编辑"> 查看
+        </li>
+        <li onclick="hidecheck()" data-tooltip="编辑内容">
+            <img src="../images/delete.png" alt="删除"> 隐藏
+        </li>
+        <li onclick="showcheck()" data-tooltip="运行内容">
+            <img src="../images/share.png" alt="运行图标"> 显示
+        </li>
+        <li onclick="executeContent(this)" data-tooltip="收藏内容">
+            <img src="../images/bookmark.png" alt="运行图标"> 收藏
+        </li>
+        <li onclick="executeContent(this)" data-tooltip="更多选项">
+            <img src="../images/more.png" alt="运行图标"> 更多
+        </li>
+    </ul>
+</div>
+<!-- Toast 消息框 -->
+<div id="toast" class="toast">内容已拷贝</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+<script>
+    var api_object = null;
+    var md = window.markdownit({
+        highlight: function (str, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return '<pre class="hljs"><span class="code-label">' +
+                        lang.toUpperCase() +
+                        '</span><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' +
+                        hljs.highlight(str, {
+                            language: lang,
+                            ignoreIllegals: true
+                        }).value +
+                        '</code></pre>';
+                } catch (__) { }
+            }
+            return '<pre class="hljs"><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+        }
+    });
+
+    var handlingContentDiv = document.getElementById('content');
+    var allContentDiv = document.getElementById('allcontent');
+
+    var currentWordIndex = 0;
+    var currentMarkdown = '';
+    var words = '';
+    var selectedHistoryIndex = [];
+    var k = 0;
+
+    function renderNextWord(currentMarkdown) {
+        var result = md.render(currentMarkdown);
+        handlingContentDiv.innerHTML = result;
+    }
+
+    var add_message = function (word) {
+        if (word !== "__end_speak__") {
+            words += word;
+            k += k;
+            if (k === 1 || k % 6 === 0) {
+                renderNextWord(words);
+            }
+        } else {
+            renderNextWord(words);
+            updatemaincontent();
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    }
+
+    function add_to_selected_msg(checkbox, type_flag) {
+        const isChecked = checkbox.checked;
+        const dataValue = checkbox.getAttribute('data-value');
+        const status = `${isChecked ? 'checked' : 'unchecked'}`;
+        setSelectedHistoryIndex(dataValue, status);
+        api_object.check_message(dataValue, status);
+    }
+
+    function setCheckboxesBasedOnSelectedHistory() {
+        selectedHistoryIndex.forEach(index => {
+            let checkbox = document.getElementById(`msg_checkbox_${index}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    function show_response_msg(words) {
+        words = words.replace(/_back_cjrok_slash_/g, "`");
+        words = words.replace(/_sla_cjrok_sh_/g, "\\");
+        renderNextWord(words);
+    }
+
+    function updatemaincontent() {
+        var contentDiv = document.getElementById('content');
+        var codeBlocks = contentDiv.querySelectorAll('pre code');
+        codeBlocks.forEach((block) => {
+            hljs.highlightBlock(block);
+        });
+
+        allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+        handlingContentDiv.innerHTML = "";
+        currentWordIndex = 0;
+        currentMarkdown = '';
+        words = '';
+        setCheckboxesBasedOnSelectedHistory();
+        k = 0;
+    }
+
+    function re_init() {
+        allContentDiv.innerHTML = "";
+        handlingContentDiv.innerHTML = "";
+        currentWordIndex = 0;
+        currentMarkdown = '';
+        words = '';
+        selectedHistoryIndex = [];
+    }
+
+    function open_attachment(file_path) {
+        api_object.file_clicked_message(file_path);
+    }
+
+    function toggleMenu(event, button) {
+        const menu = document.getElementById('menu');
+        const rect = button.getBoundingClientRect();
+        menu.style.top = `${rect.top + window.scrollY}px`;
+        menu.style.left = `${rect.right + window.scrollX}px`;
+        menu.typeElement = button.previousElementSibling;
+        menu.codeElement = button.nextElementSibling;
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        event.stopPropagation();
+    }
+
+    function copyContent(menuItem) {
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        const textarea = document.createElement('textarea');
+        document.body.appendChild(textarea);
+        textarea.value = text;
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast('内容已拷贝成功了！');
+    }
+
+    function editContent(menuItem) {
+        const code_type_el = menuItem.closest('#menu').typeElement;
+        const code_type = code_type_el.innerText;
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        api_object.edit_content_message(code_type, text);
+    }
+
+    function executeContent(menuItem) {
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        alert(text);
+    }
+
+    document.addEventListener('click', function () {
+        const menu = document.getElementById('menu');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+    });
+
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast show';
+        setTimeout(function () {
+            toast.className = toast.className.replace('show', '');
+        }, 1500);
+    }
+
+    function setSelectedHistoryIndex(i, check_status) {
+        if (check_status === "checked") {
+            addSelectedHistoryIndex(i);
+        } else {
+            removeSelectedHistoryIndex(i);
+        }
+    }
+
+    function addSelectedHistoryIndex(i) {
+        if (!selectedHistoryIndex.includes(i)) {
+            selectedHistoryIndex.push(i);
+            selectedHistoryIndex.sort((a, b) => a - b);
+        }
+    }
+
+    function removeSelectedHistoryIndex(i) {
+        const index = selectedHistoryIndex.indexOf(i);
+        if (index > -1) {
+            selectedHistoryIndex.splice(index, 1);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+            api_object = channel.objects.message_handler;
+            api_object.on_message.connect(add_message);
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        let target = event.target;
+        if (target.tagName.toLowerCase() === 'a') {
+            event.preventDefault();
+            api_object.open_link_message(target.href);
+            target.style.cursor = 'pointer';
+        }
+    });
+
+    // 添加悬浮菜单的显示和隐藏逻辑
+    const innermenu = document.getElementById('innermenu');
+    let hideMenuTimeout;
+
+    // 鼠标移入时显示菜单
+    function handleMouseOver(hoverDiv) {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        const rect = hoverDiv.getBoundingClientRect();
+        innermenu.style.top = `${rect.top + window.scrollY}px`;
+        innermenu.style.left = `${rect.right + window.scrollX}px`;
+        innermenu.style.display = 'block';
+        innermenu.setAttribute('data-value', hoverDiv.getAttribute('data-value')); // 设置菜单的data-value
+    }
+
+    // 鼠标移出 hoverDiv 时隐藏菜单，除非鼠标移入到菜单上
+    function handleMouseLeave(event) {
+        hideMenuTimeout = setTimeout(function () {
+            if (!innermenu.contains(event.relatedTarget)) {
+                innermenu.style.display = 'none';
+            }
+        }, 200); // 延迟200毫秒隐藏菜单
+    }
+
+    // 鼠标移出菜单时隐藏菜单
+    innermenu.addEventListener('mouseleave', function () {
+        hideMenuTimeout = setTimeout(function () {
+            innermenu.style.display = 'none';
+        }, 200); // 延迟200毫秒隐藏菜单
+    });
+
+    // 鼠标移入菜单时保持菜单显示
+    innermenu.addEventListener('mouseover', function () {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        innermenu.style.display = 'block';
+    });
+
+    // 用于动态创建工具提示
+    document.querySelectorAll('#innermenu li').forEach(function(item) {
+        const tooltipText = item.getAttribute('data-tooltip');
+        const tooltipElement = document.createElement('span');
+
+        tooltipElement.className = 'tooltiptext';
+        tooltipElement.innerText = tooltipText; // 设置工具提示内容
+
+        item.classList.add('tooltip'); // 添加工具提示类
+        item.appendChild(tooltipElement); // 将工具提示元素添加到列表项中
+    });
+
+    /**
+     * 获取 innermenu 的 data-value 值
+     */
+    function getcontent() {
+        const dataValue = innermenu.getAttribute('data-value');
+        console.log('Data Value:', dataValue);
+        // 可以在此处添加其他处理逻辑
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,2 @@
+# Install necessary libraries
+!pip install -qqq requests

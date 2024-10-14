@@ -1,0 +1,1 @@
+     python -m py_compile tmp_code.py

@@ -1,0 +1,13 @@
+self.conversation_pages.addWidget(dialog)
+print("goingaddconver2")
+# self.mainwindow.conversation_pages.setCurrentIndex(2) #setCurrentWidget
+self.note_editor_dialog = dialog
+note_editor = dialog.findChild(QMainWindow, "NoteEditorObject")
+note_editor.record_id = id
+note_editor.loadFile()
+# taskPage.new_task()
+# taskPage.messageEdit.setFocus()
+self.conversation_pages.setCurrentWidget(dialog)
+
+update by cjrokaa
+hellocjrbbb

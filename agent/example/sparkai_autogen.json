@@ -1,0 +1,13 @@
+[
+  {
+    "api_key": "552855c6e39a97ef210c624246e6ab4b&MzI2OTAxNTY2NGUzMDk1MDY4YzUyMjMz&2e32cc12",
+    "base_url": "wss://spark-api.xf-yun.com/v3.5/chat",
+    "model_client_cls": "SparkAI",
+    "model": "generalv3.5",
+    "stream": true,
+    "params": {
+      "request_timeout": 61
+    }
+  }
+]
+

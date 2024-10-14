@@ -1,0 +1,11 @@
+# 定义要比较的数字
+num1 = 9.11
+num2 = 9.8
+
+# 比较两个数字
+if num1 > num2:
+    print(f"{num1} 大于 {num2}")
+elif num1 < num2:
+    print(f"{num1} 小于 {num2}")
+else:
+    print(f"{num1} 等于 {num2}")

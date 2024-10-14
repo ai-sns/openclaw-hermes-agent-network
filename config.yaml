@@ -1,0 +1,10 @@
+api_key: rewrew990900
+custom_params: true
+max_tokens: 16
+model: gpt-4
+parameters: "{\n    \"model\": \"gpt-4\",\n    \"max_tokens\": 16,\n    \"temperature\"\
+  : 0.38,\n    \"top_p\": 0.5,\n    \"stream\": true,\n    \"n\": 1,\n    \"stop\"\
+  : null,\n    \"frequency_penalty\": 0.0,\n    \"presence_penalty\": 0.6\n}"
+stream: true
+temperature: 0.38
+top_p: 0.5

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Styled Checkbox</title>
+    <style>
+        /* 隐藏原始复选框 */
+        .styled-checkbox {
+            display: none;
+        }
+
+        /* 创建自定义复选框 */
+        .styled-checkbox + label {
+            position: relative;
+            display: inline-block;
+            padding-left: 25px; /* 调整左边的内边距 */
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        /* 创建复选框的外观 */
+        .styled-checkbox + label:before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 16px; /* 缩小宽度 */
+            height: 16px; /* 缩小高度 */
+            border: 2px solid #007bff;
+            border-radius: 4px;
+            background: #fff;
+            transition: background 0.3s;
+        }
+
+        /* 创建复选框的选中状态 */
+        .styled-checkbox:checked + label:before {
+            background: #007bff;
+            border-color: #007bff;
+        }
+
+        /* 创建复选框的选中状态的勾 */
+        .styled-checkbox:checked + label:after {
+            content: '';
+            position: absolute;
+            left: 5px; /* 调整左边距使勾居中 */
+            top: 2px; /* 调整顶部边距使勾居中 */
+            width: 4px; /* 缩小宽度 */
+            height: 8px; /* 缩小高度 */
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* 悬停状态 */
+        .styled-checkbox + label:hover:before {
+            border-color: #0056b3;
+        }
+
+        /* 焦点状态 */
+        .styled-checkbox:focus + label:before {
+            box-shadow: 0 0 5px #007bff;
+        }
+    </style>
+</head>
+<body>
+    <!-- 使用自定义复选框 -->
+    <input type="checkbox" id="msg_checkbox_01" class="styled-checkbox" data-value="001" onclick="add_to_selected_msg(this, 'question')">
+    <label for="msg_checkbox_01">用户信息</label>
+
+    <script>
+        function add_to_selected_msg(checkbox, type_flag) {
+            const isChecked = checkbox.checked;
+            const dataValue = checkbox.getAttribute('data-value');
+            const status = `${isChecked ? 'checked' : 'unchecked'}`;
+            setSelectedHistoryIndex(dataValue, status);
+            // 调用API方法
+            api_object.check_message(dataValue, status);
+        }
+
+        function setSelectedHistoryIndex(i, check_status) {
+            if (check_status === "checked") {
+                addSelectedHistoryIndex(i);
+            } else {
+                removeSelectedHistoryIndex(i);
+            }
+        }
+
+        function addSelectedHistoryIndex(i) {
+            if (!selectedHistoryIndex.includes(i)) {
+                selectedHistoryIndex.push(i);
+                selectedHistoryIndex.sort((a, b) => a - b);
+            }
+        }
+
+        function removeSelectedHistoryIndex(i) {
+            const index = selectedHistoryIndex.indexOf(i);
+            if (index > -1) {
+                selectedHistoryIndex.splice(index, 1);
+            }
+        }
+
+        let selectedHistoryIndex = []; // 初始化已选择的历史索引
+        var api_object = {
+            check_message: function(dataValue, status) {
+                console.log(`Data Value: ${dataValue}, Status: ${status}`);
+            }
+        };
+    </script>
+</body>
+</html>

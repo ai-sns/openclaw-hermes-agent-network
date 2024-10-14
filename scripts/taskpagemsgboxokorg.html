@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown and Syntax Highlighting</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei';
+            background-color: #f0f0f0;
+            padding: 20px;
+            font-size: 14pt;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        pre {
+            position: relative;
+            background: #f0f0f0;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            border: solid 1px gray;
+        }
+
+        .copy-button {
+            position: absolute;
+            /*top: 8px;原来的高度*/
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+
+        .code-label {
+            position: absolute;
+            /*top: 8px;原来的高度*/
+            top: 8px;
+            left: 8px;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            /*font-size: 12px;原来的大小*/
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            background-color: #555;
+            color: white;
+        }
+
+        td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+    </style>
+    <script src="qwebchannel.js"></script>
+</head>
+<body>
+<div id="allcontent"></div>
+<div id="content"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+<script>
+    var api_object = null;
+    var md = window.markdownit({
+        highlight: function (str, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return '<pre class="hljs"><span class="code-label">' +
+                        lang.toUpperCase() +
+                        '</span><button class="copy-button" onclick="copy_code()">拷贝</button><code>' +
+                        hljs.highlight(str, {
+                            language: lang,
+                            ignoreIllegals: true
+                        }).value +
+                        '</code></pre>';
+                } catch (__) {
+                }
+            }
+            return
+            '<pre class="hljs"><button class="copy-button" onclick="copy_code()">拷贝</button><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+        }
+    });
+
+    var handlingContentDiv = document.getElementById('content');
+    var allContentDiv = document.getElementById('allcontent');
+
+    var currentWordIndex = 0;
+    var currentMarkdown = '';
+    var words = '';
+    var selectedHistoryIndex=[];
+
+
+    function renderNextWord(currentMarkdown) {
+
+        var result = md.render(currentMarkdown);
+        handlingContentDiv.innerHTML = result;
+
+
+        // document.querySelectorAll('pre code').forEach((block) => {
+        //     hljs.highlightElement(block);
+        // });
+
+
+
+    }
+
+    var add_message = function(word) {
+                // alert(word);
+                if(word !="__end_speak__"){
+                    words += word;
+                    renderNextWord(words);
+                }
+                else{
+                    updatemaincontent();
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+
+            }
+
+    function add_to_selected_msg(checkbox,type_flag) {
+
+            const isChecked = checkbox.checked;
+            const dataValue = checkbox.getAttribute('data-value');
+            const status = `${isChecked ? 'checked' : 'unchecked'}`;
+            // alert(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
+            setSelectedHistoryIndex(dataValue,status);
+            // alert(selectedHistoryIndex);
+            // api_object.Web2PyQt5Value(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
+
+            api_object.check_message(dataValue,status);
+
+        }
+
+    function setCheckboxesBasedOnSelectedHistory() {
+        selectedHistoryIndex.forEach(index => {
+            let checkbox = document.getElementById(`msg_checkbox_${index}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    function show_response_msg(words) {
+            // alert(word)
+            // words += word;
+            // words=words.replace(/\\`/g, "\\\`");
+            // words=words.replace(/\\\\`/g, "\\`");
+            // var replacedStr = str.replace("\\\\`", "\\`");
+            words = words.replace(/_back_cjrok_slash_/g, "`");
+            words = words.replace(/_sla_cjrok_sh_/g, "\\");
+            renderNextWord(words);
+    }
+
+    function updatemaincontent(){
+
+            var contentDiv = document.getElementById('content');
+
+            // 使用querySelectorAll选择该div内的所有pre code元素
+            var codeBlocks = contentDiv.querySelectorAll('pre code');
+
+            // 遍历这些code元素并使用hljs.highlightBlock进行高亮
+            codeBlocks.forEach((block) => {
+                hljs.highlightBlock(block);
+            });
+
+
+            allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+            handlingContentDiv.innerHTML = "";
+            currentWordIndex = 0;
+            currentMarkdown = '';
+            words = '';
+            setCheckboxesBasedOnSelectedHistory();
+    }
+
+        function re_init(){
+
+            allContentDiv.innerHTML = "";
+            handlingContentDiv.innerHTML = "";
+            currentWordIndex = 0;
+            currentMarkdown = '';
+            words = '';
+            selectedHistoryIndex=[];
+
+    }
+
+    function open_attachment(file_path){
+        // alert(file_path);
+        api_object.file_clicked_message(file_path);
+    }
+
+    function copy_code() {
+
+                    var codeElement = this.nextElementSibling;
+                    var range = document.createRange();
+                    range.selectNode(codeElement);
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+
+                    try {
+                        document.execCommand('copy');
+                        window.getSelection().removeAllRanges();
+                        this.textContent = '已经拷贝';
+                        setTimeout(() => {
+                            this.textContent = '拷贝';
+                        }, 2000);
+                    } catch (err) {
+                        alert('无法拷贝代码：' + err);
+                    }
+                }
+
+    function setSelectedHistoryIndex(i, check_status){
+        console.log("setSelectedHistoryIndex i:", i);
+        console.log("setSelectedHistoryIndex status:", check_status);
+        if (check_status === "checked") {
+            addSelectedHistoryIndex(i);
+        } else {
+            removeSelectedHistoryIndex(i);
+        }
+
+    }
+
+   function addSelectedHistoryIndex(i){
+        // Check if 'i' is already in 'selectedHistoryIndex'
+        if (!selectedHistoryIndex.includes(i)) {
+            // Insert 'i' into 'selectedHistoryIndex' in sorted order
+            selectedHistoryIndex.push(i);
+            selectedHistoryIndex.sort((a, b) => a - b);
+        }
+    }
+
+    function removeSelectedHistoryIndex(i){
+        // Remove the first occurrence of 'i' from 'selectedHistoryIndex', if it exists
+        const index = selectedHistoryIndex.indexOf(i);
+        if (index > -1) {
+            selectedHistoryIndex.splice(index, 1);
+        }
+    }
+
+    function updatebuttonevent(){
+
+            document.querySelectorAll('.copy-button').forEach(button => {
+
+                button.addEventListener('click', function () {
+
+                    var codeElement = this.nextElementSibling;
+                    var range = document.createRange();
+                    range.selectNode(codeElement);
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+
+                    try {
+                        document.execCommand('copy');
+                        window.getSelection().removeAllRanges();
+                        this.textContent = '已经拷贝';
+                        setTimeout(() => {
+                            this.textContent = '拷贝';
+                        }, 2000);
+                    } catch (err) {
+                        alert('无法拷贝代码：' + err);
+                    }
+                });
+            });
+    }
+
+
+
+    // 获取需要监听的元素
+
+    // 创建一个 MutationObserver 实例并指定回调函数
+    const observer = new MutationObserver((mutationsList, observer) => {
+        for (const mutation of mutationsList) {
+            if (mutation.type === 'childList') {
+
+                updatebuttonevent();
+
+                // 停止观察
+                // observer.disconnect();
+            }
+        }
+    });
+
+    // 配置观察选项
+    const config = { childList: true, subtree: true };
+
+    // 开始观察 allContentDiv
+    observer.observe(allContentDiv, config);
+
+
+    document.addEventListener("DOMContentLoaded", function () {
+                new QWebChannel(qt.webChannelTransport, function (channel) {
+                    api_object = channel.objects.message_handler;
+                    // alert(api_object);
+                    // api_object.Web2PyQt5Value("cjr from web");
+                    // alert(api_object.thevalue);
+                    api_object.on_message.connect(add_message);
+
+                });
+            });
+
+
+
+document.addEventListener('click', function(event) {
+    let target = event.target; // 获取点击的元素
+
+    if (target.tagName.toLowerCase() === 'a') {
+        event.preventDefault();  // 防止默认的链接点击行为
+        console.log('Clicked on <a> tag');
+        api_object.open_link_message(target.href); // 获取连接地址
+        // window.open(target.href);
+        console.log('ID:', target.id);
+        console.log('Class:', target.className);
+
+
+        // 设置鼠标为手型
+        target.style.cursor = 'pointer';
+    }else{
+        console.log('tagName:', target.tagName);
+    }
+});
+
+document.addEventListener('mouseover', function(event) {
+    let target = event.target;
+
+    if (target.tagName.toLowerCase() === 'a') {
+        // 设置鼠标为手型
+        target.style.cursor = 'pointer';
+    }
+});
+
+    </script>
+</body>
+</html>

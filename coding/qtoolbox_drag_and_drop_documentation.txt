@@ -1,0 +1,15 @@
+# filename: qtoolbox_drag_and_drop_documentation.txt
+documentation = """
+# QToolBox Drag and Drop Functionality Documentation
+
+## Overview
+This document explains how to enable drag and drop functionality in a QToolBox using PyQt5. The example provided allows users to drag items from a QListWidget into a QToolBox.
+
+## Requirements
+- Python 3.x
+- PyQt5 installed
+
+## Implementation Steps
+
+1. **Import Required Modules**:
+   Begin by importing necessary modules from PyQt5.

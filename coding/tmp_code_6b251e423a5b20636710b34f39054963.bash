@@ -1,0 +1,1 @@
+pip install -qqq selenium webdriver-manager

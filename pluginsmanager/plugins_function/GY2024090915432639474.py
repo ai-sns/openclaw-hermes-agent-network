@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Canvas with Draggable Nodes and Zoom</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #c0c0c0;
+            border: 2px solid black;
+        }
+        svg {
+            cursor: grab;
+        }
+        .node {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <svg id="canvas" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#gridPattern)"></rect>
+            <defs>
+                <pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="10" cy="10" r="1" fill="black" />
+                </pattern>
+            </defs>
+            <line id="line" x1="50" y1="50" x2="200" y2="200" stroke="black" stroke-width="2" marker-end="url(#arrowhead)" />
+            <circle class="node" id="node1" cx="50" cy="50" r="10" fill="red" />
+            <circle class="node" id="node2" cx="200" cy="200" r="10" fill="blue" />
+        </svg>
+    </div>
+
+    <script>
+        // 获取 SVG 元素和节点
+        const svg = document.getElementById("canvas");
+        const node1 = document.getElementById("node1");
+        const node2 = document.getElementById("node2");
+        const line = document.getElementById("line");
+
+        let selectedNode = null;
+        let offsetX, offsetY;
+        let draggingCanvas = false;
+        let canvasOffsetX = 0, canvasOffsetY = 0;
+
+        // 使节点可拖动
+        function makeDraggable(node) {
+            node.addEventListener('mousedown', (e) => {
+                selectedNode = node;
+                offsetX = e.clientX - parseFloat(node.getAttribute('cx'));
+                offsetY = e.clientY - parseFloat(node.getAttribute('cy'));
+            });
+        }
+
+        function updateLine() {
+            line.setAttribute('x1', node1.getAttribute('cx'));
+            line.setAttribute('y1', node1.getAttribute('cy'));
+            line.setAttribute('x2', node2.getAttribute('cx'));
+            line.setAttribute('y2', node2.getAttribute('cy'));
+        }
+
+        svg.addEventListener('mousemove', (e) => {
+            if (selectedNode) {
+                selectedNode.setAttribute('cx', e.clientX - offsetX);
+                selectedNode.setAttribute('cy', e.clientY - offsetY);
+                updateLine();
+            } else if (draggingCanvas) {
+                const dx = e.clientX - offsetX;
+                const dy = e.clientY - offsetY;
+                svg.setAttribute('viewBox', `\$\{canvasOffsetX - dx} \$\{canvasOffsetY - dy} \$\{svg.clientWidth} \$\{svg.clientHeight}`);
+            }
+        });
+
+        svg.addEventListener('mouseup', () => {
+            selectedNode = null;
+            draggingCanvas = false;
+        });
+
+        svg.addEventListener('mousedown', (e) => {
+            if (e.target === svg) {
+                draggingCanvas = true;
+                offsetX = e.clientX;
+                offsetY = e.clientY;
+                const viewBox = svg.getAttribute('viewBox').split(' ');
+                canvasOffsetX = parseFloat(viewBox[0]);
+                canvasOffsetY = parseFloat(viewBox[1]);
+            }
+        });
+
+        svg.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const viewBox = svg.getAttribute('viewBox').split(' ');
+            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            const newWidth = parseFloat(viewBox[2]) * zoomFactor;
+            const newHeight = parseFloat(viewBox[3]) * zoomFactor;
+            svg.setAttribute('viewBox', `\$\{viewBox[0]} \$\{viewBox[1]} \$\{newWidth} \$\{newHeight}`);
+        });
+
+        makeDraggable(node1);
+        makeDraggable(node2);
+
+        // 用于设置初始 viewBox
+        svg.setAttribute('viewBox', `0 0 \$\{svg.clientWidth} \$\{svg.clientHeight}`);
+    </script>
+</body>
+</html>

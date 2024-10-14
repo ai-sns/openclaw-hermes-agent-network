@@ -1,0 +1,1 @@
+https://github.com/immanuelfodor/xmpp-muc-message-gateway

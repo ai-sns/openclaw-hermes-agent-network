@@ -1,0 +1,13 @@
+[
+  {
+    "qianfan_ak": "0eyhGegv4zjb5ZYNoLAGAOGo",
+    "qianfan_sk": "EAYpXlgVEglOA5tZ9O1LF8bCunwp6XeV",
+    "model_client_cls": "BaiduQianFanClient",
+    "model": "ERNIE-3.5-8K",
+    "stream": false,
+    "top_p": 0.8,
+    "temperature": 0.8,
+    "penalty_score": 1.0
+  }
+]
+

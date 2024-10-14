@@ -1,0 +1,14 @@
+graph TD
+    A[需求分析] --> B[设计阶段]
+    B --> C[开发阶段]
+    C --> D[测试阶段]
+    D --> E[部署阶段]
+    E --> F[维护阶段]
+    F --> A
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#fcf,stroke:#333,stroke-width:2px
+    style C fill:#cff,stroke:#333,stroke-width:2px
+    style D fill:#ccf,stroke:#333,stroke-width:2px
+    style E fill:#cfc,stroke:#333,stroke-width:2px
+    style F fill:#ffc,stroke:#333,stroke-width:2px

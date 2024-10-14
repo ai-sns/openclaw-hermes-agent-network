@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown and Syntax Highlighting</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei';
+            background-color: #f0f0f0;
+            padding: 20px;
+            font-size: 14pt;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        pre {
+            position: relative;
+            background: #f0f0f0;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            border: solid 1px gray;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11pt;
+            font-family: "Microsoft YaHei";
+        }
+
+        .code-label {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            background-color: #555;
+            color: white;
+        }
+
+        td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        /* 菜单样式 */
+        .menu {
+            border: 1px solid #ccc;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            border-radius: 8px;
+            padding: 5px;
+            font-size: 10pt;
+            font-family: 'Microsoft YaHei';
+        }
+
+.menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;  /* 使菜单项横向排列 */
+}
+
+.menu li {
+    padding: 5px;
+    cursor: pointer;
+    font-size: 10pt;
+    font-family: "Microsoft YaHei";
+    display: flex;
+    align-items: center;
+    margin-right: 10px;  /* 添加右边距 */
+}
+
+
+        .menu li:hover {
+            background: #f0f0f0;
+        }
+
+        .menu li img {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+        }
+
+        /* Toast 样式 */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1001;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+            opacity: 0;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+    </style>
+    <script src="qwebchannel.js"></script>
+</head>
+<body>
+<div id="allcontent">
+    <!-- 用户信息容器 -->
+    <div id="hover-div" style='display: inline'>
+        <strong><em><span style='color: darkred; font-size: 14px;'>用户: </span>
+        <span style='color: #c0c0c0; font-size: 14px;'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>
+        <input type="checkbox" id="msg_checkbox_{page_index}" data-value="{page_index}"
+               onclick="add_to_selected_msg(this, 'question')">
+    </div>
+    <br>cjrok
+</div>
+<div id="content"></div>
+<!-- 菜单模板 -->
+<div id="menu" class="menu" style="display: none; position: absolute;">
+    <ul>
+        <li onclick="copyContent(this)"><img src="copy-icon.png" alt="拷贝图标">拷贝</li>
+        <li onclick="editContent(this)"><img src="edit-icon.png" alt="编辑图标">编辑</li>
+        <li onclick="executeContent(this)"><img src="run-icon.png" alt="运行图标">运行</li>
+    </ul>
+</div>
+<!-- Toast 消息框 -->
+<div id="toast" class="toast">内容已拷贝</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+<script>
+    var api_object = null;
+    var md = window.markdownit({
+        highlight: function (str, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return '<pre class="hljs"><span class="code-label">' +
+                        lang.toUpperCase() +
+                        '</span><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' +
+                        hljs.highlight(str, {
+                            language: lang,
+                            ignoreIllegals: true
+                        }).value +
+                        '</code></pre>';
+                } catch (__) { }
+            }
+            return '<pre class="hljs"><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+        }
+    });
+
+    var handlingContentDiv = document.getElementById('content');
+    var allContentDiv = document.getElementById('allcontent');
+
+    var currentWordIndex = 0;
+    var currentMarkdown = '';
+    var words = '';
+    var selectedHistoryIndex = [];
+    var k = 0;
+
+    function renderNextWord(currentMarkdown) {
+        var result = md.render(currentMarkdown);
+        handlingContentDiv.innerHTML = result;
+    }
+
+    var add_message = function (word) {
+        if (word !== "__end_speak__") {
+            words += word;
+            k += k;
+            if (k === 1 || k % 6 === 0) {
+                renderNextWord(words);
+            }
+        } else {
+            renderNextWord(words);
+            updatemaincontent();
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    }
+
+    function add_to_selected_msg(checkbox, type_flag) {
+        const isChecked = checkbox.checked;
+        const dataValue = checkbox.getAttribute('data-value');
+        const status = `${isChecked ? 'checked' : 'unchecked'}`;
+        setSelectedHistoryIndex(dataValue, status);
+        api_object.check_message(dataValue, status);
+    }
+
+    function setCheckboxesBasedOnSelectedHistory() {
+        selectedHistoryIndex.forEach(index => {
+            let checkbox = document.getElementById(`msg_checkbox_${index}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    function show_response_msg(words) {
+        words = words.replace(/_back_cjrok_slash_/g, "`");
+        words = words.replace(/_sla_cjrok_sh_/g, "\\");
+        renderNextWord(words);
+    }
+
+    function updatemaincontent() {
+        var contentDiv = document.getElementById('content');
+        var codeBlocks = contentDiv.querySelectorAll('pre code');
+        codeBlocks.forEach((block) => {
+            hljs.highlightBlock(block);
+        });
+
+        allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+        handlingContentDiv.innerHTML = "";
+        currentWordIndex = 0;
+        currentMarkdown = '';
+        words = '';
+        setCheckboxesBasedOnSelectedHistory();
+        k = 0;
+    }
+
+    function re_init() {
+        allContentDiv.innerHTML = "";
+        handlingContentDiv.innerHTML = "";
+        currentWordIndex = 0;
+        currentMarkdown = '';
+        words = '';
+        selectedHistoryIndex = [];
+    }
+
+    function open_attachment(file_path) {
+        api_object.file_clicked_message(file_path);
+    }
+
+    function toggleMenu(event, button) {
+        const menu = document.getElementById('menu');
+        const rect = button.getBoundingClientRect();
+        menu.style.top = `${rect.top + window.scrollY}px`;
+        menu.style.left = `${rect.right + window.scrollX}px`;
+        menu.typeElement = button.previousElementSibling;
+        menu.codeElement = button.nextElementSibling;
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        event.stopPropagation();
+    }
+
+    function copyContent(menuItem) {
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        const textarea = document.createElement('textarea');
+        document.body.appendChild(textarea);
+        textarea.value = text;
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        showToast('内容已拷贝成功了！');
+    }
+
+    function editContent(menuItem) {
+        const code_type_el = menuItem.closest('#menu').typeElement;
+        const code_type = code_type_el.innerText;
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        api_object.edit_content_message(code_type, text);
+    }
+
+    function executeContent(menuItem) {
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        alert(text);
+    }
+
+    document.addEventListener('click', function () {
+        const menu = document.getElementById('menu');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+    });
+
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast show';
+        setTimeout(function () {
+            toast.className = toast.className.replace('show', '');
+        }, 1500);
+    }
+
+    function setSelectedHistoryIndex(i, check_status) {
+        if (check_status === "checked") {
+            addSelectedHistoryIndex(i);
+        } else {
+            removeSelectedHistoryIndex(i);
+        }
+    }
+
+    function addSelectedHistoryIndex(i) {
+        if (!selectedHistoryIndex.includes(i)) {
+            selectedHistoryIndex.push(i);
+            selectedHistoryIndex.sort((a, b) => a - b);
+        }
+    }
+
+    function removeSelectedHistoryIndex(i) {
+        const index = selectedHistoryIndex.indexOf(i);
+        if (index > -1) {
+            selectedHistoryIndex.splice(index, 1);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        new QWebChannel(qt.webChannelTransport, function (channel) {
+            api_object = channel.objects.message_handler;
+            api_object.on_message.connect(add_message);
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        let target = event.target;
+        if (target.tagName.toLowerCase() === 'a') {
+            event.preventDefault();
+            api_object.open_link_message(target.href);
+            target.style.cursor = 'pointer';
+        }
+    });
+
+        // 添加悬浮菜单的显示和隐藏逻辑
+    const hoverDiv = document.getElementById('hover-div');
+    const menu = document.getElementById('menu');
+    let hideMenuTimeout;
+
+    // 鼠标移入时显示菜单
+    hoverDiv.addEventListener('mouseover', function () {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        const rect = hoverDiv.getBoundingClientRect();
+        menu.style.top = `${rect.top + window.scrollY}px`;
+        menu.style.left = `${rect.right + window.scrollX}px`;
+        menu.style.display = 'block';
+    });
+
+    // 鼠标移出 hoverDiv 时隐藏菜单，除非鼠标移入到菜单上
+    hoverDiv.addEventListener('mouseleave', function (event) {
+        hideMenuTimeout = setTimeout(function () {
+            if (!menu.contains(event.relatedTarget)) {
+                menu.style.display = 'none';
+            }
+        }, 200); // 延迟200毫秒隐藏菜单
+    });
+
+    // 鼠标移出菜单时隐藏菜单
+    menu.addEventListener('mouseleave', function () {
+        hideMenuTimeout = setTimeout(function () {
+            menu.style.display = 'none';
+        }, 200); // 延迟200毫秒隐藏菜单
+    });
+
+    // 鼠标移入菜单时保持菜单显示
+    menu.addEventListener('mouseover', function () {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        menu.style.display = 'block';
+    });
+
+</script>
+</body>
+</html>

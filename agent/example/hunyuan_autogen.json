@@ -1,0 +1,12 @@
+[
+  {
+    "model_client_cls": "HunYuanClient",
+    "secret_id": "AKIDsz7ObuAWo298yw3nW2aDvfN8630440Ro",
+    "secret_key": "UsFbJpPw549LCtjVONKITl1462tbCtY9",
+    "model": "hunyuan-pro",
+    "stream": true,
+    "top_p": 0.8,
+    "temperature": 0.8
+  }
+]
+

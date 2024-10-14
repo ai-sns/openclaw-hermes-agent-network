@@ -1,0 +1,2 @@
+RPA桌面自动化
+OthersideAI/self-operating-computer: A framework to enable multimodal models to operate a computer. (github.com)

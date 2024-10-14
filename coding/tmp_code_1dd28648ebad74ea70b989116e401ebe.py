@@ -1,0 +1,1 @@
+tool_call(amount_rmb=5)

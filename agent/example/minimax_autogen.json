@@ -1,0 +1,11 @@
+[
+  {
+    "model_client_cls": "MiniMaxClient",
+    "api_key": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiJQaG90b24iLCJVc2VyTmFtZSI6IlBob3RvbiIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxNzkzMjY2NTE2OTU5OTcwMjcxIiwiUGhvbmUiOiIxMzc2NDMwMzA5MiIsIkdyb3VwSUQiOiIxNzkzMjY2NTE2OTUxNTgxNjYzIiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjQtMDYtMjEgMTc6MTc6NDYiLCJpc3MiOiJtaW5pbWF4In0.y5-dSRBh3_9Rygq7PNDbKyguuZPDA6FrBNstXagWqsVEv2L4rsJu0Hwt8roZTfHfHV8zXaywnNrIwBukM7dFgvsgI5Vxg3g-0RtQxcwef3QNiffc0oTsjCwiOkVhSqyAL0AHUDMP-VxIhKHCCoU2DKZBKVJQtC1OgjrvqasO19DQ9hXHDXk2sTlrGvctnjqU5-T98BNBHGb5ej907ReT0hGCbsQZafguujx0xFTU683rKDMlzQOHaB6kVaB40RbJynshcEeI7TCY7ocYDvOSIqh5mz41N61LS7jv_ljRlYgis6o0D2P9ZFCUECfZrQHY-4YAOl3-GhN4n_eDWT8Yrg",
+    "model": "abab5.5s-chat",
+    "stream": false,
+    "top_p": 0.8,
+    "temperature": 0.8
+  }
+]
+

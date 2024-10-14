@@ -1,0 +1,62 @@
+动态加载插件
+# main.py
+import sys
+import importlib
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QTabWidget
+
+
+class MainApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.plugin_module = None  # 初始化插件模块为 None
+        self.initUI()
+
+    def initUI(self):
+        layout = QVBoxLayout()
+
+        # 创建标签页控件
+        self.tabs = QTabWidget()
+        layout.addWidget(self.tabs)
+
+        # 创建加载插件的按钮
+        self.button = QPushButton("Load Plugin")
+        self.button.clicked.connect(self.load_plugin)
+        layout.addWidget(self.button)
+
+        self.setLayout(layout)
+        self.setWindowTitle("Plugin Loader with Tabs")
+        self.setGeometry(100, 100, 400, 300)
+
+    def load_plugin(self):
+        # plugin_name = "my_plugin"  # 插件模块名
+        plugin_name = "code_editor"  # 插件模块名
+        try:
+            # 动态加载插件
+            if self.plugin_module:
+                importlib.reload(self.plugin_module)  # 重新加载模块
+            else:
+                self.plugin_module = importlib.import_module(f'plugins.{plugin_name}')
+
+            # 获取插件类
+            plugin_class = getattr(self.plugin_module, 'CodeEditor')
+            plugin_instance = plugin_class()  # 创建插件实例
+
+            # 创建插件的控件
+            plugin_widget = plugin_instance.create_widget()
+
+            # 添加新的标签页
+            # tab_index = self.tabs.addTab(plugin_widget, f"Plugin {self.tabs.count() + 1}")
+            tab_index = self.tabs.addTab(plugin_widget, f"Plugin {self.tabs.count() + 1}")
+            #tab_index = self.tabs.insertTab(0,plugin_widget, f"Plugin {self.tabs.count() + 1}")
+
+            # 自动切换到新添加的标签页
+            self.tabs.setCurrentIndex(tab_index)
+        except Exception as e:
+            print(f"Error loading plugin: {e}")
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    ex = MainApp()
+    ex.show()
+    sys.exit(app.exec_())

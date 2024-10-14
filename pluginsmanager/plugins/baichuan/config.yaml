@@ -1,0 +1,17 @@
+api_key: sk-b9911fafe7f5e2d96dc6be3f38a7710e
+custom_params: false
+description: "\u6A21\u578B\u8C03\u7528 Baichuan4\t32k\t00:00 ~ 24:00\t0.1\u5143/\u5343\
+  tokens\t\u5305\u542B\u8F93\u5165\u548C\u8F93\u51FA\n\u6A21\u578B\u8C03\u7528 Baichuan3-Turbo\t\
+  32k\t00:00 ~ 24:00\t0.012\u5143/\u5343tokens\t\u5305\u542B\u8F93\u5165\u548C\u8F93\
+  \u51FA\n\u6A21\u578B\u8C03\u7528 Baichuan3-Turbo-128k\t128k\t00:00 ~ 24:00\t0.024\u5143\
+  /\u5343tokens\t\u5305\u542B\u8F93\u5165\u548C\u8F93\u51FA\n\u6A21\u578B\u8C03\u7528\
+  \ Baichuan2-Turbo\t32k\t00:00 ~ 24:00\t0.008\u5143/\u5343tokens\t\u5305\u542B\u8F93\
+  \u5165\u548C\u8F93\u51FA\n\u6A21\u578B\u8C03\u7528 Baichuan2-Turbo-192k\t192k\t\
+  00:00 ~ 24:00\t0.016\u5143/\u5343tokens\t\u5305\u542B\u8F93\u5165\u548C\u8F93\u51FA"
+max_tokens: 4000
+model: Baichuan2-Turbo
+parameters: ''
+stream: true
+temperature: 0.8
+top_p: 0.7
+url: https://api.baichuan-ai.com/v1/chat/completions

@@ -1,0 +1,19 @@
+company: 'moon shot'
+company_abbr: 'kimi'
+name: 'Kimi连接器'
+alias: 'Kimi'
+plugin_type: 'LLM_Connector'
+creator: 'Photon'
+runtime:
+  main: 'application.py'
+  tests:
+    - 'tests/core.py'
+repository: 'https://github.com/Photon/plugin-connector-Kimi'
+plugin_directory: 'Kimi_connector'
+description: '用来连接Kimi模型'
+version: '1.0.0'
+requirements:
+  - name: 'PyYAML'
+    version: '5.3.1'
+  - name: 'pytz'
+    version: '2019.3'

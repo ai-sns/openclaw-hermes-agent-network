@@ -1,0 +1,40 @@
+/*
+ Navicat Premium Data Transfer
+
+ Source Server         : ai-sns
+ Source Server Type    : SQLite
+ Source Server Version : 3017000
+ Source Schema         : main
+
+ Target Server Type    : SQLite
+ Target Server Version : 3017000
+ File Encoding         : 65001
+
+ Date: 01/09/2024 12:41:03
+*/
+
+PRAGMA foreign_keys = false;
+
+-- ----------------------------
+-- Table structure for workflow_mng
+-- ----------------------------
+DROP TABLE IF EXISTS "workflow_mng";
+CREATE TABLE "workflow_mng" (
+  "id" INTEGER(200) NOT NULL,
+  "workflow_id" VARCHAR(100),
+  "title" VARCHAR(100),
+  "name" VARCHAR(100),
+  "file_path" VARCHAR(200),
+  "requirement" text,
+  "parameter" text,
+  "description" text,
+  "workflow_type" VARCHAR(100),
+  "workflow_event" VARCHAR(100),
+  "detail" TEXT,
+  "creator" VARCHAR(100),
+  "is_delete" BOOLEAN,
+  "create_time" DATETIME,
+  PRIMARY KEY ("id")
+);
+
+PRAGMA foreign_keys = true;

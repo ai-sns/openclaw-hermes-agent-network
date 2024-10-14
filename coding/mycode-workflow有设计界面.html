@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Canvas with Toolbar</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background-color: #f0f0f0;
+            border: 2px solid black;
+        }
+        #toolbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background-color: #333;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            z-index: 10;
+        }
+        #toolbar button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            outline: none;
+        }
+        #toolbar button img {
+            width: 32px;
+            height: 32px;
+        }
+        svg {
+            cursor: grab;
+        }
+        .node {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <div id="toolbar">
+            <button id="zoom-in"><img src="https://img.icons8.com/ios-filled/50/ffffff/zoom-in.png" alt="Zoom In" /></button>
+            <button id="zoom-out"><img src="https://img.icons8.com/ios-filled/50/ffffff/zoom-out.png" alt="Zoom Out" /></button>
+            <button id="add-node"><img src="https://img.icons8.com/ios-filled/50/ffffff/add.png" alt="Add Node" /></button>
+            <button id="run"><img src="https://img.icons8.com/ios-filled/50/ffffff/play.png" alt="Run" /></button>
+            <button id="navigate"><img src="https://img.icons8.com/ios-filled/50/ffffff/navigation.png" alt="Navigate" /></button>
+        </div>
+        <svg id="canvas" width="90%" height="90%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+                <!-- 定义一个大尺寸的网格 -->
+                <pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+                    <circle cx="10" cy="10" r="1" fill="black" />
+                </pattern>
+            </defs>
+            <!-- 使用一个大尺寸的矩形来覆盖整个画布 -->
+            <rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#gridPattern)"></rect>
+            <line id="line" x1="50" y1="50" x2="200" y2="200" stroke="black" stroke-width="2" marker-end="url(#arrowhead)" />
+            <circle class="node" id="node1" cx="50" cy="50" r="10" fill="red" />
+            <circle class="node" id="node2" cx="200" cy="200" r="10" fill="blue" />
+        </svg>
+    </div>
+
+    <script>
+        const svg = document.getElementById("canvas");
+        const node1 = document.getElementById("node1");
+        const node2 = document.getElementById("node2");
+        const line = document.getElementById("line");
+        const zoomInButton = document.getElementById("zoom-in");
+        const zoomOutButton = document.getElementById("zoom-out");
+        const addNodeButton = document.getElementById("add-node");
+        const runButton = document.getElementById("run");
+        const navigateButton = document.getElementById("navigate");
+
+        let selectedNode = null;
+        let offsetX, offsetY;
+        let draggingCanvas = false;
+        let viewBox = [0, 0, svg.clientWidth, svg.clientHeight];
+        let nodeCount = 3; // 初始节点计数
+
+        // 使节点可拖动
+        function makeDraggable(node) {
+            node.addEventListener('mousedown', (e) => {
+                selectedNode = node;
+                offsetX = e.clientX - parseFloat(node.getAttribute('cx'));
+                offsetY = e.clientY - parseFloat(node.getAttribute('cy'));
+                e.stopPropagation();
+            });
+        }
+
+        function updateLine() {
+            line.setAttribute('x1', node1.getAttribute('cx'));
+            line.setAttribute('y1', node1.getAttribute('cy'));
+            line.setAttribute('x2', node2.getAttribute('cx'));
+            line.setAttribute('y2', node2.getAttribute('cy'));
+        }
+
+        svg.addEventListener('mousemove', (e) => {
+            if (selectedNode) {
+                selectedNode.setAttribute('cx', e.clientX - offsetX);
+                selectedNode.setAttribute('cy', e.clientY - offsetY);
+                updateLine();
+            } else if (draggingCanvas) {
+                const dx = e.clientX - offsetX;
+                const dy = e.clientY - offsetY;
+                viewBox[0] -= dx / 5;
+                viewBox[1] -= dy / 5;
+                svg.setAttribute('viewBox', viewBox.join(" "));
+                offsetX = e.clientX;
+                offsetY = e.clientY;
+            }
+        });
+
+        svg.addEventListener('mouseup', () => {
+            selectedNode = null;
+            draggingCanvas = false;
+        });
+
+        svg.addEventListener('mousedown', (e) => {
+            if (e.target === svg || e.target.tagName === 'rect') {
+                draggingCanvas = true;
+                offsetX = e.clientX;
+                offsetY = e.clientY;
+            }
+        });
+
+        svg.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            viewBox[2] *= zoomFactor;
+            viewBox[3] *= zoomFactor;
+            svg.setAttribute('viewBox', viewBox.join(" "));
+        });
+
+        zoomInButton.addEventListener('click', () => {
+            viewBox[2] *= 0.9;
+            viewBox[3] *= 0.9;
+            svg.setAttribute('viewBox', viewBox.join(" "));
+        });
+
+        zoomOutButton.addEventListener('click', () => {
+            viewBox[2] *= 1.1;
+            viewBox[3] *= 1.1;
+            svg.setAttribute('viewBox', viewBox.join(" "));
+        });
+
+        addNodeButton.addEventListener('click', () => {
+            const newNode = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            newNode.setAttribute("class", "node");
+            newNode.setAttribute("cx", 150);
+            newNode.setAttribute("cy", 150);
+            newNode.setAttribute("r", 10);
+            newNode.setAttribute("fill", "green");
+            newNode.setAttribute("id", "node" + nodeCount++);
+            svg.appendChild(newNode);
+            makeDraggable(newNode);
+        });
+
+        runButton.addEventListener('click', () => {
+            alert("Run functionality is not implemented yet.");
+        });
+
+        navigateButton.addEventListener('click', () => {
+            fitToViewBox();
+        });
+
+        function fitToViewBox() {
+            const elements = svg.querySelectorAll('circle, line');
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+            elements.forEach(el => {
+                const bbox = el.getBBox();
+                minX = Math.min(minX, bbox.x);
+                minY = Math.min(minY, bbox.y);
+                maxX = Math.max(maxX, bbox.x + bbox.width);
+                maxY = Math.max(maxY, bbox.y + bbox.height);
+            });
+
+            const padding = 20;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            viewBox = [minX, minY, width, height];
+            svg.setAttribute('viewBox', viewBox.join(" "));
+        }
+
+        makeDraggable(node1);
+        makeDraggable(node2);
+
+        svg.setAttribute('viewBox', viewBox.join(" "));
+    </script>
+</body>
+</html>

@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced SVG Canvas with Toolbar</title>
+    <style>
+        /* 全局样式 */
+        body {
+            display: flex;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background-color: #eaeaea;
+        }
+
+        /* 画布容器样式 */
+        #canvas-container {
+            position: relative;
+            width: calc(100vw - 220px);
+            height: 100vh;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 工具栏样式 */
+        #toolbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 50px;
+            background-color: rgba(51, 51, 51, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            z-index: 10;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        #toolbar button {
+            background: #999999;
+            border: none;
+            border-radius: 5px;
+            padding: 8px;
+            cursor: pointer;
+            outline: none;
+            transition: background-color 0.3s, transform 0.3s;
+            margin: 0 5px;
+        }
+
+        #toolbar button:hover {
+            background: #777;
+            transform: scale(1.05);
+        }
+
+        #toolbar button img {
+            width: 24px;
+            height: 24px;
+        }
+
+        /* SVG样式 */
+        svg {
+            cursor: grab;
+            user-select: none;
+        }
+
+        .node {
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        /* 节点矩形样式，增加圆角和阴影 */
+.node-rect {
+    fill: #ffffff;
+    stroke: #c0c0c0;
+    stroke-width: 1;
+    rx: 15;
+    ry: 15;
+    filter: drop-shadow(2px 2px 5px rgba(0, 0, 0, 0.2));
+    transition: fill 0.3s;
+}
+
+
+        .node-rect:hover {
+            fill: #f0f0f0;
+        }
+
+        .node-text {
+            fill: #333;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .connector {
+            fill: #fff;
+            stroke: #000;
+            stroke-width: 2;
+            cursor: crosshair;
+            transition: fill 0.3s;
+        }
+
+        .connector:hover {
+            fill: #f00; /* Highlight connector on hover */
+        }
+
+        .connector-text {
+            fill: #000;
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
+            dominant-baseline: middle;
+        }
+
+        /* 配置面板样式 */
+        .config-panel {
+            width: 220px;
+            padding: 20px;
+            border-left: 1px solid #ccc;
+            background-color: #f9f9f9;
+            height: 100vh;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+
+        .config-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+
+        .config-panel label {
+            display: block;
+            margin: 10px 0 5px;
+            color: #555;
+        }
+
+        .config-panel input,
+        .config-panel textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: border-color 0.3s;
+        }
+
+        .config-panel input:focus,
+        .config-panel textarea:focus {
+            border-color: #69f;
+            outline: none;
+        }
+
+        .config-panel button {
+            background: #69f;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .config-panel button:hover {
+            background: #5ab;
+        }
+
+        /* 右键菜单样式 */
+        .context-menu {
+            position: absolute;
+            display: none;
+            background: white;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            border-radius: 5px;
+        }
+
+        .context-menu-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .context-menu-item:hover {
+            background: #eee;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas-container">
+        <div id="toolbar">
+            <button id="zoom-in"><img src="https://img.icons8.com/ios-filled/50/ffffff/zoom-in.png" alt="Zoom In" /></button>
+            <button id="zoom-out"><img src="https://img.icons8.com/ios-filled/50/ffffff/zoom-out.png" alt="Zoom Out" /></button>
+            <button id="add-node"><img src="https://img.icons8.com/ios-filled/50/ffffff/add.png" alt="Add Node" /></button>
+            <button id="run"><img src="https://img.icons8.com/ios-filled/50/ffffff/play.png" alt="Run" /></button>
+            <button id="navigate"><img src="https://img.icons8.com/ios-filled/50/ffffff/navigation.png" alt="Navigate" /></button>
+        </div>
+        <svg id="canvas" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" />
+                </marker>
+<pattern id="gridPattern" width="20" height="20" patternUnits="userSpaceOnUse">
+    <circle cx="10" cy="10" r="1" fill="#ccc" /> <!-- 修改这里的颜色值 -->
+</pattern>
+
+            </defs>
+            <rect x="-5000" y="-5000" width="10000" height="10000" fill="url(#gridPattern)"></rect>
+        </svg>
+    </div>
+    <div id="configPanel" class="config-panel"></div>
+    <div id="contextMenu" class="context-menu">
+        <div class="context-menu-item" id="editItem">编辑</div>
+        <div class="context-menu-item" id="deleteItem">删除</div>
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const svg = document.getElementById("canvas");
+        const configPanel = document.getElementById("configPanel");
+        const contextMenu = document.getElementById("contextMenu");
+        const editItem = document.getElementById("editItem");
+        const deleteItem = document.getElementById("deleteItem");
+
+        const zoomInButton = document.getElementById("zoom-in");
+        const zoomOutButton = document.getElementById("zoom-out");
+        const addNodeButton = document.getElementById("add-node");
+        const runButton = document.getElementById("run");
+        const navigateButton = document.getElementById("navigate");
+
+        let selectedNode = null;
+        let offsetX, offsetY;
+        let draggingCanvas = false;
+        let viewBox = [0, 0, svg.clientWidth, svg.clientHeight];
+        let nodeCount = 1;
+        let nodes = [];
+        let lines = [];
+        let draggingConnector = null;
+        let currentLine = null;
+        let contextTarget = null;
+
+        // 使节点可拖动
+        function makeDraggable(node) {
+            node.addEventListener('mousedown', (e) => {
+                if (!draggingConnector) {
+                    selectedNode = node;
+                    const rect = selectedNode.querySelector('.node-rect');
+                    offsetX = e.clientX - parseInt(rect.getAttribute('x'));
+                    offsetY = e.clientY - parseInt(rect.getAttribute('y'));
+                    svg.addEventListener('mousemove', onNodeDrag);
+                }
+                e.stopPropagation();
+            });
+        }
+
+        // 更新连接线的路径
+        function updateLines() {
+            lines.forEach(line => {
+                const conn1 = line.connector1;
+                const conn2 = line.connector2;
+
+                const x1 = parseFloat(conn1.getAttribute('cx'));
+                const y1 = parseFloat(conn1.getAttribute('cy'));
+                const x2 = parseFloat(conn2.getAttribute('cx'));
+                const y2 = parseFloat(conn2.getAttribute('cy'));
+
+                const pathData = `M ${x1},${y1} C ${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+                line.pathElement.setAttribute('d', pathData);
+            });
+        }
+
+        // 鼠标按下事件处理
+        function onMouseDownbak(event) {
+            if (event.target.classList.contains('connector')) {
+                draggingConnector = event.target;
+                const cursorPoint = getMousePosition(event);
+                currentLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                currentLine.setAttribute('stroke', 'black');
+                currentLine.setAttribute('stroke-width', '2');
+                currentLine.setAttribute('fill', 'none');
+                currentLine.setAttribute('marker-end', 'url(#arrowhead)');
+                svg.appendChild(currentLine);
+                updateCurrentLine(cursorPoint.x, cursorPoint.y);
+                // svg.addEventListener('mousemove', onConnectorDrag);
+                svg.addEventListener('mousemove', onMouseMove);
+                event.stopPropagation();
+            } else if (event.target.closest('.node')) {
+                selectedNode = event.target.closest('.node');
+                const rect = selectedNode.querySelector('.node-rect');
+                offsetX = event.clientX - parseInt(rect.getAttribute('x'));
+                offsetY = event.clientY - parseInt(rect.getAttribute('y'));
+                svg.addEventListener('mousemove', onNodeDrag);
+                event.stopPropagation();
+            } else if (event.target === svg || event.target.tagName === 'rect') {
+                draggingCanvas = true;
+                offsetX = event.clientX;
+                offsetY = event.clientY;
+                svg.addEventListener('mousemove', onCanvasDrag);
+            }
+        }
+
+        function onMouseDown(event) {
+
+            if (event.target.closest('.node') && !event.target.classList.contains('connector')) {
+                // alert("jiedian")
+                selectedNode = event.target.closest('.node');
+                const rect = selectedNode.querySelector('.node-rect');
+                offsetX = event.clientX - parseInt(rect.getAttribute('x'));
+                offsetY = event.clientY - parseInt(rect.getAttribute('y'));
+                svg.addEventListener('mousemove', onMouseMove);
+            } else if (event.target.classList.contains('connector')) {
+                // alert("jiedian")
+                draggingConnector = event.target;
+                const cursorPoint = getMousePosition(event);
+                currentLine = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                currentLine.setAttribute('stroke', 'black');
+                currentLine.setAttribute('stroke-width', '2');
+                currentLine.setAttribute('fill', 'none');
+                currentLine.setAttribute('marker-end', 'url(#arrowhead)');
+                svg.appendChild(currentLine);
+                updateCurrentLine(cursorPoint.x, cursorPoint.y);
+                svg.addEventListener('mousemove', onConnectorDrag);
+            }
+            event.stopPropagation();
+        }
+
+
+
+                // 鼠标移动事件处理
+        function onMouseMove(event) {
+            if (selectedNode) {
+                const rect = selectedNode.querySelector('.node-rect');
+                const newX = event.clientX - offsetX;
+                const newY = event.clientY - offsetY;
+                rect.setAttribute('x', newX);
+                rect.setAttribute('y', newY);
+
+                // 更新节点内的元素位置
+                const image = selectedNode.querySelector('image');
+                const text = selectedNode.querySelector('text');
+                const input = selectedNode.querySelectorAll('foreignObject');
+                const connectors = selectedNode.querySelectorAll('circle');
+
+                image.setAttribute('x', newX + 5);
+                image.setAttribute('y', newY + 5);
+
+                text.setAttribute('x', newX + 30);
+                text.setAttribute('y', newY + 20);
+
+                input[0].setAttribute('x', newX + 5);
+                input[0].setAttribute('y', newY + 30);
+
+                input[1].setAttribute('x', newX + 5);
+                input[1].setAttribute('y', newY + 60);
+
+                connectors[0].setAttribute('cx', newX + 50);
+                connectors[0].setAttribute('cy', newY);
+                connectors[1].setAttribute('cx', newX + 100);
+                connectors[1].setAttribute('cy', newY + 50);
+                connectors[2].setAttribute('cx', newX + 50);
+                connectors[2].setAttribute('cy', newY + 100);
+                connectors[3].setAttribute('cx', newX);
+                connectors[3].setAttribute('cy', newY + 50);
+
+                updateLines();
+            }
+        }
+
+
+
+        // 节点拖动事件处理
+        function onNodeDrag(event) {
+            if (selectedNode && !draggingConnector) {
+                const rect = selectedNode.querySelector('.node-rect');
+                const newX = event.clientX - offsetX;
+                const newY = event.clientY - offsetY;
+                rect.setAttribute('x', newX);
+                rect.setAttribute('y', newY);
+
+                const image = selectedNode.querySelector('image');
+                const text = selectedNode.querySelector('text');
+                const input = selectedNode.querySelectorAll('foreignObject');
+                const connectors = selectedNode.querySelectorAll('circle');
+
+                image.setAttribute('x', newX + 5);
+                image.setAttribute('y', newY + 5);
+
+                text.setAttribute('x', newX + 30);
+                text.setAttribute('y', newY + 20);
+
+                input[0].setAttribute('x', newX + 5);
+                input[0].setAttribute('y', newY + 30);
+
+                input[1].setAttribute('x', newX + 5);
+                input[1].setAttribute('y', newY + 60);
+
+                connectors[0].setAttribute('cx', newX + 60);
+                connectors[0].setAttribute('cy', newY);
+                connectors[1].setAttribute('cx', newX + 110);
+                connectors[1].setAttribute('cy', newY + 50);
+                connectors[2].setAttribute('cx', newX + 60);
+                connectors[2].setAttribute('cy', newY + 110);
+                connectors[3].setAttribute('cx', newX);
+                connectors[3].setAttribute('cy', newY + 60);
+
+                updateLines();
+            }
+        }
+
+        // 画布拖动事件处理
+        function onCanvasDrag(event) {
+            if (draggingCanvas) {
+                const dx = (event.clientX - offsetX) / svg.clientWidth * viewBox[2];
+                const dy = (event.clientY - offsetY) / svg.clientHeight * viewBox[3];
+                viewBox[0] -= dx;
+                viewBox[1] -= dy;
+                svg.setAttribute('viewBox', viewBox.join(" "));
+                offsetX = event.clientX;
+                offsetY = event.clientY;
+            }
+        }
+
+        // 鼠标松开事件处理
+        function onMouseUp(event) {
+            if (draggingConnector) {
+                svg.removeEventListener('mousemove', onConnectorDrag);
+                const targetConnector = event.target;
+                if (targetConnector.classList.contains('connector') && draggingConnector !== targetConnector) {
+                    createLine(draggingConnector, targetConnector);
+                }
+                if (currentLine) svg.removeChild(currentLine);
+                currentLine = null;
+                draggingConnector = null;
+            } else {
+                selectedNode = null;
+                draggingCanvas = false;
+                svg.removeEventListener('mousemove', onNodeDrag);
+                svg.removeEventListener('mousemove', onCanvasDrag);
+            }
+        }
+
+        // 连接器拖动事件处理
+        function onConnectorDrag(event) {
+            if (currentLine) {
+                const cursorPoint = getMousePosition(event);
+                updateCurrentLine(cursorPoint.x, cursorPoint.y);
+            }
+        }
+
+        // 更新当前连接线的路径
+        function updateCurrentLine(x2, y2) {
+            if (draggingConnector) {
+                const x1 = parseFloat(draggingConnector.getAttribute('cx'));
+                const y1 = parseFloat(draggingConnector.getAttribute('cy'));
+                const pathData = `M ${x1},${y1} C ${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
+                currentLine.setAttribute('d', pathData);
+            }
+        }
+
+        // 获取鼠标位置
+        function getMousePosition(event) {
+            const CTM = svg.getScreenCTM();
+            return {
+                x: (event.clientX - CTM.e) / CTM.a,
+                y: (event.clientY - CTM.f) / CTM.d
+            };
+        }
+
+        // 创建节点
+        function createNode(x, y, title) {
+            const nodeId = `node${nodes.length + 1}`;
+            const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            nodeGroup.setAttribute('id', nodeId);
+            nodeGroup.setAttribute('class', 'node');
+
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('class', 'node-rect');
+            rect.setAttribute('x', x);
+            rect.setAttribute('y', y);
+            rect.setAttribute('width', 120);
+            rect.setAttribute('height', 120);
+
+            const image = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            image.setAttribute('x', x + 5);
+            image.setAttribute('y', y + 5);
+            image.setAttribute('width', 20);
+            image.setAttribute('height', 20);
+            image.setAttribute('href', 'https://via.placeholder.com/20');
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('class', 'node-text');
+            text.setAttribute('x', x + 30);
+            text.setAttribute('y', y + 20);
+            text.textContent = title;
+
+            const input1 = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+            input1.setAttribute('x', x + 5);
+            input1.setAttribute('y', y + 30);
+            input1.setAttribute('width', 110);
+            input1.setAttribute('height', 20);
+            const inputElement1 = document.createElement('input');
+            inputElement1.setAttribute('type', 'text');
+            inputElement1.setAttribute('class', 'node-input');
+            inputElement1.setAttribute('placeholder', 'Input');
+            input1.appendChild(inputElement1);
+
+            const input2 = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+            input2.setAttribute('x', x + 5);
+            input2.setAttribute('y', y + 60);
+            input2.setAttribute('width', 110);
+            input2.setAttribute('height', 20);
+            const selectElement = document.createElement('select');
+            selectElement.setAttribute('class', 'node-input');
+            const option1 = document.createElement('option');
+            option1.setAttribute('value', 'one');
+            option1.textContent = 'Option 1';
+            const option2 = document.createElement('option');
+            option2.setAttribute('value', 'two');
+            option2.textContent = 'Option 2';
+            selectElement.appendChild(option1);
+            selectElement.appendChild(option2);
+            input2.appendChild(selectElement);
+
+            const connectors = [
+                { cx: x + 70, cy: y },
+                { cx: x + 120, cy: y + 60 },
+                { cx: x + 70, cy: y + 120 },
+                { cx: x, cy: y + 60 }
+            ];
+
+            connectors.forEach(({ cx, cy }) => {
+                const connector = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                connector.setAttribute('cx', cx);
+                connector.setAttribute('cy', cy);
+                connector.setAttribute('r', 10); // 圆点的半径
+                connector.setAttribute('class', 'connector');
+
+                // const connectorText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                // connectorText.setAttribute('class', 'connector-text');
+                // connectorText.setAttribute('x', cx);
+                // connectorText.setAttribute('y', cy);
+                // connectorText.textContent = '+'; // 在圆点中间添加+
+
+                nodeGroup.appendChild(connector);
+                // nodeGroup.appendChild(connectorText);
+            });
+
+            nodeGroup.appendChild(rect);
+            nodeGroup.appendChild(image);
+            nodeGroup.appendChild(text);
+            nodeGroup.appendChild(input1);
+            nodeGroup.appendChild(input2);
+
+            svg.appendChild(nodeGroup);
+            nodes.push(nodeGroup);
+
+            nodeGroup.addEventListener('click', () => showConfigPanel(nodeGroup));
+            nodeGroup.addEventListener('contextmenu', (event) => showContextMenu(event, nodeGroup));
+
+            nodeGroup.addEventListener('mousedown', onMouseDown);
+        nodeGroup.addEventListener('mouseup', onMouseUp);
+
+
+            return nodeGroup;
+        }
+
+        // 创建连接线
+        function createLine(connector1, connector2) {
+            const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            pathElement.setAttribute('stroke', 'black');
+            pathElement.setAttribute('stroke-width', '2');
+            pathElement.setAttribute('marker-end', 'url(#arrowhead)');
+            pathElement.setAttribute('fill', 'none');
+            svg.appendChild(pathElement);
+
+            const line = { connector1, connector2, pathElement };
+            lines.push(line);
+            updateLines();
+
+            pathElement.addEventListener('contextmenu', (event) => showContextMenu(event, line));
+        }
+
+        // 显示配置面板
+        function showConfigPanel(nodeGroup) {
+            selectedNode = nodeGroup;
+            const text = nodeGroup.querySelector('.node-text').textContent;
+            configPanel.innerHTML = `
+                <h3>配置节点</h3>
+                <label>标题: <input type="text" id="nodeTitle" value="${text}"></label>
+                <label>描述: <textarea id="nodeDescription">${nodeGroup.description || ''}</textarea></label>
+                <button onclick="saveNodeConfig()">保存</button>
+            `;
+        }
+
+        // 保存节点配置
+        function saveNodeConfig() {
+            const title = document.getElementById('nodeTitle').value;
+            const description = document.getElementById('nodeDescription').value;
+            selectedNode.querySelector('.node-text').textContent = title;
+            selectedNode.description = description;
+        }
+
+        // 显示右键菜单
+        function showContextMenu(event, target) {
+            event.preventDefault();
+            contextTarget = target;
+
+            contextMenu.style.left = `${event.clientX}px`;
+            contextMenu.style.top = `${event.clientY}px`;
+            contextMenu.style.display = 'block';
+
+            document.addEventListener('click', hideContextMenu);
+        }
+
+        // 隐藏右键菜单
+        function hideContextMenu() {
+            contextMenu.style.display = 'none';
+            document.removeEventListener('click', hideContextMenu);
+        }
+
+        // 编辑和删除右键菜单项
+        editItem.addEventListener('click', () => {
+            if (contextTarget.classList.contains('node')) {
+                showConfigPanel(contextTarget);
+            }
+            hideContextMenu();
+        });
+
+        deleteItem.addEventListener('click', () => {
+            if (contextTarget.classList.contains('node')) {
+                svg.removeChild(contextTarget);
+                nodes = nodes.filter(node => node !== contextTarget);
+            } else if (contextTarget.pathElement) {
+                svg.removeChild(contextTarget.pathElement);
+                lines = lines.filter(line => line !== contextTarget);
+            }
+            hideContextMenu();
+        });
+
+        // 缩放功能
+        zoomInButton.addEventListener('click', () => {
+            viewBox[2] /= 1.2;
+            viewBox[3] /= 1.2;
+            svg.setAttribute('viewBox', viewBox.join(' '));
+        });
+
+        zoomOutButton.addEventListener('click', () => {
+            viewBox[2] *= 1.2;
+            viewBox[3] *= 1.2;
+            svg.setAttribute('viewBox', viewBox.join(' '));
+        });
+
+        // 添加节点按钮事件
+        addNodeButton.addEventListener('click', () => {
+            const newNode = createNode(50, 50, `Node ${nodeCount++}`);
+            makeDraggable(newNode);
+        });
+
+        // 导航按钮事件（待实现）
+        navigateButton.addEventListener('click', () => {
+            alert('Navigate functionality to be implemented');
+        });
+
+        // 运行按钮事件（待实现）
+        runButton.addEventListener('click', () => {
+            alert('Run functionality to be implemented');
+        });
+
+        // 初始化画布事件
+        function initializeCanvas() {
+            svg.addEventListener('mousedown', onMouseDown);
+            svg.addEventListener('mouseup', onMouseUp);
+            svg.addEventListener('mouseleave', onMouseUp);
+        }
+
+        // 页面加载后初始化画布
+        window.onload = initializeCanvas;
+
+        document.addEventListener('click', hideContextMenu);
+
+
+    </script>
+</body>
+
+</html>
