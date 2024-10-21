@@ -1073,7 +1073,7 @@ class Ui_MainWindow(object):
             self.toolBox_AiChat.insertItem(self.toolBox_AiChat.count() - 1, itemWidget,
                                            QIcon('images/messageoffline.png'), agent.nickname)
         # textEdit.returnPressed.connect(lambda: buddyList.search(textEdit.text()))
-        textEdit.textChanged.connect(self.filterItemsBuddyList)
+        textEdit.returnPressed.connect(lambda: self.filterItemsBuddyList(textEdit.text()))
 
 
     def filterItemsBuddyList(self, text):
