@@ -8,7 +8,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from db.DBFactory import query_function_mng_all,delete_function_mng
 from code_editor import CodeEditor
-from pytalk.workflow_design import WorkFlowDesign
+# from pytalk.workflow_design import WorkFlowDesign
 
 
 class FunctionManager(QWidget):

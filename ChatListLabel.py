@@ -28,29 +28,7 @@ class ChatListLabel(ChatList):
     def __init__(self, parent, agent):
 
         super(ChatListLabel, self).__init__(parent, agent)
-        print("ChatList parent", parent)
-        self.jid = parent.jid
-        self.connection = None
-        self.parent = parent
-        self.agent = agent
-        self.agent_cfg = self.agent
-        self.current_conversation_id = ""
-        self.tasks_history = None
-        self.browser_page = None
-        self.is_browser_page_loaded = False
 
-        self.setHeaderLabel("对话列表")  # 需要设置此处的值，否则缺省值为1
-        # self.setSortingEnabled(True)#排序
-        # self.sortItems(0, Qt.AscendingOrder)#排序
-        self.buddies = {}
-        self.groups = {}
-        self.tree = {}
-        # 创建一个图标
-        self.stick_icon = QIcon(QPixmap('images/start.png'))  # --> 增加一个置顶图标
-        self.load_pop_menu()
-
-        self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
-        self.load_data()
         # self.chat_list = query_AIChatMessages_All(is_first=True, owner_account=self.agent.account,friend_account=self.jid)
         # for record in self.chat_list:
         #     self.addItem(record.title.replace("\n", ""), record.id)
@@ -59,7 +37,7 @@ class ChatListLabel(ChatList):
     def load_data(self):
         # 用于存储已经创建的分类项
         labels = {}
-        self.chat_list = query_AIChatMessages_All(is_first=True, owner_account=self.agent.account,
+        self.chat_list = query_AIChatMessages_All(label=True,is_first=True, owner_account=self.agent.account,
                                                   friend_account=self.jid)
         for record in self.chat_list:
             label = record.label
@@ -105,7 +83,7 @@ class ChatListLabel(ChatList):
         else:
             # AIChatMessages
             self.chat_list = query_AIChatMessages_Search_Content(
-                is_first=True, owner_account=self.agent.account,
+                label = True,is_first=True, owner_account=self.agent.account,
                 friend_account=self.jid, title=key_word, content=key_word
             )
             filtered_chat_list = self.chat_list
@@ -127,7 +105,7 @@ class ChatListLabel(ChatList):
             elif not record.is_first:
                 # 查找是否有相同 conversation_id 且 is_first 为 True 的记录
                 first_record = query_AIChatMessages_Search_First(agent_id=self.agent_cfg.user_id,
-                                                                 conversation_id=record.conversation_id)
+                                                                 conversation_id=record.conversation_id,label=True)
                 if first_record and first_record.id not in processed_first_records:
                     # 处理 first_record
                     label = first_record.label

@@ -1,5 +1,6 @@
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QAction, QHeaderView, QInputDialog, QMessageBox
+from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QAction, QHeaderView, QInputDialog, QMessageBox, \
+    QDialog
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QPoint
 
@@ -7,8 +8,10 @@ from PyQt5.QtCore import QSettings, QThread, pyqtSignal
 import time
 from db.DBFactory import query_AgentTaskMulti, query_AgentTaskMulti_Content, AgentTaskMulti, update_AgentTaskMulti, \
     deleteMultiTasksFromDatabase, query_AgentTask_Search_Content, query_AgentTaskMulti_Search_First, \
-    query_AgentTaskMulti_Search_Content, update_AgentTaskMulti_stick, query_AgentTask_ById, query_AgentTaskMulti_ById
+    query_AgentTaskMulti_Search_Content, update_AgentTaskMulti_stick, query_AgentTask_ById, query_AgentTaskMulti_ById, \
+    query_AgentTaskMulti_ByLabel
 from TaskPageGroup import TaskPageGroup
+from userinputdialog import UserInputDialog
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, \
     get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, \
     add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight
@@ -345,7 +348,7 @@ class TaskListGroup(QTreeWidget):
             QMessageBox.critical(None, "警告", "分类不能取消置顶", QMessageBox.Ok)
 
     def label_item(self):
-        self.rename_signal.emit(self.currentItem)
+        # self.rename_signal.emit(self.currentItem)
         item = self.current_Item
         oldName = None
         column = 0
@@ -357,8 +360,21 @@ class TaskListGroup(QTreeWidget):
                 oldName = res.label
             if oldName is None:
                 oldName = ""
-            newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
-            if ok and newName:
-                update_AgentTaskMulti(id_value, label=newName)
+            # newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
+            # if ok and newName:
+            #     update_AgentTaskMulti(id_value, label=newName)
+            window_title = '加标签'
+            label_txt = '新标签:'
+            comb_val = query_AgentTaskMulti_ByLabel(group_id=self.agentcfg.group_id)
+            dialog = UserInputDialog(window_title, label_txt, comb_val, oldName)
+            def handle_user_selection(selection):
+                print(f'主程序接收到用户选择: {selection}')
+                if selection:
+                    update_AgentTaskMulti(id_value, label=selection)
+            dialog.user_selected.connect(handle_user_selection)
+            # 以模态方式显示对话框
+            if dialog.exec_() == QDialog.Accepted:
+                pass
+            self.reload("")  # -->刷新列表
         else:
             QMessageBox.critical(None, "警告", "分类名不能加标签", QMessageBox.Ok)

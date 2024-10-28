@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QAction, QHeaderView, QMessageBox, QInputDialog, \
-    QTreeWidgetItemIterator
+    QTreeWidgetItemIterator, QDialog
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QPoint
 
@@ -11,9 +11,10 @@ from PyQt5.QtCore import QSettings, QThread, pyqtSignal
 
 from db.DBFactory import query_AgentTask, query_AgentTask_Search_Content, update_note_mng_by_recordid, \
     query_AgentTask_Search_First, AgentTask, delete_note_mng, update_AgentTask, update_note_mng_stick, update_note_mng, \
-    query_note_mng_ById, query_Note_mng_Search_Content
+    query_note_mng_ById, query_Note_mng_Search_Content, query_note_mng_ByLabel
 from db.DBFactory import query_note_mng_all, delete_note_mng, query_note_mng
 from TaskPage import TaskPage
+from userinputdialog import UserInputDialog
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, \
     get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, \
     add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight, \
@@ -400,10 +401,24 @@ class NoteList(QTreeWidget):
                 oldName = res.label
             if oldName is None:
                 oldName = ""
-            newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
-            if ok and newName:
-                update_note_mng_by_recordid(id_value, label=newName)
+            # newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
+            # if ok and newName:
+            #     update_note_mng_by_recordid(id_value, label=newName)
+            window_title = '加标签'
+            label_txt = '新标签:'
+            comb_val = query_note_mng_ByLabel(km_id=self.km_cfg.km_id)
+            dialog = UserInputDialog(window_title, label_txt, comb_val, oldName)
 
+            def handle_user_selection(selection):
+                print(f'主程序接收到用户选择: {selection}')
+                if selection:
+                    update_note_mng_by_recordid(id_value, label=selection)
+
+            dialog.user_selected.connect(handle_user_selection)
+            # 以模态方式显示对话框
+            if dialog.exec_() == QDialog.Accepted:
+                pass
+            self.reload("") #-->刷新列表
         else:
             QMessageBox.critical(None, "警告", "分类名不能加标签", QMessageBox.Ok)
 

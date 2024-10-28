@@ -1,7 +1,9 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QVBoxLayout, QTableWidget, QTableWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QHeaderView, QMessageBox, QFormLayout, QComboBox
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QVBoxLayout, QTableWidget, \
+    QTableWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QHeaderView, QMessageBox, QFormLayout, QComboBox
 from PyQt5.QtCore import Qt
-from db.DBFactory import Session, Prompt
+from db.DBFactory import Session, Prompt, query_PluginMng_All
+
 
 class PromptDialog(QDialog):
     def __init__(self, session, prompt=None):
@@ -28,8 +30,8 @@ class PromptDialog(QDialog):
         self.tags_field = QLineEdit()
         layout.addRow("标签(用逗号分隔):", self.tags_field)
 
-
-
+        self.model_field = QComboBox()
+        layout.addRow("适用模型:", self.model_field)
         # 创建按钮布局
         button_layout = QHBoxLayout()
 
@@ -46,22 +48,30 @@ class PromptDialog(QDialog):
         # 将按钮布局添加到表单布局
         layout.addRow(button_layout)
 
-
-
-
         self.setLayout(layout)
+
+        agents = query_PluginMng_All(is_delete=0,plugin_type="LLM_Connector")
+        agent_dict = [f"{agent.name}: {agent.version}" for agent in agents]
+        self.model_field.addItems(agent_dict)
+        self.model_field.setCurrentIndex(-1)   # 设置默认值为null
 
         if self.prompt:
             self.title_field.setText(self.prompt.title)
             self.content_field.setPlainText(self.prompt.content)
             self.question_field.setPlainText(self.prompt.question)
             self.tags_field.setText(self.prompt.tags)
+            if self.prompt.model_name is not None:
+                cur_txt = self.prompt.model_name
+                index = self.model_field.findText(cur_txt)
+                if index >= 0:
+                    self.model_field.setCurrentIndex(index)
 
     def save(self):
         title = self.title_field.text()
         content = self.content_field.toPlainText()
         question = self.question_field.toPlainText()
         tags = self.tags_field.text()
+        model_name =  self.model_field.currentText()
 
         if not title or not content or not question or not tags:
             QMessageBox.warning(self, "警告", "所有字段都是必填的")
@@ -72,20 +82,24 @@ class PromptDialog(QDialog):
             self.prompt.content = content
             self.prompt.question = question
             self.prompt.tags = tags
+            self.prompt.model_name = model_name
         else:
-            new_prompt = Prompt(title=title, content=content, question=question, tags=tags)
+            new_prompt = Prompt(title=title, content=content, question=question, tags=tags,model_name =model_name )
             self.session.add(new_prompt)
 
         self.session.commit()
         self.accept()
 
+
 class PromptManager(QDialog):
-    def __init__(self, main_window):
+    def __init__(self, main_window,model_name=""):
         super().__init__()
         self.main_window = main_window
+        self.model_name = model_name
+        print("model_name-->", self.model_name)
         self.setWindowTitle("管理提示词")
         window_width = 1280
-        window_height = 600
+        window_height = 680
         self.resize(window_width, window_height)
         # self.showMaximized()
         layout = QVBoxLayout()
@@ -99,8 +113,8 @@ class PromptManager(QDialog):
         # Table
         self.table = QTableWidget()
         self.table.setFixedWidth(window_width)
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(['角色名称', '角色描述', '对话模板(右击问答界面的管理按钮可置入模板)', '标签'])
+        self.table.setColumnCount(5)
+        self.table.setHorizontalHeaderLabels(['角色名称', '角色描述', '对话模板(右击问答界面的管理按钮可置入模板)', '标签', '模型'])
         # 设置选择行为为选中整行
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)  # 不允许编辑
@@ -111,13 +125,12 @@ class PromptManager(QDialog):
 
         # Set column widths according to specified proportions
 
-
         # total_width = self.table.width()
         self.table.setColumnWidth(0, int(window_width * 0.15))  # 第一列15%
-        self.table.setColumnWidth(1, int(window_width * 0.35))  # 第二列35%
-        self.table.setColumnWidth(2, int(window_width * 0.35))  # 第三列35%
+        self.table.setColumnWidth(1, int(window_width * 0.30))  # 第二列30%
+        self.table.setColumnWidth(2, int(window_width * 0.30))  # 第三列30%
         self.table.setColumnWidth(3, int(window_width * 0.15))  # 第四列15%
-
+        self.table.setColumnWidth(4, int(window_width * 0.10))  # 第四列10%
         # Setting stretch for the last section to fill remaining space
         self.table.horizontalHeader().setStretchLastSection(True)
 
@@ -161,6 +174,12 @@ class PromptManager(QDialog):
     def refresh_table(self):
         session = Session()
         prompts = session.query(Prompt).all()
+
+        prompts = [
+            result for result in prompts
+            if result.model_name is None or self.model_name.startswith(result.model_name)
+        ]
+        print(len(prompts))
         self.table.setRowCount(len(prompts))
 
         for row, prompt in enumerate(prompts):
@@ -168,9 +187,13 @@ class PromptManager(QDialog):
             self.table.setItem(row, 1, QTableWidgetItem(prompt.content))
             self.table.setItem(row, 2, QTableWidgetItem(prompt.question))
             self.table.setItem(row, 3, QTableWidgetItem(prompt.tags))
+            self.table.setItem(row, 4, QTableWidgetItem(prompt.model_name))
 
         session.close()
-        self.main_window.update_prompts_in_combobox()
+        try:
+            self.main_window.update_prompts_in_combobox()
+        except Exception as e:
+            print(str(e))
 
     def add_prompt(self):
         session = Session()
@@ -217,8 +240,10 @@ class PromptManager(QDialog):
             self.table.setItem(row, 1, QTableWidgetItem(prompt.content))
             self.table.setItem(row, 2, QTableWidgetItem(prompt.question))
             self.table.setItem(row, 3, QTableWidgetItem(prompt.tags))
+            self.table.setItem(row, 4, QTableWidgetItem(prompt.model_name ))
 
         session.close()
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -261,6 +286,7 @@ class MainWindow(QMainWindow):
     def receive_template(self, template_content):
         # 处理接收到的模板内容
         print(f"Received Template: {template_content}")
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

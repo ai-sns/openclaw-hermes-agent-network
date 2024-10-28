@@ -724,7 +724,8 @@ class Ui_TaskPageWidget(object):
 
     def on_manage_button_clicked(self):
         print("hello")
-        self.prompt_manager = PromptManager(self)
+        print("model_label-->",self.model_label.text())
+        self.prompt_manager = PromptManager(self,self.model_label.text())
         self.prompt_manager.exec_()
 
     def receive_template(self, template_content):

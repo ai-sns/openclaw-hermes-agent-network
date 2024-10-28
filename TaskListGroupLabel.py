@@ -29,7 +29,7 @@ class TaskListGroupLabel(TaskListGroup):
     def load_data(self):
         # 用于存储已经创建的分类项
         labels = {}
-        self.tasklist = query_AgentTaskMulti(is_first=True, group_id=self.agentcfg.group_id)
+        self.tasklist = query_AgentTaskMulti(label=True,is_first=True, group_id=self.agentcfg.group_id)
         # 遍历联系人，按label分类
         for record in self.tasklist:
             label = record.label
@@ -78,7 +78,7 @@ class TaskListGroupLabel(TaskListGroup):
                 if key_word[3:] in record.topic
             ]
         else:
-            self.tasklist = query_AgentTaskMulti_Search_Content(is_first=True,
+            self.tasklist = query_AgentTaskMulti_Search_Content(label = True,is_first=True,
                                                                 group_id=self.agentcfg.group_id, topic=key_word
                                                                 )
             filtered_tasklist = self.tasklist
@@ -108,7 +108,7 @@ class TaskListGroupLabel(TaskListGroup):
             elif not record.is_first:
                 # 查找是否有相同 task_id 且 is_first 为 True 的记录
                 first_record = query_AgentTaskMulti_Search_First(agent_id=self.agentcfg.group_id,
-                                                                 task_id=record.task_id)
+                                                                 task_id=record.task_id,label=True)
                 if first_record and first_record.id not in processed_first_records:
                     # 处理 first_record
                     # --> 添加一条 数据

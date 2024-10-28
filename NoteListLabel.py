@@ -36,9 +36,9 @@ class NoteListLabel(NoteList):
         # 用于存储已经创建的分类项
         labels = {}
         if self.type_str == "recent":
-            self.tasklist = query_note_mng_all(10, km_id=self.km_cfg.km_id)
+            self.tasklist = query_note_mng_all(10, label=True,km_id=self.km_cfg.km_id)
         else:
-            self.tasklist = query_note_mng_all(-1, km_id=self.km_cfg.km_id)
+            self.tasklist = query_note_mng_all(-1, label=True,km_id=self.km_cfg.km_id)
         for record in self.tasklist:
             label = record.label
             if label is None or len(label) == 0:
@@ -81,11 +81,11 @@ class NoteListLabel(NoteList):
         else:
             if self.type_str == "recent":
                 self.tasklist = query_Note_mng_Search_Content(
-                    10, title=key_word, content=key_word, km_id=self.km_cfg.km_id
+                    10,  label = True,title=key_word, content=key_word, km_id=self.km_cfg.km_id
                 )
             else:
                 self.tasklist = query_Note_mng_Search_Content(
-                    -1, title=key_word, content=key_word, km_id=self.km_cfg.km_id
+                    -1,  label = True,title=key_word, content=key_word, km_id=self.km_cfg.km_id
                 )
 
             filtered_tasklist = self.tasklist
@@ -112,23 +112,3 @@ class NoteListLabel(NoteList):
         stick_icon = True if record.stick_time is not None else False
         self.addItem(record.title.replace("\n", ""), labels[label], record.id, icon=stick_icon)
 
-    #增加标签后刷新，调用reload
-    def label_item(self):
-        self.label_signal.emit(self.currentItem)
-        item = self.current_Item
-        oldName = None
-        column = 0
-        id_value = item.data(column, Qt.UserRole)
-
-        if id_value:
-            res = query_note_mng_ById(id_value)
-            if res is not None:
-                oldName = res.label
-            if oldName is None:
-                oldName = ""
-            newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
-            if ok and newName:
-                update_note_mng_by_recordid(id_value, label=newName)
-                self.reload("")
-        else:
-            QMessageBox.critical(None, "警告", "分类名不能加标签", QMessageBox.Ok)

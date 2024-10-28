@@ -74,11 +74,19 @@ def add_AIChatMessages(conversation_id, flag, title, content, owner_name, owner_
     session.close()
 
 
-def query_AIChatMessages_All(**kwargs):
+def query_AIChatMessages_All(label: bool = False, **kwargs):
     session = Session()
-    records = session.query(AIChatMessages).filter_by(**kwargs).order_by(desc(AIChatMessages.stick_time),
-                                                                         desc(AIChatMessages.create_time)).limit(
-        500).all()
+    # 添加label不为None的条件
+    if label:
+        records = session.query(AIChatMessages).filter(AIChatMessages.label.isnot(None)).filter_by(
+            **kwargs).order_by(desc(AIChatMessages.stick_time),
+                               desc(AIChatMessages.create_time)).limit(
+            500).all()
+    else:
+        records = session.query(AIChatMessages).filter_by(**kwargs).order_by(desc(AIChatMessages.stick_time),
+                                                                             desc(AIChatMessages.create_time)).limit(
+            500).all()
+
     session.close()
     return records
 
@@ -98,7 +106,19 @@ def query_AIChatMessages_ById(id):
     return res
 
 
-def query_AIChatMessages_Search_Content(**kwargs):
+def query_AIChatMessages_ByLabel(is_first,owner_account,friend_account):
+    session = Session()
+    # 首先获取所有不同的 label
+    res = session.query(AIChatMessages.label).filter(AIChatMessages.is_first == True,AIChatMessages.owner_account == owner_account,AIChatMessages.friend_account == friend_account,).distinct().all()
+    session.close()
+    if res is None:
+        labels = []
+    else:
+        labels = [i.label for i in res if i.label is not None]
+    return labels
+
+
+def query_AIChatMessages_Search_Content(label: bool = False, **kwargs):
     session = Session()
 
     # 提取常规过滤条件
@@ -123,6 +143,9 @@ def query_AIChatMessages_Search_Content(**kwargs):
     if title_keyword == "":
         query = query.filter(AIChatMessages.is_first == True)
 
+    if label:
+        query = query.filter(AIChatMessages.label.isnot(None))
+
     # 添加搜索条件
     search_terms = []
     if title_keyword:
@@ -140,14 +163,20 @@ def query_AIChatMessages_Search_Content(**kwargs):
     return tasks
 
 
-def query_AIChatMessages_Search_First(agent_id, task_id):
+def query_AIChatMessages_Search_First(agent_id, task_id, label: bool = False):
     session = Session()
 
     # 查找特定 agent_id 和 task_id 且 is_first 为 True 的记录
-    first_task = session.query(AIChatMessages) \
-        .filter(AIChatMessages.agent_id == agent_id, AIChatMessages.conversation_id == task_id,
-                AIChatMessages.is_first == True) \
-        .first()
+    if bool:
+        first_task = session.query(AIChatMessages) \
+            .filter(AIChatMessages.agent_id == agent_id, AIChatMessages.conversation_id == task_id,
+                    AIChatMessages.is_first == True) \
+            .first()
+    else:
+        first_task = session.query(AIChatMessages) \
+            .filter(AIChatMessages.agent_id == agent_id, AIChatMessages.conversation_id == task_id,
+                    AIChatMessages.is_first == True, AgentTask.label is not None) \
+            .first()
 
     session.close()
     return first_task
@@ -422,7 +451,7 @@ def add_AgentTask(task_id, title, problem, answer, model_name, agent_id, is_firs
     return (record_id)
 
 
-def query_AgentTask(**kwargs):
+def query_AgentTask(label: bool = False, **kwargs):
     session = Session()
     try:
         # 构建过滤条件
@@ -430,6 +459,9 @@ def query_AgentTask(**kwargs):
         for key, value in kwargs.items():
             filter_expr.append(getattr(AgentTask, key) == value)
 
+        # 添加label不为None的条件
+        if label:
+            filter_expr.append(AgentTask.label.isnot(None))
         # 查询并过滤记录
         tasks = session.query(AgentTask).filter(*filter_expr).order_by(desc(AgentTask.stick_time),
                                                                        desc(AgentTask.create_time)).limit(500).all()
@@ -440,6 +472,18 @@ def query_AgentTask(**kwargs):
         tasks = []
     session.close()
     return tasks
+
+
+def query_AgentTask_ByLabel(agent_id):
+    session = Session()
+    # 首先获取所有不同的 label
+    res = session.query(AgentTask.label).filter(AgentTask.is_first == True,AgentTask.agent_id == agent_id).distinct().all()
+    session.close()
+    if res is None:
+        labels = []
+    else:
+        labels = [i.label for i in res if i.label is not None]
+    return labels
 
 
 def query_AgentTask_ById(id):
@@ -464,7 +508,7 @@ def query_AgentTask_Content(id, **kwargs):
     return tasks
 
 
-def query_AgentTask_Search_Content(**kwargs):
+def query_AgentTask_Search_Content(label: bool = False, **kwargs):
     session = Session()
 
     # 提取常规过滤条件
@@ -487,6 +531,9 @@ def query_AgentTask_Search_Content(**kwargs):
     if title_keyword == "":
         query = query.filter(AgentTask.is_first == True)
 
+    if label:
+        query = query.filter(AgentTask.label.isnot(None))
+
     # 添加搜索条件
     search_terms = []
     if title_keyword:
@@ -506,13 +553,19 @@ def query_AgentTask_Search_Content(**kwargs):
     return tasks
 
 
-def query_AgentTask_Search_First(agent_id, task_id):
+def query_AgentTask_Search_First(agent_id, task_id, label: bool = False):
     session = Session()
 
     # 查找特定 agent_id 和 task_id 且 is_first 为 True 的记录
-    first_task = session.query(AgentTask) \
-        .filter(AgentTask.agent_id == agent_id, AgentTask.task_id == task_id, AgentTask.is_first == True) \
-        .first()
+    if label:
+        first_task = session.query(AgentTask) \
+            .filter(AgentTask.agent_id == agent_id, AgentTask.task_id == task_id, AgentTask.is_first == True) \
+            .first()
+    else:
+        first_task = session.query(AgentTask) \
+            .filter(AgentTask.agent_id == agent_id, AgentTask.task_id == task_id, AgentTask.is_first == True,
+                    AgentTask.label is not None) \
+            .first()
 
     session.close()
     return first_task
@@ -722,7 +775,7 @@ def add_AgentTaskMulti(task_id, topic, content, owner, group_id, is_first=True, 
     return (record_id)
 
 
-def query_AgentTaskMulti(**kwargs):
+def query_AgentTaskMulti(label: bool = False, **kwargs):
     session = Session()
     title = ""
 
@@ -732,6 +785,9 @@ def query_AgentTaskMulti(**kwargs):
         for key, value in kwargs.items():
             filter_expr.append(getattr(AgentTaskMulti, key) == value)
 
+        # 添加label不为None的条件
+        if label:
+            filter_expr.append(AgentTaskMulti.label.isnot(None))
         # 查询并过滤记录
         tasks = session.query(AgentTaskMulti).filter(*filter_expr).order_by(desc(AgentTaskMulti.stick_time),
                                                                             desc(AgentTaskMulti.create_time)).limit(
@@ -754,7 +810,19 @@ def query_AgentTaskMulti_ById(id):
     return res
 
 
-def query_AgentTaskMulti_Search_Content(**kwargs):
+def query_AgentTaskMulti_ByLabel(group_id):
+    session = Session()
+    # 首先获取所有不同的 label
+    res = session.query(AgentTaskMulti.label).filter(AgentTaskMulti.is_first == True,AgentTaskMulti.group_id == group_id).distinct().all()
+    session.close()
+    if res is None:
+        labels = []
+    else:
+        labels = [i.label for i in res if i.label is not None]
+    return labels
+
+
+def query_AgentTaskMulti_Search_Content(label: bool = False, **kwargs):
     session = Session()
 
     # 提取常规过滤条件
@@ -777,6 +845,8 @@ def query_AgentTaskMulti_Search_Content(**kwargs):
     if title_keyword == "":
         query = query.filter(AgentTaskMulti.is_first == True)
 
+    if label:
+        query = query.filter(AgentTaskMulti.label.isnot(None))
     # 添加搜索条件
     search_terms = []
     if title_keyword:
@@ -798,13 +868,20 @@ def query_AgentTaskMulti_Search_Content(**kwargs):
     return tasks
 
 
-def query_AgentTaskMulti_Search_First(agent_id, task_id):
+def query_AgentTaskMulti_Search_First(agent_id,task_id, label: bool = False):
     session = Session()
 
     # 查找特定 agent_id 和 task_id 且 is_first 为 True 的记录
-    first_task = session.query(AgentTaskMulti) \
-        .filter(AgentTaskMulti.agent_id == agent_id, AgentTaskMulti.task_id == task_id, AgentTaskMulti.is_first == True) \
-        .first()
+    if label:
+        first_task = session.query(AgentTaskMulti) \
+            .filter(AgentTaskMulti.agent_id == agent_id, AgentTaskMulti.task_id == task_id,
+                    AgentTaskMulti.is_first == True) \
+            .first()
+    else:
+        first_task = session.query(AgentTaskMulti) \
+            .filter(AgentTaskMulti.agent_id == agent_id, AgentTaskMulti.task_id == task_id,
+                    AgentTaskMulti.is_first == True, AgentTaskMulti.label is not None) \
+            .first()
 
     session.close()
     return first_task
@@ -1748,16 +1825,28 @@ def add_note_mng(note_id, title, file_name, content, km_id, tag_1, tag_2,
     return (record_id)
 
 
-def query_note_mng_all(count, **kwargs):
+def query_note_mng_all(count, label: bool = False,**kwargs):
     """查询所有功能管理记录"""
     session = Session()
-    if count == -1:
-        records = session.query(NoteMng).filter_by(**kwargs).order_by(desc(NoteMng.stick_time),
-                                                                      desc(NoteMng.create_time)).all()  # 查询所有符合条件的记录
+    if label:
+        if count == -1:
+            records = session.query(NoteMng).filter(NoteMng.label.isnot(None)).filter_by(**kwargs).order_by(
+                desc(NoteMng.stick_time),
+                desc(NoteMng.create_time)).all()  # 查询所有符合条件的记录
+        else:
+            records = session.query(NoteMng).filter(NoteMng.label.isnot(None)).filter_by(**kwargs).order_by(
+                desc(NoteMng.stick_time),
+                desc(NoteMng.create_time)).limit(
+                count).all()  # 查询所有符合条件的记录
     else:
-        records = session.query(NoteMng).filter_by(**kwargs).order_by(desc(NoteMng.stick_time),
-                                                                      desc(NoteMng.create_time)).limit(
-            count).all()  # 查询所有符合条件的记录
+        if count == -1:
+            records = session.query(NoteMng).filter_by(**kwargs).order_by(desc(NoteMng.stick_time),
+                                                                          desc(
+                                                                              NoteMng.create_time)).all()  # 查询所有符合条件的记录
+        else:
+            records = session.query(NoteMng).filter_by(**kwargs).order_by(desc(NoteMng.stick_time),
+                                                                          desc(NoteMng.create_time)).limit(
+                count).all()  # 查询所有符合条件的记录
     session.close()  # 关闭会话
     return records
 
@@ -1776,6 +1865,18 @@ def query_note_mng_ById(id):
     session.close()
 
     return res
+
+
+def query_note_mng_ByLabel(km_id):
+    session = Session()
+    # 首先获取所有不同的 label
+    res = session.query(NoteMng.label).filter(NoteMng.km_id == km_id).distinct().all()
+    session.close()
+    if res is None:
+        labels = []
+    else:
+        labels = [i.label for i in res if i.label is not None]
+    return labels
 
 
 def update_note_mng(note_id, **kwargs):
@@ -1819,7 +1920,7 @@ def delete_note_mng(**kwargs):
     session.close()  # 关闭会话
 
 
-def query_Note_mng_Search_Content(count,**kwargs):
+def query_Note_mng_Search_Content(count,label: bool = False,  **kwargs):
     session = Session()
 
     # 搜索关键词
@@ -1829,6 +1930,8 @@ def query_Note_mng_Search_Content(count,**kwargs):
     # 构建初始查询
     query = session.query(NoteMng)
 
+    if label:
+        query = query.filter(NoteMng.label.isnot(None))
     # 添加搜索条件
     search_terms = []
     if title_keyword:
@@ -1840,7 +1943,7 @@ def query_Note_mng_Search_Content(count,**kwargs):
         query = query.filter(or_(*search_terms))
 
     # 获取结果
-    if count==-1:
+    if count == -1:
         records = query.order_by(
             desc(NoteMng.stick_time),
             desc(NoteMng.create_time)).limit(50000).all()
@@ -2005,6 +2108,7 @@ class Prompt(Base):
     content = Column(String)
     question = Column(String)
     tags = Column(String)  # Storing tags as comma-separated values
+    model_name = Column(String(100), doc="模型的名称")
 
 
 def get_prompt_by_title(title):

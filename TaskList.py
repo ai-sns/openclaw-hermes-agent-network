@@ -2,15 +2,16 @@ import json
 import os
 
 from PyQt5.QtWidgets import QTreeWidget, QTreeWidgetItem, QMenu, QAction, QHeaderView, QMessageBox, QInputDialog, \
-    QTreeWidgetItemIterator
+    QTreeWidgetItemIterator,QDialog
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QPoint
 
 from PyQt5.QtCore import QSettings, QThread, pyqtSignal
 from db.DBFactory import query_AgentTask, query_AgentTask_Search_Content, query_AgentTask_Content, \
     query_AgentTask_Search_First, AgentTask, deleteTasksFromDatabase, update_AgentTask, update_AgentTask_stick, \
-    query_AgentTask_ById
+    query_AgentTask_ById, query_AgentTask_ByLabel
 from TaskPage import TaskPage
+from userinputdialog import UserInputDialog
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, \
     get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, \
     add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight, \
@@ -154,7 +155,7 @@ class TaskList(QTreeWidget):
             iterator += 1
 
     def rename(self):
-        self.label_signal.emit(self.currentItem)
+        self.rename_signal.emit(self.currentItem)
         item = self.current_Item
 
         column = 0
@@ -173,7 +174,7 @@ class TaskList(QTreeWidget):
             QMessageBox.critical(None, "警告", "分类名不能重命名", QMessageBox.Ok)
 
     def label_item(self):
-        self.label_signal.emit(self.currentItem)
+        # self.label_signal.emit(self.currentItem)
         item = self.current_Item
         oldName = None
         column = 0
@@ -185,9 +186,26 @@ class TaskList(QTreeWidget):
                 oldName = res.label
             if oldName is None:
                 oldName = ""
-            newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
-            if ok and newName:
-                update_AgentTask(id_value, label=newName)
+            # newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
+            window_title = '加标签'
+            label_txt = '新标签:'
+            comb_val = query_AgentTask_ByLabel(agent_id=self.agent_cfg.user_id)
+            dialog = UserInputDialog(window_title, label_txt, comb_val,oldName)
+
+            # 连接信号到槽函数（这里我们仍然使用lambda函数作为示例）
+            def handle_user_selection(selection):
+                print(f'主程序接收到用户选择: {selection}')
+                # 可以在这里添加更多处理逻辑
+                if selection:
+                    update_AgentTask(id_value, label=selection)
+            dialog.user_selected.connect(handle_user_selection)
+            # 以模态方式显示对话框
+            if dialog.exec_() == QDialog.Accepted:
+                # 这里不需要额外的代码，因为信号已经处理过了
+                pass
+
+            # if ok and newName:
+            #     update_AgentTask(id_value, label=newName)
         else:
             QMessageBox.critical(None, "警告", "分类名不能加标签", QMessageBox.Ok)
 

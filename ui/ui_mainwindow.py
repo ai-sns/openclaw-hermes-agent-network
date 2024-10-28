@@ -66,6 +66,7 @@ from db.DBFactory import add_LogsMng, query_LogsMng_All, update_LogsMng, delete_
 from pluginsmanager import PluginEngine
 from pluginsmanager.plugins_headless.plugin_mng import load_plugin as load_plugin_tool
 from workflow_manager import WorkFlowManager
+from prompts import PromptDialog,PromptManager,MainWindow as Prompt_Manager
 import argparse
 
 from pluginsmanager import FileSystem
@@ -1054,7 +1055,10 @@ class Ui_MainWindow(object):
 
         settingLayout.addWidget(self.createCellWidgetAgentMultiNew("模型评测",
                                                                    'images/billboard.png'), 2, 0)
-        settingLayout.addWidget(self.createCellWidgetAgentMultiMng("提示词管理",
+        # settingLayout.addWidget(self.createCellWidgetAgentMultiMng("提示词管理",
+        #                                                            'images/fileline.png'), 2, 1)
+
+        settingLayout.addWidget(self.createCellWidgetAgentMultiPrompt("提示词管理",
                                                                    'images/fileline.png'), 2, 1)
 
         settingLayout.setRowStretch(3, 10)
@@ -1771,9 +1775,9 @@ class Ui_MainWindow(object):
 
         layout_tool = QGridLayout()
 
-        textEdit_tool = QLineEdit()
-        textEdit_tool.setPlaceholderText("搜索...")
-        layout_tool.addWidget(textEdit_tool, 0, 0, 1, 2)
+        # textEdit_tool = QLineEdit()
+        # textEdit_tool.setPlaceholderText("搜索...")
+        # layout_tool.addWidget(textEdit_tool, 0, 0, 1, 2)
         i = 0
         row = 1
         col = 0
@@ -2572,6 +2576,26 @@ class Ui_MainWindow(object):
 
         return widget
 
+    def createCellWidgetAgentMultiPrompt(self, text, image):
+        # agetnconfigdlg = FreezeTableDialog(self)
+        agentcfgbutton = QToolButton()
+        agentcfgbutton.setIcon(QIcon(image))
+        agentcfgbutton.setIconSize(QSize(50, 50))
+        agentcfgbutton.setCheckable(True)
+        # agentcfgbutton.clicked.connect(self.agentmultiopendialog)
+        agentcfgbutton.clicked.connect(lambda: self.show_prompt_list("提示词列表"))
+
+        self.settingbuttonGroup.addButton(agentcfgbutton)
+
+        layout = QGridLayout()
+        layout.addWidget(agentcfgbutton, 0, 0, Qt.AlignHCenter)
+        layout.addWidget(QLabel(text), 1, 0, Qt.AlignCenter)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        return widget
+
     def createNewKM(self, kmrecord):
         filepath = self.setOpenFileName()
         filename = Path(filepath).name
@@ -3280,6 +3304,13 @@ class Ui_MainWindow(object):
         self.conversation_pages.addWidget(workflow_dialog)
         self.conversation_pages.setCurrentWidget(workflow_dialog)
 
+
+    def show_prompt_list(self, plugin_full_name):
+        prompt_dialog = PromptManager(self)
+        prompt_dialog.setObjectName("promptmanager")
+        self.conversation_pages.addWidget(prompt_dialog)
+        self.conversation_pages.setCurrentWidget(prompt_dialog)
+
     def show_function_list(self, type_str):
 
         fun_dialog = FunctionManager(type_str)
@@ -3378,7 +3409,7 @@ class Ui_MainWindow(object):
         button.setCheckable(True)
 
         button.clicked.connect(lambda: self.show_workflow_list("工作流列表"))
-
+        # button.clicked.connect(lambda: self.show_prompt_list("提示词管理"))
         self.buttonGroup_WorkFlow.addButton(button, diagramType)
         # self.buttonGroup.addButton(button, diagramType)
 
