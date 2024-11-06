@@ -297,7 +297,7 @@ class QuestionManager(QDialog):
             self.table.setItem(row, 0, QTableWidgetItem(question.tag))
             self.table.setItem(row, 1, QTableWidgetItem(question.question))
             self.table.setItem(row, 2, QTableWidgetItem(str(question.id)))
-            print("question.id-->", question.id)
+            # print("question.id-->", question.id)
 
         session.close()
         try:
@@ -313,36 +313,16 @@ class QuestionManager(QDialog):
         oldName = LLM_Ability_List[0]
         dialog = SettingDialog(window_title, label_txt, comb_txt, oldName)
 
-        # self.refresh_table()
         def handle_user_selection(selection):
             print(f'主程序接收到用户选择: {selection}')
             self.thread = Worker(selection)
             self.thread.finished.connect(self.on_thread_finished)
             self.thread.start()
-            # question_type = selection.split(',')[0]
-            # question_num = selection.split(',')[1]
-            # prompt = question_prompt
-            # prompt = prompt.replace("question_num", question_num)
-            # prompt = prompt.replace("question_type",question_type)
-            # print("设置按钮被点击")
-            # spark = AI_spark()
-            # session = Session()
-            # # questions = self.read_json("question1.json", "question_1", 2)
-            # self.qs = [prompt]
-            # answers = spark.ask_one(prompt)
-            # self.ans = answers
-            # print(answers)
-            # for ans in  answers:
-            #     if ans.strip():
-            #         new_question = Question(question=ans, tag=question_type)
-            #         session.add(new_question)
-            # session.commit()
-            # session.close()
-            # self.accept()
 
         dialog.user_selected.connect(handle_user_selection)
-
+        print("start dialog.exec")
         if dialog.exec_():
+            print("dialog.exec")
             pass
 
     def on_thread_finished(self):

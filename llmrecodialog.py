@@ -1,7 +1,9 @@
 import sys
 import json
 import re
+from datetime import datetime
 
+import jieba as jieba
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QDialog, \
@@ -15,7 +17,7 @@ from db.DBFactory import query_PluginMng_All, Session, query_Question_limit
 # from questions import QuestionManager
 from aichat import AI_spark, AI_kimi
 from questions import QuestionManager
-from globals import llm_ability
+from globals import llm_ability,question_speed
 
 
 class Worker(QThread):
@@ -57,11 +59,11 @@ class Worker(QThread):
         session = Session()
         records = query_Question_limit(num=num, tag=type)
         qs = [r.question for r in records]
-        #获取答案
+        # 获取答案
         spark = AI_spark()
         answers = spark.ask(qs)
         ans = answers
-        #获取评分
+        # 获取评分
         kimi = AI_kimi()
         rank = 0
         for i in range(len(qs)):
@@ -87,7 +89,7 @@ class Worker(QThread):
             rank += self.get_rank(r)
             print("rank-->:", rank)
         print("测试操作结束")
-        rank = int(round(rank / len(qs), 1)*10)
+        rank = int(round(rank / len(qs), 1) * 10)
         ui_obj.setText(str(rank))
 
 
@@ -137,6 +139,10 @@ class EvalApp(QDialog):
         speed_layout.addWidget(QLabel('速度:'))
         self.speed_edit = QLineEdit()
         speed_layout.addWidget(self.speed_edit)
+        # settings_button0 = QPushButton('设置')
+        test_button0 = QPushButton('测试')
+        # speed_layout.addWidget(settings_button0)
+        speed_layout.addWidget(test_button0)
         main_layout.addLayout(speed_layout)
 
         # 1 理解能力输入字段和设置、测试按钮
@@ -330,12 +336,40 @@ class EvalApp(QDialog):
         self.setWindowTitle('模型评估')
 
         # 连接按钮事件
+        test_button0.clicked.connect(self.on_test0)
         settings_button1.clicked.connect(self.on_settings1)
         test_button1.clicked.connect(self.on_test1)
-        settings_button_2.clicked.connect(self.on_settings)
-        test_button_2.clicked.connect(self.on_test)
+        settings_button_2.clicked.connect(self.on_settings2)
+        test_button_2.clicked.connect(self.on_test2)
+        settings_button_3.clicked.connect(self.on_settings3)
+        test_button_3.clicked.connect(self.on_test3)
+        settings_button_4.clicked.connect(self.on_settings4)
+        test_button_4.clicked.connect(self.on_test4)
+        settings_button_5.clicked.connect(self.on_settings5)
+        test_button_5.clicked.connect(self.on_test5)
+        settings_button_6.clicked.connect(self.on_settings6)
+        test_button_6.clicked.connect(self.on_test6)
+        settings_button_7.clicked.connect(self.on_settings7)
+        test_button_7.clicked.connect(self.on_test7)
+        settings_button_8.clicked.connect(self.on_settings8)
+        test_button_8.clicked.connect(self.on_test8)
+        settings_button_9.clicked.connect(self.on_settings9)
+        test_button_9.clicked.connect(self.on_test9)
+        settings_button_10.clicked.connect(self.on_settings10)
+        test_button_10.clicked.connect(self.on_test10)
+        settings_button_11.clicked.connect(self.on_settings11)
+        test_button_11.clicked.connect(self.on_test11)
+        settings_button_12.clicked.connect(self.on_settings12)
+        test_button_12.clicked.connect(self.on_test12)
+        settings_button_13.clicked.connect(self.on_settings13)
+        test_button_13.clicked.connect(self.on_test13)
+
         ok_button.clicked.connect(self.on_ok)
         cancel_button.clicked.connect(self.on_cancel)
+
+
+
+
 
     def on_settings(self):
         # 打开设置窗口或执行设置相关操作
@@ -347,49 +381,119 @@ class EvalApp(QDialog):
         self.ans = answers
         print(answers)
 
-    def on_test(self):
-        # 执行测试操作
-        print("测试按钮被点击")
-        # 创建线程对象并传递函数和参数
-        # self.qs = ["你是谁？", "你好啊？"]
-        # self.ans = ['您好，我是科大讯飞研发的认知智能大模型，我的名字叫讯飞星火认知大模型。我可以和人类进行自然交流，解答问题，高效完成各领域认知智能需求。',
-        #             '您好！很高兴与您交流。如果您有任何疑问或需要帮助，请随时告诉我。我在这里为您提供信息和支持。']
-
-        # self.thread = QThread(target=on_test_model, args=(self.qs, self.ans, self.understanding_edit,))
-        # self.thread = Worker(self.qs, self.ans, self.understanding_edit)
-        # self.thread.finished.connect(self.on_thread_finished)
-        # self.thread.start()
-
     def on_settings1(self):
         # 打开设置窗口或执行设置相关操作
         print("设置按钮被点击")
         self.question_manager = QuestionManager(self)
         self.question_manager.exec_()
 
-    def on_test1(self):
+    def on_settings2(self):
+       self.on_settings1()
+
+    def on_settings3(self):
+       self.on_settings1()
+
+    def on_settings4(self):
+       self.on_settings1()
+
+    def on_settings5(self):
+        self.on_settings1()
+
+    def on_settings6(self):
+        self.on_settings1()
+
+    def on_settings7(self):
+        self.on_settings1()
+
+    def on_settings8(self):
+        self.on_settings1()
+
+    def on_settings9(self):
+        self.on_settings1()
+
+    def on_settings10(self):
+        self.on_settings1()
+
+    def on_settings11(self):
+        self.on_settings1()
+
+    def on_settings12(self):
+        self.on_settings1()
+
+    def on_settings13(self):
+        self.on_settings1()
+
+    def on_test(self,question_type:str=llm_ability[0]):
         # 执行测试操作
         print("测试按钮被点击")
-        # 创建线程对象并传递函数和参数
-        # self.qs = ["你是谁？", "你好啊？"]
-        # self.ans = ['您好，我是科大讯飞研发的认知智能大模型，我的名字叫讯飞星火认知大模型。我可以和人类进行自然交流，解答问题，高效完成各领域认知智能需求。',
-        #             '您好！很高兴与您交流。如果您有任何疑问或需要帮助，请随时告诉我。我在这里为您提供信息和支持。']
-
-        # self.thread = QThread(target=on_test_model, args=(self.qs, self.ans, self.understanding_edit,))
         bt = self.sender()
-        bt.setEnabled(False)
+        # bt.setEnabled(False)
         bt.setCursor(QCursor(Qt.WaitCursor))
-
-        question_type = llm_ability[0]
+        # question_type = llm_ability[0]
         question_num = 3
         self.thread = Worker(question_type, question_num, self.understanding_edit)
         self.thread.finished.connect(self.on_thread_finished1)
         self.thread.start()
 
+    def on_test0(self):
+        print("测试按钮被点击")
+        spark = AI_spark()
+        prompt = question_speed
+        time_start= datetime.now()
+        answers = spark.ask_one(prompt)
+        answers = ''.join(answers)
+        time_end  = datetime.now()
+        tokens = jieba.cut(answers, cut_all=False)  # 精确模式
+        dur = (time_end-time_start)
+        lst = list(tokens)
+        speed = round(len(lst)/dur.total_seconds(),0)
+        self.speed_edit.setText(str(speed))
+
+    def on_test1(self):
+        self.on_test(llm_ability[0])
+
+    def on_test2(self):
+        self.on_test(llm_ability[1])
+
+    def on_test3(self):
+        self.on_test(llm_ability[2])
+
+    def on_test4(self):
+        self.on_test(llm_ability[3])
+
+    def on_test5(self):
+        self.on_test(llm_ability[4])
+
+    def on_test6(self):
+        self.on_test(llm_ability[5])
+
+    def on_test7(self):
+        self.on_test(llm_ability[6])
+
+    def on_test8(self):
+        self.on_test(llm_ability[7])
+
+    def on_test9(self):
+        self.on_test(llm_ability[8])
+
+    def on_test10(self):
+        self.on_test(llm_ability[9])
+
+    def on_test11(self):
+        self.on_test(llm_ability[10])
+
+    def on_test12(self):
+        self.on_test(llm_ability[11])
+
+    def on_test13(self):
+        self.on_test(llm_ability[12])
+
+
     def on_thread_finished1(self):
         print("线程完成")
-        self.button.setEnabled(True)
-        self.button.setCursor(QCursor(Qt.ArrowCursor))
-        print("线程完成")
+        # self.button.setEnabled(True)
+        # self.button.setCursor(QCursor(Qt.ArrowCursor))
+        # print("线程完成")
 
     def on_ok(self):
         # 处理用户点击OK按钮的逻辑
