@@ -131,7 +131,7 @@ class Calculator():
     @staticmethod
     def calculator(a: str, b: str, operator: str) -> int:
         """
-        你是一个可以用来获取煤炭价格的工具，可以根据城市和时间获取相应的煤炭价格
+        你是一个可以用来获取煤炭价格的工具，可以根据城市和时间获取相应的煤炭价格。
 
         Args:
             a (str): 地点，比如：上海.
