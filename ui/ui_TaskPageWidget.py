@@ -11,6 +11,7 @@ import sys
 import subprocess
 import time
 import urllib
+import pyperclip
 import webbrowser,re
 from urllib.parse import urlparse
 from PyQt5 import QtCore, QtGui, QtWidgets, QtWebEngineWidgets
@@ -18,14 +19,17 @@ from PyQt5.QtCore import QUrl
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineFullScreenRequest, QWebEngineView, QWebEngineProfile, QWebEngineSettings
 from PyQt5.QtWidgets import QLabel, QCheckBox, QComboBox, QSplitter, QFrame, QDialog, QGroupBox
+from PyQt5.QtWidgets import (QApplication, QDialog, QVBoxLayout,
+                             QFormLayout, QLabel, QComboBox,
+                             QLineEdit, QPushButton, QHBoxLayout, QSpacerItem, QSizePolicy)
 
 from qtpy.QtCore import Qt, QMetaObject, Signal, Slot, QEvent
 from pathlib import Path
 from langchainhandler import get_file_content_tuple
 
-# from pytalk.speaker import Speaker
-from speaker import Speaker   #-->    修复上面路径bug
-
+from pytalk.speaker import Speaker
+import json
+from util import generate_random_id,extract_json_string_from_llm
 sys.path.append("../..")
 sys.path.append("../../..")
 
@@ -33,12 +37,13 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QMainWindow, QPushButton, QVBoxLayout,QTabWidget
 from PyQt5.QtCore import pyqtSlot, Qt, QUrl, QFileInfo, pyqtProperty
 from prompts import PromptDialog,PromptManager
-from db.DBFactory import Session, Prompt
+from db.DBFactory import Session, Prompt,query_AgentTask_By_Id,delete_AgentTask,update_AgentTask,query_KMCfg_All,query_AiChatCfg_All,query_AIFriend_All,query_KMCfg,query_AiChatCfg,add_workflow_mng,get_prompt_by_title
 from pluginsmanager.plugins_gui.tab_plugin import load_plugin
+from noteeditor.msword import Main as NoteEditor
 from file_manager import FileManager
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QWidget, QMenu, QAction, QHBoxLayout, QShortcut
+    QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QWidget, QMenu, QAction, QHBoxLayout, QShortcut,QPlainTextEdit
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt
@@ -46,11 +51,20 @@ from PyQt5.QtGui import QKeySequence
 from i18n import lt
 class MessageHandler(QWidget):
     on_message = pyqtSignal(str)
-    on_message_checked = pyqtSignal(int,str)
+    on_message_checked = pyqtSignal(int,str,str)
     on_edit_content_message  = pyqtSignal(str,str)
     on_message_file_clicked = pyqtSignal(str)
     on_message_open_link = pyqtSignal(str)
+    on_message_copy_message = pyqtSignal(str)
+    on_message_edit_message = pyqtSignal(str)
+    on_message_delete_message = pyqtSignal(str)
+    on_message_transfer_message = pyqtSignal(str)
+    on_message_collect_message = pyqtSignal(str)
     on_message_toggle_parent_menu = pyqtSignal()
+    on_message_task_run_code = pyqtSignal()
+    on_message_task_next_step = pyqtSignal()
+    on_message_task_exit = pyqtSignal()
+
 
     def __init__(self):
         super().__init__()
@@ -64,11 +78,12 @@ class MessageHandler(QWidget):
         self.theinnervalue = self.theinnervalue + tmpstr
         QMessageBox.information(self, "从网页来的信息", tmpstr)
 
-    @pyqtSlot(int, str, result=str)
-    def check_message(self,i,status):
+    @pyqtSlot(int, str, str, result=str)
+    def check_message(self,i,id,status):
         print("i:",i)
+        print("id:", id)
         print("status",status)
-        self.on_message_checked.emit(i,status)
+        self.on_message_checked.emit(i,id,status)
 
     @pyqtSlot(str, str, result=str)
     def edit_content_message(self,code_type,text):
@@ -90,7 +105,42 @@ class MessageHandler(QWidget):
     def toggle_parent_menu(self):
         self.on_message_toggle_parent_menu.emit()
 
+    @pyqtSlot(str, result=str)
+    def copy_message(self, data_id):
+        print("data_id:", data_id)
+        self.on_message_copy_message.emit(data_id)
 
+    @pyqtSlot(str, result=str)
+    def edit_message(self, data_id):
+        print("data_id:", data_id)
+        self.on_message_edit_message.emit(data_id)
+
+    @pyqtSlot(str, result=str)
+    def delete_message(self, data_id):
+        print("data_id:", data_id)
+        self.on_message_delete_message.emit(data_id)
+
+    @pyqtSlot(str, result=str)
+    def transfer_message(self, data_id):
+        print("data_id:", data_id)
+        self.on_message_transfer_message.emit(data_id)
+
+    @pyqtSlot(str, result=str)
+    def collect_message(self, data_id):
+        print("data_id:", data_id)
+        self.on_message_collect_message.emit(data_id)
+
+    @pyqtSlot()
+    def task_run_code(self):
+        self.on_message_task_run_code.emit()
+
+    @pyqtSlot()
+    def task_next_step(self):
+        self.on_message_task_next_step.emit()
+
+    @pyqtSlot()
+    def task_exit(self):
+        self.on_message_task_exit.emit()
 
     def pass_message(self, messsage):
         self.on_message.emit(messsage)
@@ -285,48 +335,46 @@ class Ui_TaskPageWidget(object):
 
 
 
-        self.attach_buttona = QPushButton(TaskWidget)
+        self.delete_batch_button = QPushButton(TaskWidget)
         icon1a = QtGui.QIcon()
         icon1a.addFile("images/delete.png")
-        self.attach_buttona.setIcon(icon1a)
-        self.attach_buttona.setText("批量删除")
-        self.attach_buttona.clicked.connect(self.opendialogkm)
-        self.attach_buttona.setObjectName("fontButton")
-        self.hboxlayout_content_menu_inner.addWidget(self.attach_buttona)
+        self.delete_batch_button.setIcon(icon1a)
+        self.delete_batch_button.setText("批量删除")
+        self.delete_batch_button.clicked.connect(self.delete_message_batch)
+        self.delete_batch_button.setObjectName("deletebatchButton")
+        self.hboxlayout_content_menu_inner.addWidget(self.delete_batch_button)
 
-        self.kmButtona = QPushButton(TaskWidget)
-        self.kmButtona.setIcon(QtGui.QIcon("images/share.png"))
-        self.kmButtona.setObjectName("kmButtona")
-        self.kmButtona.setText("逐条转发")
-        self.hboxlayout_content_menu_inner.addWidget(self.kmButtona)
+        self.shareButton = QPushButton(TaskWidget)
+        self.shareButton.setIcon(QtGui.QIcon("images/share.png"))
+        self.shareButton.setObjectName("shareButton")
+        self.shareButton.setText("合并转发")
+        self.shareButton.clicked.connect(self.transfer_message_batch)
+        self.hboxlayout_content_menu_inner.addWidget(self.shareButton)
 
-        self.kmButtona1 = QPushButton(TaskWidget)
-        self.kmButtona1.setIcon(QtGui.QIcon("images/share.png"))
-        self.kmButtona1.setObjectName("kmButtona1")
-        self.kmButtona1.setText("合并转发")
-        self.hboxlayout_content_menu_inner.addWidget(self.kmButtona1)
 
-        self.kmButtona2 = QPushButton(TaskWidget)
-        self.kmButtona2.setIcon(QtGui.QIcon("images/bookmark.png"))
-        self.kmButtona2.setObjectName("kmButtona2")
-        self.kmButtona2.setText("合并收藏")
-        self.hboxlayout_content_menu_inner.addWidget(self.kmButtona2)
+        self.collectButton = QPushButton(TaskWidget)
+        self.collectButton.setIcon(QtGui.QIcon("images/bookmark.png"))
+        self.collectButton.setObjectName("collectButton")
+        self.collectButton.setText("合并收藏")
+        self.collectButton.clicked.connect(self.collect_message_batch)
+        self.hboxlayout_content_menu_inner.addWidget(self.collectButton)
 
-        self.kmButtona3 = QPushButton(TaskWidget)
-        self.kmButtona3.setIcon(QtGui.QIcon("images/workflow.png"))
-        self.kmButtona3.setObjectName("kmButtona3")
-        self.kmButtona3.setText("转为工作流")
-        self.hboxlayout_content_menu_inner.addWidget(self.kmButtona3)
+        self.workflowButton = QPushButton(TaskWidget)
+        self.workflowButton.setIcon(QtGui.QIcon("images/workflow.png"))
+        self.workflowButton.setObjectName("flowButton")
+        self.workflowButton.setText("转为工作流")
+        self.workflowButton.clicked.connect(self.workflow_button_click)
+        self.hboxlayout_content_menu_inner.addWidget(self.workflowButton)
 
 
 
 
 
 
-        self.llm_buttonb = QPushButton(TaskWidget)
-        self.llm_buttonb.setText("X")
-        self.llm_buttonb.setToolTip("关闭操作")
-        self.llm_buttonb.setStyleSheet("""
+        self.close_button = QPushButton(TaskWidget)
+        self.close_button.setText("X")
+        self.close_button.setToolTip("关闭操作")
+        self.close_button.setStyleSheet("""
                     QPushButton {
                         border-radius: 2px; /* 设置圆角 */
                         border: 1px solid #c0c0c0; /* 设置边框 */
@@ -341,8 +389,8 @@ class Ui_TaskPageWidget(object):
                     }
 
                 """)
-        self.llm_buttonb.clicked.connect(lambda:self.toggle_content_menu("unchecked"))
-        self.hboxlayout_content_menu_inner.addWidget(self.llm_buttonb)
+        self.close_button.clicked.connect(lambda:self.toggle_content_menu("unchecked"))
+        self.hboxlayout_content_menu_inner.addWidget(self.close_button)
 
 
         self.content_menu_group_box.setLayout(self.hboxlayout_content_menu_inner)
@@ -378,12 +426,12 @@ class Ui_TaskPageWidget(object):
         self.kmButton.setObjectName("kmButton")
         self.hboxlayout.addWidget(self.kmButton)
 
-        self.llm_button = QPushButton(TaskWidget)
+        self.plugin_button = QPushButton(TaskWidget)
         icon2 = QtGui.QIcon()
         icon2.addFile("images/plugin.png")
-        self.llm_button.setIcon(icon2)
-        self.llm_button.setObjectName("videoButton")
-        self.hboxlayout.addWidget(self.llm_button)
+        self.plugin_button.setIcon(icon2)
+        self.plugin_button.setObjectName("pluginButton")
+        self.hboxlayout.addWidget(self.plugin_button)
 
         self.model_select_checkbox = QCheckBox("指定模型")
         #self.model_select_checkbox = QCheckBox("指定模型", TaskWidget)
@@ -539,7 +587,16 @@ class Ui_TaskPageWidget(object):
         message_handler.on_edit_content_message.connect(self.edit_selected_content)
         message_handler.on_message_file_clicked.connect(self.attachment_clicked)
         message_handler.on_message_open_link.connect(self.open_link)
+        message_handler.on_message_copy_message.connect(self.copy_message)
+        message_handler.on_message_edit_message.connect(self.edit_message)
+        message_handler.on_message_delete_message.connect(self.delete_message)
+        message_handler.on_message_transfer_message.connect(self.transfer_message)
+        message_handler.on_message_collect_message.connect(self.collect_message)
         message_handler.on_message_toggle_parent_menu.connect(self.toggle_content_menu)
+        message_handler.on_message.connect(self.on_message_from_message_handler)
+        message_handler.on_message_task_run_code.connect(self.task_run_code)
+        message_handler.on_message_task_next_step.connect(self.task_next_step)
+        message_handler.on_message_task_exit.connect(self.task_exit)
 
         self.speaker = Speaker(message_handler, self.messageBrowser)
         self.speaker.on_message_ask_for_feedback.connect(self.save_task_output)
@@ -559,7 +616,7 @@ class Ui_TaskPageWidget(object):
         self.newButton.setText(_translate("TaskWidget", "新对话"))
         self.attach_button.setText(_translate("TaskWidget", "附件"))
         self.kmButton.setText(_translate("TaskWidget", "知识库"))
-        self.llm_button.setText(_translate("TaskWidget", "插件"))
+        self.plugin_button.setText(_translate("TaskWidget", "插件"))
         self.sendButton.setText(_translate("TaskWidget", "发送"))
         self.stopButton.setText(_translate("TaskWidget", "停止"))
         # self.sendButton.setShortcut(_translate("TaskWidget", "Return"))
@@ -830,6 +887,629 @@ class Ui_TaskPageWidget(object):
         print("cleaned_url:",cleaned_url)
         if not (cleaned_url[-20:]=="taskpagemsgbox.html#"):#排除文件链接
             webbrowser.open(cleaned_url)
+
+    def copy_message(self, data_id):
+        type_str=data_id[-1]
+        record_id=data_id[3:]
+        record_id=record_id[0:-2]
+        record=query_AgentTask_By_Id(record_id)
+        if type_str=="a":
+            message=record.problem
+        else:
+            message=record.answer
+        pyperclip.copy(message)
+    def edit_message(self, data_id):
+        type_str = data_id[-1]
+        record_id = data_id[3:]
+        record_id = record_id[0:-2]
+        record = query_AgentTask_By_Id(record_id)
+        if type_str == "a":
+            message = record.problem
+        else:
+            message = record.answer
+        self.messageEdit.setPlainText(message)
+
+    def delete_message(self, data_id):
+        reply = QMessageBox.question(self, '删除确定',
+                                     f"您确定要删除吗?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if reply == QMessageBox.Yes:
+            type_str = data_id[-1]
+            record_id = data_id[3:]
+            record_id = record_id[0:-2]
+            record = query_AgentTask_By_Id(record_id)
+            if type_str == "a":
+                message = record.answer
+                if message=="":
+                    delete_AgentTask(int(record_id))
+                else:
+                    update_AgentTask(int(record_id),problem="")
+            else:
+                message = record.problem
+                if message=="":
+                    delete_AgentTask(int(record_id))
+                else:
+                    update_AgentTask(int(record_id),answer="")
+
+    def delete_message_batch(self):
+        reply = QMessageBox.question(self, '删除确定',
+                                     f"您确定要删除吗?",
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+        if reply == QMessageBox.Yes:
+            for data_id in self.selected_history_id:
+                type_str = data_id[-1]
+                record_id = data_id[3:]
+                record_id = record_id[0:-2]
+                record = query_AgentTask_By_Id(record_id)
+                if type_str == "a":
+                    message = record.answer
+                    if message=="":
+                        delete_AgentTask(int(record_id))
+                    else:
+                        update_AgentTask(int(record_id),problem="")
+                else:
+                    message = record.problem
+                    if message=="":
+                        delete_AgentTask(int(record_id))
+                    else:
+                        update_AgentTask(int(record_id),answer="")
+
+                browser_page=self.messageBrowser.page()
+
+                browser_page.runJavaScript('dataId=`' + data_id + '`')
+                browser_page.runJavaScript('deleteMessageById(dataId)')
+
+    def task_run_code(self):
+        message="ok"
+        self.messageEdit.setPlainText(message)
+        self.sendMessage()
+
+    def task_next_step(self):
+        message="exit"
+        self.messageEdit.setPlainText(message)
+        self.sendMessage()
+
+    def task_exit(self):
+        message="exit"
+        self.messageEdit.setPlainText(message)
+        # self.sendMessage()
+
+    def update_contact_combobox(self,forwardComboBox,contactComboBox):
+        """根据forwardComboBox的值更新contactComboBox的选项"""
+        current_text = forwardComboBox.currentText()
+        current_data = forwardComboBox.currentData()
+        # 清空现有选项
+        contactComboBox.clear()
+
+        # 根据forwardComboBox的选择设置contactComboBox的选项
+        records = query_AIFriend_All(owner_sns_account=current_data)
+        for record in records:
+            contactComboBox.addItem(record.nickname, record.account)
+
+    def transfer_message(self, data_id):
+        type_str = data_id[-1]
+        record_id = data_id[3:]
+        record_id = record_id[0:-2]
+        record = query_AgentTask_By_Id(record_id)
+        if type_str == "a":
+            message = record.problem
+        else:
+            message = record.answer
+
+
+
+        transfer_dialog = QDialog()
+        dialog = QDialog()
+        dialog.setWindowTitle("请选择要转发给哪个帐号的联系人")
+        dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局：用于整洁地排列标签和输入部件
+        form_layout = QFormLayout()
+
+        # 创建组合框和标签
+        dialog.forwardComboBox = QComboBox()
+        records = query_AiChatCfg_All(is_delete=0)
+        for record in records:
+            dialog.forwardComboBox.addItem(record.nickname,record.account)
+
+        form_layout.addRow("AI社交帐号：", dialog.forwardComboBox)
+
+        # 创建选择联系人组合框和标签
+        dialog.contactComboBox = QComboBox()
+        self.update_contact_combobox(dialog.forwardComboBox, dialog.contactComboBox)  # 初始化联系人组合框
+        form_layout.addRow("该帐号联系人：", dialog.contactComboBox)
+
+        dialog.forwardComboBox.currentIndexChanged.connect(lambda: self.update_contact_combobox(dialog.forwardComboBox, dialog.contactComboBox))
+
+        # 创建单行文本编辑器和标签
+        dialog.descriptionEdit = QLineEdit()
+        form_layout.addRow("转发说明：", dialog.descriptionEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建水平布局用于按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
+
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+
+        # 将按钮添加到水平布局
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        dialog.setLayout(main_layout)
+
+        if dialog.exec_():
+            # selected_ai_account = dialog.forwardComboBox.currentText()
+            # selected_contact = dialog.contactComboBox.currentText()
+            selected_ai_account = dialog.forwardComboBox.currentData()
+            selected_contact = dialog.contactComboBox.currentData()
+            description = dialog.descriptionEdit.text()
+            print(f"Selected AI Account: {selected_ai_account}, Contact: {selected_contact}, Description: {description}, Message:{message}")
+            record=query_AiChatCfg(account=selected_ai_account)
+            user_id=record.user_id
+            application=self.application
+            buddyList =  application.buddylist_list[user_id]
+            buddyList.send_message(selected_contact, message)
+
+    def transfer_message_batch(self):
+        message_batch=""
+        for data_id in self.selected_history_id:
+            type_str = data_id[-1]
+            record_id = data_id[3:]
+            record_id = record_id[0:-2]
+            record = query_AgentTask_By_Id(record_id)
+            if type_str == "a":
+                message = record.problem
+            else:
+                message = record.answer
+
+            message_batch = message_batch + message + "\n"
+
+
+
+
+
+        transfer_dialog = QDialog()
+        dialog = QDialog()
+        dialog.setWindowTitle("请选择要转发给哪个帐号的联系人")
+        dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局：用于整洁地排列标签和输入部件
+        form_layout = QFormLayout()
+
+        # 创建组合框和标签
+        dialog.forwardComboBox = QComboBox()
+        records = query_AiChatCfg_All(is_delete=0)
+        for record in records:
+            dialog.forwardComboBox.addItem(record.nickname,record.account)
+
+        form_layout.addRow("AI社交帐号：", dialog.forwardComboBox)
+
+        # 创建选择联系人组合框和标签
+        dialog.contactComboBox = QComboBox()
+        self.update_contact_combobox(dialog.forwardComboBox, dialog.contactComboBox)  # 初始化联系人组合框
+        form_layout.addRow("该帐号联系人：", dialog.contactComboBox)
+
+        dialog.forwardComboBox.currentIndexChanged.connect(lambda: self.update_contact_combobox(dialog.forwardComboBox, dialog.contactComboBox))
+
+        # 创建单行文本编辑器和标签
+        dialog.descriptionEdit = QLineEdit()
+        form_layout.addRow("转发说明：", dialog.descriptionEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建水平布局用于按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
+
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        ok_button.clicked.connect(dialog.accept)
+        cancel_button.clicked.connect(dialog.reject)
+
+        # 将按钮添加到水平布局
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        dialog.setLayout(main_layout)
+
+        if dialog.exec_():
+            # selected_ai_account = dialog.forwardComboBox.currentText()
+            # selected_contact = dialog.contactComboBox.currentText()
+            selected_ai_account = dialog.forwardComboBox.currentData()
+            selected_contact = dialog.contactComboBox.currentData()
+            description = dialog.descriptionEdit.text()
+            print(f"Selected AI Account: {selected_ai_account}, Contact: {selected_contact}, Description: {description}, Message:{message_batch}")
+            record=query_AiChatCfg(account=selected_ai_account)
+            user_id=record.user_id
+            application=self.application
+            buddyList =  application.buddylist_list[user_id]
+            buddyList.send_message(selected_contact, message_batch)
+
+    def collect_message(self, data_id):
+        type_str = data_id[-1]
+        record_id = data_id[3:]
+        record_id = record_id[0:-2]
+        record = query_AgentTask_By_Id(record_id)
+        if type_str == "a":
+            message = record.problem
+        else:
+            message = record.answer
+
+        transfer_dialog = QDialog()
+        transfer_dialog.setWindowTitle("收藏")
+        transfer_dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局：用于整洁地排列标签和输入部件
+        form_layout = QFormLayout()
+
+        # 创建组合框和标签
+        transfer_dialog.comboBox = QComboBox()
+        transfer_dialog.comboBox.setEditable(True)
+        records = query_KMCfg_All(kmtype="1")
+        for record in records:
+            transfer_dialog.comboBox.addItem(record.name)
+
+        # transfer_dialog.populate_combobox()
+        form_layout.addRow("收藏至笔记：", transfer_dialog.comboBox)
+
+        # 创建组合框和标签
+        transfer_dialog.comboBox_label = QComboBox()
+        transfer_dialog.comboBox_label.setEditable(True)
+        records = query_KMCfg_All(kmtype="1")
+        for record in records:
+            transfer_dialog.comboBox_label.addItem(record.name)
+
+        # transfer_dialog.populate_combobox()
+        form_layout.addRow("标签：", transfer_dialog.comboBox_label)
+
+        # 创建单行文本编辑器和标签
+        transfer_dialog.titleEdit = QLineEdit()
+        form_layout.addRow("标题：", transfer_dialog.titleEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建水平布局用于按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
+
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        ok_button.clicked.connect(transfer_dialog.accept)
+        cancel_button.clicked.connect(transfer_dialog.reject)
+
+        # 将按钮添加到水平布局
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        transfer_dialog.setLayout(main_layout)
+
+        if transfer_dialog.exec_():
+            # 在对话框被接受时执行的代码
+            selected_note = transfer_dialog.comboBox.currentText()
+            selected_label = transfer_dialog.comboBox_label.currentText()
+            title = transfer_dialog.titleEdit.text()
+            print(f"Selected Note: {selected_note}, selected_label: {selected_label}, Title: {title}, Message:{message}")
+
+            km_cfg=query_KMCfg(name=selected_note)
+            note_editor = NoteEditor(self.application)
+            note_editor.setObjectName('NoteEditorObject')
+            # note_editor.show()
+            note_editor.record_id = 0
+            note_editor.km_id = km_cfg.km_id
+            note_editor.km_cfg = km_cfg
+            note_editor.loadFile()
+            note_editor.text.setText(message)
+            note_editor.save(title)
+            QMessageBox.information(self, "信息", "收藏成功!")
+
+    def collect_message_batch(self):
+        message_batch = ""
+        for data_id in self.selected_history_id:
+            type_str = data_id[-1]
+            record_id = data_id[3:]
+            record_id = record_id[0:-2]
+            record = query_AgentTask_By_Id(record_id)
+            if type_str == "a":
+                message = record.problem
+            else:
+                message = record.answer
+
+            message_batch = message_batch + message + "\n"
+
+        transfer_dialog = QDialog()
+        transfer_dialog.setWindowTitle("收藏")
+        transfer_dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局：用于整洁地排列标签和输入部件
+        form_layout = QFormLayout()
+
+        # 创建组合框和标签
+        transfer_dialog.comboBox = QComboBox()
+        transfer_dialog.comboBox.setEditable(True)
+        records = query_KMCfg_All(kmtype="1")
+        for record in records:
+            transfer_dialog.comboBox.addItem(record.name)
+
+        # transfer_dialog.populate_combobox()
+        form_layout.addRow("收藏至笔记：", transfer_dialog.comboBox)
+
+        # 创建组合框和标签
+        transfer_dialog.comboBox_label = QComboBox()
+        transfer_dialog.comboBox_label.setEditable(True)
+        records = query_KMCfg_All(kmtype="1")
+        for record in records:
+            transfer_dialog.comboBox_label.addItem(record.name)
+
+        # transfer_dialog.populate_combobox()
+        form_layout.addRow("标签：", transfer_dialog.comboBox_label)
+
+        # 创建单行文本编辑器和标签
+        transfer_dialog.titleEdit = QLineEdit()
+        form_layout.addRow("标题：", transfer_dialog.titleEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建水平布局用于按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
+
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        ok_button.clicked.connect(transfer_dialog.accept)
+        cancel_button.clicked.connect(transfer_dialog.reject)
+
+        # 将按钮添加到水平布局
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        transfer_dialog.setLayout(main_layout)
+
+        if transfer_dialog.exec_():
+            # 在对话框被接受时执行的代码
+            selected_note = transfer_dialog.comboBox.currentText()
+            selected_label = transfer_dialog.comboBox_label.currentText()
+            title = transfer_dialog.titleEdit.text()
+            print(f"Selected Note: {selected_note}, selected_label: {selected_label}, Title: {title}, Message:{message_batch}")
+
+            km_cfg=query_KMCfg(name=selected_note)
+            note_editor = NoteEditor(self.application)
+            note_editor.setObjectName('NoteEditorObject')
+            # note_editor.show()
+            note_editor.record_id = 0
+            note_editor.km_id = km_cfg.km_id
+            note_editor.km_cfg = km_cfg
+            note_editor.loadFile()
+            note_editor.text.setText(message_batch)
+            note_editor.save(title)
+            QMessageBox.information(self, "信息", "收藏成功!")
+
+    def message_to_node(self, message, type_str, index):
+        """
+        将消息转换为工作流中的一个节点。
+        :param message: 消息文本
+        :param type_str: 消息类型字符串
+        :param index: 节点的索引值
+        :return: 节点的字典表示
+        """
+        node_id = f"node_{index}"
+        # 构建节点结构
+        node = {
+            "id": node_id,  # 节点ID
+            "title": message,  # 节点的标题是消息本身
+            "type": "message_node",  # 节点类型
+            "type_str": type_str,  # 节点类型字符串
+            "description": message,  # 描述信息同样是消息
+            "plugin": "",  # 插件字段（根据需要填写）
+            "connectors": []  # 暂未实现具体连接器
+        }
+        return node
+
+    def transfer_message_to_workflow(self, workflow_json_str):
+        """
+                转换选定历史记录中的消息为工作流节点和连接器。
+        """
+        if "```json" in workflow_json_str:
+            workflow_json_str = extract_json_string_from_llm(workflow_json_str)
+
+
+        # 定义常量
+        NODE_SIZE = 120  # 节点的边长
+        NODE_DISTANCE = 200  # 节点之间的距离
+        workflow_nodes = []  # 用于存储工作流节点的列表
+        connectors = []  # 用于存储连接器的列表
+
+        # 将 JSON 字符串转换为 Python 字典对象
+
+        # 转换 JSON 字符串为字典对象
+        workflow_json = json.loads(workflow_json_str)
+        # 判断 workflow_json 是列表还是字典
+        if isinstance(workflow_json, list):
+            # 如果 workflow_json 是一个列表
+            print("workflow_json is a list")
+            nodes = workflow_json
+        elif isinstance(workflow_json, dict):
+            # 如果 workflow_json 是一个字典
+            print("workflow_json is a dictionary")
+            nodes = workflow_json.get('workflow', None)
+        else:
+            # 如果 workflow_json 既不是列表也不是字典
+            print("workflow_json is neither a list nor a dictionary")
+
+
+        last_node = nodes[-1]
+
+        if last_node["type"]!="end":
+            l = len(nodes)
+            end_node_id = "node"+str(l)
+            nodes.append({
+                "id": f"{end_node_id}",
+                "title": "任务结束",
+                "description": "任务执行完毕。",
+                "type": "end",
+                "type_str": "结束",
+                "plugin": ""
+                    })
+
+        # 为每个节点添加坐标和连接器
+        for index, node in enumerate(nodes):
+            # 计算节点坐标
+            node['x'] = index * (NODE_DISTANCE + NODE_SIZE)
+            node['y'] = 100  # 所有节点在同一水平线上
+
+            # 计算连接器坐标
+            cx = node['x'] + NODE_SIZE / 2
+            cy = node['y'] + NODE_SIZE / 2
+            node['connectors'] = [
+                {"cx": cx, "cy": (cy - NODE_SIZE / 2) - 10},
+                {"cx": cx + (NODE_SIZE / 2) + 10, "cy": cy},
+                {"cx": cx, "cy": cy + (NODE_SIZE / 2) + 10},
+                {"cx": cx - (NODE_SIZE / 2) - 10, "cy": cy}
+            ]
+
+            # 创建连接器，如果不是第一个节点，连接到前一个节点
+            if index > 0:
+                connectors.append({
+                    "connector1Id": f"node{index}",
+                    "connector2Id": f"node{index + 1}",
+                    "connector1Index": 1,
+                    "connector2Index": 3
+                })
+
+        # 输出结果
+        print(json.dumps(nodes, ensure_ascii=False, indent=2))
+        workflow_cfg = {"nodes":nodes,"lines":connectors}
+        detail=json.dumps(workflow_cfg, ensure_ascii=False, indent=4)
+        title = self.work_flow_title
+        selected_label = self.work_flow_label
+        desc = self.work_flow_desc
+        workflow_id = generate_random_id()
+        add_workflow_mng(workflow_id=workflow_id, title=title, description=desc, workflow_tags=selected_label, detail=detail)
+
+        QMessageBox.information(self, "信息", "转为工作流成功,请到工作流模块中查看您转过去的工作流。")
+        # 恢复原来状态
+        self.is_transfer_to_workflow = False  # 恢复状态
+        self.system_role_prompt = self.pre_system_role_prompt
+        self.pre_system_role_prompt = ""
+        self.work_flow_title = ""
+        self.work_flow_label = ""
+        self.work_flow_desc = ""
+
+    def workflow_button_click(self):
+
+
+        transfer_dialog = QDialog()
+        transfer_dialog.setWindowTitle("转为工作流")
+        transfer_dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局：用于整洁地排列标签和输入部件
+        form_layout = QFormLayout()
+
+        # 创建单行文本编辑器和标签
+        transfer_dialog.titleEdit = QLineEdit()
+        form_layout.addRow("标题：", transfer_dialog.titleEdit)
+
+        # 创建组合框和标签
+        transfer_dialog.comboBox_label = QComboBox()
+        transfer_dialog.comboBox_label.setEditable(True)
+        records = query_KMCfg_All(kmtype="1")
+        for record in records:
+            transfer_dialog.comboBox_label.addItem(record.name)
+
+        # transfer_dialog.populate_combobox()
+        form_layout.addRow("标签：", transfer_dialog.comboBox_label)
+
+
+        # 创建单行文本编辑器和标签
+        transfer_dialog.descEdit = QPlainTextEdit()
+        form_layout.addRow("描述：", transfer_dialog.descEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建水平布局用于按钮
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
+
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+        ok_button.clicked.connect(transfer_dialog.accept)
+        cancel_button.clicked.connect(transfer_dialog.reject)
+
+        # 将按钮添加到水平布局
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        transfer_dialog.setLayout(main_layout)
+
+        if transfer_dialog.exec_():
+            # 在对话框被接受时执行的代码
+            title = transfer_dialog.titleEdit.text()
+            selected_label = transfer_dialog.comboBox_label.currentText()
+            desc = transfer_dialog.descEdit.toPlainText()
+            self.work_flow_title= title
+            self.work_flow_label= selected_label
+            self.work_flow_desc= desc
+
+
+            print(f"Selected desc: {desc}, selected_label: {selected_label}, Title: {title}")
+
+        """
+                        转换选定历史记录中的消息为工作流节点和连接器。
+        """
+        self.pre_system_role_prompt = self.system_role_prompt
+        self.system_role_prompt = get_prompt_by_title("Workflow_Specialist")
+        self.is_transfer_to_workflow = True
+        message = "请处理"
+        self.messageEdit.setPlainText(message)
+        self.sendMessage()
+
+
+
+
 
     def explain_text(self, txt):
         self.messageEdit.setPlainText(f"给我解释一下以下内容：{txt}")

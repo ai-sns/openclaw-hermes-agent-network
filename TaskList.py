@@ -7,6 +7,7 @@ from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QPoint
 
 from PyQt5.QtCore import QSettings, QThread, pyqtSignal
+import time
 from db.DBFactory import query_AgentTask, query_AgentTask_Search_Content, query_AgentTask_Content, \
     query_AgentTask_Search_First, AgentTask, deleteTasksFromDatabase, update_AgentTask, update_AgentTask_stick, \
     query_AgentTask_ById, query_AgentTask_ByLabel
@@ -76,7 +77,11 @@ class TaskList(QTreeWidget):
         self.delete_action = QAction(QIcon("images/delete.png"), "删除", self)
         self.delete_action.triggered.connect(self.delete_item)
         self.menu.addAction(self.delete_action)
+
+        # self.menu.addAction(QIcon("images/infos.png"), "信息", self.delete_item)
+
         self.customContextMenuRequested.connect(self.context)
+        self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
 
     # --> 加载 数据
     def load_data(self):
@@ -419,33 +424,34 @@ class TaskList(QTreeWidget):
         return problem
 
     def format_text(self, browser_page, record, page_index=1, user="用户"):
-
         question = record.problem
         answer = record.answer
         create_time = record.create_time
         model_name = record.model_name
 
-        message = get_user_ask_msg_title_formatted(page_index, create_time)
-        add_msg_to_message_window(browser_page, message, 1)
+        if record.problem:
+            message = get_user_ask_msg_title_formatted(page_index, create_time, record_id=record.id)
+            add_msg_to_message_window(browser_page, message, 1)
 
-        # add_msg_to_message_window_and_format(browser_page, question, 2)
-        message = get_user_ask_msg_content_formatted(question)
-        add_msg_to_message_window(browser_page, message, 2)
+            # add_msg_to_message_window_and_format(browser_page, question, 2)
+            message = get_user_ask_msg_content_formatted(question)
+            add_msg_to_message_window(browser_page, message, 2)
 
-        directory_path = os.path.join('resource', 'attachment', 'chat', record.task_id)
-        if record.attachment_list:
-            attachments = json.loads(record.attachment_list)
-            filtered_attachments = [attachment[2] for attachment in attachments if attachment[0] != "km"]
-            if filtered_attachments:
-                add_attachment_to_message_window(browser_page, directory_path, filtered_attachments, 2)
+            directory_path = os.path.join('resource', 'attachment', 'chat', record.task_id)
+            if record.attachment_list:
+                attachments = json.loads(record.attachment_list)
+                filtered_attachments = [attachment[2] for attachment in attachments if attachment[0] != "km"]
+                if filtered_attachments:
+                    add_attachment_to_message_window(browser_page, directory_path, filtered_attachments, 2)
 
-        message = get_agent_reply_msg_title_formatted(model_name, page_index + 1, create_time, False)
-        add_msg_to_message_window(browser_page, message, 1)
+        if record.answer:
+            message = get_agent_reply_msg_title_formatted(model_name, page_index + 1, create_time, False, record_id=record.id)
+            add_msg_to_message_window(browser_page, message, 1)
 
-        if question.startswith("给我画"):
-            add_msg_to_message_window(browser_page, answer, 2)
-        else:
-            add_msg_to_message_window_with_markdown_and_highlight(browser_page, answer, 2)
+            if question.startswith("给我画"):
+                add_msg_to_message_window(browser_page, answer, 2)
+            else:
+                add_msg_to_message_window_with_markdown_and_highlight(browser_page, answer, 2)
 
     # def reloadok(self, key_word):
     #     self.clear()

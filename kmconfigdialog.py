@@ -95,6 +95,7 @@ class ConfigDialog(QDialog):
         kmtype = self.settingPage.kmtypeCombo.currentData()
 
         vectorization=self.settingPage.vectorization_checkbox.isChecked()
+        stopvectorization=self.settingPage.stopvectorization_checkbox.isChecked()
 
         vectortype = self.settingPage.vectortypeCombo.currentText()
         embeddingmodel = self.settingPage.embeddingmodelCombo.currentText()
@@ -105,7 +106,7 @@ class ConfigDialog(QDialog):
         if self.km_cfg == None:
             idstr = self.generate_random_id()
             kmpath = idstr
-            add_KMCfg(idstr, name, memo, label, kmpath,vectorization,kmtype, vectortype, embeddingmodel, textblocklength, overlaplength, titleaugment)
+            add_KMCfg(idstr, name, memo, label, kmpath,vectorization,stopvectorization,kmtype, vectortype, embeddingmodel, textblocklength, overlaplength, titleaugment)
 
             km_cfg = query_KMCfg(km_id=idstr)
             if kmtype=="0":
@@ -124,7 +125,7 @@ class ConfigDialog(QDialog):
             os.makedirs(vector_path, exist_ok=True)
 
         else:
-            update_KMCfg(self.km_cfg.id, name=name, memo=memo, label=label, kmtype=kmtype, vectortype=vectortype, embeddingmodel=embeddingmodel, textblocklength=textblocklength, overlaplength=overlaplength, titleaugment=titleaugment)
+            update_KMCfg(self.km_cfg.id, name=name, memo=memo, label=label, kmtype=kmtype, vectortype=vectortype,vectorization=vectorization,stopvectorization=stopvectorization, embeddingmodel=embeddingmodel, textblocklength=textblocklength, overlaplength=overlaplength, titleaugment=titleaugment)
 
         self.accept()
         self.close()
@@ -242,6 +243,10 @@ class SettingPage(QWidget):
         self.vectorization_checkbox = QCheckBox("是")
         self.vectorization_checkbox.setChecked(True)
 
+        self.stopvectorization_Label = QLabel("暂停向量化:")
+        self.stopvectorization_checkbox = QCheckBox("是")
+        self.stopvectorization_checkbox.setChecked(False)
+
 
 
         self.vectortypeLabel = QLabel("向量库类型:")
@@ -283,16 +288,18 @@ class SettingPage(QWidget):
         packagesLayout.addWidget(self.kmtypeCombo, 0, 1)
         packagesLayout.addWidget(self.vectorization_Label, 1, 0)
         packagesLayout.addWidget(self.vectorization_checkbox, 1, 1)
-        packagesLayout.addWidget(self.vectortypeLabel, 2, 0)
-        packagesLayout.addWidget(self.vectortypeCombo, 2, 1)
-        packagesLayout.addWidget(self.embeddingmodelLabel, 3, 0)
-        packagesLayout.addWidget(self.embeddingmodelCombo, 3, 1)
-        packagesLayout.addWidget(self.textblocklengthLabel, 4, 0)
-        packagesLayout.addWidget(self.textblocklengthEdit, 4, 1)
-        packagesLayout.addWidget(self.overlaplengthLabel, 5, 0)
-        packagesLayout.addWidget(self.overlaplengthEdit, 5, 1)
-        packagesLayout.addWidget(self.titleaugmentLabel, 6, 0)
-        packagesLayout.addWidget(self.titleaugmentCheckBox, 6, 1)
+        packagesLayout.addWidget(self.stopvectorization_Label, 2, 0)
+        packagesLayout.addWidget(self.stopvectorization_checkbox, 2, 1)
+        packagesLayout.addWidget(self.vectortypeLabel, 3, 0)
+        packagesLayout.addWidget(self.vectortypeCombo, 3, 1)
+        packagesLayout.addWidget(self.embeddingmodelLabel, 4, 0)
+        packagesLayout.addWidget(self.embeddingmodelCombo, 4, 1)
+        packagesLayout.addWidget(self.textblocklengthLabel, 5, 0)
+        packagesLayout.addWidget(self.textblocklengthEdit, 5, 1)
+        packagesLayout.addWidget(self.overlaplengthLabel, 6, 0)
+        packagesLayout.addWidget(self.overlaplengthEdit, 6, 1)
+        packagesLayout.addWidget(self.titleaugmentLabel, 7, 0)
+        packagesLayout.addWidget(self.titleaugmentCheckBox, 7, 1)
 
         packagesGroup.setLayout(packagesLayout)
 
@@ -310,6 +317,12 @@ class SettingPage(QWidget):
                 self.vectorization_checkbox.setChecked(True)
             self.vectorization_checkbox.setEnabled(False)
 
+            if agent.stopvectorization==0:
+                self.stopvectorization_checkbox.setChecked(False)
+            else:
+                self.stopvectorization_checkbox.setChecked(True)
+
+
             self.vectortypeCombo.setCurrentText(agent.vectortype)  # Assuming index 1 represents memoEdit text
             self.embeddingmodelCombo.setCurrentText(agent.embeddingmodel)
             self.textblocklengthEdit.setText(str(agent.textblocklength))
@@ -317,6 +330,7 @@ class SettingPage(QWidget):
             self.titleaugmentCheckBox.setChecked(agent.titleaugment)
 
             if agent.vectorization == 0:
+                self.stopvectorization_checkbox.setEnabled(False)
                 self.vectortypeCombo.setEnabled(False)
                 self.embeddingmodelCombo.setEnabled(False)
                 self.textblocklengthEdit.setEnabled(False)

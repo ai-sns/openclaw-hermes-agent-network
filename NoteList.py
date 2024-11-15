@@ -8,7 +8,7 @@ from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtCore import Qt, QPoint
 
 from PyQt5.QtCore import QSettings, QThread, pyqtSignal
-
+import time
 from db.DBFactory import query_AgentTask, query_AgentTask_Search_Content, update_note_mng_by_recordid, \
     query_AgentTask_Search_First, AgentTask, delete_note_mng, update_AgentTask, update_note_mng_stick, update_note_mng, \
     query_note_mng_ById, query_Note_mng_Search_Content, query_note_mng_ByLabel
@@ -95,7 +95,20 @@ class NoteList(QTreeWidget):
         self.delete_action = QAction(QIcon("images/delete.png"), "删除", self)
         self.delete_action.triggered.connect(self.delete_item)
         self.menu.addAction(self.delete_action)
+
+        self.vector_action = QAction(QIcon("images/vector.png"), "向量化", self)
+        self.vector_action.triggered.connect(self.vector_item)
+        self.menu.addAction(self.vector_action)
+
+        # self.reload_action = QAction(QIcon("images/infos.png"), "刷新", self)
+        # self.reload_action.triggered.connect(self.relaod_tree)
+        # self.menu.addAction(self.reload_action)
+
+        # self.menu.addAction(QIcon("images/infos.png"), "信息", self.delete_item)
+
         self.customContextMenuRequested.connect(self.context)
+
+
 
     # --> 加载 数据
     def load_data(self):

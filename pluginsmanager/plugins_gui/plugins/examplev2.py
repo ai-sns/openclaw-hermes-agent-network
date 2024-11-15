@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton
 
-import syntax_pars
+from pytalk.pluginsmanager.plugins_gui.plugins.code_editor import syntax_pars
 
 app = QtWidgets.QApplication([])
 # editor = QtWidgets.QPlainTextEdit()

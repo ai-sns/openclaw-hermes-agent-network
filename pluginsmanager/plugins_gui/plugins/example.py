@@ -1,5 +1,5 @@
 from PyQt5 import QtWidgets
-import syntax_pars
+from pytalk.pluginsmanager.plugins_gui.plugins.code_editor import syntax_pars
 
 app = QtWidgets.QApplication([])
 editor = QtWidgets.QPlainTextEdit()

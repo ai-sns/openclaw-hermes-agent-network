@@ -29,7 +29,7 @@ import json
 import os
 
 from autogen import AssistantAgent, UserProxyAgent, NoEligibleSpeaker
-
+from typing import Annotated, Literal,List
 import inspect
 import logging
 import sys
@@ -64,7 +64,7 @@ import requests
 import json
 from datetime import datetime
 from agent.tools import *
-from pluginsmanager.plugins_headless.plugin_mng import load_plugin as load_plugin_tool
+from pluginsmanager.plugins_headless.plugin_mng import load_plugin as load_plugin_headless
 
 TOOL_ENABLED = False
 try:
@@ -131,7 +131,7 @@ class Calculator():
     @staticmethod
     def calculator(a: str, b: str, operator: str) -> int:
         """
-        你是一个可以用来获取煤炭价格的工具，可以根据城市和时间获取相应的煤炭价格。
+        你是一个可以用来获取煤炭价格的工具，可以根据城市和时间获取相应的煤炭价格
 
         Args:
             a (str): 地点，比如：上海.
@@ -164,7 +164,7 @@ class AgentMode(Enum):
 
 from autogen.agentchat.groupchat import GroupChatManager, GroupChat
 from PyQt5.QtCore import QThread, pyqtSignal
-from db.DBFactory import AgentCfg,MutiAgentCfg
+from db.DBFactory import AgentCfg,MutiAgentCfg,query_PluginMng
 
 
 class AgentWorkerThread(QThread):
@@ -583,6 +583,34 @@ Reply "TERMINATE" in the end when everything is done.
     """
 
 
+def run_plugin(*args, **kwargs):
+    """
+    处理插件并运行插件的函数
+
+    参数:
+    *args: 可变参数，用于传递插件名称
+    **kwargs: 关键字参数，用于传递给插件的参数
+    """
+    # 将args转换为列表以便使用pop方法
+    args_list = list(args)
+
+    # 从args列表中弹出最后一个元素作为插件名称
+    args_list.pop()
+    plugin_name = args_list.pop()
+    print("plugin_name:", plugin_name)
+
+    # 查询插件管理信息
+    record = query_PluginMng(name=plugin_name)
+
+    # 加载插件
+    plugin = load_plugin_headless(None, record)
+
+    # 运行插件，并传入剩余的参数
+    result = plugin.run(*args_list, **kwargs)
+
+    return result
+
+
 class Agent(ConversableAgent):
     # class Agent:
     def __init__(self,
@@ -781,7 +809,8 @@ class Agent(ConversableAgent):
         # 处理插件
         plugin_tool_record_selected_list = self.plugin_tool_record_selected_list
         for record in plugin_tool_record_selected_list:
-            if record.plugin_event == "before_ask_llm":
+            if "previous_to_ask_b" in record.plugin_event:
+                index_event = record.plugin_event.split(",").index("previous_to_ask_b")
                 instruction_list=[]
                 instruction=record.instruction
                 instructed_flag = False
@@ -797,9 +826,10 @@ class Agent(ConversableAgent):
                     run_plugin_flag=True
 
                 if run_plugin_flag:
-                    plugin = load_plugin_tool(self, record)
+                    plugin = load_plugin_headless(self, record)
                     result = plugin.run(question, messages, browser_page,task_id)
-                    if record.plugin_api_type=="get_result_and_return":
+                    how_to_handle_executed_result = record.plugin_executed.split(",")[index_event]
+                    if how_to_handle_executed_result=="get_output_as_final_result":
                         answer = result[0]
                         return answer
                     else:
@@ -1724,6 +1754,29 @@ class Agent(ConversableAgent):
         self.speaker.commit_and_refresh()
         return reply
 
+    def execute_code(self,code: str) -> dict:
+        """
+        执行给定的代码字符串，并返回执行环境中的变量字典。
+
+        参数:
+        code (str): 要执行的代码字符串。
+
+        返回:
+        dict: 包含执行后环境中的变量。
+        """
+        # 创建一个局部命名空间字典，用于存储执行的代码中产生的变量
+        local_namespace = {}
+
+        try:
+            # 使用 exec() 动态执行代码，并将变量存储在 local_namespace 中
+            exec(code, {}, local_namespace)
+        except Exception as e:
+            # 捕获并打印代码执行期间的异常
+            print(f"代码执行时发生错误: {e}")
+
+        # 返回包含代码执行结果的局部命名空间字典
+        return local_namespace
+
     def address_task(self, messages):
         speaker = self.speaker
         IOStream.set_global_default(AISNSIOStream(speaker))
@@ -1788,10 +1841,214 @@ class Agent(ConversableAgent):
 
         agent_tools_wizard.register_for_llm(name=func_name, description=description)(fun)
         agent_human.register_for_execution(name=func_name)(fun)
+        # 动态执行文本代码的示例
 
-        func_name = "get_weather_tool_for_call"
-        fun = globals()[func_name]
-        description = "get the weather of a city"
+        # 定义一个字符串类型的代码
+
+        # run_plugin=self.run_plugin
+        code_to_executebakok = '''
+from typing import Annotated, Literal
+def get_weather_tool_for_call_V2(city: str) -> str:    
+    """
+    this function is used to get the weather of a city
+    city:a city name
+    """
+    plugin_name = "操作Chrome浏览器"    
+    from Agent import run_plugin
+    params=list(locals().values())    
+    result=run_plugin(*params)
+    return result
+    
+tmp_fun=get_weather_tool_for_call_V2("Shanghai") 
+        '''
+
+        code_to_execute = '''
+from typing import Annotated, Literal
+def get_stock_price_tool_for_call(companies: str) -> str:    
+    """
+    This function is designed to fetch the stock prices of given companies.这个函数接收一个以逗号分隔的字符串参数companies,You can provide multiple company at one time.For example: "Google,Meta"
+
+    参数:
+    companies (str): 这个函数接收一个以逗号分隔的字符串参数companies,以逗号分隔的公司名称字符串。例如: "CompanyA,CompanyB"
+
+    Returns:
+    str: The result from the 'run_plugin' function, which presumably contains 
+         the stock prices of the specified companies.
+    """
+    plugin_name = "操作Chrome浏览器"    
+    from Agent import run_plugin
+    params=list(locals().values())    
+    result=run_plugin(*params)
+    return result
+
+                '''
+
+        # 执行代码并获取结果
+        execution_result = self.execute_code(code_to_execute)
+        # first_key = next(iter(execution_result))
+        # first_value = execution_result[first_key]
+        first_key = list(execution_result.keys())
+        first_value = list(execution_result.values())
+        fun_t=first_value[2]
+
+        # 从返回的执行结果中获取我们关心的变量
+        if 'tmp_fun' in execution_result:
+            print(execution_result['tmp_fun'])  # 输出: Hello, World!
+        else:
+            print("未找到预期的结果变量。")
+
+        tmp_fun=fun_t
+#         # 定义一个字符串类型的代码
+#         code_to_execute = '''
+# def get_weather_tool_for_call_V2(city: str) -> str:
+#     """
+#     this function is used to get the weather of a city
+#     city:a city name
+#     """
+#     return f"The weather forecast for {city} at {datetime.now()} is Rainy."
+# tmp_fun=get_weather_tool_for_call_V2("Shanghai")
+#     '''
+#
+#         # 使用 exec() 动态执行代码
+#         t=exec(code_to_execute)
+
+
+
+        func_name = "get_stock_price_tool_for_call"
+        # fun = globals()[func_name]
+        fun = tmp_fun
+        description = "get the stock price of a list of company,这个函数接收一个以逗号分隔的字符串参数companies"
+
+        agent_tools_wizard.register_for_llm(name=func_name, description=description)(fun)
+        agent_human.register_for_execution(name=func_name)(fun)
+
+
+        code_to_execute = '''
+from typing import Annotated, Literal
+def save_data_as_excel_tool_for_call(data_json: str) -> str:    
+    """
+    This function is designed to save data in a excel file
+
+    参数:
+    data_json (str): 这是一个json结构的文本字符串,它的结构是{"names":["meta","google"],"prices":[100,200],"currencys":["USD","RMB"]}
+
+    Returns:
+    str: The file path that the excel file is saved.
+    """
+    plugin_name = "生成Excel"    
+    from Agent import run_plugin
+    params=list(locals().values())    
+    result=run_plugin(*params)
+    return result
+
+                        '''
+
+        # 执行代码并获取结果
+        execution_result = self.execute_code(code_to_execute)
+        first_key = list(execution_result.keys())
+        first_value = list(execution_result.values())
+        fun_t = first_value[2]
+
+        # 从返回的执行结果中获取我们关心的变量
+        if 'tmp_fun' in execution_result:
+            print(execution_result['tmp_fun'])  # 输出: Hello, World!
+        else:
+            print("未找到预期的结果变量。")
+
+        tmp_fun = fun_t
+
+        func_name = "save_data_as_excel_tool_for_call"
+        # fun = globals()[func_name]
+        fun = tmp_fun
+        description = "This function is designed to save data in a excel file"
+
+        agent_tools_wizard.register_for_llm(name=func_name, description=description)(fun)
+        agent_human.register_for_execution(name=func_name)(fun)
+
+        code_to_execute = '''
+from typing import Annotated, Literal
+def save_data_as_ppt_tool_for_call(data_json: str) -> str:    
+    """
+    This function is designed to save data in a ppt file
+
+    参数:
+    data_json (str): 这是一个json结构的文本字符串,它的结构是{"names":["meta","google"],"prices":[100,200],"currencys":["USD","RMB"]}
+
+    Returns:
+    str: The file path that the ppt file is saved.
+    """
+    plugin_name = "生成PPT"    
+    from Agent import run_plugin
+    params=list(locals().values())    
+    result=run_plugin(*params)
+    return result
+
+                                '''
+
+        # 执行代码并获取结果
+        execution_result = self.execute_code(code_to_execute)
+        first_key = list(execution_result.keys())
+        first_value = list(execution_result.values())
+        fun_t = first_value[2]
+
+        # 从返回的执行结果中获取我们关心的变量
+        if 'tmp_fun' in execution_result:
+            print(execution_result['tmp_fun'])  # 输出: Hello, World!
+        else:
+            print("未找到预期的结果变量。")
+
+        tmp_fun = fun_t
+
+        func_name = "save_data_as_ppt_tool_for_call"
+        # fun = globals()[func_name]
+        fun = tmp_fun
+        description = "This function is designed to save data in a ppt file"
+
+        agent_tools_wizard.register_for_llm(name=func_name, description=description)(fun)
+        agent_human.register_for_execution(name=func_name)(fun)
+
+        code_to_execute = '''
+from typing import Annotated, Literal
+def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:    
+    """
+    这个函数被设计用来向微信好友发送文件
+
+    参数:
+    file_path (str): 要发送的文件的文件路径
+    friend_name (str): 微信好友的名称
+
+    Returns:
+    str: 是否发送成功.
+    """
+    plugin_name = "操作微信"    
+    from Agent import run_plugin
+    params=list(locals().values())    
+    result=run_plugin(*params)
+    return result
+
+                                '''
+
+        # 执行代码并获取结果
+        execution_result = self.execute_code(code_to_execute)
+        # first_key = next(iter(execution_result))
+        # first_value = execution_result[first_key]
+        first_key = list(execution_result.keys())
+        first_value = list(execution_result.values())
+        fun_t = first_value[2]
+
+        # 从返回的执行结果中获取我们关心的变量
+        if 'tmp_fun' in execution_result:
+            print(execution_result['tmp_fun'])  # 输出: Hello, World!
+        else:
+            print("未找到预期的结果变量。")
+
+        tmp_fun = fun_t
+
+
+        func_name = "send_file_to_wechat_tool_for_call"
+        # fun = globals()[func_name]
+        fun = tmp_fun
+        description = "这个函数被设计用来向微信好友发送文件"
 
         agent_tools_wizard.register_for_llm(name=func_name, description=description)(fun)
         agent_human.register_for_execution(name=func_name)(fun)

@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown and Syntax Highlighting</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/styles/default.min.css">
+    <style>
+        body {
+            font-family: 'Microsoft YaHei';
+            background-color: #f0f0f0;
+            padding: 15px 0px 0px 0px;
+            font-size: 14pt;
+            font-weight: 400;
+            font-style: normal;
+        }
+
+        pre {
+            position: relative;
+            background: #f0f0f0;
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            border: solid 1px gray;
+        }
+
+        .copy-button {
+            position: absolute;
+            /*top: 8px;原来的高度*/
+            top: 8px;
+            right: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 11pt;
+            font-family: "Microsoft YaHei";
+        }
+
+        .code-label {
+            position: absolute;
+            /*top: 8px;原来的高度*/
+            top: 8px;
+            left: 8px;
+            background: #333;
+            color: white;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            /*font-size: 12px;原来的大小*/
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+
+        th {
+            padding: 10px;
+            text-align: left;
+            background-color: #555;
+            color: white;
+        }
+
+        td {
+            padding: 10px;
+            text-align: left;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+
+        /* 菜单样式 */
+        .menu {
+            border: 1px solid #ccc;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        .menu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .menu li {
+            padding: 10px;
+            cursor: pointer;
+            font-size: 11pt;
+            font-family: "Microsoft YaHei";
+        }
+        .menu li:hover {
+            background: #f0f0f0;
+        }
+
+                /* 菜单样式 */
+        .innermenu {
+            border: 1px solid #ccc;
+            background: #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            border-radius: 8px;
+            padding: 5px;
+            font-size: 10pt;
+            font-family: 'Microsoft YaHei';
+        }
+
+        .innermenu ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            display: flex;  /* 使菜单项横向排列 */
+        }
+
+        .innermenu li {
+    padding: 5px;
+    cursor: pointer;
+    font-size: 10pt;
+    font-family: "Microsoft YaHei";
+    display: flex;
+    align-items: center;
+    margin-right: 10px;  /* 添加右边距 */
+}
+
+        .innermenu li:hover {
+            background: #f0f0f0;
+        }
+
+        .innermenu li img {
+            width: 16px;
+            height: 16px;
+            margin-right: 5px;
+        }
+
+
+        /* Toast 样式 */
+        .toast {
+            visibility: hidden;
+            min-width: 250px;
+            margin-left: -125px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 5px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1001;
+            left: 50%;
+            bottom: 30px;
+            font-size: 17px;
+            opacity: 0;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+        }
+
+
+
+        /* 样式用于工具提示 */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px; /* 工具提示的宽度 */
+            height: 20px;
+            background-color: black; /* 工具提示的背景颜色 */
+            color: #fff; /* 工具提示的文字颜色 */
+            text-align: center; /* 文字居中 */
+            border-radius: 5px; /* 圆角 */
+            padding: 5px; /* 内边距 */
+            position: absolute; /* 绝对定位 */
+            z-index: 1; /* 层级 */
+            bottom: 125%; /* 工具提示位置 */
+            left: 50%;
+            top:30px;
+            margin-left: -60px; /* 左对齐 */
+            opacity: 0; /* 初始透明度 */
+            transition: opacity 0.3s; /* 渐变效果 */
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible; /* 悬停显示 */
+            opacity: 1; /* 变为不透明 */
+        }
+
+
+        /* 创建自定义复选框 */
+        .styled-checkbox {
+            position: relative;
+            display: none;
+            padding-left: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            user-select: none;
+            margin-right: 10px;
+        }
+
+        /* 创建复选框的外观 */
+        .styled-checkbox:before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 15px;
+            height: 15px;
+            border: 2px solid #146ebe;
+            border-radius: 4px;
+            background: #fff;
+            transition: background 0.3s;
+        }
+
+        /* 创建复选框的选中状态 */
+        .styled-checkbox:checked:before {
+            background: #146ebe;
+            border-color: #146ebe;
+        }
+
+        /* 创建复选框的视觉效果 */
+        .styled-checkbox:checked:after {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 1px;
+            width: 5px;
+            height: 10px;
+            border: solid #fff;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        /* 悬停状态 */
+        .styled-checkbox:hover:before {
+            border-color: #0056b3;
+        }
+
+        /* 焦点状态 */
+        .styled-checkbox:focus:before {
+            box-shadow: 0 0 5px #146ebe;
+        }
+
+    </style>
+    <script src="qwebchannel.js"></script>
+</head>
+<body>
+<div id="allcontent"></div>
+<div id="content"></div>
+<!-- 菜单模板 -->
+<div id="menu" class="menu" style="display:none; position:absolute;">
+    <ul>
+        <li onclick="copyContent(this)">拷贝</li>
+        <li onclick="editContent(this)">编辑</li>
+        <li onclick="executeContent(this)">运行</li>
+        <li onclick="alertContent(this)">打开</li>
+    </ul>
+</div>
+
+<!-- 菜单模板 -->
+<div id="innermenu" class="innermenu" style="display: none; position: absolute;">
+    <ul>
+        <li onclick="copyMessage()" data-tooltip="拷贝">
+            <img src="../images/copy.png" alt="拷贝"> 拷贝
+        </li>
+        <li onclick="editMessage()" data-tooltip="重新编辑问题">
+            <img src="../images/edit.png" alt="编辑"> 编辑
+        </li>
+        <li onclick="deleteMessage()" data-tooltip="删除">
+            <img src="../images/delete.png" alt="删除"> 删除
+        </li>
+        <li onclick="transferMessage()" data-tooltip="转发给ai好友">
+            <img src="../images/share.png" alt="转发给ai好友"> 转发
+        </li>
+        <li onclick="collectMessage()" data-tooltip="收藏内容">
+            <img src="../images/bookmark.png" alt="收藏内容"> 收藏
+        </li>
+        <li onclick="toggle_parent_menu()" data-tooltip="更多选项">
+            <img src="../images/more.png" alt="更多选项"> 更多
+        </li>
+    </ul>
+</div>
+
+<!-- Toast 消息框 -->
+<div id="toast" class="toast">内容已拷贝</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/javascript.min.js"></script>
+<script>
+    var api_object = null;
+    var md = window.markdownit({
+        highlight: function (str, lang) {
+            if (lang && hljs.getLanguage(lang)) {
+                try {
+                    return '<pre class="hljs"><span class="code-label">' +
+                        lang.toUpperCase() +
+                        '</span><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' +
+                        hljs.highlight(str, {
+                            language: lang,
+                            ignoreIllegals: true
+                        }).value +
+                        '</code></pre>';
+                } catch (__) {
+                }
+            }
+            return
+            '<pre class="hljs"><button class="copy-button" onclick="toggleMenu(event, this)">操作▼</button><code>' + md.utils.escapeHtml(str) + '</code></pre>';
+        }
+    });
+
+    var handlingContentDiv = document.getElementById('content');
+    var allContentDiv = document.getElementById('allcontent');
+
+    var currentWordIndex = 0;
+    var currentMarkdown = '';
+    var words = '';
+    var selectedHistoryIndex=[];
+    var k=0;
+
+    function renderNextWord(currentMarkdown) {
+
+        var result = md.render(currentMarkdown);
+        handlingContentDiv.innerHTML = result;
+
+
+        // document.querySelectorAll('pre code').forEach((block) => {
+        //     hljs.highlightElement(block);
+        // });
+
+
+
+    }
+
+    var add_message = function(word) {
+                // alert(word);
+                if(word !="__end_speak__"){
+                    words += word;
+                    k += 1;
+                    if (k===1 || k % 6 === 0) {
+                        renderNextWord(words);
+                    }
+
+                }
+                else{
+                    renderNextWord(words);
+                    updatemaincontent();
+                    window.scrollTo(0, document.body.scrollHeight);
+                }
+
+            }
+
+    function add_to_selected_msg(checkbox,type_flag) {
+
+            const isChecked = checkbox.checked;
+            const dataValue = checkbox.getAttribute('data-value');
+            const status = `${isChecked ? 'checked' : 'unchecked'}`;
+            // alert(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
+            setSelectedHistoryIndex(dataValue,status);
+            // alert(selectedHistoryIndex);
+            // api_object.Web2PyQt5Value(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
+
+            api_object.check_message(dataValue,status);
+
+        }
+
+    function setCheckboxesBasedOnSelectedHistory() {
+        selectedHistoryIndex.forEach(index => {
+            let checkbox = document.getElementById(`msg_checkbox_${index}`);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+
+    function show_response_msg(words) {
+            // alert(word)
+            // words += word;
+            // words=words.replace(/\\`/g, "\\\`");
+            // words=words.replace(/\\\\`/g, "\\`");
+            // var replacedStr = str.replace("\\\\`", "\\`");
+            words = words.replace(/_back_cjrok_slash_/g, "`");
+            words = words.replace(/_sla_cjrok_sh_/g, "\\");
+            renderNextWord(words);
+    }
+
+    function updatemaincontent(){
+
+            var contentDiv = document.getElementById('content');
+
+            // 使用querySelectorAll选择该div内的所有pre code元素
+            var codeBlocks = contentDiv.querySelectorAll('pre code');
+
+            // 遍历这些code元素并使用hljs.highlightBlock进行高亮
+            codeBlocks.forEach((block) => {
+                hljs.highlightBlock(block);
+            });
+
+
+            allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+            handlingContentDiv.innerHTML = "";
+            currentWordIndex = 0;
+            currentMarkdown = '';
+            words = '';
+            setCheckboxesBasedOnSelectedHistory();
+            k = 0;
+    }
+
+        function re_init(){
+
+            allContentDiv.innerHTML = "";
+            handlingContentDiv.innerHTML = "";
+            currentWordIndex = 0;
+            currentMarkdown = '';
+            words = '';
+            selectedHistoryIndex=[];
+
+    }
+
+    function open_attachment(file_path){
+        // alert(file_path);
+        api_object.file_clicked_message(file_path);
+    }
+
+    // 用于切换菜单的显示和隐藏
+    function toggleMenu(event, button) {
+        // 获取菜单元素
+        const menu = document.getElementById('menu');
+
+        // 获取按钮的坐标
+        const rect = button.getBoundingClientRect();
+        menu.style.top = `${rect.bottom + window.scrollY}px`;
+        menu.style.left = `${rect.left + window.scrollX}px`;
+
+        // 设置当前按钮关联的 code 标签
+        menu.typeElement = button.previousElementSibling;
+        menu.codeElement = button.nextElementSibling;
+
+        // 切换菜单的显示和隐藏
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+
+        // 阻止事件冒泡
+        event.stopPropagation();
+    }
+
+    // 拷贝 code 标签中的内容
+    function copyContent(menuItem) {
+        // 获取关联的 code 标签
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+
+        // 创建一个隐藏的 textarea 元素用于复制
+        const textarea = document.createElement('textarea');
+        document.body.appendChild(textarea);
+        textarea.value = text;
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+
+        showToast('内容已拷贝成功了！');
+    }
+
+    // 弹出 code 标签中的内容
+    function editContent(menuItem) {
+        // 获取关联的 code 标签
+        const code_type_el = menuItem.closest('#menu').typeElement;
+        const code_type = code_type_el.innerText;
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+        api_object.edit_content_message(code_type,text);
+    }
+        // 弹出 code 标签中的内容
+    function executeContent(menuItem) {
+        // 获取关联的 code 标签
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+
+        alert(text);
+    }
+
+        // 弹出 code 标签中的内容
+    function alertContent(menuItem) {
+        // 获取关联的 code 标签
+        const code = menuItem.closest('#menu').codeElement;
+        const text = code.innerText;
+
+        alert(text);
+    }
+
+
+
+
+
+
+    // 点击页面其他地方时隐藏菜单
+    document.addEventListener('click', function() {
+        const menu = document.getElementById('menu');
+        if (menu) {
+            menu.style.display = 'none';
+        }
+    });
+
+        // 显示 Toast 消息
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = 'toast show';
+        setTimeout(function() {
+            toast.className = toast.className.replace('show', '');
+        }, 1500);
+    }
+
+    function copy_code(button) {
+
+                    var codeElement = button.nextElementSibling;
+                    var range = document.createRange();
+                    range.selectNode(codeElement);
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+
+                    try {
+                        document.execCommand('copy');
+                        window.getSelection().removeAllRanges();
+                        button.textContent = '已经拷贝';
+                        setTimeout(() => {
+                            button.textContent = '操作▼';
+                        }, 2000);
+                    } catch (err) {
+                        alert('无法拷贝代码：' + err);
+                    }
+                }
+
+    function setSelectedHistoryIndex(i, check_status){
+        console.log("setSelectedHistoryIndex i:", i);
+        console.log("setSelectedHistoryIndex status:", check_status);
+        if (check_status === "checked") {
+            addSelectedHistoryIndex(i);
+        } else {
+            removeSelectedHistoryIndex(i);
+        }
+
+    }
+
+   function addSelectedHistoryIndex(i){
+        // Check if 'i' is already in 'selectedHistoryIndex'
+        if (!selectedHistoryIndex.includes(i)) {
+            // Insert 'i' into 'selectedHistoryIndex' in sorted order
+            selectedHistoryIndex.push(i);
+            selectedHistoryIndex.sort((a, b) => a - b);
+        }
+    }
+
+    function removeSelectedHistoryIndex(i){
+        // Remove the first occurrence of 'i' from 'selectedHistoryIndex', if it exists
+        const index = selectedHistoryIndex.indexOf(i);
+        if (index > -1) {
+            selectedHistoryIndex.splice(index, 1);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+                new QWebChannel(qt.webChannelTransport, function (channel) {
+                    api_object = channel.objects.message_handler;
+                    // alert(api_object);
+                    // api_object.Web2PyQt5Value("cjr from web");
+                    // alert(api_object.thevalue);
+                    api_object.on_message.connect(add_message);
+                    api_object.on_set_div_id.connect(add_message);
+
+                });
+            });
+
+    document.addEventListener('click', function(event) {
+        let target = event.target; // 获取点击的元素
+
+        if (target.tagName.toLowerCase() === 'a') {
+            event.preventDefault();  // 防止默认的链接点击行为
+            console.log('Clicked on <a> tag');
+            api_object.open_link_message(target.href); // 获取连接地址
+            // window.open(target.href);
+            console.log('ID:', target.id);
+            console.log('Class:', target.className);
+
+
+            // 设置鼠标为手型
+            target.style.cursor = 'pointer';
+        }else{
+            console.log('tagName:', target.tagName);
+        }
+    });
+
+    document.addEventListener('mouseover', function(event) {
+        let target = event.target;
+
+        if (target.tagName.toLowerCase() === 'a') {
+            // 设置鼠标为手型
+            target.style.cursor = 'pointer';
+        }
+    });
+
+
+
+
+    // 添加悬浮菜单的显示和隐藏逻辑
+    const innermenu = document.getElementById('innermenu');
+    let hideMenuTimeout;
+
+    // 鼠标移入时显示菜单
+    function handleMouseOver(hoverDiv) {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        const rect = hoverDiv.getBoundingClientRect();
+        innermenu.style.top = `${rect.top + window.scrollY}px`;
+        innermenu.style.left = `${rect.right + window.scrollX}px`;
+        innermenu.style.display = 'block';
+        innermenu.setAttribute('data-id', hoverDiv.id); // 设置菜单的data-value
+        innermenu.setAttribute('data-value', hoverDiv.getAttribute('data-value')); // 设置菜单的data-value
+        innermenu.setAttribute('data-text', hoverDiv.getAttribute('data-text')); // 设置菜单的data-value
+        innermenu.setAttribute('data-index', hoverDiv.getAttribute('data-index')); // 设置菜单的data-value
+    };
+
+    // 鼠标移出 hoverDiv 时隐藏菜单，除非鼠标移入到菜单上
+    function handleMouseLeave(event) {
+        hideMenuTimeout = setTimeout(function () {
+            if (!innermenu.contains(event.relatedTarget)) {
+                innermenu.style.display = 'none';
+            }
+        }, 200); // 延迟200毫秒隐藏菜单
+    };
+
+    // 鼠标移出菜单时隐藏菜单
+    innermenu.addEventListener('mouseleave', function () {
+        hideMenuTimeout = setTimeout(function () {
+            innermenu.style.display = 'none';
+        }, 200); // 延迟200毫秒隐藏菜单
+    });
+
+    // 鼠标移入菜单时保持菜单显示
+    innermenu.addEventListener('mouseover', function () {
+        clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
+        innermenu.style.display = 'block';
+    });
+
+
+     /**
+     * 处理 innermenu
+     */
+
+
+   function setDivId(oldId,newId){
+
+        var element = document.getElementById(oldId);
+
+        // 检查元素是否存在，防止空引用错误。
+        if (element) {
+            // 修改元素的ID属性。这里我们假设新的ID是'newId'。
+            element.id = newId;
+        } else {
+            // 如果元素不存在，我们可以打印一条警告信息或者采取其他行动。
+            console.warn('Element with ID "oldId" was not found.');
+        }
+     }
+
+    function copyMessage() {
+
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.copy_message(dataId); // 获取连接地址
+        setTimeout(showToast('内容已拷贝成功了！'),500);
+
+
+        // alert("1");
+        // alert('Data Id:' + dataId);
+        // alert('Data Value:' + dataValue);
+        // alert('Data Text:' + dataText);
+        // alert('Data Index:' + dataIndex);
+
+        // 可以在此处添加其他处理逻辑
+    }
+
+    function editMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.edit_message(dataId); // 获取连接地址
+
+    // 可以在此处添加其他处理逻辑
+}
+
+    function deleteMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.delete_message(dataId); // 获取连接地址
+
+
+
+        // 获取起始 DIV 元素
+            const div1 = document.getElementById(dataId);
+
+            let currentNode = div1.nextSibling;
+
+            // 遍历兄弟节点
+           while (currentNode) {
+                // 检查节点类型
+                if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                    const id = currentNode.getAttribute('id');
+
+                    // 检查 ID 是否以 'q_' 或 'a_' 开头
+                    if (id && (id.startsWith('q_') || id.startsWith('a_'))) {
+                        break; // 找到目标 <div>，停止删除
+                    }
+                    // 删除元素节点
+                    currentNode.parentNode.removeChild(currentNode);
+                } else if (currentNode.nodeType === Node.TEXT_NODE) {
+                    // 如果是文本节点，直接删除
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+
+                // 移动到下一个兄弟节点
+                currentNode = div1.nextSibling; // 更新为下一个兄弟节点
+            }
+
+            // 删除 div1
+            div1.parentNode.removeChild(div1);
+
+        // const brElement = document.createElement('br');
+        // div1.parentNode.insertBefore(brElement, div1.nextSibling);
+        // div1.parentNode.removeChild(div1);
+
+
+
+    // 可以在此处添加其他处理逻辑
+}
+
+    function transferMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.transfer_message(dataId); // 获取连接地址
+
+    // 可以在此处添加其他处理逻辑
+}
+
+    function collectMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.collect_message(dataId); // 获取连接地址
+
+    // 可以在此处添加其他处理逻辑
+}
+
+     function toggle_parent_menu(){
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+
+
+        api_object.toggle_parent_menu();
+        // 调用函数以显示复选框
+        displayCheckboxes();
+    }
+
+
+    // 用于动态创建工具提示
+    document.querySelectorAll('#innermenu li').forEach(function(item) {
+    const tooltipText = item.getAttribute('data-tooltip');
+    const tooltipElement = document.createElement('span');
+
+    tooltipElement.className = 'tooltiptext';
+    tooltipElement.innerText = tooltipText; // 设置工具提示内容
+
+    item.classList.add('tooltip'); // 添加工具提示类
+    item.appendChild(tooltipElement); // 将工具提示元素添加到列表项中
+});
+
+// 获取所有 class 为 styled-checkbox 的 input 元素
+
+
+// 函数：显示所有复选框
+function displayCheckboxes() {
+    // 遍历所有选中的复选框
+    const checkboxes = document.querySelectorAll('.styled-checkbox');
+    checkboxes.forEach((checkbox) => {
+        // 通过设置 display 属性来显示复选框
+        checkbox.style.display = 'inline-block'; // 设置为 inline-block 以便正常显示
+    });
+}
+
+// 函数：显示所有复选框
+function hideCheckboxes() {
+    // 遍历所有选中的复选框
+    const checkboxes = document.querySelectorAll('.styled-checkbox');
+    checkboxes.forEach((checkbox) => {
+        // 通过设置 display 属性来显示复选框
+        checkbox.style.display = 'none'; // 设置为 inline-block 以便正常显示
+    });
+}
+
+// 函数：显示所有复选框
+function setAllCheckboxesChecked(Checked) {
+        // 获取所有具有 class="styled-checkbox" 的复选框元素
+    const checkboxes = document.querySelectorAll('.styled-checkbox');
+
+    // 遍历每个复选框并调用指定的函数
+    checkboxes.forEach((checkbox) => {
+        // 调用函数 add_to_selected_msg 并传入当前的复选框
+        if(checkbox.checked!=Checked){
+        checkbox.checked = Checked;
+        add_to_selected_msg(checkbox);
+        }
+    });
+}
+
+
+
+
+
+    </script>
+</body>
+</html>

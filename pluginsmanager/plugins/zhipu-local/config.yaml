@@ -2,7 +2,10 @@ api_key: sk-l2qbn7fNEsJfP9GEZaTgxTDqzsSCx3SfZmBxOiz3NMgHZOnw
 custom_params: false
 description: 'chatglm
 
-  http://61.241.103.48:18000/v1/chat/completions'
+  http://61.241.103.48:18000/v1/chat/completions
+
+
+  gpt-4o   gpt-4o-mini  claude-3-5-sonnet-20240620'
 max_tokens: 4000
 model: gpt-4o-mini
 parameters: "{\n    \"model\": \"chatglm3-6b\",\n    \"max_tokens\": 4000,\n    \"\
