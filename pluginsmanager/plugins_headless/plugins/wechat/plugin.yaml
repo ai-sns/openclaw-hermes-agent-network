@@ -1,0 +1,19 @@
+company: 'OpenAI Inc'
+company_abbr: 'openai'
+name: 'OpenAI连接器'
+alias: 'OpenAI'
+plugin_type: 'LLM_Connector'
+creator: 'Photon'
+runtime:
+  main: 'application.py'
+  tests:
+    - 'tests/core.py'
+repository: 'https://github.com/Photon/plugin-connector-openai'
+plugin_directory: 'openai_connector'
+description: '用来连接openai模型'
+version: '1.0.0'
+requirements:
+  - name: 'PyYAML'
+    version: '5.3.1'
+  - name: 'pytz'
+    version: '2019.3'

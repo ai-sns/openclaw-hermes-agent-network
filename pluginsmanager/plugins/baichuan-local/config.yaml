@@ -1,6 +1,7 @@
-api_key: sk-l2qbn7fNEsJfP9GEZaTgxTDqzsSCx3SfZmBxOiz3NMgHZOnw
+api_key: sk-FgmkVGYRirTVzJrjDMZ5Wi27ekHKq57xGHL2lZO6lTMuUAj3
 custom_params: false
-description: "\u767E\u5DDDhttp://61.241.103.97:8501/v1/chat/completions"
+description: "\u767E\u5DDDhttp://61.241.103.97:8501/v1/chat/completions\ngpt-4o  \
+  \ gpt-4o-mini  claude-3-5-sonnet-20240620"
 max_tokens: 4000
 model: gpt-4o
 parameters: "{\n    \"model\": \"baichuan-inc/Baichuan-13B-Chat\",\n    \"max_tokens\"\

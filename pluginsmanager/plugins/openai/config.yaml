@@ -1,4 +1,4 @@
-api_key: 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
+api_key: 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
 custom_params: false
 description: "gpt-4o \u4E0A\u4E0B\u6587128k \u8BAD\u7EC3\u77E5\u8BC6\u622A\u6B62\u65E5\
   \u671F:2023-10-30\n\u8F93\u5165\uFF1A\u4EBA\u6C11\u5E010.035 / 1K tokens\n\u8F93\
@@ -16,7 +16,7 @@ description: "gpt-4o \u4E0A\u4E0B\u6587128k \u8BAD\u7EC3\u77E5\u8BC6\u622A\u6B62
   \u7EC3\u77E5\u8BC6\u622A\u6B62\u65E5\u671F:2021-09-30\n\u8F93\u5165\uFF1A\u4EBA\u6C11\
   \u5E010.0105 / 1K tokens\n\u8F93\u51FA\uFF1A\u4EBA\u6C11\u5E010.014 / 1K tokens"
 max_tokens: 400000
-model: gpt-4o-mini
+model: gpt-4o
 parameters: "{\n    \"model\": \"gpt-4o\",\n    \"max_tokens\": 4000,\n    \"temperature\"\
   : 0.2,\n    \"top_p\": 0.4,\n    \"stream\": true,\n    \"n\": 1,\n    \"stop\"\
   : null,\n    \"frequency_penalty\": 0.0,\n    \"presence_penalty\": 0.6\n}"

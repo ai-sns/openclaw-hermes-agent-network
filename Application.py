@@ -256,6 +256,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         # 将 Markdown 转换为 HTML
         html_content = markdown.markdown(markdown_content)
 
+
         # 添加自定义的 CSS 样式
         html_with_style = f"""
                 <html>
@@ -266,16 +267,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
                             margin-left: 20px;
                             margin-top: 20px;
                             margin-right: 20px;
-                            margin-bottom: 20px;
+                            margin-bottom: 20px;                            
                         }}
                     </style>
                 </head>
                 <body>
-                    {html_content}
+
+                 {html_content}
+
                 </body>
                 </html>
             """
-
+        print("html_content:",html_content)
         # 在 QTextEdit 中显示 HTML 内容
         self.dialogwidge2.setHtml(html_with_style)
         self.dialogwidge2.setOpenLinks(False)
@@ -300,7 +303,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.conversation_pages.addWidget(self.km_home_frame)
         self.conversation_pages.addWidget(self.plugin_home_frame)
 
-        self.conversation_pages.setCurrentIndex(1)
+        self.conversation_pages.setCurrentIndex(0)
 
         self.hlayout.addWidget(self.conversation_pages)  # hlayout在ui_mainwindow.py中定义了
         self.cjr = "cjrok"

@@ -23,6 +23,7 @@ def load_plugin(parent,record, *args, **kwagrs):
     try:
         plugin_directory=record.plugin_directory
         # 动态加载插件
+
         plugin_module = importlib.import_module(f'pluginsmanager.plugins_headless.plugins.{plugin_directory}.application')
         # 获取插件类
         plugin_class = getattr(plugin_module, "Main")

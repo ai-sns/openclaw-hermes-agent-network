@@ -251,12 +251,114 @@
             box-shadow: 0 0 5px #146ebe;
         }
 
+
+        /* 设置表单框的样式，宽度为100%确保铺满一行，边框线条更细 */
+        fieldset {
+            border: 1px solid #ccc;  /* 边框线条更细 */
+            padding: 15px;  /* 减少填充以减小高度 */
+            width: 100%;
+            box-sizing: border-box; /* 包括填充和边框在内的宽度计算 */
+            text-align: center; /* 内容居中 */
+            margin: 0; /* 去除默认的外边距 */
+        }
+
+        /* 设置按钮的样式 */
+        .operatorbutton {
+            position: relative;
+            margin: 5px;
+            padding: 5px 10px;
+            font-family: 'Microsoft YaHei';
+            font-size: 14px;
+            height: 30px;
+            width: 100px;
+            display: inline-flex; /* 使用 inline-flex 保证按钮在同一行 */
+            align-items: center;
+            justify-content: center; /* 居中对齐内容 */
+            cursor: pointer;
+            box-sizing: border-box;
+            /*background-color: #fafafa; !* 设置更浅的背景颜色 *!*/
+            /*border: 1px solid #bbb; !* 按钮边框颜色 *!*/
+            /*border-radius: 2px; !* 减少圆角 *!*/
+            /*transition: background-color 0.3s, transform 0.3s; !* 添加过渡效果 *!*/
+        }
+
+        /* 鼠标悬停时按钮的样式变化 */
+        operatorbutton:hover {
+            background-color: #f2f2f2; /* 鼠标悬停时背景颜色变化非常微小 */
+            /*transform: scale(1.02); !* 鼠标悬停时微小的放大效果 *!*/
+        }
+
+        /* 设置图标与文本之间的间距 */
+        .operatoricon {
+            margin-right: 5px;
+        }
+
+        /* 工具提示的样式 */
+        .operatortooltip {
+            visibility: hidden;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            top: 100%; /* 显示在按钮下方 */
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 5px; /* 与按钮之间的距离 */
+            width: 120px; /* 设置宽度 */
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        /* 显示工具提示 */
+        .operatorbutton:hover .operatortooltip {
+            visibility: visible;
+            opacity: 1;
+        }
+
     </style>
     <script src="qwebchannel.js"></script>
 </head>
 <body>
 <div id="allcontent"></div>
 <div id="content"></div>
+<div id="operator" style="display: none">
+    <!-- 创建一个表单框，使用fieldset和legend -->
+    <fieldset>
+        <legend>您可直接通过文字或点击以下操作和Agent进行交互</legend>
+
+        <!-- 自动运行按钮 -->
+        <button class="operatorbutton" onclick="taskRunCode()">
+            <!-- 工具提示 -->
+            <div class="operatortooltip">运行代码</div>
+            <!-- 图标可以使用HTML字符实体或者图标字体库 -->
+            <span class="operatoricon">&#9654;</span> <!-- 这里使用了播放符号 -->
+            运行
+        </button>
+
+        <!-- 下一步按钮 -->
+        <button class="operatorbutton" onclick="taskNextStep()">
+            <div class="operatortooltip">执行下一步</div>
+            <span class="operatoricon">⏭️</span> <!-- 这里使用了下一步符号 -->
+            下一步
+        </button>
+        <!-- 退出按钮 -->
+        <button class="operatorbutton" onclick="taskExit()">
+            <div class="operatortooltip">退出任务</div>
+            <span class="operatoricon">⏹️</span> <!-- 这里使用了停止符号 -->
+            退出
+        </button>
+
+        <!-- 帮助按钮 -->
+        <button class="operatorbutton" onclick="showHelp()">
+            <div class="operatortooltip">查看帮助</div>
+            <span class="operatoricon">❓</span> <!-- 这里使用了停止符号 -->
+            帮助
+        </button>
+    </fieldset>
+</div>
 <!-- 菜单模板 -->
 <div id="menu" class="menu" style="display:none; position:absolute;">
     <ul>
@@ -279,10 +381,10 @@
         <li onclick="deleteMessage()" data-tooltip="删除">
             <img src="../images/delete.png" alt="删除"> 删除
         </li>
-        <li onclick="shareMessage()" data-tooltip="转发给ai好友">
+        <li onclick="transferMessage()" data-tooltip="转发给ai好友">
             <img src="../images/share.png" alt="转发给ai好友"> 转发
         </li>
-        <li onclick="bookmarkMessage()" data-tooltip="收藏内容">
+        <li onclick="collectMessage()" data-tooltip="收藏内容">
             <img src="../images/bookmark.png" alt="收藏内容"> 收藏
         </li>
         <li onclick="toggle_parent_menu()" data-tooltip="更多选项">
@@ -347,7 +449,7 @@
                 // alert(word);
                 if(word !="__end_speak__"){
                     words += word;
-                    k += k;
+                    k += 1;
                     if (k===1 || k % 6 === 0) {
                         renderNextWord(words);
                     }
@@ -365,13 +467,14 @@
 
             const isChecked = checkbox.checked;
             const dataValue = checkbox.getAttribute('data-value');
+            const dataId = checkbox.getAttribute('data-id');
             const status = `${isChecked ? 'checked' : 'unchecked'}`;
             // alert(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
             setSelectedHistoryIndex(dataValue,status);
             // alert(selectedHistoryIndex);
             // api_object.Web2PyQt5Value(`Checkbox is ${isChecked ? 'checked' : 'unchecked'} with data value: ${dataValue},and type is ${type_flag}`);
-
-            api_object.check_message(dataValue,status);
+            // alert(dataId);
+            api_object.check_message(dataValue,dataId,status);
 
         }
 
@@ -576,6 +679,7 @@
                     // api_object.Web2PyQt5Value("cjr from web");
                     // alert(api_object.thevalue);
                     api_object.on_message.connect(add_message);
+                    api_object.on_set_div_id.connect(add_message);
 
                 });
             });
@@ -622,6 +726,7 @@
         innermenu.style.top = `${rect.top + window.scrollY}px`;
         innermenu.style.left = `${rect.right + window.scrollX}px`;
         innermenu.style.display = 'block';
+        innermenu.setAttribute('data-id', hoverDiv.id); // 设置菜单的data-value
         innermenu.setAttribute('data-value', hoverDiv.getAttribute('data-value')); // 设置菜单的data-value
         innermenu.setAttribute('data-text', hoverDiv.getAttribute('data-text')); // 设置菜单的data-value
         innermenu.setAttribute('data-index', hoverDiv.getAttribute('data-index')); // 设置菜单的data-value
@@ -654,47 +759,168 @@
      * 处理 innermenu
      */
 
+
+   function setDivId(oldId,newId){
+
+        var element = document.getElementById(oldId);
+
+        // 检查元素是否存在，防止空引用错误。
+        if (element) {
+            // 修改元素的ID属性。这里我们假设新的ID是'newId'。
+            element.id = newId;
+        } else {
+            // 如果元素不存在，我们可以打印一条警告信息或者采取其他行动。
+            console.warn('Element with ID "oldId" was not found.');
+        }
+     }
+
+     function setCheckBoxId(oldId,newId){
+
+        var element = document.getElementById(oldId);
+
+        // 检查元素是否存在，防止空引用错误。
+        if (element) {
+            // 修改元素的ID属性。这里我们假设新的ID是'newId'。
+            element.setAttribute('data-id',newId); // 设置菜单的data-value
+        } else {
+            // 如果元素不存在，我们可以打印一条警告信息或者采取其他行动。
+            console.warn('Element with ID "oldId" was not found.');
+        }
+     }
+
     function copyMessage() {
+
+        const dataId = innermenu.getAttribute('data-id');
         const dataValue = innermenu.getAttribute('data-value');
         const dataText = innermenu.getAttribute('data-text');
         const dataIndex = innermenu.getAttribute('data-index');
+        alert(dataId);
+        api_object.copy_message(dataId); // 获取连接地址
+        setTimeout(showToast('内容已拷贝成功了！'),500);
 
-        alert("1");
-        alert('Data Value:' + dataValue);
-        alert('Data Text:' + dataText);
-        alert('Data Index:' + dataIndex);
+
+        // alert("1");
+        // alert('Data Id:' + dataId);
+        // alert('Data Value:' + dataValue);
+        // alert('Data Text:' + dataText);
+        // alert('Data Index:' + dataIndex);
 
         // 可以在此处添加其他处理逻辑
     }
 
     function editMessage() {
-    const dataValue = innermenu.getAttribute('data-value');
-    const dataText = innermenu.getAttribute('data-text');
-    const dataIndex = innermenu.getAttribute('data-index');
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.edit_message(dataId); // 获取连接地址
+
+    // 可以在此处添加其他处理逻辑
+}
+
+    function deleteMessageById(dataId) {
+
+        // 获取起始 DIV 元素
+            const div1 = document.getElementById(dataId);
+
+            let currentNode = div1.nextSibling;
+
+            // 遍历兄弟节点
+           while (currentNode) {
+                // 检查节点类型
+                if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                    const id = currentNode.getAttribute('id');
+
+                    // 检查 ID 是否以 'q_' 或 'a_' 开头
+                    if (id && (id.startsWith('id_') || id.startsWith('id_'))) {
+                        break; // 找到目标 <div>，停止删除
+                    }
+                    // 删除元素节点
+                    currentNode.parentNode.removeChild(currentNode);
+                } else if (currentNode.nodeType === Node.TEXT_NODE) {
+                    // 如果是文本节点，直接删除
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+
+                // 移动到下一个兄弟节点
+                currentNode = div1.nextSibling; // 更新为下一个兄弟节点
+            }
+
+            // 删除 div1
+            div1.parentNode.removeChild(div1);
+
+        // const brElement = document.createElement('br');
+        // div1.parentNode.insertBefore(brElement, div1.nextSibling);
+        // div1.parentNode.removeChild(div1);
+
+
 
     // 可以在此处添加其他处理逻辑
 }
 
     function deleteMessage() {
-    const dataValue = innermenu.getAttribute('data-value');
-    const dataText = innermenu.getAttribute('data-text');
-    const dataIndex = innermenu.getAttribute('data-index');
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.delete_message(dataId);
+
+
+
+        // 获取起始 DIV 元素
+            const div1 = document.getElementById(dataId);
+
+            let currentNode = div1.nextSibling;
+
+            // 遍历兄弟节点
+           while (currentNode) {
+                // 检查节点类型
+                if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                    const id = currentNode.getAttribute('id');
+
+                    // 检查 ID 是否以 'q_' 或 'a_' 开头
+                    if (id && (id.startsWith('id_') || id.startsWith('id_'))) {
+                        break; // 找到目标 <div>，停止删除
+                    }
+                    // 删除元素节点
+                    currentNode.parentNode.removeChild(currentNode);
+                } else if (currentNode.nodeType === Node.TEXT_NODE) {
+                    // 如果是文本节点，直接删除
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+
+                // 移动到下一个兄弟节点
+                currentNode = div1.nextSibling; // 更新为下一个兄弟节点
+            }
+
+            // 删除 div1
+            div1.parentNode.removeChild(div1);
+
+        // const brElement = document.createElement('br');
+        // div1.parentNode.insertBefore(brElement, div1.nextSibling);
+        // div1.parentNode.removeChild(div1);
+
+
 
     // 可以在此处添加其他处理逻辑
 }
 
-    function shareMessage() {
-    const dataValue = innermenu.getAttribute('data-value');
-    const dataText = innermenu.getAttribute('data-text');
-    const dataIndex = innermenu.getAttribute('data-index');
+    function transferMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.transfer_message(dataId); // 获取连接地址
 
     // 可以在此处添加其他处理逻辑
 }
 
-    function bookmarkMessage() {
-    const dataValue = innermenu.getAttribute('data-value');
-    const dataText = innermenu.getAttribute('data-text');
-    const dataIndex = innermenu.getAttribute('data-index');
+    function collectMessage() {
+        const dataId = innermenu.getAttribute('data-id');
+        const dataValue = innermenu.getAttribute('data-value');
+        const dataText = innermenu.getAttribute('data-text');
+        const dataIndex = innermenu.getAttribute('data-index');
+        api_object.collect_message(dataId); // 获取连接地址
 
     // 可以在此处添加其他处理逻辑
 }
@@ -761,9 +987,51 @@ function setAllCheckboxesChecked(Checked) {
     });
 }
 
+/**
+ * Toggles the visibility of the div with the specified ID.
+ * If the div is currently hidden, it will be displayed; if it is displayed, it will be hidden.
+ */
+function toggleOperatorDisplay() {
+    // Get the div element by its ID
+    var divElement = document.getElementById('operator');
+
+    // Check if the div element exists
+    if (divElement) {
+        // Toggle the display property between 'none' and 'block'
+        if (divElement.style.display === 'none') {
+            divElement.style.display = 'block';
+        } else {
+            divElement.style.display = 'none';
+        }
+    } else {
+        console.error('Element with ID "operator" not found.');
+    }
+}
 
 
 
+    function taskRunCode() {
+        api_object.task_run_code(); // 获取连接地址
+        toggleOperatorDisplay();
+    // 可以在此处添加其他处理逻辑
+}
+
+    function taskNextStep() {
+        api_object.task_next_step(); // 获取连接地址
+        toggleOperatorDisplay();
+    // 可以在此处添加其他处理逻辑
+}
+
+    function taskExit() {
+        api_object.task_exit(); // 获取连接地址
+        toggleOperatorDisplay();
+    // 可以在此处添加其他处理逻辑
+}
+
+    function showHelp(){
+    alert("您可直接输入文字和Agent进行交互。");
+
+    }
 
     </script>
 </body>

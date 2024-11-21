@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Proof of Croncept</title>
+		<style>
+			.cronDerperSection {
+				border: 1px solid black;
+				display: inline-block;
+				padding: 5px;
+				line-height: 32px;
+			}
+			input {
+				border-width: 0 0 1px 0;
+				border-color: black;
+			}
+			.smallInput {
+				width: 32px;
+			}
+		</style>
+		<script src="cron.js"></script>
+	</head>
+	<body onload="window.derp = new CronDerper(); derp.populateDiv('MINUTE_INTERVAL')">
+		<div id="cronDerper">
+			<div class="cronDerperSection">
+				<span>
+					<select id="cronViewSelection" oninput="derp.populateDiv(this.value);">
+						<option value="MINUTE_INTERVAL" selected="selected">Minute interval</option>
+						<option value="HOUR_INTERVAL">Hour interval</option>
+						<option value="DAILY">Daily</option>
+						<option value="WEEKLY">Weekly</option>
+						<option value="MONTHLY">Monthly</option>
+						<option value="YEARLY">Yearly</option>
+						<option value="ADVANCED">Advanced</option>
+					</select> | 
+				</span>
+				<span id="cronInput"></span>
+			</div>
+			<div class="cronDerperSection">
+				<span>
+					<button onclick="derp.generateOutput();">Generate</button>
+					<input id="cronOutput" />
+				</span>
+			</div>
+		</div>
+	</body>
+</html>

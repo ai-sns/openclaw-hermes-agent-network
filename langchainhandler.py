@@ -59,8 +59,9 @@ def savevector(filepath,persist_directory,embedding_model_name,emb_type="openai"
 
 
     if emb_type == "openai":
-        # 调用openai Embeddings
-        embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+        # 调用openai Embeddings  OPENAI_API_BASE
+        # embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+        embeddings = OpenAIEmbeddings(openai_api_key="sk-FgmkVGYRirTVzJrjDMZ5Wi27ekHKq57xGHL2lZO6lTMuUAj3",openai_api_base="https://api.chatanywhere.tech/v1/")
         # embedding_model_name = 'shibing624/text2vec-bge-large-chinese'
     else:
         embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)
@@ -111,7 +112,8 @@ def delete_vector(filepath,persist_directory,embedding_model_name,emb_type = "op
 def getvectorkm_String(question,persist_directory,embedding_model_name,emb_type = "openai"):
     if emb_type == "openai":
         # 调用openai Embeddings
-        embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+        # embeddings = OpenAIEmbeddings(openai_api_key=os.environ["OPENAI_API_KEY"])
+        embeddings = OpenAIEmbeddings(openai_api_key="sk-FgmkVGYRirTVzJrjDMZ5Wi27ekHKq57xGHL2lZO6lTMuUAj3", openai_api_base="https://api.chatanywhere.tech/v1/")
         # embedding_model_name = 'shibing624/text2vec-bge-large-chinese'
     else:
         embeddings = HuggingFaceEmbeddings(model_name=embedding_model_name)

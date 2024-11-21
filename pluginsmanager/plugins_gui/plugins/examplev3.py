@@ -1,6 +1,6 @@
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QPlainTextEdit
-import syntax_pars
+from pytalk.pluginsmanager.plugins_gui.plugins.code_editor import syntax_pars
 import os
 import webbrowser
 

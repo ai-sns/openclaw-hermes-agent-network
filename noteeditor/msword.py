@@ -8,14 +8,17 @@ from PyQt5 import QtGui, QtCore
 from PyQt5.QtCore import Qt, QUrl, QThread, pyqtSignal
 from noteeditor.ext import *
 from datetime import datetime as sys_datetime
+
+from pytalk.noteeditor.ext import wordcount
+
 sys.path.append("..")
 sys.path.append("../..")
-from db.DBFactory import  query_note_mng,add_note_mng,update_note_mng
+from db.DBFactory import  query_note_mng,add_note_mng,update_note_mng,query_KMCfg
 from util import generate_random_id
 from langchainhandler import savevector,update_vector
 
 from PyQt5.QtWidgets import QApplication, QTextEdit, QVBoxLayout, QWidget, QMessageBox
-from PyQt5.QtGui import QImage, QClipboard, QKeySequence, QDesktopServices
+from PyQt5.QtGui import QImage, QClipboard, QKeySequence, QDesktopServices, QTextDocument
 from PyQt5.QtCore import Qt, QBuffer, QByteArray
 import sys
 import base64
@@ -651,8 +654,16 @@ class Main(QtWidgets.QMainWindow):
             with open(self.filename,"rt",encoding='utf-8') as file:
                 self.text.setText(file.read())
 
-    def save(self):
+    def save(self,title=""):
         record_id=0
+        self.km_cfg = query_KMCfg(id=self.km_cfg.id)
+
+        if self.km_cfg.vectorization == 1 and self.km_cfg.stopvectorization == 1:
+            # 如果可向量化且暂停了向量化则需要等待向量化
+            waitvectorization = True
+        else:
+            waitvectorization = False
+
         if not self.filename:
             note_id = generate_random_id()
             self.note_id = note_id
@@ -660,20 +671,24 @@ class Main(QtWidgets.QMainWindow):
             content=self.text.toPlainText()
             first_line = content.strip().splitlines()[0] if content else "无标题"
             # 截取前 50 个字符
-            title = first_line[:50]
+            if not title:
+                title = first_line[:50]
             # title = content[:50]
             file_name = note_id
             tag_1 = ""
             tag_2 = ""
             tag_3 = ""
+
             record_id=add_note_mng(note_id, title, file_name, content,self.km_id, tag_1, tag_2,
-                     tag_3)
+                     tag_3,waitvectorization)
             self.is_first = True
         else:
             note_id = self.note_id
             content = self.text.toPlainText()
             create_time = sys_datetime.now()
-            update_note_mng(note_id,content=content,create_time=create_time)
+            update_note_mng(note_id,content=content,create_time=create_time,waitvectorization=waitvectorization)
+
+
 
         if self.filename:
             self.filename_txt=self.filename.replace(".kagoj","")+".txt"
@@ -682,8 +697,15 @@ class Main(QtWidgets.QMainWindow):
               self.filename += ".kagoj"
             try:
                 # 打开文件以写入模式，使用 'utf-8' 编码
+
+                html_content = self.text.toHtml()
+                html_content = self.encode_images_to_base64(html_content)
+
                 with open(self.filename, "wt", encoding='utf-8') as file:
-                    file.write(self.text.toHtml())
+                    file.write(html_content)
+
+
+
             except UnicodeEncodeError as e:
                 # 捕捉编码错误并输出错误信息
                 print(f"编码错误: {e}")
@@ -717,12 +739,12 @@ class Main(QtWidgets.QMainWindow):
         is_first = self.is_first
         if self.is_first == True:
             application = self.app
-            notelist_recent = application.notelist_recent_list[self.km_id]
-            notelist_recent.deselect_all_items()
-            notelist_recent.addItem(title.replace("\n", "")[:50], record_id, True)
-            first_toplevel_item = notelist_recent.topLevelItem(0)
-            first_subitem = first_toplevel_item.child(0)
-            first_subitem.setSelected(True)
+            # notelist_recent = application.notelist_recent_list[self.km_id]
+            # notelist_recent.deselect_all_items()
+            # notelist_recent.addItem(title.replace("\n", "")[:50], record_id, True)
+            # first_toplevel_item = notelist_recent.topLevelItem(0)
+            # first_subitem = first_toplevel_item.child(0)
+            # first_subitem.setSelected(True)
             notelist_all = application.notelist_all_list[self.km_id]
             notelist_all.deselect_all_items()
             notelist_all.addItem(title.replace("\n", "")[:50], record_id, True)
@@ -731,9 +753,48 @@ class Main(QtWidgets.QMainWindow):
             first_subitem.setSelected(True)
             self.is_first = False
 
-        self.vectorize(is_first)
+
+        if self.km_cfg.vectorization == 1 and self.km_cfg.stopvectorization == 0:
+            # 如果可向量化且没有暂停向量化则需要向量化
+            self.vectorize(is_first)
 
 
+    def encode_images_to_base64(self, html_content):
+        document = self.text.document()
+
+        # Iterate over all blocks in the document
+        for block_number in range(document.blockCount()):
+            block = document.findBlockByNumber(block_number)
+            iter = block.begin()
+            while not iter.atEnd():
+                fragment = iter.fragment()
+                if fragment.isValid():
+                    char_format = fragment.charFormat()
+                    if char_format.isImageFormat():
+                        image_format = char_format.toImageFormat()
+                        image_name = image_format.name()
+
+                        # Convert the image name to QUrl
+                        image_url = QUrl(image_name)
+
+                        # Load image from document resources
+                        image = document.resource(QTextDocument.ImageResource, image_url)
+
+                        if isinstance(image, QImage):
+                            # Convert image to byte array using QBuffer
+                            byte_array = QByteArray()
+                            buffer = QBuffer(byte_array)
+                            buffer.open(QBuffer.WriteOnly)
+                            image.save(buffer, "PNG")
+
+                            # Encode byte array to Base64
+                            base64_data = base64.b64encode(byte_array).decode('utf-8')
+                            # Replace src attribute with Base64 data
+                            html_content = html_content.replace(image_name, f"data:image/png;base64,{base64_data}")
+
+                iter += 1
+
+        return html_content
 
     def preview(self):
 

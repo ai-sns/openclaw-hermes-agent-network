@@ -3,110 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Styled Checkbox</title>
+    <title>Centered SVG Canvas with Thumbnail</title>
     <style>
-        /* 隐藏原始复选框 */
-        .styled-checkbox {
-            display: none;
-        }
-
-        /* 创建自定义复选框 */
-        .styled-checkbox + label {
+        #svgContainer {
+            width: 300px;
+            height: 300px;
+            overflow: hidden;
             position: relative;
-            display: inline-block;
-            padding-left: 25px; /* 调整左边的内边距 */
-            cursor: pointer;
-            font-size: 14px;
-            user-select: none;
         }
-
-        /* 创建复选框的外观 */
-        .styled-checkbox + label:before {
-            content: '';
+        svg {
+            border: 1px solid #000;
+            cursor: move;
             position: absolute;
-            left: 0;
-            top: 0;
-            width: 16px; /* 缩小宽度 */
-            height: 16px; /* 缩小高度 */
-            border: 2px solid #007bff;
-            border-radius: 4px;
-            background: #fff;
-            transition: background 0.3s;
         }
-
-        /* 创建复选框的选中状态 */
-        .styled-checkbox:checked + label:before {
-            background: #007bff;
-            border-color: #007bff;
-        }
-
-        /* 创建复选框的选中状态的勾 */
-        .styled-checkbox:checked + label:after {
-            content: '';
-            position: absolute;
-            left: 5px; /* 调整左边距使勾居中 */
-            top: 2px; /* 调整顶部边距使勾居中 */
-            width: 4px; /* 缩小宽度 */
-            height: 8px; /* 缩小高度 */
-            border: solid #fff;
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg);
-        }
-
-        /* 悬停状态 */
-        .styled-checkbox + label:hover:before {
-            border-color: #0056b3;
-        }
-
-        /* 焦点状态 */
-        .styled-checkbox:focus + label:before {
-            box-shadow: 0 0 5px #007bff;
+        #canvas {
+            border: 1px solid #ccc;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <!-- 使用自定义复选框 -->
-    <input type="checkbox" id="msg_checkbox_01" class="styled-checkbox" data-value="001" onclick="add_to_selected_msg(this, 'question')">
-    <label for="msg_checkbox_01">用户信息</label>
+
+    <!-- SVG容器 -->
+    <div id="svgContainer">
+        <svg id="svgCanvas" width="600" height="600" xmlns="http://www.w3.org/2000/svg">
+            <circle id="circle" cx="300" cy="300" r="30" fill="lightblue" cursor="pointer"/>
+            <rect id="rectangle" x="350" y="250" width="50" height="50" fill="lightgreen" cursor="pointer"/>
+        </svg>
+    </div>
+
+    <!-- Canvas用于显示缩略图 -->
+    <canvas id="canvas" width="100" height="100"></canvas>
 
     <script>
-        function add_to_selected_msg(checkbox, type_flag) {
-            const isChecked = checkbox.checked;
-            const dataValue = checkbox.getAttribute('data-value');
-            const status = `${isChecked ? 'checked' : 'unchecked'}`;
-            setSelectedHistoryIndex(dataValue, status);
-            // 调用API方法
-            api_object.check_message(dataValue, status);
-        }
+        const svg = document.getElementById('svgCanvas');
+        const circle = document.getElementById('circle');
+        const rectangle = document.getElementById('rectangle');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
 
-        function setSelectedHistoryIndex(i, check_status) {
-            if (check_status === "checked") {
-                addSelectedHistoryIndex(i);
+        let isDraggingCanvas = false;
+        let isDraggingElement = false;
+        let selectedElement = null;
+        let startX, startY;
+
+        // 初始偏移量，使SVG可视区域居中在svgCanvas
+        let canvasOffsetX = (svg.width.baseVal.value - 300) / 2;
+        let canvasOffsetY = (svg.height.baseVal.value - 300) / 2;
+
+        // 初始化使SVG居中
+        svg.style.transform = `translate(-${canvasOffsetX}px, -${canvasOffsetY}px)`;
+
+        // 监听鼠标按下事件
+        svg.addEventListener('mousedown', function(event) {
+            const target = event.target;
+
+            if (target === circle || target === rectangle) {
+                selectedElement = target;
+                isDraggingElement = true;
+                startX = event.clientX - (selectedElement === circle ? selectedElement.cx.baseVal.value : selectedElement.x.baseVal.value);
+                startY = event.clientY - (selectedElement === circle ? selectedElement.cy.baseVal.value : selectedElement.y.baseVal.value);
             } else {
-                removeSelectedHistoryIndex(i);
+                isDraggingCanvas = true;
+                startX = event.clientX - canvasOffsetX;
+                startY = event.clientY - canvasOffsetY;
             }
+        });
+
+        // 监听鼠标移动事件
+        document.addEventListener('mousemove', function(event) {
+            if (isDraggingElement && selectedElement) {
+                if (selectedElement === circle) {
+                    selectedElement.setAttribute('cx', event.clientX - startX);
+                    selectedElement.setAttribute('cy', event.clientY - startY);
+                } else if (selectedElement === rectangle) {
+                    selectedElement.setAttribute('x', event.clientX - startX);
+                    selectedElement.setAttribute('y', event.clientY - startY);
+                }
+                updateThumbnail();
+            } else if (isDraggingCanvas) {
+                canvasOffsetX = event.clientX - startX;
+                canvasOffsetY = event.clientY - startY;
+                svg.style.transform = `translate(-${canvasOffsetX}px, -${canvasOffsetY}px)`;
+                updateThumbnail();
+            }
+        });
+
+        // 监听鼠标松开事件
+        document.addEventListener('mouseup', function() {
+            isDraggingCanvas = false;
+            isDraggingElement = false;
+            selectedElement = null;
+        });
+
+        // 更新缩略图
+        function updateThumbnail() {
+            const svgClone = svg.cloneNode(true);
+            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            svgClone.setAttribute('viewBox', `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`);
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgClone);
+
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            const img = new Image();
+            img.onload = function() {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+
+                // 缩放到Canvas大小
+                context.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                // 绘制表示可见区域的固定矩形框
+                const viewportWidth = 300; // 可见区域宽度
+                const viewportHeight = 300; // 可见区域高度
+
+                const scaleX = canvas.width / svg.width.baseVal.value;
+                const scaleY = canvas.height / svg.height.baseVal.value;
+
+                const viewX = (canvasOffsetX / svg.width.baseVal.value) * canvas.width;
+                const viewY = (canvasOffsetY / svg.height.baseVal.value) * canvas.height;
+
+                const viewWidthScaled = viewportWidth * scaleX;
+                const viewHeightScaled = viewportHeight * scaleY;
+
+                context.strokeStyle = 'red';
+                context.lineWidth = 2;
+                context.strokeRect(viewX, viewY, viewWidthScaled, viewHeightScaled);
+
+                URL.revokeObjectURL(url);
+            };
+
+            img.src = url;
         }
 
-        function addSelectedHistoryIndex(i) {
-            if (!selectedHistoryIndex.includes(i)) {
-                selectedHistoryIndex.push(i);
-                selectedHistoryIndex.sort((a, b) => a - b);
-            }
-        }
+        updateThumbnail();
 
-        function removeSelectedHistoryIndex(i) {
-            const index = selectedHistoryIndex.indexOf(i);
-            if (index > -1) {
-                selectedHistoryIndex.splice(index, 1);
-            }
-        }
-
-        let selectedHistoryIndex = []; // 初始化已选择的历史索引
-        var api_object = {
-            check_message: function(dataValue, status) {
-                console.log(`Data Value: ${dataValue}, Status: ${status}`);
-            }
-        };
     </script>
+
 </body>
 </html>

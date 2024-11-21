@@ -98,6 +98,7 @@ from AddBuddyDialog import AddBuddyDialog
 from AddGroupDialog import AddGroupDialog
 from noteeditor.msword import Main as NoteEditor
 from function_manager import FunctionManager
+from skill_manager import SkillManager
 from util import open_file
 from keyvalue_mng import KeyValueManager
 
@@ -1296,23 +1297,24 @@ class Ui_MainWindow(object):
         # Create task and tech lists and add them to tab widget
         tabWidget = QTabWidget()
         layout.addWidget(tabWidget, 2, 0, 3, 2)
-        notelist_recent = NoteList(self, kmrecord, "recent")
-        notelist_recent.setObjectName("recentnotelist")
+        # notelist_recent = NoteList(self, kmrecord, "recent")
+        # notelist_recent.setObjectName("recentnotelist")
         notelist_all = NoteList(self, kmrecord, "all")
         notelist_all.setObjectName("allnotelist")
         notelist_all_label = NoteListLabel(self, kmrecord, "label")
         notelist_all_label.setObjectName("labelallnotelist")
-        self.notelist_recent = notelist_recent
+        # self.notelist_recent = notelist_recent
         self.notelist_all = notelist_all
         self.notelist_all_label = notelist_all_label
 
-        self.notelist_recent_list[kmrecord.km_id] = notelist_recent
+        # self.notelist_recent_list[kmrecord.km_id] = notelist_recent
         self.notelist_all_list[kmrecord.km_id] = notelist_all
 
-        tabWidget.addTab(notelist_recent, "最新")
+        # tabWidget.addTab(notelist_recent, "最新")
         tabWidget.addTab(notelist_all, "全部")
         tabWidget.addTab(notelist_all_label, "标签")
-        self.CurTabTextNote = "最新"
+        # self.CurTabTextNote = "最新"
+        self.CurTabTextNote = "全部"
         # 直接在 connect 方法中使用 lambda 函数处理标签页切换
         tabWidget.currentChanged.connect(
             lambda index: setattr(self, 'CurTabTextNote', tabWidget.tabText(index))
@@ -1556,6 +1558,40 @@ class Ui_MainWindow(object):
 
         self.toolBox_Plugin.setMinimumWidth(itemWidget.sizeHint().width())
         self.toolBox_Plugin.addItem(itemWidget, QIcon('images/function.png'), "自定义函数")
+
+        # 已学技能
+        self.buttonGroup_Plugin_skill = QButtonGroup()
+        self.buttonGroup_Plugin_skill.setExclusive(False)
+        self.buttonGroup_Plugin_skill.buttonClicked[int].connect(self.buttonGroupClicked_plugin_cfg)
+
+        layout_skill = QGridLayout()
+
+        textEdit_skill = QLineEdit()
+        textEdit_skill.setPlaceholderText("搜索...")
+        textEdit_skill.returnPressed.connect(lambda: self.skill_search(textEdit_skill.text()))
+
+        layout_skill.addWidget(textEdit_skill, 0, 0, 1, 2)
+        i = 0
+        row = 1
+        col = 0
+        layout_skill.addWidget(self.create_plugin_skill_button("1", DiagramItem.Conditional),
+                                  1, 0)
+
+        layout_skill.addWidget(self.create_plugin_skill_button("0", DiagramItem.Conditional),
+                                  1, 1)
+
+        layout_skill.setRowStretch(row + 1, 10)
+        layout_skill.setColumnStretch(2, 10)
+
+        itemWidget = QWidget()
+        itemWidget.setLayout(layout_skill)
+
+        self.toolBox_Plugin.setMinimumWidth(itemWidget.sizeHint().width())
+        self.toolBox_Plugin.addItem(itemWidget, QIcon('images/skill.png'), "已学技能")
+
+
+
+
 
         # 插件市场
         self.buttonGroup_Plugin_install = QButtonGroup()
@@ -2620,6 +2656,7 @@ class Ui_MainWindow(object):
     def createNewKM(self, kmrecord):
         filepath = self.setOpenFileName()
         filename = Path(filepath).name
+        kmrecord = query_KMCfg(km_id=kmrecord.km_id)
         km_path = kmrecord.kmpath
 
         if filename != "":
@@ -2644,15 +2681,25 @@ class Ui_MainWindow(object):
             km_id = kmrecord.km_id
             filename = filename
             filenum = 1
-            record_id = add_KMData(km_id, filename, filenum, chunk_size, chunk_overlap)
+
+            if kmrecord.vectorization == 1 and kmrecord.stopvectorization == 1:
+                # 如果可向量化且暂停了向量化则需要等待向量化
+                waitvectorization = True
+            else:
+                waitvectorization = False
+
+            record_id = add_KMData(km_id, filename, filenum, chunk_size, chunk_overlap,waitvectorization)
             print(filename)
             km_list = self.kmlist_list[kmrecord.km_id]
             km_list.addItem(filename, record_id)
 
-            self.thread = WorkerThread(filepath, persist_directory, embedding_model_name, emb_type, chunk_size,
-                                       chunk_overlap)
-            self.thread.finished.connect(self.on_thread_finished)  # 连接信号
-            self.thread.start()
+            if kmrecord.vectorization == 1 and kmrecord.stopvectorization == 0:
+                # 如果可向量化且没有暂停向量化则需要向量化
+
+                self.thread = WorkerThread(filepath, persist_directory, embedding_model_name, emb_type, chunk_size,
+                                           chunk_overlap)
+                self.thread.finished.connect(self.on_thread_finished)  # 连接信号
+                self.thread.start()
 
     def on_thread_finished(self):
         """处理线程完成的信号"""
@@ -3347,6 +3394,38 @@ class Ui_MainWindow(object):
         self.conversation_pages.addWidget(fun_dialog)
         self.conversation_pages.setCurrentWidget(fun_dialog)
 
+    def show_skill_list(self,type_str):
+
+        skill_dialog = SkillManager(type_str)
+        skill_dialog.setObjectName("skillmanager")
+        self.conversation_pages.addWidget(skill_dialog)
+        self.conversation_pages.setCurrentWidget(skill_dialog)
+
+    def create_plugin_skill_button(self, type_str, diagramType):
+
+        button = QToolButton()
+        button.setIcon(QIcon('images/plugin.png'))
+        button.setIconSize(QSize(50, 50))
+        button.setCheckable(True)
+        if type_str=="1":
+            button_label="已发布"
+        else:
+            button_label = "未发布"
+
+        button.clicked.connect(lambda: self.show_skill_list(type_str))
+
+        self.buttonGroup_Plugin.addButton(button, diagramType)
+        # self.buttonGroup.addButton(button, diagramType)
+
+        layout = QGridLayout()
+        layout.addWidget(button, 0, 0, Qt.AlignHCenter)
+        layout.addWidget(QLabel(button_label), 1, 0, Qt.AlignCenter)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        return widget
+
     def create_plugin_function_button(self, type_str, diagramType):
 
         button = QToolButton()
@@ -3384,6 +3463,22 @@ class Ui_MainWindow(object):
         fun_dialog.setObjectName("functionmanager")
         self.conversation_pages.addWidget(fun_dialog)
         self.conversation_pages.setCurrentWidget(fun_dialog)
+
+    def skill_search(self, keyword,type_str="0"):
+        # type_str:"0","1","2"
+        print("keyword",keyword)
+
+        if keyword=="$$$cjrok":
+            type_str="2"
+        print(keyword)
+        print("type_str",type_str)
+        skill_dialog = SkillManager(type_str)
+        skill_dialog.setObjectName("skillmanager")
+        self.conversation_pages.addWidget(skill_dialog)
+        self.conversation_pages.setCurrentWidget(skill_dialog)
+
+
+
 
     def create_plugin_cfg_button(self, record, diagramType):
 

@@ -1,0 +1,5 @@
+pandas
+selenium==4.4.3
+chromedriver-py
+python-pptx
+webdriver_manager
