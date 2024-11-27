@@ -63,6 +63,23 @@
             height: 24px;
         }
 
+                /* 工具栏分隔符样式 */
+        /* 工具栏分隔符样式 */
+        .toolbar-separator {
+            width: 2px;
+            height: 30px;
+            background-color: #bbb;
+            border-radius: 1px;
+            margin: 0 7px;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+
+        /* 分隔符悬停效果 */
+        .toolbar-separator:hover {
+            background-color: #888;
+            transform: scaleX(1.2);
+        }
+
         #node-menu {
             position: absolute;
             display: none;
@@ -97,6 +114,7 @@
         }
 
         .node {
+            fill:lightblue;
             cursor: pointer;
             transition: transform 0.3s;
         }
@@ -245,27 +263,117 @@
         .context-menu-item:hover {
             background: #eee;
         }
+
+        /* 定义缩略图Canvas的样式 */
+        #canvasThumbnail {
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+
+        /* 确保cronDerperSection不换行 */
+        .cronDerperSection {
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        /* 使用flex布局确保cronDerperSections在同一行 */
+        .cronDerperSections {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap; /* 不换行 */
+        }
+
+        /* 隐藏cronDerper的样式 */
+        #cronDerper {
+            display: none; /* 默认隐藏 */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001; /* 高于蒙层 */
+        }
+
+        /* cronDerper内的输入框样式 */
+        #cronDerper input {
+            border: none;
+            border-bottom: 1px solid #000;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        /* cronDerper内的按钮样式 */
+        #cronDerper button {
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #146ebe;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        /* cronDerper内的按钮悬停样式 */
+        #cronDerper button:hover {
+            background-color: #3e7abe;
+        }
+
+        /* 蒙层样式 */
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000; /* 低于cronDerper */
+        }
+
     </style>
     <script src="qwebchannel.js"></script>
+    <script src="cron.js"></script>
 </head>
 
 <body>
-    <div id="canvas-container">
+<!-- 蒙层 -->
+    <div id="overlay" style="display: none" onclick="toggleCronDerper()"></div>
+
+            <div id="canvas-container">
         <div id="toolbar">
+            <button id="add-node" title="添加节点"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/rounded-rectangle.png" alt="Add Node" /></button>
+            <button id="save" title="保存"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/save.png" alt="Save" /></button>
+<div class="toolbar-separator"></div>
             <button id="zoom-in" title="放大"><img
                     src="https://img.icons8.com/ios-filled/50/ffffff/zoom-in.png" alt="Zoom In" /></button>
             <button id="zoom-out" title="缩小"><img
                     src="https://img.icons8.com/ios-filled/50/ffffff/zoom-out.png" alt="Zoom Out" /></button>
-            <button id="add-node" title="添加节点"><img
-                    src="https://img.icons8.com/ios-filled/50/ffffff/add.png" alt="Add Node" /></button>
+            <button id="zoom-to-actual-size" title="恢复大小"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/zoom-to-actual-size.png" alt="Zoom Out" /></button>
+<div class="toolbar-separator"></div>
+            <button id="navigate" title="居中"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/navigation.png" alt="Make Center" /></button>
+            <button id="arrange" title="整理"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/rearrange.png" alt="Arrange" /></button>
+<div class="toolbar-separator"></div>
+
+
+            <button id="load" title="导入"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/import.png" alt="Load" /></button>
+
+            <button id="export" title="导入"><img
+                    src="https://img.icons8.com/ios-filled/50/ffffff/export.png" alt="Load" /></button>
+
             <button id="run" title="运行"><img
                     src="https://img.icons8.com/ios-filled/50/ffffff/play.png" alt="Run" /></button>
-            <button id="navigate" title="整理"><img
-                    src="https://img.icons8.com/ios-filled/50/ffffff/navigation.png" alt="Navigate" /></button>
-            <button id="save" title="保存"><img
-                    src="https://img.icons8.com/ios-filled/50/ffffff/save.png" alt="Save" /></button>
-            <button id="load" title="导入"><img
-                    src="https://img.icons8.com/ios-filled/50/ffffff/opened-folder.png" alt="Load" /></button>
         </div>
         <div id="node-menu">
             <button id="add-node-llm">大模型</button>
@@ -298,11 +406,42 @@
         <div class="context-menu-item" id="deleteLine">删除连线</div>
 
     </div>
+<!-- cronDerper div，默认隐藏 -->
+    <div id="cronDerper">
+        <div class="cronDerperSections">
+            <div class="cronDerperSection">
+                <span>
+                    <select id="cronViewSelection" oninput="derp.populateDiv(this.value);">
+                        <option value="MINUTE_INTERVAL" selected="selected">Minute interval</option>
+                        <option value="HOUR_INTERVAL">Hour interval</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="YEARLY">Yearly</option>
+                        <option value="ADVANCED">Advanced</option>
+                    </select> |
+                </span>
+                <span id="cronInput"></span>
+                <span>
+                    <button onclick="confirm_cron();">确定</button>
+
+                </span>
+            </div>
+            <div class="cronDerperSection" style="display: none;">
+            <input id="cronOutput" />
+            </div>
+        </div>
+    </div>
 
     <script>
         var api_object = null;
         // 获取DOM元素
         const svg = document.getElementById("canvas");
+        var canvasThumbnail = null;
+        var context = null;
+        var gdx = 0;
+        var gdy =0;
+        var gzoomTime = 0;
         const configPanel = document.getElementById("configPanel");
         const contextMenu = document.getElementById("contextMenu");
         const editItem = document.getElementById("editItem");
@@ -311,6 +450,8 @@
 
         const zoomInButton = document.getElementById("zoom-in");
         const zoomOutButton = document.getElementById("zoom-out");
+        const zoomActualButton = document.getElementById("zoom-to-actual-size");
+
         const addNodeButton = document.getElementById("add-node");
         const runButton = document.getElementById("run");
         const navigateButton = document.getElementById("navigate");
@@ -344,6 +485,8 @@
         let workflow_description="";
         let workflow_id = "";
         let workflow_tags = "";
+        let timer_desc = "";
+        let timer_cron = "";
         let last_node = "";
 
         //增加全局变量，当前打开结点
@@ -409,6 +552,7 @@
                 const pathData = `M ${x1},${y1} C ${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`;
                 line.pathElement.setAttribute('d', pathData);
             });
+            updateThumbnail();
         }
 
         // 鼠标按下事件处理
@@ -505,6 +649,9 @@
                 svg.setAttribute('viewBox', viewBox.join(" "));
                 offsetX = event.clientX;
                 offsetY = event.clientY;
+                gdx += dx;
+                gdy += dy;
+                updateThumbnail();
             }
         }
 
@@ -560,6 +707,7 @@
             const nodeGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
             nodeGroup.setAttribute('id', nodeId);
             nodeGroup.setAttribute('class', 'node');
+            nodeGroup.setAttribute('fill', 'lightblue');
             nodeGroup.type=type_flag;
             nodeGroup.type_str=type_str;
             nodeGroup.plugin="";
@@ -567,6 +715,8 @@
 
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             rect.setAttribute('class', 'node-rect');
+            // rect.setAttribute('class', 'node');
+            rect.setAttribute('fill', 'lightblue');
             rect.setAttribute('x', x);
             rect.setAttribute('y', y);
             rect.setAttribute('width', 120);
@@ -725,9 +875,21 @@
                             rows="15"
                             cols="50">${workflow_description}</textarea>
                 <label>分类: </label><input type="text" id="Tags" value="${workflow_tags}">
+                <button style="display: none" onclick="saveWorkFlowConfig()">更新配置</button>
 
-                <button onclick="saveWorkFlowConfig()">更新配置</button>
+                 <label id="timer_label">定时:${timer_desc}</label>
+                <button onclick="toggleCronDerper()">定时配置</button>
+                <br><br>
+                <!-- 用于显示缩略图的Canvas -->
+
+                <canvas id="canvasThumbnail" width="230" height="230"></canvas>
+
+
+
             `;
+            canvasThumbnail = document.getElementById('canvasThumbnail');
+            context = canvasThumbnail.getContext('2d');
+            updateThumbnail();
         }
         function saveWorkFlowConfig() {
             const title = document.getElementById('Title').value;
@@ -736,6 +898,19 @@
             workflow_tags = tags;
             workflow_title = title;
             workflow_description = description;
+            updateThumbnail();
+
+        }
+
+
+function toggleCronDerper() {
+
+            const cronDerper = document.getElementById('cronDerper');
+            const overlay = document.getElementById('overlay');
+            const isDisplayed = cronDerper.style.display === 'block';
+            // 切换显示状态
+            cronDerper.style.display = isDisplayed ? 'none' : 'block';
+            overlay.style.display = isDisplayed ? 'none' : 'block';
         }
 
         function showConfigPanelNode(nodeGroup, e) {
@@ -980,7 +1155,12 @@
 
         svg.addEventListener('wheel', (e) => {
             e.preventDefault();
-            const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+            const zoomFactor = e.deltaY > 0 ? 1.2 : (1/1.2);
+            if(zoomFactor == 1.2){
+                gzoomTime -= 1;
+            }else{
+                gzoomTime += 1;
+            }
             viewBox[2] *= zoomFactor;
             viewBox[3] *= zoomFactor;
             svg.setAttribute('viewBox', viewBox.join(" "));
@@ -1001,12 +1181,31 @@
             viewBox[2] /= 1.2;
             viewBox[3] /= 1.2;
             svg.setAttribute('viewBox', viewBox.join(' '));
+            gzoomTime += 1;
         });
 
         zoomOutButton.addEventListener('click', () => {
             viewBox[2] *= 1.2;
             viewBox[3] *= 1.2;
             svg.setAttribute('viewBox', viewBox.join(' '));
+            gzoomTime -= 1;
+        });
+
+        zoomActualButton.addEventListener('click', () => {
+
+            if(gzoomTime>0){
+
+    while (gzoomTime > 0) {
+        zoomOutButton.click();
+        // gzoomTime--;
+    }
+            }
+            else{
+while (-gzoomTime > 0) {
+        zoomInButton.click();
+        // gzoomTime++;
+    }
+            }
         });
 
         // 添加节点按钮事件
@@ -1086,7 +1285,51 @@
 
         // 导航按钮事件（待实现）
         navigateButton.addEventListener('click', () => {
-            alert('Navigate functionality to be implemented');
+
+        viewBox = [0, 0, svg.clientWidth, svg.clientHeight];
+        svg.setAttribute('viewBox', viewBox.join(' '));
+        //
+        //     alert('Navigate functionality to be implemented');
+        //
+        // const svgRect = svg.getBoundingClientRect();
+        //
+        // // 计算视口中心
+        // const centerX = svgRect.width / 2;
+        // const centerY = svgRect.height / 2;
+        //
+        // // 计算所有节点的平均位置
+        // let totalX = 0, totalY = 0;
+        // nodes.forEach(node => {
+        //     // const rect = node.children[1]; // 获取第一个子元素，即rect
+        //     const rect = node.querySelector('.node-rect');
+        //     alert(node);
+        //     alert(rect);
+        //     alert(rect.getAttribute('x'));
+        //     totalX += parseFloat(rect.getAttribute('x'));
+        //     totalY += parseFloat(rect.getAttribute('y'));
+        // });
+        //
+        // const avgX = totalX / nodes.length;
+        // const avgY = totalY / nodes.length;
+        //
+        // // 计算偏移量并移动所有节点
+        // const offsetX = centerX - avgX;
+        // const offsetY = centerY - avgY;
+        //
+        // nodes.forEach(node => {
+        //     const rect = node.querySelector('.node-rect');
+        //     const newX = parseFloat(rect.getAttribute('x')) + offsetX;
+        //     const newY = parseFloat(rect.getAttribute('y')) + offsetY;
+        //     rect.setAttribute('x', newX);
+        //     rect.setAttribute('y', newY);
+        //     alert(222);
+        //     // rect.setAttribute('x', 0);
+        //     // rect.setAttribute('y', 0);
+        //     alert(rect.getAttribute('x'));
+        // });
+        //
+        // // 此处假设有一个函数更新连接线
+        // updateLines();
         });
 
         // 运行按钮事件（待实现）
@@ -1125,7 +1368,7 @@
                     connector2Index: Array.from(line.connector2.parentNode.querySelectorAll('circle')).indexOf(line.connector2)
                 }))
             };
-            api_object.save_message(workflow_id,workflow_title,workflow_description,workflow_tags,JSON.stringify(data));
+            api_object.save_message(workflow_id,workflow_title,workflow_description,workflow_tags,JSON.stringify(data),timer_desc,timer_cron);
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -1194,13 +1437,14 @@
         }
 
         function
-        load_workflow(workflow_json,workflow_title_db,workflow_description_db,workflow_id_db,workflow_tags_db) {
+        load_workflow(workflow_json,workflow_title_db,workflow_description_db,workflow_id_db,workflow_tags_db,timer_desc_db,timer_cron_db) {
 
             workflow_title=workflow_title_db;
             workflow_description=workflow_description_db;
             workflow_id=workflow_id_db;
             workflow_tags=workflow_tags_db;
-
+            timer_desc = timer_desc_db;
+            timer_cron = timer_cron_db;
             if(workflow_id==""){
                 const startNode = createNode(50, 50,
                 `Node ${nodeCount++}`,"start","开始");
@@ -1243,7 +1487,93 @@
                 });
             });
 
+        // 更新缩略图
+        // 初始偏移量，使SVG可视区域居中
+        let canvasOffsetX = (svg.width.baseVal.value - 300) / 2;
+        let canvasOffsetY = (svg.height.baseVal.value - 300) / 2;
 
+        // 初始设置SVG画布的居中位置
+        // svg.style.transform = `translate(-${canvasOffsetX}px, -${canvasOffsetY}px)`;
+        // svg.style.transform = `translate(0px, 0px)`;
+
+        function updateThumbnail() {
+            const svgClone = svg.cloneNode(true); // 克隆SVG
+            svgClone.style.transform = `translate(${gdx *  (230/4000)}px, ${gdy *  (230/4000)}px)`;
+            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            // svgClone.setAttribute('viewBox', `0 0 ${svg.width.baseVal.value * 10} ${svg.height.baseVal.value * 10}`);
+            svgClone.setAttribute('viewBox', `-1500 -1800 4000 4000`);
+
+            const serializer = new XMLSerializer();
+            const svgString = serializer.serializeToString(svgClone);
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            const img = new Image();
+            img.onload = function() {
+
+                context.clearRect(0, 0, canvasThumbnail.width, canvasThumbnail.height); // 清空Canvas
+
+                // 将SVG缩放绘制到Canvas
+                context.drawImage(img, 0, 0, canvasThumbnail.width, canvasThumbnail.height);
+
+                // 计算缩略图中的可见区域框
+                const viewportWidth = 230;
+                const viewportHeight = 230;
+                // alert(canvasThumbnail.width);
+                // alert(svg.width.baseVal.value);
+                //
+                // alert(canvasThumbnail.height);
+                // alert(svg.height.baseVal.value);
+
+                const scaleX = canvasThumbnail.width / svg.width.baseVal.value;
+                const scaleY = canvasThumbnail.height / svg.height.baseVal.value;
+                // alert(scaleX);
+
+                // const viewWidthScaled = viewportWidth * scaleX;
+                // const viewHeightScaled = viewportHeight * scaleY;
+
+                const viewWidthScaled = viewportWidth * svg.width.baseVal.value/4000;
+                const viewHeightScaled = viewportWidth * svg.height.baseVal.value/4000;
+
+
+
+                // const viewX = (canvasOffsetX / svg.width.baseVal.value) * canvasThumbnail.width;
+                // const viewY = (canvasOffsetY / svg.height.baseVal.value) * canvasThumbnail.height;
+                const viewX = 115-(500 * (230/4000));
+                const viewY = 115-(200 * (230/4000));
+
+                // alert(viewX)
+
+                // 绘制红色框
+                context.strokeStyle = 'red';
+                context.lineWidth = 2;
+                context.strokeRect(viewX, viewY, viewWidthScaled, viewHeightScaled);
+
+                URL.revokeObjectURL(url); // 释放URL对象
+            };
+
+            img.src = url; // 设置Image来源
+        }
+
+        updateThumbnail(); // 初始更新缩略图
+
+// window.onload = function() {
+//             window.derp = new CronDerper();
+//             derp.populateDiv('MINUTE_INTERVAL');
+//         };
+
+        function confirm_cron(){
+            derp.generateOutput();
+            toggleCronDerper();
+            timer_cron = document.getElementById("cronOutput").value;
+            timer_desc = derp.timer_desc;
+            document.getElementById("timer_label").innerText="定时:"+timer_desc;
+
+
+        }
+
+        window.derp = new CronDerper();
+        derp.populateDiv('MINUTE_INTERVAL');
     </script>
 </body>
 

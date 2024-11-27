@@ -4,3 +4,32 @@ https://fontawesome.com/icons/comment-exclamation?f=classic&s=solid&pc=%23ffc800
 Comment Exclamation Classic Solid Icon | Font Awesome
 2.代码产生的各种模型
 https://mp.weixin.qq.com/s/mjUQaluHFAlm2scY06ipdA
+3.在线发布web系统
+https://vercel.com/pricing
+
+Set up a modern web app by running one command.
+https://github.com/facebook/create-react-app
+
+在线制作图书
+少儿蓝球培训班招生宣传册 (flbook.com.cn)
+￼
+
+Editing symbols and icons in iOS 17 Outlined Style, PNG, SVG (icons8.com)
+https://icons8.com/icon/set/editing/ios
+
+录屏软件参考
+https://haokan.baidu.com/v?pd=wisenatural&vid=11493966705463660484
+QQ录屏
+ctrl+alt+s
+
+python屏幕录制 录屏
+https://github.com/firatkiral/pypeek?tab=readme-ov-file
+
+https://github.com/LKPcode/Macro-Recorder-and-Player/tree/master --重点
+JimEverest/fastshot: Fastshot is a GenAI powered screenshot and annotation tool designed to optimize your workflow. Ideal for students, developers, researchers, and operations professionals, Fastshot enhances multitasking by providing seamless, efficient tools to capture, pin, annotate, and analyze screen content. (github.com)
+InterwovenCode/ScreenPinKit: A mini screenshot and annotation tool that incorporates ideas from Snipaste, Excalidraw, ShareX, and others. (github.com)  重点
+
+图片标注软件
+wkentaro/labelme: Image Polygonal Annotation with Python (polygon, rectangle, circle, line, point and image-level flag annotation). (github.com)
+https://www.alibabafonts.com/#/font
+alibaba免费字体

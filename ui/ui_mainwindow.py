@@ -67,6 +67,7 @@ from db.DBFactory import add_LogsMng, query_LogsMng_All, update_LogsMng, delete_
 from pluginsmanager import PluginEngine
 from pluginsmanager.plugins_headless.plugin_mng import load_plugin as load_plugin_tool
 from workflow_manager import WorkFlowManager
+from task_schedule import TaskSchedule
 from prompts import PromptDialog,PromptManager,MainWindow as Prompt_Manager
 import argparse
 
@@ -897,7 +898,7 @@ class Ui_MainWindow(object):
 
         # Create search input
         textEdit = QLineEdit()
-        textEdit.setPlaceholderText("关键词+回车搜索，空+回车复原")
+        textEdit.setPlaceholderText("🔍关键词+回车搜索，空+回车复原")
         textEdit.setToolTip("关键字以+++开头表示在搜索结果中继续搜索")
         layout.addWidget(textEdit, 1, 0, 1, 2)
 
@@ -923,8 +924,12 @@ class Ui_MainWindow(object):
             lambda index: setattr(self, 'CurTabTextChatTech', tabWidget.tabText(index))
         )
         # Stretch settings
-        layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setRowStretch(3, 10)
+        # layout.setColumnStretch(2, 10)
+        # 设置行的拉伸系数
+        layout.setRowStretch(3, 10)  # 第3行的拉伸系数
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
 
         # Create and set widget
         itemWidget = QWidget()
@@ -995,7 +1000,7 @@ class Ui_MainWindow(object):
             lambda index: setattr(self, 'CurTabTextChatMem', tabWidget.tabText(index))
         )
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
         itemWidget.setObjectName(agent_cfg_multi.group_id)
@@ -1064,10 +1069,12 @@ class Ui_MainWindow(object):
                                                                    'images/fileline.png'), 2, 1)
 
         settingLayout.setRowStretch(3, 10)
-        settingLayout.setColumnStretch(2, 10)
+        # settingLayout.setColumnStretch(2, 10)
 
         settingWidget = QWidget()
         settingWidget.setLayout(settingLayout)
+
+
 
         self.toolBox_AgentChat.addItem(settingWidget, "Ai智能体管理")
         # 动态修改其值
@@ -1076,6 +1083,64 @@ class Ui_MainWindow(object):
 
         self.toolBox_AgentChat.currentChanged.connect(self.on_agentchat_toolbox_item_changed)
 
+        # 打印 QToolBox 的样式表
+        current_stylesheet = self.toolBox_AgentChat.styleSheet()
+        print("Current QToolBox Stylesheet:")
+        print(current_stylesheet)
+
+
+
+        self.toolBox_AgentChat.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
+            
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+        
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
+
+        # settingWidget.setStyleSheet("""
+        #     QWidget {
+        #
+        #         border-radius: 6px;
+        #     }
+        # """)
     # Ai Chat tool box
 
     def on_agentchat_toolbox_item_changed(self, index):
@@ -1125,7 +1190,7 @@ class Ui_MainWindow(object):
         )
 
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
         itemWidget.setObjectName(agent.user_id)
@@ -1188,7 +1253,7 @@ class Ui_MainWindow(object):
                                                                   'images/usermng.png'), 0, 1)
 
         backgroundLayout.setRowStretch(2, 10)
-        backgroundLayout.setColumnStretch(2, 10)
+        # backgroundLayout.setColumnStretch(2, 10)
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(backgroundLayout)
@@ -1225,7 +1290,7 @@ class Ui_MainWindow(object):
         infoList.rename_signal.connect(self.addBuddy)
 
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
 
@@ -1254,7 +1319,7 @@ class Ui_MainWindow(object):
                                                                      'images/usermng.png'), 0, 1)
 
         backgroundLayout.setRowStretch(2, 10)
-        backgroundLayout.setColumnStretch(2, 10)
+        # backgroundLayout.setColumnStretch(2, 10)
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(backgroundLayout)
@@ -1322,7 +1387,7 @@ class Ui_MainWindow(object):
 
         # Stretch settings
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
 
         # Create and set widget
         itemWidget = QWidget()
@@ -1387,7 +1452,7 @@ class Ui_MainWindow(object):
         )
 
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
         itemWidget = QWidget()
         itemWidget.setObjectName(kmrecord.km_id)
         itemWidget.setLayout(layout)
@@ -1436,7 +1501,7 @@ class Ui_MainWindow(object):
                                                               'images/database.png'), 1, 0)
 
         backgroundLayout.setRowStretch(2, 10)
-        backgroundLayout.setColumnStretch(2, 10)
+        # backgroundLayout.setColumnStretch(2, 10)
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(backgroundLayout)
@@ -1484,7 +1549,7 @@ class Ui_MainWindow(object):
             col = col + 1
 
         self.layout.setRowStretch(row + 1, 10)
-        self.layout.setColumnStretch(2, 10)
+        # self.layout.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
         itemWidget.setLayout(self.layout)
@@ -1521,7 +1586,7 @@ class Ui_MainWindow(object):
             col = col + 1
 
         self.layout_tool.setRowStretch(row + 1, 10)
-        self.layout_tool.setColumnStretch(2, 10)
+        # self.layout_tool.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
         itemWidget.setLayout(self.layout_tool)
@@ -1551,7 +1616,7 @@ class Ui_MainWindow(object):
                                   1, 1)
 
         layout_function.setRowStretch(row + 1, 10)
-        layout_function.setColumnStretch(2, 10)
+        # layout_function.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
         itemWidget.setLayout(layout_function)
@@ -1581,7 +1646,7 @@ class Ui_MainWindow(object):
                                   1, 1)
 
         layout_skill.setRowStretch(row + 1, 10)
-        layout_skill.setColumnStretch(2, 10)
+        # layout_skill.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
         itemWidget.setLayout(layout_skill)
@@ -1820,10 +1885,14 @@ class Ui_MainWindow(object):
         col = 0
 
         layout_tool.addWidget(self.create_workflow_cfg_button(DiagramItem.Conditional),
-                              row, col % 2)
+                              0, 0)
 
-        layout_tool.setRowStretch(row + 1, 10)
-        layout_tool.setColumnStretch(2, 10)
+        layout_tool.addWidget(self.create_task_schedule_button(DiagramItem.Conditional),
+                              0, 1)
+
+        layout_tool.setRowStretch(1, 10) # 第2行的拉伸系数
+        layout_tool.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout_tool.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
 
         itemWidget = QWidget()
         itemWidget.setLayout(layout_tool)
@@ -1859,7 +1928,7 @@ class Ui_MainWindow(object):
         # layout.addWidget(textWidget, 1, 1)
 
         layout.setRowStretch(3, 10)
-        layout.setColumnStretch(2, 10)
+        # layout.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
@@ -1876,7 +1945,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -1897,7 +1966,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -1918,7 +1987,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -1939,7 +2008,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -1960,7 +2029,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -1981,7 +2050,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -2002,7 +2071,7 @@ class Ui_MainWindow(object):
 
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(orgfont)
         self.ai2aiAction.setFont(orgfont)
@@ -2041,7 +2110,7 @@ class Ui_MainWindow(object):
         # 创建一个字体对象，设置字体为粗体，带下划线
         font = QFont()
         font.setBold(True)
-        font.setUnderline(True)
+        # font.setUnderline(True)
 
         self.ai2meAction.setFont(font)
         # self.ai2meAction.setCheckable(True)  # 设置为可切换状态
@@ -2170,6 +2239,7 @@ class Ui_MainWindow(object):
         toolbar_container.addWidget(spacer)
 
         toolbar_container.addWidget(setting_toolbar)
+
 
         # 将工具栏容器添加到主窗口的左侧
         self.addToolBar(Qt.LeftToolBarArea, toolbar_container)
@@ -3372,6 +3442,12 @@ class Ui_MainWindow(object):
         self.conversation_pages.addWidget(workflow_dialog)
         self.conversation_pages.setCurrentWidget(workflow_dialog)
 
+    def show_task_schedule(self):
+        task_schedule_dialog = TaskSchedule()
+        task_schedule_dialog.setObjectName("taskschedule")
+        self.conversation_pages.addWidget(task_schedule_dialog)
+        self.conversation_pages.setCurrentWidget(task_schedule_dialog)
+
 
     def show_prompt_list(self, plugin_full_name):
         prompt_dialog = PromptManager(self)
@@ -3545,6 +3621,26 @@ class Ui_MainWindow(object):
         widget.setLayout(layout)
 
         return widget
+
+    def create_task_schedule_button(self, diagramType):
+
+        button = QToolButton()
+        button.setIcon(QIcon('images/Calendar.png'))
+        button.setIconSize(QSize(50, 50))
+        button.setCheckable(True)
+
+        button.clicked.connect(self.show_task_schedule)
+        self.buttonGroup_WorkFlow.addButton(button, diagramType)
+
+        layout = QGridLayout()
+        layout.addWidget(button, 0, 0, Qt.AlignHCenter)
+        layout.addWidget(QLabel("任务运行"), 1, 0, Qt.AlignCenter)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        return widget
+
 
     def createCellWidgetnewkm(self, text, diagramType):
         # item = DiagramItem(diagramType, self.itemMenu)

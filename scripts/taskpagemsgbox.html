@@ -205,7 +205,8 @@
             cursor: pointer;
             font-size: 14px;
             user-select: none;
-            margin-right: 10px;
+            margin-right: 20px;
+            margin-bottom: 7px;
         }
 
         /* 创建复选框的外观 */
@@ -323,7 +324,7 @@
 </head>
 <body>
 <div id="allcontent"></div>
-<div id="content"></div>
+<div id="content" style='margin-left: 24px;'></div>
 <div id="operator" style="display: none">
     <!-- 创建一个表单框，使用fieldset和legend -->
     <fieldset>
@@ -511,7 +512,8 @@
             });
 
 
-            allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+            // allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+            allContentDiv.innerHTML += "<div style='margin-left: 24px;'>"+handlingContentDiv.innerHTML+"</div>";
             handlingContentDiv.innerHTML = "";
             currentWordIndex = 0;
             currentMarkdown = '';
@@ -724,7 +726,7 @@
         clearTimeout(hideMenuTimeout); // 清除隐藏菜单的计时器
         const rect = hoverDiv.getBoundingClientRect();
         innermenu.style.top = `${rect.top + window.scrollY}px`;
-        innermenu.style.left = `${rect.right + window.scrollX}px`;
+        innermenu.style.left = `${rect.left + window.scrollX + 100}px`;
         innermenu.style.display = 'block';
         innermenu.setAttribute('data-id', hoverDiv.id); // 设置菜单的data-value
         innermenu.setAttribute('data-value', hoverDiv.getAttribute('data-value')); // 设置菜单的data-value
@@ -789,12 +791,11 @@
      }
 
     function copyMessage() {
-
+        alert(allContentDiv.outerHTML);
         const dataId = innermenu.getAttribute('data-id');
         const dataValue = innermenu.getAttribute('data-value');
         const dataText = innermenu.getAttribute('data-text');
         const dataIndex = innermenu.getAttribute('data-index');
-        alert(dataId);
         api_object.copy_message(dataId); // 获取连接地址
         setTimeout(showToast('内容已拷贝成功了！'),500);
 
@@ -878,7 +879,7 @@
                 if (currentNode.nodeType === Node.ELEMENT_NODE) {
                     const id = currentNode.getAttribute('id');
 
-                    // 检查 ID 是否以 'q_' 或 'a_' 开头
+                    // 检查 ID 是否以 'id_'
                     if (id && (id.startsWith('id_') || id.startsWith('id_'))) {
                         break; // 找到目标 <div>，停止删除
                     }

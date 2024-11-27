@@ -64,7 +64,8 @@ from pluginsmanager.plugins_headless.plugin_mng import load_plugin as load_plugi
 pyautogui.PAUSE = 0.5
 from pathlib import Path
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, toggle_msg_loading_status, add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight, add_attachment_to_message_window,image_to_base64,generate_img_tag
-
+from operationlearning.app import ScreenBar
+# from operationlearning.auto_operate import AutoOprateBar
 current_agent = None
 
 
@@ -175,6 +176,7 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
         # self.messages = []
         self.task_command=""
         self.is_transfer_to_workflow = False
+        self.is_waiting_for_feedback_to_auto_operation = False
         self.pre_system_role_prompt = ""
         self.work_flow_title = ""
         self.work_flow_label = ""
@@ -249,6 +251,10 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
         print(self.application.cjr)
         self.is_browser_page_loaded = False
         self.messageBrowser.page().loadFinished.connect(self.onLoadFinished)  # 第一次可能page没来得及load，所以需要在onload中处理
+
+        self.auto_operate_bar = None
+
+        self.screen_bar = None
 
     def onLoadFinished(self):
         self.is_browser_page_loaded = True
@@ -652,7 +658,7 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
                 message = f"""处理完毕！"""
                 self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br><br>"')
 
-            elif "学习" in self.messageEdit.toPlainText():
+            elif "学习bak" in self.messageEdit.toPlainText():
 
 
                 # stocks_handle = StocksHandle()
@@ -703,45 +709,44 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
                 opr_file_name = opr_file_name.replace("学习", "")
                 os.system(f"python C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/record.py {opr_file_name} record-all")
 
+            elif "学习" in self.messageEdit.toPlainText() or "xuexi" in self.messageEdit.toPlainText() or "xue" in self.messageEdit.toPlainText():
 
-            elif "演示" in self.messageEdit.toPlainText():
-                print("演示....")
 
-                # os.system("C:\\dev\\ai-sns\\record-and-play-pynput\\record-and-play-pynput\\venv\\Scripts\\python.exe C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/play.py test001 1")
-                print("演示....")
+                message = f"""<strong><em><span style='color: darkred;font-size:14px;'>{self.tr("用户")}: </span><span style='color: #c0c0c0; font-size:14px;'>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>"""
+                self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br>"')
+                message = f"""{self.messageEdit.toPlainText()}"""
+                self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br><br>"')
+
+                message = f"""<strong><em><span style='color: darkblue; font-size:14px;'>{self.tr(modelname)}: </span><span style='color: #c0c0c0; font-size:14px;'>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong><br>"""
+                self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '"')
+
+                message = f"""好的，记录下每个步骤，并认真学习！"""
+                self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br><br>"')
+
+                time.sleep(1)
+
+                print("学习....")
                 opr_file_name = self.messageEdit.toPlainText()
-                opr_file_name = opr_file_name.replace("演示一下", "")
-                opr_file_name = opr_file_name.replace("演示", "")
-                os.system(f"python C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/play.py {opr_file_name} 1")
+                opr_file_name = opr_file_name.replace("学习一下", "")
+                opr_file_name = opr_file_name.replace("学习", "")
+                if self.screen_bar is None:
+                    self.screen_bar = ScreenBar()
+                self.screen_bar.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+                self.screen_bar.show()
 
-                # stocks_handle = StocksHandle()
-                # companies = ['google', 'amazon', 'meta', 'apple']
-                # stocks_handle.get_Stocks(companies)
+                # bar = ScreenBar()
+                # bar.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+                # bar.show()
 
-                # self.thread = WorkerThreadGP()
-                #
-                # self.thread.start()
 
-                # print("准备发文件...")
-                # os.startfile("C:\Program Files (x86)\Tencent\WeChat\WeChat.exe")
-                # time.sleep(1)
-                # self.click_image_position("search.png")
-                # name = '文件传输助手'
-                # pyperclip.copy(name)
-                # # 模拟按下和释放Ctr1键和V键
-                # pyautogui.hotkey('ctrl', 'v')
-                # pyautogui.press('enter')
-                # time.sleep(1)  # 避免操作过快
-                # self.click_image_position("sendfile.png")
-                # directory = os.path.join(Path(__file__).resolve().parent, "temp", "market")
-                # NOW = datetime.now()
-                # PPTX = f'{directory}-{NOW.month}-{NOW.year}.pptx'
-                # file_path = PPTX
-                # pyperclip.copy(file_path)
-                # pyautogui.hotkey('ctrl', 'v')
-                # pyautogui.press('enter')
-                # time.sleep(1)
-                # pyautogui.press('enter')
+
+
+            elif "演示" in self.messageEdit.toPlainText()  or "yanshi" in self.messageEdit.toPlainText() or "yan" in self.messageEdit.toPlainText():
+                print("演示....")
+
+
+
+
 
                 message = f"""<strong><em><span style='color: darkred;font-size:14px;'>{self.tr("用户")}: </span><span style='color: #c0c0c0; font-size:14px;'>{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</span></em></strong>"""
                 self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br>"')
@@ -753,6 +758,18 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
 
                 message = f"""好的，这是我演示的内容，请多指教！"""
                 self.messageBrowser.page().runJavaScript('document.body.innerHTML += "' + message + '<br><br>"')
+
+
+                # os.system("C:\\dev\\ai-sns\\record-and-play-pynput\\record-and-play-pynput\\venv\\Scripts\\python.exe C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/play.py test001 1")
+                print("演示....")
+                opr_file_name = self.messageEdit.toPlainText()
+                opr_file_name = opr_file_name.replace("演示一下", "")
+                opr_file_name = opr_file_name.replace("演示", "")
+                # os.system(f"python C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/play.py {opr_file_name} 1")
+                self.auto_operate_bar = AutoOprateBar()
+                self.auto_operate_bar.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+                self.auto_operate_bar.wait_for_input_from_ai_signal.connect(self.request_value_for_auto_operate_bar)
+                self.auto_operate_bar.show()
 
 
             elif "//中国象棋" in self.messageEdit.toPlainText():
@@ -915,15 +932,15 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
             self.messageEdit.setTextColor(QtGui.QColor(0, 0, 0))
             self.messageEdit.setPlainText("")
             self.messageEdit.setStyleSheet("""
-                        QTextEdit {
-                            border-radius: 2px; /* 设置圆角 */
-                            border: 1px solid #c0c0c0; /* 设置边框 */
-                            background: transparent; 
-                            color: black;
-                        }
-                        QTextEdit:focus {
-                            border-color: #61addf; /* 设置焦点时的边框颜色 */
-                        }
+            QTextEdit {
+            border: 1px solid #c0c0c0; /* 边框颜色 */
+            border-radius: 8px;       /* 圆角半径 */
+            padding: 2px;              /* 内边距 */
+            /*background-color: #ffffff;*/ /* 背景颜色 */
+        }
+            QTextEdit:focus {
+                border-color: #61addf; /* 设置焦点时的边框颜色 */
+            }
                     """)
             # self.messageEdit.setAcceptRichText(True)
             # if self.agent.chat_mode == 'chat':
@@ -1033,6 +1050,8 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
         if self.is_transfer_to_workflow:
             self.transfer_message_to_workflow(content)
 
+        if self.is_waiting_for_feedback_to_auto_operation:
+            self.feedback_value_for_auto_operate_bar(content)
 
         self.stopButton.setVisible(False)
         self.sendButton.setVisible(True)
@@ -1478,3 +1497,17 @@ class TaskPage(QWidget, Ui_TaskPageWidget):
     def handle_next_word(self,words):
         print("handlingword:",words)
 
+    def request_value_for_auto_operate_bar(self,question,img_path):
+        print("agent get question:",question)
+        print("agent get imgsrc",img_path)
+        self.pre_system_role_prompt = self.system_role_prompt
+        # self.system_role_prompt = "请直接提供问题的最终答案，要求：1.不要做任何解释和说明。2.不要重复我的问题。记住这些规则，然后回答我的问题"
+        question = "请直接提供问题的最终答案，要求：1.不要做任何解释和说明。2.不要重复我的问题。记住这些规则，然后回答我的问题，我的问题是：" + question
+        self.is_waiting_for_feedback_to_auto_operation = True
+        self.messageEdit.setPlainText(question)
+        self.sendMessage()
+
+    def feedback_value_for_auto_operate_bar(self,value):
+        self.auto_operate_bar.feed_bak_from_ai(value)
+        self.is_waiting_for_feedback_to_auto_operation = False
+        self.system_role_prompt = self.pre_system_role_prompt

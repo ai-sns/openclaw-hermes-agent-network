@@ -1,146 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Centered SVG Canvas with Thumbnail</title>
+    <title>Proof of Croncept</title>
     <style>
-        #svgContainer {
-            width: 300px;
-            height: 300px;
-            overflow: hidden;
-            position: relative;
-        }
-        svg {
-            border: 1px solid #000;
-            cursor: move;
-            position: absolute;
-        }
-        #canvas {
+        /* 确保cronDerperSection不换行 */
+        .cronDerperSection {
             border: 1px solid #ccc;
-            margin-top: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            white-space: nowrap;
+            margin-right: 10px;
+        }
+
+        /* 使用flex布局确保cronDerperSections在同一行 */
+        .cronDerperSections {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: nowrap; /* 不换行 */
+        }
+
+        /* 隐藏cronDerper的样式 */
+        #cronDerper {
+            display: none; /* 默认隐藏 */
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001; /* 高于蒙层 */
+        }
+
+        /* cronDerper内的输入框样式 */
+        #cronDerper input {
+            border: none;
+            border-bottom: 1px solid #000;
+            padding: 5px;
+            margin: 5px 0;
+        }
+
+        /* cronDerper内的按钮样式 */
+        #cronDerper button {
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            border: none;
+            background-color: #5cb85c;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        /* cronDerper内的按钮悬停样式 */
+        #cronDerper button:hover {
+            background-color: #4cae4c;
+        }
+
+        /* 蒙层样式 */
+        #overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000; /* 低于cronDerper */
         }
     </style>
+    <script src="cron.js"></script>
+    <script>
+        // 函数用于显示或隐藏cronDerper及蒙层
+        function toggleCronDerper() {
+
+            const cronDerper = document.getElementById('cronDerper');
+            const overlay = document.getElementById('overlay');
+            const isDisplayed = cronDerper.style.display === 'block';
+
+            // 切换显示状态
+            cronDerper.style.display = isDisplayed ? 'none' : 'block';
+            overlay.style.display = isDisplayed ? 'none' : 'block';
+        }
+    </script>
 </head>
 <body>
+    <!-- 蒙层 -->
+    <div id="overlay" onclick="toggleCronDerper()"></div>
 
-    <!-- SVG容器 -->
-    <div id="svgContainer">
-        <svg id="svgCanvas" width="600" height="600" xmlns="http://www.w3.org/2000/svg">
-            <circle id="circle" cx="300" cy="300" r="30" fill="lightblue" cursor="pointer"/>
-            <rect id="rectangle" x="350" y="250" width="50" height="50" fill="lightgreen" cursor="pointer"/>
-        </svg>
+    <!-- 显示按钮，点击时展示cronDerper -->
+    <button onclick="toggleCronDerper()">Show CronDerper</button>
+
+    <!-- cronDerper div，默认隐藏 -->
+    <div id="cronDerper">
+        <div class="cronDerperSections">
+            <div class="cronDerperSection">
+                <span>
+                    <select id="cronViewSelection" oninput="derp.populateDiv(this.value);">
+                        <option value="MINUTE_INTERVAL" selected="selected">Minute interval</option>
+                        <option value="HOUR_INTERVAL">Hour interval</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                        <option value="YEARLY">Yearly</option>
+                        <option value="ADVANCED">Advanced</option>
+                    </select> |
+                </span>
+                <span id="cronInput"></span>
+            </div>
+            <div class="cronDerperSection">
+                <span>
+                    <button onclick="derp.generateOutput();">Generate</button>
+                    <input id="cronOutput" />
+                </span>
+            </div>
+        </div>
     </div>
 
-    <!-- Canvas用于显示缩略图 -->
-    <canvas id="canvas" width="100" height="100"></canvas>
-
     <script>
-        const svg = document.getElementById('svgCanvas');
-        const circle = document.getElementById('circle');
-        const rectangle = document.getElementById('rectangle');
-        const canvas = document.getElementById('canvas');
-        const context = canvas.getContext('2d');
-
-        let isDraggingCanvas = false;
-        let isDraggingElement = false;
-        let selectedElement = null;
-        let startX, startY;
-
-        // 初始偏移量，使SVG可视区域居中在svgCanvas
-        let canvasOffsetX = (svg.width.baseVal.value - 300) / 2;
-        let canvasOffsetY = (svg.height.baseVal.value - 300) / 2;
-
-        // 初始化使SVG居中
-        svg.style.transform = `translate(-${canvasOffsetX}px, -${canvasOffsetY}px)`;
-
-        // 监听鼠标按下事件
-        svg.addEventListener('mousedown', function(event) {
-            const target = event.target;
-
-            if (target === circle || target === rectangle) {
-                selectedElement = target;
-                isDraggingElement = true;
-                startX = event.clientX - (selectedElement === circle ? selectedElement.cx.baseVal.value : selectedElement.x.baseVal.value);
-                startY = event.clientY - (selectedElement === circle ? selectedElement.cy.baseVal.value : selectedElement.y.baseVal.value);
-            } else {
-                isDraggingCanvas = true;
-                startX = event.clientX - canvasOffsetX;
-                startY = event.clientY - canvasOffsetY;
-            }
-        });
-
-        // 监听鼠标移动事件
-        document.addEventListener('mousemove', function(event) {
-            if (isDraggingElement && selectedElement) {
-                if (selectedElement === circle) {
-                    selectedElement.setAttribute('cx', event.clientX - startX);
-                    selectedElement.setAttribute('cy', event.clientY - startY);
-                } else if (selectedElement === rectangle) {
-                    selectedElement.setAttribute('x', event.clientX - startX);
-                    selectedElement.setAttribute('y', event.clientY - startY);
-                }
-                updateThumbnail();
-            } else if (isDraggingCanvas) {
-                canvasOffsetX = event.clientX - startX;
-                canvasOffsetY = event.clientY - startY;
-                svg.style.transform = `translate(-${canvasOffsetX}px, -${canvasOffsetY}px)`;
-                updateThumbnail();
-            }
-        });
-
-        // 监听鼠标松开事件
-        document.addEventListener('mouseup', function() {
-            isDraggingCanvas = false;
-            isDraggingElement = false;
-            selectedElement = null;
-        });
-
-        // 更新缩略图
-        function updateThumbnail() {
-            const svgClone = svg.cloneNode(true);
-            svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-            svgClone.setAttribute('viewBox', `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`);
-
-            const serializer = new XMLSerializer();
-            const svgString = serializer.serializeToString(svgClone);
-
-            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(svgBlob);
-
-            const img = new Image();
-            img.onload = function() {
-                context.clearRect(0, 0, canvas.width, canvas.height);
-
-                // 缩放到Canvas大小
-                context.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-                // 绘制表示可见区域的固定矩形框
-                const viewportWidth = 300; // 可见区域宽度
-                const viewportHeight = 300; // 可见区域高度
-
-                const scaleX = canvas.width / svg.width.baseVal.value;
-                const scaleY = canvas.height / svg.height.baseVal.value;
-
-                const viewX = (canvasOffsetX / svg.width.baseVal.value) * canvas.width;
-                const viewY = (canvasOffsetY / svg.height.baseVal.value) * canvas.height;
-
-                const viewWidthScaled = viewportWidth * scaleX;
-                const viewHeightScaled = viewportHeight * scaleY;
-
-                context.strokeStyle = 'red';
-                context.lineWidth = 2;
-                context.strokeRect(viewX, viewY, viewWidthScaled, viewHeightScaled);
-
-                URL.revokeObjectURL(url);
-            };
-
-            img.src = url;
-        }
-
-        updateThumbnail();
-
+        // 页面加载时初始化CronDerper对象
+        window.onload = function() {
+            window.derp = new CronDerper();
+            derp.populateDiv('MINUTE_INTERVAL');
+        };
     </script>
-
 </body>
 </html>

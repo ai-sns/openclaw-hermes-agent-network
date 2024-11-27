@@ -72,7 +72,9 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QMainWindow, QPushButton, QVBoxLayout
 from PyQt5.QtCore import pyqtSlot, Qt, QUrl, QFileInfo, pyqtProperty
 from Agent import Agent
-
+import qdarkgraystyle
+import qtvscodestyle as qtvsc
+import qdarktheme
 
 class MainWindow(QMainWindow, Ui_MainWindow):
     connectorThread = None
@@ -193,12 +195,13 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.dialogwidge = QDialog()
         self.dialogwidge2 = QtWidgets.QTextBrowser()  # 系统打开时的首界面上的显示的编辑框
+        self.dialogwidge2.setStyleSheet("QTextBrowser { border: 1px solid #c0c0c0;border-radius: 8px;padding:5px}")
 
         # ai_chat_cfg home
         agent_home = QWebEngineView()
         self.agent_home_frame = QtWidgets.QFrame(self)
         self.agent_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.agent_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0}")
+        self.agent_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         agent_home_frame_layout = QtWidgets.QVBoxLayout(self.agent_home_frame)
         agent_home_frame_layout.addWidget(agent_home)
 
@@ -214,7 +217,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         ai_home = QWebEngineView()
         self.ai_home_frame = QtWidgets.QFrame(self)
         self.ai_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.ai_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0}")
+        self.ai_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         ai_home_frame_layout = QtWidgets.QVBoxLayout(self.ai_home_frame)
         ai_home_frame_layout.addWidget(ai_home)
         ai_home.page().load(QUrl("http://www.ai-sns.org/index_aichat.html"))
@@ -223,7 +226,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         human_home = QWebEngineView()
         self.human_home_frame = QtWidgets.QFrame(self)
         self.human_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.human_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0}")
+        self.human_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         human_home_frame_layout = QtWidgets.QVBoxLayout(self.human_home_frame)
         human_home_frame_layout.addWidget(human_home)
         human_home.page().load(QUrl("http://www.ai-sns.org/index_humanchat.html"))
@@ -232,7 +235,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         km_home = QWebEngineView()
         self.km_home_frame = QtWidgets.QFrame(self)
         self.km_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.km_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0}")
+        self.km_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         km_home_frame_layout = QtWidgets.QVBoxLayout(self.km_home_frame)
         km_home_frame_layout.addWidget(km_home)
         km_home.page().load(QUrl("http://www.ai-sns.org/index_km.html"))
@@ -241,7 +244,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         plugin_home = QWebEngineView()
         self.plugin_home_frame = QtWidgets.QFrame(self)
         self.plugin_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.plugin_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0}")
+        self.plugin_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         plugin_home_frame_layout = QtWidgets.QVBoxLayout(self.plugin_home_frame)
         plugin_home_frame_layout.addWidget(plugin_home)
         plugin_home.page().load(QUrl("http://www.ai-sns.org/index_plugin.html"))
@@ -873,6 +876,7 @@ if __name__ == "__main__":
     #
     #
     #
+    # app.setStyle('Windows')
     qtmodern.styles.light(app)  # qtmodern dark or light
     mw = qtmodern.windows.ModernWindow(window)  # qtmodern
 
@@ -892,6 +896,92 @@ if __name__ == "__main__":
     __eb.setFont(QFont('Arial', 14))
     __eb.setBackgroundColor(QColor(50, 50, 50, 255))
     __eb.show()
+    # app.setStyle('Fusion')
+    # window.showMaximized()
+    sys.exit(app.exec_())
+
+if __name__ == "__main__bak":
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    qdarktheme.enable_hi_dpi()
+    app = QApplication(sys.argv)
+    qdarktheme.setup_theme("dark")
+
+    __cli_args = __init_cli().parse_args()
+    print("cjrok")
+    print(__cli_args.log)
+    print("cjrok2")
+
+    # load plugins load插件
+    # initiate plugins 初始化插件
+    __init_app({
+        'log_level': __cli_args.log,
+        'directory': __cli_args.directory
+    })
+
+    print(global_plugin_list)
+
+    window = MainWindow()
+    window.setWindowIcon(QIcon("C:\\dev\\ai-sns\\PyTalk\\pytalk\\images\\aisns.png"))
 
     # window.showMaximized()
+    #
+    # apply_stylesheet(app, theme='dark_blue.xml')#qt_material
+    #
+    # app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt5')) #qdarkstyle
+    # app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api='pyqt5', palette=LightPalette())) #qdarkstyle
+    window.showagenthome()
+
+    # channel = QWebChannel()
+    # shared = Myshared()
+    # channel2 = QWebChannel()
+    # shared2 = Myshared()
+    # setup_web_channel(channel2,shared2)
+    # window.show()
+    # showchannel(window)
+    # # channel = QWebChannel()
+    # # shared = Myshared()
+    # # channel.registerObject("con", shared)
+    # #
+    # # window.agent_home.page().setWebChannel(channel)
+    #
+    #
+    # channel = QWebChannel()
+    # shared = Myshared()
+    # channel.registerObject("con", shared)
+    #
+    # window.agent_home.page().setWebChannel(channel)
+    #
+    #
+    #
+    #
+    #
+    # qtmodern.styles.light(app)  # qtmodern dark or light
+    # mw = qtmodern.windows.ModernWindow(window)  # qtmodern
+    #
+    # #
+    #
+    # if sys.platform == "win32":
+    #     mw.showMaximized()  # qtmodern 保留操作系统工具栏
+    # elif sys.platform == "darwin":
+    #     mw.showFullScreen()  # 不保留操作系统工具栏
+    # else:
+    #     mw.showMaximized()  # qtmodern 保留操作系统工具栏
+    # #
+    # mw.setWindowIcon(QIcon("C:\\dev\\ai-sns\\PyTalk\\pytalk\\images\\aisns.png"))
+    # app.setWindowIcon(QIcon("C:\\dev\\ai-sns\\PyTalk\\pytalk\\images\\aisns.png"))
+    #
+    # __eb = ExplanationBalloon(window.toolBox_Workflow, 300.0, 200.0, 'This is explanation balloon made out of PyQt')
+    # __eb.setFont(QFont('Arial', 14))
+    # __eb.setBackgroundColor(QColor(50, 50, 50, 255))
+    # __eb.show()
+
+    # setup stylesheet
+    # stylesheet = qtvsc.load_stylesheet(qtvsc.Theme.DARK_VS)
+    # stylesheet = qtvsc.load_stylesheet(qtvsc.Theme.KIMBIE_DARK)
+    # app.setStyleSheet(stylesheet)
+
+    # app.setStyleSheet(qdarkgraystyle.load_stylesheet())
+
+    window.showMaximized()
     sys.exit(app.exec_())
