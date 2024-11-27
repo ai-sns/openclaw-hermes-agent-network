@@ -17,8 +17,8 @@ from pathlib import Path
 from db.DBFactory import query_workflow_mng,add_workflow_mng,update_workflow_mng
 
 class MessageHandler(QWidget):
-    on_message_load_workflow = pyqtSignal(str,str,str,str,str)
-    on_message_save = pyqtSignal(str,str,str,str,str)
+    on_message_load_workflow = pyqtSignal(str,str,str,str,str,str,str)
+    on_message_save = pyqtSignal(str,str,str,str,str,str,str)
 
     def __init__(self):
         super().__init__()
@@ -32,10 +32,10 @@ class MessageHandler(QWidget):
         self.theinnervalue = self.theinnervalue + tmpstr
         QMessageBox.information(self, "从网页来的信息", tmpstr)
 
-    @pyqtSlot(str,str,str,str,str, result=str)
-    def save_message(self,workflow_id,workflow_title,workflow_description,workflow_tags,data):
+    @pyqtSlot(str,str,str,str,str,str,str, result=str)
+    def save_message(self,workflow_id,workflow_title,workflow_description,workflow_tags,data,timer_desc,timer_cron):
         print(data)
-        self.on_message_save.emit(workflow_id,workflow_title,workflow_description,workflow_tags,data)
+        self.on_message_save.emit(workflow_id,workflow_title,workflow_description,workflow_tags,data,timer_desc,timer_cron)
 
     @pyqtSlot(str, str, result=str)
     def edit_content_message(self,code_type,text):
@@ -55,9 +55,10 @@ class MessageHandler(QWidget):
 
 
 
-    def pass_message(self, messsage,workflow_title,workflow_description,workflow_id,workflow_tags):
+    def pass_message(self, messsage,workflow_title,workflow_description,workflow_id,workflow_tags,timer_desc,timer_cron):
         print("passmessage")
-        self.on_message_load_workflow.emit(messsage,workflow_title,workflow_description,workflow_id,workflow_tags)
+        self.on_message_load_workflow.emit(messsage,workflow_title,workflow_description,workflow_id,workflow_tags,timer_desc,timer_cron)
+        print("timer_desc",timer_desc)
 
     thevalue = pyqtProperty(str, fget=PyQt52WebValue, fset=Web2PyQt5Value)
 
@@ -132,6 +133,8 @@ class WorkFlowDesign(QWidget):
         self.workflow_title=workflow_title
         self.workflow_description = ""
         self.workflow_tags = ""
+        self.timer_desc = ""
+        self.timer_cron = ""
 
 
     def onLoadFinished(self):
@@ -145,13 +148,13 @@ class WorkFlowDesign(QWidget):
         # 启动定时器
         timer.start()
 
-    def save_workflow(self,workflow_id,workflow_title,workflow_description,workflow_tags,data):
+    def save_workflow(self,workflow_id,workflow_title,workflow_description,workflow_tags,data,timer_desc,timer_cron):
 
         record=query_workflow_mng(workflow_id=workflow_id)
         if record:
-            update_workflow_mng(record.id,title=workflow_title,description=workflow_description,workflow_tags=workflow_tags,detail=data)
+            update_workflow_mng(record.id,title=workflow_title,description=workflow_description,workflow_tags=workflow_tags,detail=data, timer_desc=timer_desc, timer_cron=timer_cron)
         else:
-            add_workflow_mng(workflow_id=workflow_id,title=workflow_title,description=workflow_description,workflow_tags=workflow_tags,detail=data)
+            add_workflow_mng(workflow_id=workflow_id,title=workflow_title,description=workflow_description,workflow_tags=workflow_tags,detail=data, timer_desc=timer_desc, timer_cron=timer_cron)
 
         QMessageBox.information(self, "提示", "保存成功。")
 
@@ -167,9 +170,11 @@ class WorkFlowDesign(QWidget):
             self.workflow_description = record.description
             self.workflow_id = record.workflow_id
             self.workflow_tags = record.workflow_tags
+            self.timer_desc =  record.timer_desc
+            self.timer_cron = record.timer_cron
 
         print("message",message)
-        self.message_handler.pass_message(message,self.workflow_title,self.workflow_description,self.workflow_id,self.workflow_tags)
+        self.message_handler.pass_message(message,self.workflow_title,self.workflow_description,self.workflow_id,self.workflow_tags,self.timer_desc,self.timer_cron)
 
 
     def go_back(self):

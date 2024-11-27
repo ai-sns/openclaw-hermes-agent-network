@@ -13,7 +13,7 @@ description: "GLM-4-0520\t\u6211\u4EEC\u5F53\u524D\u7684\u6700\u5148\u8FDB\u6700
   \u901F\u5EA6\u6700\u5FEB\uFF0C\u4EF7\u683C\u6700\u5B9E\u60E0\u7684\u7248\u672C\uFF0C\
   \u5177\u6709128k\u4E0A\u4E0B\u6587\u30020.0001\u5143"
 max_tokens: 4000
-model: ERNIE-Speed-128k
+model: ERNIE-3.5-128K
 parameters: ''
 plugin_name: "\u767E\u5EA6\u6587\u5FC3\u8FDE\u63A5\u5668: 1.0.0"
 qianfan_ak: iSbdJbzkQRvOLlbWaxBVHKLg

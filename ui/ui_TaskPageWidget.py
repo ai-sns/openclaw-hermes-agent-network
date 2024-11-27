@@ -281,7 +281,7 @@ class Ui_TaskPageWidget(object):
         self.messageBrowser.setObjectName("messageBrowser")
 
         self.frame = QtWidgets.QFrame(self.splitter)
-        self.frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;}")
+        self.frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;border-radius: 8px;}")
         self.frame_layout = QtWidgets.QVBoxLayout(self.frame)
         self.frame_layout.addWidget(self.messageBrowser)
 
@@ -471,10 +471,13 @@ class Ui_TaskPageWidget(object):
         self.messageEdit.setPlaceholderText("Ctrl+/可以调出插件")
         self.messageEdit.setFixedHeight(45)  # 假设每行高度为20像素
         self.messageEdit.setStyleSheet("""
+
             QTextEdit {
-                border-radius: 2px; /* 设置圆角 */
-                border: 1px solid #c0c0c0; /* 设置边框 */
-            }
+            border: 1px solid #c0c0c0; /* 边框颜色 */
+            border-radius: 8px;       /* 圆角半径 */
+            padding: 2px;              /* 内边距 */
+            /*background-color: #ffffff;*/ /* 背景颜色 */
+        }
             QTextEdit:focus {
                 border-color: #61addf; /* 设置焦点时的边框颜色 */
             }
@@ -1420,7 +1423,7 @@ class Ui_TaskPageWidget(object):
         selected_label = self.work_flow_label
         desc = self.work_flow_desc
         workflow_id = generate_random_id()
-        add_workflow_mng(workflow_id=workflow_id, title=title, description=desc, workflow_tags=selected_label, detail=detail)
+        add_workflow_mng(workflow_id=workflow_id, title=title, description=desc, workflow_tags=selected_label, detail=detail, timer_desc="", timer_cron="")
 
         QMessageBox.information(self, "信息", "转为工作流成功,请到工作流模块中查看您转过去的工作流。")
         # 恢复原来状态
