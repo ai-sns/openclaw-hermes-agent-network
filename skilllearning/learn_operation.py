@@ -5,20 +5,23 @@ import json
 import threading
 from pynput import mouse, keyboard
 
-from PyQt5.QtWidgets import QGraphicsScene, QInputDialog, QGraphicsTextItem, QGraphicsRectItem, QGraphicsEllipseItem, QGraphicsPathItem, QDialog, QLineEdit
+from PyQt5.QtWidgets import QGraphicsScene, QInputDialog, QGraphicsTextItem, QGraphicsRectItem, QGraphicsEllipseItem, \
+    QGraphicsPathItem, QDialog, QLineEdit
 from PyQt5.QtGui import QCursor
 from PyQt5.QtCore import Qt, QRectF, QThread
 
-from PyQt5 import  QtGui
-from PyQt5.QtWidgets import QShortcut, QToolBar, QAction, QGraphicsView, QTextEdit, QTabWidget, QFormLayout, QComboBox, QGraphicsPixmapItem
+from PyQt5 import QtGui
+from PyQt5.QtWidgets import QShortcut, QToolBar, QAction, QGraphicsView, QTextEdit, QTabWidget, QFormLayout, QComboBox, \
+    QGraphicsPixmapItem
 from PyQt5 import QtCore
 from PyQt5.QtCore import QTimer, pyqtSignal
-from PyQt5.QtGui import QBrush,  QIcon, QFont, QPixmap, QPainterPath
-from PyQt5.QtWidgets import QPushButton, QHBoxLayout, QLabel, QVBoxLayout,  QMessageBox, QFileDialog,  QWidget
+from PyQt5.QtGui import QBrush, QIcon, QFont, QPixmap, QPainterPath
+from PyQt5.QtWidgets import QPushButton, QHBoxLayout, QLabel, QVBoxLayout, QMessageBox, QFileDialog, QWidget
 import shutil
 
 # Import custom modules
 from .base import Base
+from .utils import *
 
 import sys
 import pyautogui
@@ -28,11 +31,12 @@ from PyQt5.QtGui import QPainter, QPen, QColor
 from util import generate_random_id
 from db.DBFactory import add_skill_mng
 from pynput.keyboard import Controller as KeyboardController
-from pynput.mouse import Button,  Controller as MouseController
+from pynput.mouse import Button, Controller as MouseController
+
 
 # Initialize global variables
 def initialize_globals():
-    global storage, is_capturing, esc_count, last_esc_time, record_all, name_of_recording, signal_emitter, keyboard_listener,mouse_listener
+    global storage, is_capturing, esc_count, last_esc_time, record_all, name_of_recording, signal_emitter, keyboard_listener, mouse_listener, delay_time,skill_name
     storage = []
     is_capturing = True
     esc_count = 0
@@ -40,13 +44,15 @@ def initialize_globals():
     record_all = "record-all"
     name_of_recording = "test008"
     signal_emitter = SignalEmitter()
+    delay_time = 3
+
 
 # 创建一个自定义线程类
 class WorkerThread(QThread):
     # 定义一个信号，用于发送消息
     finished = pyqtSignal(str)
 
-    def __init__(self,screen_bar):
+    def __init__(self, screen_bar):
         super().__init__()
         self.running = True
         self.screen_bar = screen_bar
@@ -61,8 +67,8 @@ class WorkerThread(QThread):
 
     def record(self):
 
-
-        print("Hold right click for more than 2 seconds (and then release) to end the recording for mouse and click 'esc' to end the recording for keyboard (both are needed to finish recording)")
+        print(
+            "Hold right click for more than 2 seconds (and then release) to end the recording for mouse and click 'esc' to end the recording for keyboard (both are needed to finish recording)")
 
         # Setup keyboard and mouse listeners
         self.keyboard_listener = keyboard.Listener(on_press=self.on_press, on_release=self.on_release)
@@ -77,7 +83,7 @@ class WorkerThread(QThread):
         self.mouse_listener.join()
 
     # Keyboard press event handler
-    def on_press(self,key):
+    def on_press(self, key):
         global storage, is_capturing, esc_count, last_esc_time
 
         if self.is_screen_bar_under_cursor():
@@ -85,7 +91,8 @@ class WorkerThread(QThread):
             return
 
         # Check ESC double-click condition
-        if key == keyboard.Key.esc:
+        # if key == keyboard.Key.esc:
+        if key == keyboard.Key.shift:
             if time.time() - last_esc_time < 0.5:
                 esc_count += 1
                 if esc_count == 2:
@@ -112,7 +119,7 @@ class WorkerThread(QThread):
             storage.append(json_object)
 
     # Keyboard release event handler
-    def on_release(self,key):
+    def on_release(self, key):
         global storage, is_capturing, esc_count, last_esc_time
 
         if self.is_screen_bar_under_cursor():
@@ -127,11 +134,13 @@ class WorkerThread(QThread):
                 char = key.char
             except AttributeError:
                 char = str(key)
-            json_object = {'action': 'released_key', 'key': char, '_time': time.time()}
+            mouse_position = mouse.Controller().position
+            json_object = {'action': 'released_key', 'x': mouse_position[0], 'y': mouse_position[1], 'key': char, '_time': time.time()}
+            # json_object = {'action': 'released_key', 'key': char, '_time': time.time()}
             storage.append(json_object)
 
     # Mouse move event handler
-    def on_move(self,x, y):
+    def on_move(self, x, y):
         global storage, is_capturing, esc_count, last_esc_time
 
         if self.is_screen_bar_under_cursor():
@@ -143,29 +152,34 @@ class WorkerThread(QThread):
                 storage.append(json_object)
 
     # Mouse click event handler
-    def on_click(self,x, y, button, pressed):
+    def on_click(self, x, y, button, pressed):
         global storage, is_capturing, esc_count, last_esc_time
         if self.is_screen_bar_under_cursor():
             print("under screenbar")
             return
         if is_capturing:
-            json_object = {'action': 'pressed' if pressed else 'released', 'button': str(button), 'x': x, 'y': y, '_time': time.time()}
-            print(f"'action': {'pressed' if pressed else 'released'}, 'button': {str(button)}, 'x': {x}, 'y': {y}, '_time': {time.time()}")
+            json_object = {'action': 'pressed' if pressed else 'released', 'button': str(button), 'x': x, 'y': y,
+                           '_time': time.time()}
+            print(
+                f"'action': {'pressed' if pressed else 'released'}, 'button': {str(button)}, 'x': {x}, 'y': {y}, '_time': {time.time()}")
             storage.append(json_object)
-            if len(storage) > 1 and storage[-1]['action'] == 'released' and storage[-1]['button'] == 'Button.right' and storage[-1]['_time'] - storage[-2]['_time'] > 2:
-                with open(f'C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/data/{name_of_recording}.txt', 'w') as outfile:
+            if len(storage) > 1 and storage[-1]['action'] == 'released' and storage[-1]['button'] == 'Button.right' and \
+                    storage[-1]['_time'] - storage[-2]['_time'] > 2:
+                with open(f'C:/dev/ai-sns/record-and-play-pynput/record-and-play-pynput/data/{name_of_recording}.txt',
+                          'w') as outfile:
                     json.dump(storage, outfile, ensure_ascii=False)
                 return False
 
     # Mouse scroll event handler
-    def on_scroll(self,x, y, dx, dy):
+    def on_scroll(self, x, y, dx, dy):
         global storage, is_capturing, esc_count, last_esc_time
 
         if self.is_screen_bar_under_cursor():
             print("under screenbar")
             return
         if is_capturing:
-            json_object = {'action': 'scroll', 'vertical_direction': int(dy), 'horizontal_direction': int(dx), 'x': x, 'y': y, '_time': time.time()}
+            json_object = {'action': 'scroll', 'vertical_direction': int(dy), 'horizontal_direction': int(dx), 'x': x,
+                           'y': y, '_time': time.time()}
             storage.append(json_object)
 
     def is_screen_bar_under_cursor(self):
@@ -361,12 +375,11 @@ class AnnotationDialog(QWidget):
         super().__init__()
 
         self.skill_id = ""
-
+        self.crop_rect = ()
         self.setWindowTitle("操作标注")
 
         # 设置窗口带边框，但去掉最大化、最小化和关闭按钮
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window | Qt.WindowTitleHint | Qt.WindowMinMaxButtonsHint)
-
 
         # 设置对话框的布局
         layout = QVBoxLayout()
@@ -383,10 +396,33 @@ class AnnotationDialog(QWidget):
         self.mode_combobox = QComboBox()
         self.mode_combobox.addItem("输入内容", "set_value")
         self.mode_combobox.addItem("点击图像", "click_image")
-        form_layout.addRow("操作模式:", self.mode_combobox)
+        self.mode_combobox.addItem("其他操作", "other_action")
+        self.mouseclick_combobox = QComboBox()
+        self.mouseclick_combobox.addItem("单击", "1")
+        self.mouseclick_combobox.addItem("双击", "2")
+        self.otheraction_combobox = QComboBox()
+        self.otheraction_combobox.addItem("新建文档", "1")
+        self.otheraction_combobox.addItem("保存文档", "2")
+        self.otheraction_combobox.addItem("截屏", "3")
+        self.otheraction_combobox.addItem("选择上周日期", "4")
+        self.otheraction_combobox.addItem("输入昨天日期", "5")
+        # form_layout.addRow("操作模式:", self.mode_combobox,self.mouseclick_combobox)
+        # 创建水平布局来包含两个下拉框
+        hbox = QHBoxLayout()
+        hbox.addWidget(self.mode_combobox)
+        hbox.addWidget(self.mouseclick_combobox)
+        hbox.addWidget(self.otheraction_combobox)
+        # 将水平布局添加到表单布局中
+        form_layout.addRow("操作模式:", hbox)
+        self.delay_lineEdit = QLineEdit()
+        self.delay_lineEdit.setText(str(delay_time))  # 设置默认值为delay_time
+        form_layout.addRow("延时(s):", self.delay_lineEdit)
 
         # 将模式下拉框添加到标签的第一个页面
         layout.addLayout(form_layout)
+        self.mouseclick_combobox.hide()
+        self.otheraction_combobox.hide()
+        self.mode_combobox.currentIndexChanged.connect(self.on_mode_changed)
 
         # 创建内容编辑框并添加到第一个标签页
         self.content_textEdit = QTextEdit()
@@ -436,6 +472,18 @@ class AnnotationDialog(QWidget):
         # 连接按钮事件
         ok_button.clicked.connect(self.save)
         cancel_button.clicked.connect(self.on_cancel)
+
+    def on_mode_changed(self, index):
+        # 检查当前选择的模式，并显示或隐藏mouseclick_combobox
+        if self.mode_combobox.currentText() == "点击图像":
+            self.mouseclick_combobox.show()
+            self.otheraction_combobox.hide()
+        elif self.mode_combobox.currentText() == "其他操作":
+            self.mouseclick_combobox.hide()
+            self.otheraction_combobox.show()
+        else:
+            self.otheraction_combobox.hide()
+            self.mouseclick_combobox.hide()
 
     def create_toolbar(self, layout):
         """
@@ -528,6 +576,7 @@ class AnnotationDialog(QWidget):
         print(pos[1])
         print(pos[2])
         print(pos[3])
+        self.crop_rect = (pos[0], pos[1], pos[2], pos[3])
         self.graphics_scene.clear()
         self.graphics_view.setPixmap(pixmap)
 
@@ -548,12 +597,18 @@ class AnnotationDialog(QWidget):
         self.annotation_finished.emit()  # 发射信号，通知窗口已关闭
         self.close()  # 关闭窗口时发射信号
 
-    def click_by_image_detect(self,img):
+    def click_by_image_detect(self, img, style: int = 1):
         time.sleep(1)
         image = pyautogui.locateOnScreen(img, grayscale=True, confidence=0.7)
         time.sleep(1)
-        center = pyautogui.center(image)
-        pyautogui.click(center)
+        if image:  # 确保找到了图片
+            center = pyautogui.center(image)
+            if style == 1:
+                pyautogui.click(center)  # 单击
+            elif style == 2:
+                pyautogui.doubleClick(center)  # 双击
+        else:
+            print("Image not found on the screen.")
 
     def save_image(self):
         """Render the scene to a pixmap and save it as an image file."""
@@ -563,10 +618,10 @@ class AnnotationDialog(QWidget):
             return ""
 
         skill_id = self.skill_id
-        directory_path = os.path.join(os.getcwd(), 'skilllearning', 'data', skill_id,"images")
+        directory_path = os.path.join(os.getcwd(), 'skilllearning', 'data', skill_id, "images")
         os.makedirs(directory_path, exist_ok=True)
         img_name = generate_random_id() + ".png"
-        file_path = os.path.join(directory_path,img_name)
+        file_path = os.path.join(directory_path, img_name)
 
         scene_rect = self.graphics_scene.sceneRect()
         image = QPixmap(scene_rect.size().toSize())
@@ -578,10 +633,12 @@ class AnnotationDialog(QWidget):
 
         if file_path:
             image.save(file_path)
+        # rect_coordinates = (scene_rect.x(), scene_rect.y(), scene_rect.width(), scene_rect.height())
+        # print('rect_coordinates-->',rect_coordinates)
         return file_path
 
     def save(self):
-        global storage
+        global storage,skill_name
         self.keyboard_controller = KeyboardController()
         self.mouse_controller = MouseController()
 
@@ -590,40 +647,72 @@ class AnnotationDialog(QWidget):
         sample = self.sample_textEdit.toPlainText()
         image_path = self.save_image()
         last_action = storage[-1]
+        print("last_action-->",last_action)
+        mouse_click = self.mouseclick_combobox.currentData()
+        other_action = self.otheraction_combobox.currentData()
+        delay_time = self.delay_lineEdit.text()
+        crop_rect = self.crop_rect
         # if last_action["action"]
+        if mode == "other_action":  # 其他操作
+            mouse_click = ""
+        elif mode == 'click_image':  # 点击图片
+            other_action = ''
+        else:
+            mouse_click = ""
+            other_action = ''
 
-
-        json_object = {'action': 'annotated', 'mode': mode, 'content': content,'sample':sample, 'image_path': image_path, '_time': time.time()}
-        print(f"'action': 'annotated', 'mode': {mode},'sample':{sample},'content': {content},'image_path': {image_path}, '_time': {time.time()}")
+        json_object = {'action': 'annotated', 'mode': mode, 'content': content, 'sample': sample,
+                       'image_path': image_path,
+                       'mouse_click': mouse_click, 'other_action': other_action, 'crop_rect': crop_rect,
+                       'delay_time': delay_time,
+                       '_time': time.time()}
+        print(
+            f"'action': 'annotated', 'mode': {mode},'sample':{sample},'content': {content},'image_path': {image_path}, 'crop_rect':{crop_rect},'_time': {time.time()}")
         storage.append(json_object)
         self.content_textEdit.setPlainText("")
         self.sample_textEdit.setPlainText("")
         self.graphics_scene.clear()
         self.tab_widget.setCurrentIndex(0)
 
-
         self.close()  # 关闭窗口时发射信号
 
         if mode == "set_value":
             x = int(last_action["x"])
             y = int(last_action["y"])
-            time.sleep(0.5)
+            # time.sleep(0.5)
             self.mouse_controller.position = (x, y)
             time.sleep(0.1)
             self.mouse_controller.press(Button.left)
             time.sleep(0.1)
             self.mouse_controller.release(Button.left)
             time.sleep(0.3)
+            print("set_value-->", sample)
             self.keyboard_controller.type(sample)
             time.sleep(1)
 
         elif mode == "click_image":
-            time.sleep(0.5)
-            self.click_by_image_detect(image_path)
+            # time.sleep(0.5)
+            # self.click_by_image_detect(image_path)
+            self.click_by_image_detect(image_path, int(mouse_click))
             time.sleep(1)
 
-
+        elif mode == 'other_action':
+            if other_action == "1":  # 新建文档  1
+                action_new_doc()
+            elif other_action == "2":  # 保存文档  2
+                action_save_doc(skill_name)
+            elif other_action == "3":  # 截屏    3
+                # crop_rect = crop_rect
+                action_crop_doc(crop_rect[0], crop_rect[1], crop_rect[2] - crop_rect[0],
+                                crop_rect[3] - crop_rect[1])
+            elif other_action == "4":  # 上周日期  4
+                action_click_last_weekday()
+            elif other_action == "5":  # 昨天日期  4
+                yestoday_text = get_yestoday_text()
+                self.keyboard_controller.type(yestoday_text)
+            time.sleep(1)
         self.annotation_finished.emit()  # 发射信号，通知窗口已关闭
+
 
 class ConfigDialog(QDialog):
     annotation_finished = pyqtSignal()  # 自定义信号，表示捕获完成
@@ -633,14 +722,13 @@ class ConfigDialog(QDialog):
 
         self.skill_id = ""
         self.title = ""
-        self.desc =  ""
+        self.desc = ""
         self.detail = ""
 
         self.setWindowTitle("配置")
 
         # 设置窗口带边框，但去掉最大化、最小化和关闭按钮
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.Window | Qt.WindowTitleHint | Qt.WindowMinMaxButtonsHint)
-
 
         # 设置对话框的布局
         layout = QVBoxLayout()
@@ -654,14 +742,10 @@ class ConfigDialog(QDialog):
         self.desc_lineEdit = QLineEdit()
         form_layout.addRow("简介:", self.desc_lineEdit)
 
-
-
-
         # 将模式下拉框添加到标签的第一个页面
         # layout.addLayout(form_layout)
         # self.detail_label = QLabel("详细")
         # layout.addWidget(self.detail_label)
-
 
         # 创建内容编辑框并添加到第一个标签页
         self.detail_textEdit = QTextEdit()
@@ -738,17 +822,18 @@ class ConfigDialog(QDialog):
         self.title_lineEdit.setText("")
         self.desc_lineEdit.setText("")
         self.detail_textEdit.setPlainText("")
-        self.reject() # 关闭窗口时发射信号
+        self.reject()  # 关闭窗口时发射信号
 
     def save(self):
+        global skill_name
         self.title = self.title_lineEdit.text()
+        skill_name = self.title
         self.desc = self.desc_lineEdit.text()
-        self.detail =self.detail_textEdit.toPlainText()
+        self.detail = self.detail_textEdit.toPlainText()
         self.title_lineEdit.setText("")
         self.desc_lineEdit.setText("")
         self.detail_textEdit.setPlainText("")
         self.accept()
-
 
 
 # 圆形倒计时窗口类
@@ -756,7 +841,7 @@ class CircularCountdown(QWidget):
     # 定义一个信号，用于在窗口关闭时发射
     countdown_finished = pyqtSignal()
 
-    def __init__(self,count_down_number,end_text):
+    def __init__(self, count_down_number, end_text):
         super().__init__()
 
         # 设置窗口无边框且形状为圆形，并置于最前
@@ -811,11 +896,12 @@ class CircularCountdown(QWidget):
             painter.setFont(QFont("Helvetica", 60))
             painter.drawText(self.rect(), Qt.AlignCenter, self.end_text)
 
+
 # 屏幕工具栏类
 class LearnOperationBar(Base):
     def __init__(self):
         super(LearnOperationBar, self).__init__()
-        self.skill_id_history_list=[]
+        self.skill_id_history_list = []
         self.skill_id = generate_random_id()
         self.title = ""
         self.desc = ""
@@ -838,7 +924,6 @@ class LearnOperationBar(Base):
         self.dialog = None
         self.cfg_dialog = None
 
-
         self.bind()
         self.set_style()
         initialize_globals()
@@ -847,19 +932,15 @@ class LearnOperationBar(Base):
         event.ignore()
         self.hide()
 
-
-
     def auto_start(self):
         if self.cfg_dialog is None:
             self.cfg_dialog = ConfigDialog()
 
-        if self.cfg_dialog.exec_()== QDialog.Accepted:
-
+        if self.cfg_dialog.exec_() == QDialog.Accepted:
             self.title = self.cfg_dialog.title
             self.desc = self.cfg_dialog.desc
             self.detail = self.cfg_dialog.detail
             print(self.title)
-
 
         if self.auto_start_flag == True:
             self.start_btn.click()
@@ -893,15 +974,14 @@ class LearnOperationBar(Base):
         self.is_running = False
 
         self.timer_label.setFont(QFont("Arial", 12))
-        self.timer_label.setStyleSheet("QLabel { background-color: pink; border-radius: 5px; padding-left:5px;padding-right:5px}")
+        self.timer_label.setStyleSheet(
+            "QLabel { background-color: pink; border-radius: 5px; padding-left:5px;padding-right:5px}")
         self.timer_label.setText("00:00:00")
         self.timer_label.setToolTip("记录时长")
 
         # 初始化计时器
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_time)
-
-
 
         self.btn_box.addWidget(self.timer_label)
 
@@ -912,11 +992,12 @@ class LearnOperationBar(Base):
         self.box.setContentsMargins(5, 5, 5, 5)
         self.setWindowOpacity(0.7)
         self.frameGeometry()
-        self.move(QApplication.desktop().frameGeometry().width() - 300, QApplication.desktop().frameGeometry().height() - 150)
+        self.move(QApplication.desktop().frameGeometry().width() - 300,
+                  QApplication.desktop().frameGeometry().height() - 150)
         self.setLayout(self.box)
 
     def re_init(self):
-        global storage,esc_count,last_esc_time
+        global storage, esc_count, last_esc_time
         self.stop_timer()
         self.seconds = 0
         self.timer_label.setText("00:00:00")
@@ -938,11 +1019,9 @@ class LearnOperationBar(Base):
         esc_count = 0
         last_esc_time = 0
 
-
-
     def toggle_timer(self):
         """切换计时状态（开始/暂停）"""
-        print("before togggle self.is_running:",self.is_running)
+        print("before togggle self.is_running:", self.is_running)
         if self.is_running:
             self.timer.stop()
         else:
@@ -959,8 +1038,6 @@ class LearnOperationBar(Base):
         """切换计时状态（开始/暂停）"""
         self.is_running = False
         self.timer.stop()
-
-
 
     def update_time(self):
         """更新显示时间"""
@@ -980,19 +1057,18 @@ class LearnOperationBar(Base):
         print("in countdown finished")
         global is_capturing
 
-        if self.cur_status=="ready" and self.to_status=="started":
+        if self.cur_status == "ready" and self.to_status == "started":
             is_capturing = True
             self.cur_status = "started"
             # go_record()
             self.start_record()
-        elif self.cur_status=="paused" and self.to_status=="started":
+        elif self.cur_status == "paused" and self.to_status == "started":
             is_capturing = True
             self.cur_status = "started"
-        elif self.cur_status=="ended":
+        elif self.cur_status == "ended":
             self.end_record()
             self.re_init()
             self.close()
-
 
     def bind(self):
         global is_capturing
@@ -1005,7 +1081,7 @@ class LearnOperationBar(Base):
             # self.show_dialog(mouse_position[0], mouse_position[1])
             # 设置按钮状态
             self.pre_status = self.cur_status
-            if self.cur_status=="started":
+            if self.cur_status == "started":
                 # self.start_btn.click()
                 # time.sleep(1)
                 is_capturing = False
@@ -1028,14 +1104,14 @@ class LearnOperationBar(Base):
             self.end_btn.setEnabled(True)
             self.annotation_btn.setEnabled(True)
 
-            if self.cur_status== "ready":
+            if self.cur_status == "ready":
                 # Connect the signal to the slot function
                 signal_emitter.show_dialog_signal.connect(self.annotation_btn.click)
                 self.to_status = "started"
                 self.start_btn.setIcon(QIcon("images/pause.png"))
                 self.start_btn.setToolTip("暂停记录")
                 # self.annotation_btn.setEnabled(False)
-                self.countdown_window = CircularCountdown(self.count_down_number,"开始")
+                self.countdown_window = CircularCountdown(self.count_down_number, "开始")
                 self.countdown_window.countdown_finished.connect(self.on_countdown_finished)
                 self.countdown_window.show()
 
@@ -1050,13 +1126,13 @@ class LearnOperationBar(Base):
                 self.countdown_window.countdown_finished.connect(self.on_countdown_finished)
                 self.countdown_window.show()
 
-            elif self.cur_status== "paused":
+            elif self.cur_status == "paused":
                 self.to_status = "started"
                 self.start_btn.setIcon(QIcon("images/pause.png"))
                 self.start_btn.setToolTip("暂停记录")
 
                 # self.annotation_btn.setEnabled(False)
-                self.countdown_window = CircularCountdown(self.count_down_number,"继续")
+                self.countdown_window = CircularCountdown(self.count_down_number, "继续")
                 self.countdown_window.countdown_finished.connect(self.on_countdown_finished)
                 self.countdown_window.show()
 
@@ -1064,10 +1140,9 @@ class LearnOperationBar(Base):
             global is_capturing
             is_capturing = False
             self.cur_status = "ended"
-            self.countdown_window = CircularCountdown(0,"结束")
+            self.countdown_window = CircularCountdown(0, "结束")
             self.countdown_window.countdown_finished.connect(self.on_countdown_finished)
             self.countdown_window.show()
-
 
         def close_signal():
             global is_capturing
@@ -1077,7 +1152,7 @@ class LearnOperationBar(Base):
             if pre_time_is_running:
                 self.toggle_timer()
 
-            if self.cur_status !="ready":
+            if self.cur_status != "ready":
 
                 reply = QMessageBox.question(self, '提醒',
                                              f"您已经开始录制，该操作将放弃保存。如需保存请改为点击结束按钮。是否继续?",
@@ -1087,7 +1162,6 @@ class LearnOperationBar(Base):
                     if pre_time_is_running:
                         self.toggle_timer()
                     return
-
 
             is_capturing = False
             self.cur_status = "ended"
@@ -1109,8 +1183,6 @@ class LearnOperationBar(Base):
         self.end_btn.clicked.connect(end_signal)
         self.close_btn.clicked.connect(close_signal)
 
-
-
     def end_record(self):
         global storage
         skill_id = self.skill_id
@@ -1119,8 +1191,7 @@ class LearnOperationBar(Base):
         file_name = "steps.txt"
         file_path = os.path.join(directory_path, file_name)
 
-
-        if len(storage) > 1 :
+        if len(storage) > 1:
             with open(file_path, 'w', encoding='utf-8') as outfile:
                 json.dump(storage, outfile, indent=4, ensure_ascii=False)
 
@@ -1144,27 +1215,24 @@ class LearnOperationBar(Base):
         skill_event = ""
         creator = ""
 
-
-        add_skill_mng(skill_id, title, file_path, requirement, parameter, desc, detail, skill_type, skill_event, creator)
-
-
+        add_skill_mng(skill_id, title, file_path, requirement, parameter, desc, detail, skill_type, skill_event,
+                      creator)
 
     # Show dialog
-    def show_dialog(self,x, y):
+    def show_dialog(self, x, y):
         if self.dialog is None:
             self.dialog = AnnotationDialog()
             self.dialog.annotation_finished.connect(self.annotation_finished_handle)
 
-        self.dialog.skill_id = self.skill_id#更新skill_id
+        self.dialog.skill_id = self.skill_id  # 更新skill_id
 
-        if x>0 and y>0:
+        if x > 0 and y > 0:
             self.dialog.move(x, y)
 
         # 确保对话框在最上层并获得焦点
         self.dialog.show()
-        self.dialog.raise_()          # 将对话框置于最上层
+        self.dialog.raise_()  # 将对话框置于最上层
         self.dialog.activateWindow()  # 激活对话框窗口
-
 
     def annotation_finished_handle(self):
         print("return in annotation_finished_handle")
@@ -1175,5 +1243,3 @@ class LearnOperationBar(Base):
 
         if self.pre_status == "started":
             self.start_btn.click()
-
-
