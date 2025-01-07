@@ -53,6 +53,7 @@ def savevector(filepath,persist_directory,embedding_model_name,emb_type="openai"
         loader = loaders[ext](filepath)
         docs = loader.load()  # 数据转换
 
+
     file_name=os.path.basename(filepath)
 
 

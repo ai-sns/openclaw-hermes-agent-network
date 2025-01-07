@@ -276,11 +276,11 @@ class Ui_MessageWidget(object):
         #                                                      "</style></head><body style=\" font-family:\'Microsoft YaHei\'; font-size:14pt; font-weight:400; font-style:normal;\">"
         #                                                      "</body></html>"))
 
-        file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "taskpagemsgbox.html")
+        file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "aichatmessagepage.html")
         # file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "index3.html")
         print(file_path)
         url_string = QUrl.fromLocalFile(file_path)
-        # url_string = urllib.request.pathname2url(os.path.join(Path(__file__).resolve().parent.parent, "scripts", "taskpagemsgbox.html"))
+        # url_string = urllib.request.pathname2url(os.path.join(Path(__file__).resolve().parent.parent, "scripts", "aichatmessagepage.html"))
         print("transform")
         print(url_string)
 

@@ -3,19 +3,19 @@ import datetime
 from PyQt5.QtCore import QSize
 
 from pluginsmanager.plugins_gui.plugin_interface import PluginInterface
-from PyQt5.QtWidgets import QTextEdit, QHBoxLayout, QGroupBox, QLineEdit, QRadioButton, QLabel, QDialog
+from PyQt5.QtWidgets import QTextEdit, QHBoxLayout, QGroupBox, QLineEdit, QRadioButton, QLabel, QDialog, QFormLayout, QComboBox
 from pytalk.pluginsmanager.plugins_gui.plugins.code_editor import syntax_pars
 from PyQt5 import QtWidgets
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit
 import os
 import webbrowser
-from db.DBFactory import query_skill_mng,add_skill_mng,update_skill_mng
+from db.DBFactory import query_skill_mng,add_skill_mng,update_skill_mng,query_AgentCfg_All
 from pytalk.util import generate_random_id
-
+from TaskPage import TaskPage
 from pathlib import Path
 
 from autogen.coding import CodeBlock, LocalCommandLineCodeExecutor
-
+from globals import global_agent_list
 
 
 class SkillEditor(QWidget,PluginInterface):
@@ -24,6 +24,9 @@ class SkillEditor(QWidget,PluginInterface):
         self.skill_manager=skill_manager
         self.skill_id = ""
         self.changesSaved=True
+        self.is_browser_page_loaded = False
+        self.taskpage = None
+        self.name = ""
         # 初始化用户界面
         # self.init_ui(content)
 
@@ -264,57 +267,98 @@ class SkillEditor(QWidget,PluginInterface):
             self.is_first = False
 
 
+
     def preview_file(self):
-        """保存文件并在浏览器中打开"""
-        content = self.editor.toPlainText()
-        trimmed_content = content.strip()
-        code = trimmed_content
-        last_str =code[-7:]
-        if last_str.lower()=="</html>":
-            type_str = "html"
-        else:
-            type_str = "python"
+            # 创建对话框
+            transfer_dialog = QDialog()
+            transfer_dialog.setWindowTitle("选择Agent")
+            transfer_dialog.setMinimumWidth(500)
+
+            # 创建主垂直布局
+            main_layout = QVBoxLayout()
+
+            # 创建表单布局
+            form_layout = QFormLayout()
+
+            # 创建第一个组合框并填充数据
+            transfer_dialog.comboBox = QComboBox()
+            transfer_dialog.comboBox.setEditable(False)
+            records = query_AgentCfg_All(is_delete=0)
+
+            for record in records:
+                transfer_dialog.comboBox.addItem(record.name, record.user_id)
+
+            form_layout.addRow("选择测试运行的Agent：", transfer_dialog.comboBox)
+
+            # 将表单布局添加到主布局
+            main_layout.addLayout(form_layout)
+
+            # 创建按钮布局
+            button_layout = QHBoxLayout()
+            button_layout.addStretch(1)
+
+            # 创建确定和取消按钮
+            ok_button = QPushButton("确定")
+            cancel_button = QPushButton("取消")
+
+            # 连接按钮事件
+            ok_button.clicked.connect(transfer_dialog.accept)
+            cancel_button.clicked.connect(transfer_dialog.reject)
+
+            button_layout.addWidget(ok_button)
+            button_layout.addWidget(cancel_button)
+
+            # 将按钮布局添加到主布局
+            main_layout.addLayout(button_layout)
+
+            # 设置主布局
+            transfer_dialog.setLayout(main_layout)
+
+            # 显示对话框并处理结果
+            if transfer_dialog.exec_():
+                agent_id = transfer_dialog.comboBox.currentData()
+                agent_name = transfer_dialog.comboBox.currentText()
+                self.skill_manager.app.ShowAiAssistantStack()
+
+                agent_item = self.skill_manager.app.toolBox_AgentChat.findChild(QWidget, agent_id)
+
+                if agent_item:
+                    current_index = self.skill_manager.app.toolBox_AgentChat.indexOf(agent_item)  # 获取当前索引
+                    self.skill_manager.app.toolBox_AgentChat.setCurrentIndex(current_index)
+
+                agents = global_agent_list.values()  # 前面已经从数据库中初始化了agent列表，直接使用前面已经初始化的列表获取其agent_cfg即可
+                for agent in agents:
+                    if agent.name == agent_name:
+                        self.skill_manager.app.open_exist_agent_task_chat(agent)
+
+                        agent_chat_window = self.skill_manager.app.agent_chat_window_list[agent_id]
+                        taskpage = agent_chat_window.findChild(TaskPage, "TaskPageObject")
+                        self.taskpage = taskpage
+
+                        browser_page = taskpage.messageBrowser.page()
+                        browser_page.loadFinished.connect(self.onBrowserLoadFinished)  # 第一次可能page没来得及load，所以需要在onload中处理
+
+                        self.is_browser_page_loaded = False
+                        if taskpage.is_browser_page_loaded == True:  # page是否已经load了
+                            self.is_browser_page_loaded = True
+
+                        if self.is_browser_page_loaded == True:
+                            self.onBrowserLoadFinished(True)
 
 
 
-        if type_str=="html":
-            self.save_file()  # 先保存文件
-            # 获取文件路径
-            file_path = os.path.join("coding", "mycode.html")
-            webbrowser.open(f"file://{os.path.abspath(file_path)}")  # 使用默认浏览器打开文件
-        else:
-            work_dir = Path("coding")
-            work_dir.mkdir(exist_ok=True)
-
-            # executor = LocalCommandLineCodeExecutor(work_dir=work_dir, functions=[add_two_numbers, load_data])#使用codebakok这种徐娅有functions
-            executor = LocalCommandLineCodeExecutor(work_dir=work_dir)  # 使用code这种直接指明functions文件的就不需要这里写functions这个参数了
 
 
-            execute_result=executor.execute_code_blocks(
-                code_blocks=[
-                    CodeBlock(language="python", code=code),
-                ]
-            )
-            print(execute_result)
-            print("exit_code",execute_result.exit_code)
-            print("output",execute_result.output)
-            print("code_file",execute_result.code_file)
+                # self.skill_manager.app.conversation_pages.setCurrentIndex(1)  # 首页
 
-            self.console = QDialog()
-            self.te = QTextEdit(self.console)
-            self.te.append(f"exit_code:\n{execute_result.exit_code}\n")
-            self.te.append(f"code_file:\n{execute_result.code_file}\n")
-            self.te.append(f"output:\n{execute_result.output}")
-            self.te.setReadOnly(True)
-            vl = QVBoxLayout()
-            vl.addWidget(self.te)
-            self.console.setLayout(vl)
 
-            self.console.setWindowTitle("Output Console")
-            self.console.resize(QSize(1024, 500))
-            self.console.exec_()
-            # self.console.raise_()
+    def onBrowserLoadFinished(self, success):
+        if success:
+            taskpage = self.taskpage
+            taskpage.messageEdit.setFocus()
 
+            taskpage.messageEdit.setPlainText(f"给我演示一下:{self.skill_name_input.text()},skill_id:{self.skill_id}")
+            taskpage.sendMessage()
 
 
     def loadFile(self):
@@ -360,6 +404,7 @@ class SkillEditor(QWidget,PluginInterface):
 
                 self.filename=filename
                 self.skill_id = record.skill_id
+                self.name = record.name
 
 
                 self.skill_name_input.setText(record.name)

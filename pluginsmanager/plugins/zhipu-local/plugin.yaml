@@ -1,5 +1,5 @@
-name: 'ChatGLM连接器'
-alias: 'chatglm2-6B模型连接器'
+name: 'ChatGLM'
+alias: 'chatglm2-6B模型'
 plugin_type: 'LLM_Connector'
 creator: 'Photon'
 runtime:
@@ -9,6 +9,8 @@ runtime:
 repository: 'https://github.com/Photon/plugin-connector-llm-jiuzhou-yfd-chatglm'
 description: '用来连接chatglm2-6B模型'
 version: '1.0.0'
+model_type: 'gpt-4o-mini, THUDM/chatglm2-6b, THUDM/chatglm2-6b-32k, 
+THUDM/chatglm3-6b, THUDM/chatglm3-6b-32k, THUDM/chatglm3-6b-128k, THUDM/glm-4-9b-chat, THUDM/glm-4-9b-chat-1m'
 requirements:
   - name: 'PyYAML'
     version: '5.3.1'

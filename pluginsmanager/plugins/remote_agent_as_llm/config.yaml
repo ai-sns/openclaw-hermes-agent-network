@@ -1,9 +1,9 @@
 custom_params: false
 description: ''
 max_tokens: 400
-model: 远程Agent连接器
+model: "\u8FDC\u7A0BAgent"
 parameters: ''
-plugin_name: "远程Agent连接器: 1.0.0"
+plugin_name: "\u8FDC\u7A0BAgent"
 secret_id: AKIDsz7ObuAWo298yw3nW2aDvfN8630440Ro
 secret_key: UsFbJpPw549LCtjVONKITl1462tbCtY9
 stream: true

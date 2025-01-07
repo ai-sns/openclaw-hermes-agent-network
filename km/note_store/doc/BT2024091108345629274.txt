@@ -1,1 +1,9 @@
 https://github.com/immanuelfodor/xmpp-muc-message-gateway
+
+https://codeberg.org/poezio/slixmpp  最新的更新
+
+https://github.com/poezio/slixmpp/blob/master/examples/muc.py
+
+C:\dev\ai-sns\PyTalk\getchatroom.py
+C:\dev\ai-sns\PyTalk\createslixmmpmsggroupchat.py
+C:\dev\ai-sns\PyTalk\getslixmmpmsggroupchat.py

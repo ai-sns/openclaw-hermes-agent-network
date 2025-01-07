@@ -410,6 +410,14 @@
     <div id="cronDerper">
         <div class="cronDerperSections">
             <div class="cronDerperSection">
+                <span>运行的Agent:</span>
+                <span>
+                    <select id="agentSelection">
+                        <option value="001" selected="selected">Altman</option>
+                        <option value="002">Musk</option>
+                    </select>
+                </span>
+                <span>运行的时间:</span>
                 <span>
                     <select id="cronViewSelection" oninput="derp.populateDiv(this.value);">
                         <option value="MINUTE_INTERVAL" selected="selected">Minute interval</option>
@@ -428,7 +436,8 @@
                 </span>
             </div>
             <div class="cronDerperSection" style="display: none;">
-            <input id="cronOutput" />
+
+            <input id="cronOutput"/>
             </div>
         </div>
     </div>
@@ -487,6 +496,8 @@
         let workflow_tags = "";
         let timer_desc = "";
         let timer_cron = "";
+        let run_agent_name = "";
+        let run_agent_id = "";
         let last_node = "";
 
         //增加全局变量，当前打开结点
@@ -877,8 +888,9 @@
                 <label>分类: </label><input type="text" id="Tags" value="${workflow_tags}">
                 <button style="display: none" onclick="saveWorkFlowConfig()">更新配置</button>
 
+                 <label id="agent_label">运行:${run_agent_name}</label>
                  <label id="timer_label">定时:${timer_desc}</label>
-                <button onclick="toggleCronDerper()">定时配置</button>
+                <button onclick="set_timer()">定时配置</button>
                 <br><br>
                 <!-- 用于显示缩略图的Canvas -->
 
@@ -902,8 +914,43 @@
 
         }
 
+function set_timer(jsonString){
+api_object.set_timer();
+}
 
-function toggleCronDerper() {
+function toggleCronDerper(jsonString="") {
+
+            if(jsonString!=""){
+                try {
+            // 解析 JSON 字符串为对象
+            const jsonObject = JSON.parse(jsonString);
+
+            // 获取下拉框元素
+            const selectElement = document.getElementById('agentSelection');
+
+            // 清空下拉框中的所有选项
+            while (selectElement.options.length > 0) {
+                selectElement.remove(0);
+            }
+
+
+            // 遍历对象，添加新选项到下拉框
+            for (const [key, value] of Object.entries(jsonObject)) {
+                // 创建新的选项元素
+                const option = document.createElement('option');
+
+                // 设置选项的值和文本
+                option.value = value;
+                option.textContent = key;
+
+                // 将选项添加到下拉框中
+                selectElement.appendChild(option);
+            }
+        } catch (error) {
+            // 捕获并处理 JSON 解析错误
+            console.error("JSON 解析错误:", error);
+        }
+            }
 
             const cronDerper = document.getElementById('cronDerper');
             const overlay = document.getElementById('overlay');
@@ -1334,7 +1381,10 @@ while (-gzoomTime > 0) {
 
         // 运行按钮事件（待实现）
         runButton.addEventListener('click', () => {
-            alert('Run functionality to be implemented');
+            if(workflow_id==""){
+                workflow_id=generateRandomId();
+            }
+            api_object.run_workflow(workflow_id,workflow_title);
         });
 
 
@@ -1368,7 +1418,7 @@ while (-gzoomTime > 0) {
                     connector2Index: Array.from(line.connector2.parentNode.querySelectorAll('circle')).indexOf(line.connector2)
                 }))
             };
-            api_object.save_message(workflow_id,workflow_title,workflow_description,workflow_tags,JSON.stringify(data),timer_desc,timer_cron);
+            api_object.save_message(workflow_id,workflow_title,workflow_description,workflow_tags,JSON.stringify(data),timer_desc,timer_cron,run_agent_name,run_agent_id);
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -1437,7 +1487,7 @@ while (-gzoomTime > 0) {
         }
 
         function
-        load_workflow(workflow_json,workflow_title_db,workflow_description_db,workflow_id_db,workflow_tags_db,timer_desc_db,timer_cron_db) {
+        load_workflow(workflow_json,workflow_title_db,workflow_description_db,workflow_id_db,workflow_tags_db,timer_desc_db,timer_cron_db,run_agent_name_db,run_agent_id_db) {
 
             workflow_title=workflow_title_db;
             workflow_description=workflow_description_db;
@@ -1445,6 +1495,8 @@ while (-gzoomTime > 0) {
             workflow_tags=workflow_tags_db;
             timer_desc = timer_desc_db;
             timer_cron = timer_cron_db;
+            run_agent_name = run_agent_name_db;
+            run_agent_id = run_agent_id_db;
             if(workflow_id==""){
                 const startNode = createNode(50, 50,
                 `Node ${nodeCount++}`,"start","开始");
@@ -1567,6 +1619,11 @@ while (-gzoomTime > 0) {
             toggleCronDerper();
             timer_cron = document.getElementById("cronOutput").value;
             timer_desc = derp.timer_desc;
+            const selectElement = document.getElementById('agentSelection');
+            const selectedOption = selectElement.options[selectElement.selectedIndex];
+            run_agent_name = selectedOption.text;
+            run_agent_id = selectedOption.value;
+            document.getElementById("agent_label").innerText="运行:"+run_agent_name;
             document.getElementById("timer_label").innerText="定时:"+timer_desc;
 
 

@@ -6,12 +6,13 @@ from PyQt5.QtGui import QIcon, QPixmap, QPainter, QPen, QPainterPath,QKeySequenc
 from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
                              QDialog, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
                              QListView, QListWidget, QListWidgetItem, QPushButton, QSpinBox,
-                             QStackedWidget, QVBoxLayout, QWidget, QDialogButtonBox, QRadioButton, QFileDialog,QShortcut,QMessageBox)
+                             QStackedWidget, QVBoxLayout, QWidget, QDialogButtonBox, QRadioButton, QFileDialog,QShortcut,QMessageBox,QFormLayout)
 
 from db.DBFactory import add_AgentCfg, update_AgentCfg,query_AgentCfg
 from db.DBFactory import query_AiChatCfg_All
 from db.DBFactory import query_PluginMng_All
-from db.DBFactory import query_KMCfg_All
+from db.DBFactory import query_KMCfg_All,get_all_prompt_by_modelname,query_PluginMng_All_Tool
+
 
 import datetime
 import webbrowser
@@ -21,6 +22,7 @@ from util import generate_random_id
 from globals import global_agent_list,global_plugin_list,global_buddy_list
 # from datetime import datetime
 import regex as re
+import llm_manager as llmmgr
 class ConfigDialog(QDialog):
     def __init__(self, parent=None,agent=None):
         super(ConfigDialog, self).__init__(parent)
@@ -48,13 +50,13 @@ class ConfigDialog(QDialog):
         self.techniquePage=TechniquePage(agent)
         self.snsPage=SNSPage(agent)
         self.securityPage=SecurityPage(agent)
-
+        self.snsPage.setHidden(True)
 
 
         self.pagesWidget = QStackedWidget()
         self.pagesWidget.addWidget(self.generalPage)
         self.pagesWidget.addWidget(self.techniquePage)
-        self.pagesWidget.addWidget(self.snsPage)
+        # self.pagesWidget.addWidget(self.snsPage)
         self.pagesWidget.addWidget(self.securityPage)
 
 
@@ -124,13 +126,15 @@ class ConfigDialog(QDialog):
         syncfederation = self.generalPage.upgradesCheckBox.isChecked()
 
         # Technique
-
-        specialization = self.techniquePage.specializationCombo.toPlainText()
+        defaultmodel =self.techniquePage.modelCombo.currentData()
+        defaultrole = self.techniquePage.roleCombo.currentData()
+        specialization = self.techniquePage.specializationText.toPlainText()
         plugins = ",".join([item.text() for item in self.techniquePage.pluginList.selectedItems()])
-        if not plugins:  # Check if plugins are empty
-            QMessageBox.warning(self, "警告", "插件列表不能为空，请选择至少一个插件。")
-            return
+
         kms = ",".join([item.text() for item in self.techniquePage.kmList.selectedItems()])
+        last_plugins=""
+        last_kms =""
+
         prompt = self.techniquePage.pmtText.toPlainText()
 
         # SNS
@@ -149,11 +153,17 @@ class ConfigDialog(QDialog):
         writefile = self.securityPage.appsCheckBox.isChecked()
         deletefile = self.securityPage.docsCheckBox.isChecked()
         execfile = self.securityPage.execCheckBox.isChecked()
+        uselastmodel = self.securityPage.modelchoiceCheckBox.isChecked()
+        uselastrole = self.securityPage.rolechoiceCheckBox.isChecked()
+        uselastplugins = self.securityPage.uselastpluginsCheckBox.isChecked()
+        uselastkms = self.securityPage.uselastkmsCheckBox.isChecked()
+        callpluginbyinstruct = self.securityPage.plugincallCheckBox.isChecked()
         autorunrounds = self.securityPage.hitsSpinBox.value()
         federationid = "None"
         if self.agent_cfg == None:
             idstr=generate_random_id()
-            add_AgentCfg(idstr,name,memo,borndate ,borncontry,language,gender,joinfederation,syncfederation,federationid,specialization,plugins,kms,prompt,snsaccount,snsnickname,islimittotalmessage,islimitmessagepp,totalmessages,ppmessages,readfile,writefile,deletefile,execfile,autorunrounds)
+            add_AgentCfg(idstr,name,memo,borndate ,borncontry,language,gender,joinfederation,syncfederation,federationid,defaultmodel,defaultrole,defaultmodel,defaultrole,specialization,plugins,kms,last_plugins,last_kms,prompt,snsaccount,snsnickname,islimittotalmessage,islimitmessagepp,totalmessages,ppmessages,readfile,writefile,deletefile,execfile,uselastmodel,uselastrole,uselastplugins,uselastkms,callpluginbyinstruct,autorunrounds)
+
             self.app.get_all_agent()
             agents = global_agent_list.values()  # 前面已经从数据库中初始化了agent列表，直接使用前面已经初始化的列表获取其agent_cfg即可
             new_agent=list(agents)[-1]
@@ -161,7 +171,7 @@ class ConfigDialog(QDialog):
             self.app.createToolBoxUnit_AgentChat(new_agent,visible_count)
         else:
             idstr=self.agent_cfg.user_id
-            update_AgentCfg(self.agent_cfg.id, name=name,memo=memo,borndate=borndate,borncontry=borncontry,language=language,gender=gender,joinfederation=joinfederation,syncfederation=syncfederation,specialization=specialization,plugins=plugins,kms=kms,prompt=prompt,snsaccount=snsaccount,snsnickname=snsnickname,islimittotalmessage=islimittotalmessage,islimitmessagepp=islimitmessagepp,totalmessages=totalmessages,ppmessages=ppmessages,readfile=readfile,writefile=writefile,deletefile=deletefile,execfile=execfile,autorunrounds=autorunrounds)
+            update_AgentCfg(self.agent_cfg.id, name=name,memo=memo,borndate=borndate,borncontry=borncontry,language=language,gender=gender,joinfederation=joinfederation,syncfederation=syncfederation,defaultmodel=defaultmodel,defaultrole=defaultrole,specialization=specialization,plugins=plugins,kms=kms,prompt=prompt,snsaccount=snsaccount,snsnickname=snsnickname,islimittotalmessage=islimittotalmessage,islimitmessagepp=islimitmessagepp,totalmessages=totalmessages,ppmessages=ppmessages,readfile=readfile,writefile=writefile,deletefile=deletefile,execfile=execfile,uselastmodel=uselastmodel,uselastrole=uselastrole,uselastplugins=uselastplugins,uselastkms=uselastkms,callpluginbyinstruct=callpluginbyinstruct,autorunrounds=autorunrounds)
             tool_box_item = self.app.toolBox_AgentChat.findChild(QWidget, idstr)
             self.app.toolBox_AgentChat.setItemText(self.app.toolBox_AgentChat.indexOf(tool_box_item), f"{name} ({memo})" if memo else name)
             # self.app.toolBox_AgentChat.setItemIcon(self.app.toolBox_AgentChat.indexOf(settingWidget), QIcon('images/setting.png'))
@@ -196,15 +206,15 @@ class ConfigDialog(QDialog):
         techButton.setTextAlignment(Qt.AlignHCenter)
         techButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
-        queryButton = QListWidgetItem(self.contentsWidget)
-        queryButton.setIcon(QIcon(':/images/update.png'))
-        queryButton.setText("社交配置")
-        queryButton.setTextAlignment(Qt.AlignHCenter)
-        queryButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+        # queryButton = QListWidgetItem(self.contentsWidget)
+        # queryButton.setIcon(QIcon(':/images/update.png'))
+        # queryButton.setText("社交配置")
+        # queryButton.setTextAlignment(Qt.AlignHCenter)
+        # queryButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
         updateButton = QListWidgetItem(self.contentsWidget)
-        updateButton.setIcon(QIcon(':/images/query.png'))
-        updateButton.setText("权限安全")
+        updateButton.setIcon(QIcon(':/images/update.png'))
+        updateButton.setText("其他设置")
         updateButton.setTextAlignment(Qt.AlignHCenter)
         updateButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
@@ -368,6 +378,7 @@ class GeneralPage(QWidget):
         self.avatar_label.setPixmap(target)
 
 class TechniquePage(QWidget):
+
     def __init__(self,agent, parent=None):
         super(TechniquePage, self).__init__(parent)
         if agent is None:
@@ -376,38 +387,96 @@ class TechniquePage(QWidget):
             agent_cfg = agent.agent_cfg
         self.agent_cfg = agent_cfg
 
+        modelroleGroup = QGroupBox("模型与角色:")
 
-        packagesGroup = QGroupBox("*专长介绍")
+        # self.modelLabel = QLabel("模型:")
+        self.modelCombo = QComboBox()
 
-        self.specializationCombo = QtWidgets.QPlainTextEdit()
-        self.specializationCombo.setFixedHeight(100)
-        self.specializationCombo.setPlaceholderText("在此设置Agent的介绍，重点介绍它有什么功能，如：它拥有各类法律法规数据库，能解答各类法律法规")
+
+        # ai_chat_records = query_AiChatCfg_All()
+        # self.modelCombo.addItem("N/A")
+        # self.sns_account_list.append("N/A")
+        # self.sns_nick_name_list.append("N/A")
+        # for ai_chat_record in ai_chat_records:
+        #     ai_chat_account = ai_chat_record.account
+        #     ai_chat_nick_name = ai_chat_record.nickname
+        #
+        #     if ai_chat_account == cur_sns_account:
+        #         ai_chat_nick_name = cur_nick_name
+        #
+        #     if ai_chat_account == "N/A":
+        #         self.modelCombo.addItem("N/A")
+        #     else:
+        #         self.modelCombo.addItem(ai_chat_nick_name + "(" + ai_chat_account + ")")
+        #
+        #     self.sns_account_list.append(ai_chat_account)
+        #     self.sns_nick_name_list.append(ai_chat_nick_name)
+        #
+        # self.modelCombo.currentIndexChanged.connect(self.on_combobox_changed)
+
+        llm_model_list =llmmgr.get_all_llm_model_list()
+
+        # 清空组合框以避免重复项
+        self.modelCombo.clear()
+
+        # 将每个 LLM 模型添加到组合框中
+        for llm_model in llm_model_list:
+            self.modelCombo.addItem(llm_model,llm_model)
+        # 连接当前文本更改信号到相应的处理方法
+        # 使用 lambda 以避免立即调用 set_role_combo_choice
+        self.modelCombo.currentTextChanged.connect(self.set_role_combo_choice)
+
+        modelLayout = QFormLayout()
+        modelLayout.addRow("缺省模型:",self.modelCombo)
+
+
+        # self.roleLabel = QLabel("角色:")
+        self.roleCombo = QComboBox()
+        roleLayout = QFormLayout()
+        roleLayout.addRow("缺省角色:",self.roleCombo)
+        # roleLayout.addWidget(self.roleLabel)
+        # roleLayout.addWidget(self.roleCombo)
+
+        modelroleLayout = QVBoxLayout()
+        modelroleLayout.addLayout(modelLayout)
+        modelroleLayout.addLayout(roleLayout)
+        modelroleGroup.setLayout(modelroleLayout)
+
+        self.set_role_combo_choice()
+
+
+
+        packagesGroup = QGroupBox("Agent介绍")
+
+        self.specializationText = QtWidgets.QPlainTextEdit()
+        self.specializationText.setFixedHeight(100)
+        self.specializationText.setPlaceholderText("在此设置Agent的介绍，重点介绍它有什么功能，如：它拥有各类法律法规数据库，能解答各类法律法规")
 
 
         packagesLayout = QGridLayout()
-        packagesLayout.addWidget(self.specializationCombo, 1, 0)
+        packagesLayout.addWidget(self.specializationText, 1, 0)
 
 
         packagesGroup.setLayout(packagesLayout)
 
-        pluginGroup = QGroupBox("缺省插件工具:")
+        pluginGroup = QGroupBox("指定插件工具(未指定,则可使用全部):")
 
         self.pluginList = QListWidget()
         self.pluginList.setFixedHeight(65)
         self.pluginList.setSelectionMode(QListWidget.MultiSelection)
 
-        records = query_PluginMng_All()
+        records = query_PluginMng_All_Tool(is_delete=0)
 
         for record in records:
             tech_item = QListWidgetItem(self.pluginList)
-            tech_item.setText(record.name+": "+record.version)
+            tech_item.setText(record.name)
 
 
         pluginLayout = QVBoxLayout()
         pluginLayout.addWidget(self.pluginList)
         pluginGroup.setLayout(pluginLayout)
 
-        kmGroup = QGroupBox("缺省知识库:")
+        kmGroup = QGroupBox("指定知识库(未指定,则可使用全部):")
 
         self.kmList = QListWidget()
         self.kmList.setFixedHeight(65)
@@ -429,12 +498,7 @@ class TechniquePage(QWidget):
         self.pmtText.setFixedHeight(100)
         self.pmtText.setPlaceholderText("在此设置Agent的角色系统提示词，比如：你是位律师，擅长解答各类法律法规，你要用专业的知识给用户解答")
 
-        if agent is None:
-            # 如果agent为None，默认选中pluginList的第一个项
-            if self.pluginList.count() > 0:
-                self.pluginList.item(0).setSelected(True)  # 选择第一个插件
-        else:
-
+        if agent is not None:
             selected_packages = agent_cfg.plugins.split(',')  # Assuming index 1 represents selected packages
             for i in range(self.pluginList.count()):
                 item = self.pluginList.item(i)
@@ -445,7 +509,27 @@ class TechniquePage(QWidget):
                 item = self.kmList.item(i)
                 if item.text() in selected_kms:
                     item.setSelected(True)
-            self.specializationCombo.setPlainText(agent_cfg.specialization)
+
+            self.modelCombo.setCurrentText(agent_cfg.defaultmodel)
+            # for i in range(self.roleCombo.count()):
+            #     item = self.roleCombo.item(i)
+            #     if item. in selected_kms:
+            #         item.setSelected(True)
+
+
+            if agent_cfg.defaultrole:
+                # 遍历每个项，查找匹配数据
+                for i in range(self.roleCombo.count()):
+                    # 获取当前项的数据
+                    item_data = self.roleCombo.itemData(i)
+
+                    # 如果找到了匹配的值
+                    if item_data == int(agent_cfg.defaultrole):
+                        # 将该项设为选中
+                        self.roleCombo.setCurrentIndex(i)
+                        break
+
+            self.specializationText.setPlainText(agent_cfg.specialization)
             self.pmtText.setPlainText(agent_cfg.prompt)  # Assuming index 3 represents pmtText plain text
 
         pmtLayout = QVBoxLayout()
@@ -453,6 +537,8 @@ class TechniquePage(QWidget):
         pmtGroup.setLayout(pmtLayout)
 
         mainLayout = QVBoxLayout()
+        pmtGroup.setHidden(True)#隐藏掉了
+        mainLayout.addWidget(modelroleGroup)
         mainLayout.addWidget(pmtGroup)
         mainLayout.addWidget(packagesGroup)
         #mainLayout.addSpacing(12)
@@ -462,6 +548,31 @@ class TechniquePage(QWidget):
         mainLayout.addStretch(1)
 
         self.setLayout(mainLayout)
+
+    def set_role_combo_choice(self):
+        """
+        设置角色组合框的选择项，根据选中的模型连接器名称获取相应的角色记录，并将其添加到角色组合框中。
+
+        :return: None
+        """
+        # 获取当前选择的模型连接器名称，并从中提取实际的名称
+        model_connector_name = self.modelCombo.currentText().split(":")[0]
+
+        # 获取与模型连接器名称相关的角色记录
+        role_records = get_all_prompt_by_modelname(f"{model_connector_name}")
+
+        # 清空角色组合框以避免重复添加
+        self.roleCombo.clear()
+
+        # 检查是否找到了角色记录
+        if role_records:
+            # 遍历角色记录并将其添加到角色组合框
+            for role_record in role_records:
+                # 假设 role_record 有一个 `name` 属性或字段用于显示
+                self.roleCombo.addItem(role_record.title,role_record.id,)  # 使用 role_record 的名称添加项
+        else:
+            print(f"No role records found for model: {model_connector_name}")  # 记录未找到的情况
+
 
 class SNSPage(QWidget):
     def __init__(self, agent,parent=None):
@@ -599,8 +710,6 @@ class SNSPage(QWidget):
             #     snsnickname = self.ai_chat_cfg.nickname
             #     update_AgentCfg(agent_belonged.id,snsaccount=snsaccount,snsnickname=snsnickname)
 
-
-
 class SecurityPage(QWidget):
     def __init__(self,agent, parent=None):
         super(SecurityPage, self).__init__(parent)
@@ -610,11 +719,38 @@ class SecurityPage(QWidget):
             agent_cfg = agent.agent_cfg
         self.agent_cfg = agent_cfg
 
-        updateGroup = QGroupBox("指定本地权限:")
+        preferenceGroup = QGroupBox("偏好设置:")
+        self.modelchoiceCheckBox = QCheckBox("启动后使用最近一次使用的模型")
+        self.rolechoiceCheckBox = QCheckBox("启动后使用最近一次使用的角色")
+        self.uselastpluginsCheckBox = QCheckBox("启动后启用最近一次使用的插件")
+        self.uselastkmsCheckBox = QCheckBox("启动后启用最近一次使用的知识库")
+        self.plugincallCheckBox = QCheckBox("插件可通过指令调用")
+        self.modelfrequentCheckBox = QCheckBox("对话界面启用常用模型列表")
+        self.rolefrequentCheckBox = QCheckBox("对话界面启用常用角色列表")
+
+        preferenceLayout = QGridLayout()
+        preferenceLayout.addWidget(self.modelchoiceCheckBox, 0, 0)
+        preferenceLayout.addWidget(self.rolechoiceCheckBox, 1, 0)
+        preferenceLayout.addWidget(self.uselastpluginsCheckBox, 2, 0)
+        preferenceLayout.addWidget(self.uselastkmsCheckBox, 3, 0)
+        preferenceLayout.addWidget(self.plugincallCheckBox, 4, 0)
+        preferenceLayout.addWidget(self.modelfrequentCheckBox, 5, 0)
+        preferenceLayout.addWidget(self.rolefrequentCheckBox, 6, 0)
+
+        preferenceGroup.setLayout(preferenceLayout)
+
+
+
+        updateGroup = QGroupBox("任务模式设置:")
         self.systemCheckBox = QCheckBox("读取本地文件")
         self.appsCheckBox = QCheckBox("写入本地文件")
         self.docsCheckBox = QCheckBox("删除本地文件")
         self.execCheckBox = QCheckBox("本地运行程序")
+
+        self.systemCheckBox.setHidden(True)
+        self.appsCheckBox.setHidden(True)
+        self.docsCheckBox.setHidden(True)
+        self.execCheckBox.setHidden(True)
 
         self.hitsSpinBox = QSpinBox()
         self.hitsSpinBox.setPrefix("任务可自动执行")
@@ -629,27 +765,43 @@ class SecurityPage(QWidget):
             self.appsCheckBox.setChecked(agent_cfg.writefile)
             self.docsCheckBox.setChecked(agent_cfg.deletefile)
             self.execCheckBox.setChecked(agent_cfg.execfile)
+
+            self.modelchoiceCheckBox.setChecked(agent_cfg.uselastmodel)
+            self.rolechoiceCheckBox.setChecked(agent_cfg.uselastrole)
+            self.uselastpluginsCheckBox.setChecked(agent_cfg.uselastplugins)
+            self.uselastkmsCheckBox.setChecked(agent_cfg.uselastkms)
+            self.plugincallCheckBox.setChecked(agent_cfg.callpluginbyinstruct)
+
+
             self.hitsSpinBox.setValue(agent_cfg.autorunrounds)
 
 
         startUpdateButton = QPushButton("测试验证")
-
+        startUpdateButton.setHidden(True)
         updateLayout = QGridLayout()
-        updateLayout.addWidget(self.systemCheckBox,0,0)
-        updateLayout.addWidget(self.appsCheckBox,0,1)
-        updateLayout.addWidget(self.docsCheckBox,1,0)
-        updateLayout.addWidget(self.execCheckBox,1,1)
+        # updateLayout.addWidget(self.systemCheckBox,0,0)
+        # updateLayout.addWidget(self.appsCheckBox,0,1)
+        # updateLayout.addWidget(self.docsCheckBox,1,0)
+        # updateLayout.addWidget(self.execCheckBox,1,1)
         updateLayout.addWidget(self.hitsSpinBox, 2, 0, 1, 2)
         updateGroup.setLayout(updateLayout)
 
 
 
         mainLayout = QVBoxLayout()
+
+        mainLayout.addWidget(preferenceGroup)
+
         mainLayout.addWidget(updateGroup)
 
         mainLayout.addSpacing(12)
-        mainLayout.addWidget(startUpdateButton)
+        # mainLayout.addWidget(startUpdateButton)
         mainLayout.addStretch(1)
+
+
+
+
+
 
         self.setLayout(mainLayout)
 
@@ -678,7 +830,6 @@ class ClickableLabel(QLabel):
             subprocess.call(['start', 'cmd', '/c', bat_file_path], shell=True)
 
         self.clicknum += 1
-
 
 
 class CustomDialog(QDialog):

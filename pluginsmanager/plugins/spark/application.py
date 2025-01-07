@@ -12,7 +12,7 @@ class Connector_LLM_Jiuzhou_yfd_Chatglm_Plugin(PluginCore):
     def __init__(self, logger: Logger) -> None:
         super().__init__(logger)
         self.meta = Meta(
-            name='讯飞星火连接器',
+            name='讯飞星火',
             description='用来连接讯飞星火在线模型',
             version='1.0.0'
         )
@@ -113,6 +113,26 @@ class Connector_LLM_Jiuzhou_yfd_Chatglm_Plugin(PluginCore):
 
         return content
 
+    def get_plugin_cfg(self):
+        """
+        获取插件配置文件 plugin.yaml 的内容。
+
+        :return: 返回读取的配置字典，如果文件不存在或读取失败则返回 None。
+        """
+        file_path = os.path.join(os.path.dirname(__file__), 'plugin.yaml')  # 构造配置文件路径
+
+        try:
+            # 以 UTF-8 编码打开文件，避免编码错误
+            with open(file_path, "r", encoding='utf-8') as f:
+                config = yaml.safe_load(f)  # 解析 YAML 文件
+        except FileNotFoundError:
+            print(f"配置文件未找到: {file_path}")  # 文件未找到时输出提示
+        except yaml.YAMLError as e:
+            print(f"YAML 解析错误: {e}")  # 解析 YAML 文件时的错误处理
+        except UnicodeDecodeError as e:
+            print(f"文件解码错误: {e}")  # 处理解码错误
+
+        return config  # 返回配置字典
 
     def get_config(self):
         try:

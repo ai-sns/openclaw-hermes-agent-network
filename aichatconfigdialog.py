@@ -1,3 +1,4 @@
+import re
 import webbrowser
 
 import PyQt5
@@ -39,12 +40,14 @@ class ConfigDialog(QDialog):
 
         self.generalPage = GeneralPage(self.ai_chat_cfg,parent=self.app)
         self.userinfoPage = UserInfoPage(self.ai_chat_cfg)
+        self.snsPage = SNSPage(self.ai_chat_cfg)
         self.connectionPage = ConnectionPage(self.ai_chat_cfg)
         self.securityPage = SecurityPage(self.ai_chat_cfg)
 
         self.pagesWidget = QStackedWidget()
         self.pagesWidget.addWidget(self.generalPage)
         self.pagesWidget.addWidget(self.userinfoPage)
+        self.pagesWidget.addWidget(self.snsPage)
         self.pagesWidget.addWidget(self.connectionPage)
         self.pagesWidget.addWidget(self.securityPage)
 
@@ -161,6 +164,14 @@ class ConfigDialog(QDialog):
         orgposition = self.userinfoPage.positionEdit.text()
         memo = self.userinfoPage.memoEdit.text()
 
+        # SNS
+
+        islimittotalmessage = self.snsPage.systemCheckBox.isChecked()
+        islimitmessagepp = self.snsPage.appsCheckBox.isChecked()
+        totalmessages = self.snsPage.hitsSpinBox.value()
+        ppmessages = self.snsPage.hitsSpinBox_p.value()
+
+
         # connection
         serveraddress = self.connectionPage.serveraddressEdit.text()
         port = self.connectionPage.portEdit.text()
@@ -186,7 +197,7 @@ class ConfigDialog(QDialog):
         # update_AiChatCfg(1, name, memo, borndate, borncontry, language, gender, joinfederation, syncfederation, specialization, plugins, kms, prompt, snsaccount, islimittotalmessage, islimitmessagepp, totalmessages, ppmessages, readfile, writefile, deletefile, execfile, autorunrounds)
         if self.ai_chat_cfg == None:
             idstr = self.generate_random_id()
-            add_AiChatCfg(idstr, account,password,nickname,sign,status,humantakeover,name,borndate,gender,area,city,address,mail,imaccount,phone,organization,title,orgposition,memo,serveraddress,port,ssl,resource,proxyused,proxyaddress,proxyport,proxyssl,savepasswordlocal,autoconnect,sendreceipt,sendreadflag,sendchatstatus,sendgroupchatstatus,agreeallfriendrequest)
+            add_AiChatCfg(idstr, account,password,nickname,sign,status,humantakeover,name,borndate,gender,area,city,address,mail,imaccount,phone,organization,title,orgposition,memo,islimittotalmessage,islimitmessagepp,totalmessages,ppmessages,serveraddress,port,ssl,resource,proxyused,proxyaddress,proxyport,proxyssl,savepasswordlocal,autoconnect,sendreceipt,sendreadflag,sendchatstatus,sendgroupchatstatus,agreeallfriendrequest)
             ai_chat_cfg=query_AiChatCfg(user_id=idstr)
             self.app.createToolBoxUnit_AiChat(ai_chat_cfg,1)
             self.app.toolBox_AiChat.setCurrentIndex(self.app.toolBox_AiChat.count()-2)
@@ -200,7 +211,7 @@ class ConfigDialog(QDialog):
 
         else:
             idstr = self.ai_chat_cfg.user_id
-            update_AiChatCfg(self.ai_chat_cfg.id, account = account, password = password, nickname = nickname, sign = sign, status = status,humantakeover=humantakeover, name = name, borndate = borndate, gender = gender, area = area, city = city, address = address, mail = mail, imaccount = imaccount, phone = phone, organization = organization, title = title, orgposition = orgposition, memo = memo, serveraddress = serveraddress, port = port, ssl = ssl, resource = resource, proxyused = proxyused, proxyaddress = proxyaddress, proxyport = proxyport, proxyssl = proxyssl, savepasswordlocal = savepasswordlocal, autoconnect = autoconnect, sendreceipt = sendreceipt, sendreadflag = sendreadflag, sendchatstatus = sendchatstatus, sendgroupchatstatus = sendgroupchatstatus, agreeallfriendrequest = agreeallfriendrequest)
+            update_AiChatCfg(self.ai_chat_cfg.id, account = account, password = password, nickname = nickname, sign = sign, status = status,humantakeover=humantakeover, name = name, borndate = borndate, gender = gender, area = area, city = city, address = address, mail = mail, imaccount = imaccount, phone = phone, organization = organization, title = title, orgposition = orgposition, memo = memo,islimittotalmessage=islimittotalmessage,islimitmessagepp=islimitmessagepp,totalmessages=totalmessages,ppmessages=ppmessages, serveraddress = serveraddress, port = port, ssl = ssl, resource = resource, proxyused = proxyused, proxyaddress = proxyaddress, proxyport = proxyport, proxyssl = proxyssl, savepasswordlocal = savepasswordlocal, autoconnect = autoconnect, sendreceipt = sendreceipt, sendreadflag = sendreadflag, sendchatstatus = sendchatstatus, sendgroupchatstatus = sendgroupchatstatus, agreeallfriendrequest = agreeallfriendrequest)
             tool_box_item = self.app.toolBox_AiChat.findChild(QWidget, idstr)
             self.app.toolBox_AiChat.setItemText(self.app.toolBox_AiChat.indexOf(tool_box_item),nickname)
 
@@ -258,12 +269,18 @@ class ConfigDialog(QDialog):
         techButton.setTextAlignment(Qt.AlignHCenter)
         techButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
 
+        # queryButton = QListWidgetItem(self.contentsWidget)
+        # queryButton.setIcon(QIcon(':/images/update.png'))
+        # queryButton.setText("连接配置")
+        # queryButton.setTextAlignment(Qt.AlignHCenter)
+        # queryButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+        # queryButton.setHidden(True)#暂时先隐藏
+
         queryButton = QListWidgetItem(self.contentsWidget)
         queryButton.setIcon(QIcon(':/images/update.png'))
-        queryButton.setText("连接配置")
+        queryButton.setText("社交配置")
         queryButton.setTextAlignment(Qt.AlignHCenter)
         queryButton.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)
-        queryButton.setHidden(True)#暂时先隐藏
 
         updateButton = QListWidgetItem(self.contentsWidget)
         updateButton.setIcon(QIcon(':/images/query.png'))
@@ -619,6 +636,91 @@ class UserInfoPage(QWidget):
         mainLayout.addStretch(1)
 
         self.setLayout(mainLayout)
+
+
+class SNSPage(QWidget):
+    def __init__(self, ai_chat_cfg, parent=None):
+        super(SNSPage, self).__init__(parent)
+
+
+
+
+        updateGroup = QGroupBox("指定聊天规则:")
+        self.systemCheckBox = QCheckBox("限制每天聊天信息总数")
+        self.appsCheckBox = QCheckBox("限制单次聊天信息总数")
+
+        self.hitsSpinBox = QSpinBox()
+        self.hitsSpinBox.setPrefix("每天聊天总信息数:")
+        self.hitsSpinBox.setSuffix("条")
+        #self.hitsSpinBox.setSpecialValueText("请点击调节按钮设置智能体能无询问自动执行的轮数")
+        self.hitsSpinBox.setMinimum(500)
+        self.hitsSpinBox.setMaximum(1000)
+        self.hitsSpinBox.setSingleStep(10)
+
+        self.hitsSpinBox_p = QSpinBox()
+        self.hitsSpinBox_p.setPrefix("单次聊天总信息数:")
+        self.hitsSpinBox_p.setSuffix("条")
+        #self.hitsSpinBox.setSpecialValueText("请点击调节按钮设置智能体能无询问自动执行的轮数")
+        self.hitsSpinBox_p.setMinimum(50)
+        self.hitsSpinBox_p.setMaximum(100)
+        self.hitsSpinBox_p.setSingleStep(10)
+
+        if ai_chat_cfg != None:
+
+            self.systemCheckBox.setChecked(ai_chat_cfg.islimittotalmessage)
+            self.appsCheckBox.setChecked(ai_chat_cfg.islimitmessagepp)
+            self.hitsSpinBox.setValue(ai_chat_cfg.totalmessages)
+            self.hitsSpinBox_p.setValue(ai_chat_cfg.ppmessages)
+
+
+        updateLayout = QGridLayout()
+        updateLayout.addWidget(self.systemCheckBox,0,0)
+        updateLayout.addWidget(self.appsCheckBox,0,1)
+        updateLayout.addWidget(self.hitsSpinBox, 1, 0, 1, 2)
+        updateLayout.addWidget(self.hitsSpinBox_p, 2, 0, 1, 2)
+        updateGroup.setLayout(updateLayout)
+
+
+
+        mainLayout = QVBoxLayout()
+
+        mainLayout.addWidget(updateGroup)
+        mainLayout.addStretch(1)
+
+        self.setLayout(mainLayout)
+
+    def on_combobox_changed(self, index):
+        """
+        当QComboBox的选项变化时调用此方法
+        :param index: 当前选中项的索引
+        """
+        # 获取当前选中的选项文本
+        cur_sns_account = self.agent_cfg.snsaccount
+        cur_nick_name = self.agent_cfg.snsnickname
+
+        selected_name = self.serverCombo.currentText()
+
+        match = re.search(r'\((.*?)\)', selected_name)
+        if match:
+            selected_account =  match.group(1)  # 返回匹配到的内容
+        else:
+            selected_account = "N/A"
+
+
+
+        if selected_name !="N/A" and selected_name!=cur_nick_name + "(" + cur_sns_account + ")":
+            agent_belonged = query_AgentCfg(snsaccount=selected_account)
+            if agent_belonged:
+                QMessageBox.information(self, '提示', '该社交帐号已经分配了其他Agent，请选择别的社交帐号!')
+                if cur_nick_name != "N/A":
+                    self.serverCombo.setCurrentText(cur_nick_name + "(" + cur_sns_account + ")")
+                else:
+                    self.serverCombo.setCurrentText("N/A")
+            # else:
+            #     self.serverCombo.setCurrentText(selected_name)
+            #     snsaccount=self.ai_chat_cfg.account
+            #     snsnickname = self.ai_chat_cfg.nickname
+            #     update_AgentCfg(agent_belonged.id,snsaccount=snsaccount,snsnickname=snsnickname)
 
 
 class ConnectionPage(QWidget):

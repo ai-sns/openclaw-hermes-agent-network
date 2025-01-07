@@ -18,7 +18,7 @@ from userinputdialog import UserInputDialog
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, \
     get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, \
     add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight, \
-    get_content_from_attachment_content_list, add_attachment_to_message_window
+    get_content_from_attachment_content_list, add_attachment_to_message_window, get_myai_send_msg_title_formatted, add_msg_to_message_window_with_markdown_and_highlightv2, get_aifriend_msg_title_formatted, add_msg_to_message_windowv2
 
 
 class ChatList(QTreeWidget):
@@ -46,7 +46,7 @@ class ChatList(QTreeWidget):
         self.groups = {}
         self.tree = {}
         # 创建一个图标
-        self.stick_icon = QIcon(QPixmap('images/start.png'))  # --> 增加一个置顶图标
+        self.stick_icon = QIcon(QPixmap('images/star.png'))  # --> 增加一个置顶图标
         self.load_pop_menu()
 
         self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
@@ -332,22 +332,25 @@ class ChatList(QTreeWidget):
 
         if record.flag == 0:
 
-            message = get_user_ask_msg_title_formatted(page_index, create_time)
+            message = get_myai_send_msg_title_formatted(page_index, create_time)
             add_msg_to_message_window(browser_page, message, 1)
+
 
             # add_msg_to_message_window_and_format(browser_page, question, 2)
             message = get_user_ask_msg_content_formatted(question)
-            add_msg_to_message_window(browser_page, message, 2)
+
+            add_msg_to_message_window_with_markdown_and_highlightv2(browser_page, message, 2)
 
         else:
 
-            message = get_agent_reply_msg_title_formatted(model_name, page_index + 1, create_time, False)
-            add_msg_to_message_window(browser_page, message, 1)
+            message = get_aifriend_msg_title_formatted(page_index + 1, model_name, create_time, False)
+            add_msg_to_message_windowv2(browser_page, message, 1)
+
 
             if question.startswith("给我画"):
                 add_msg_to_message_window(browser_page, answer, 2)
             else:
-                add_msg_to_message_window_with_markdown_and_highlight(browser_page, answer, 2)
+                add_msg_to_message_window_with_markdown_and_highlightv2(browser_page, answer, 2)
 
         directory_path = os.path.join('resource', 'attachment', 'chat', record.conversation_id)
         if record.attachment_list:

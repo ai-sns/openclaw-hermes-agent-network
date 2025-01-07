@@ -1,128 +1,103 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Proof of Croncept</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Confirm Dialog</title>
     <style>
-        /* 确保cronDerperSection不换行 */
-        .cronDerperSection {
-            border: 1px solid #ccc;
-            padding: 10px;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            white-space: nowrap;
-            margin-right: 10px;
-        }
-
-        /* 使用flex布局确保cronDerperSections在同一行 */
-        .cronDerperSections {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            flex-wrap: nowrap; /* 不换行 */
-        }
-
-        /* 隐藏cronDerper的样式 */
-        #cronDerper {
-            display: none; /* 默认隐藏 */
+        /* 对话框的基本样式 */
+        #confirmDialog {
+            display: none; /* 初始隐藏 */
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1001; /* 高于蒙层 */
-        }
-
-        /* cronDerper内的输入框样式 */
-        #cronDerper input {
-            border: none;
-            border-bottom: 1px solid #000;
-            padding: 5px;
-            margin: 5px 0;
-        }
-
-        /* cronDerper内的按钮样式 */
-        #cronDerper button {
-            padding: 10px 20px;
-            margin: 10px;
-            border-radius: 5px;
-            border: none;
-            background-color: #5cb85c;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        /* cronDerper内的按钮悬停样式 */
-        #cronDerper button:hover {
-            background-color: #4cae4c;
-        }
-
-        /* 蒙层样式 */
-        #overlay {
-            display: none;
-            position: fixed;
-            top: 0;
             left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.5);
-            z-index: 1000; /* 低于cronDerper */
+            background-color: rgba(0, 0, 0, 0.8); /* 背景黑色半透明 */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* 确保对话框在最上层 */
+        }
+        .dialog {
+            background-color: #121212; /* 深色背景 */
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); /* 增加阴影效果 */
+        }
+        .dialog h2 {
+            color: #ffffff; /* 标题颜色 */
+            margin: 0;
+        }
+        .dialog p {
+            color: #aaaaaa; /* 消息颜色 */
+            margin: 10px 0;
+        }
+        .button {
+            margin: 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            color: #ffffff; /* 按钮文字颜色 */
+            background-color: #6200ea; /* 按钮背景颜色 */
+            cursor: pointer;
+            transition: background-color 0.3s; /* 添加过渡效果 */
+        }
+        .button:hover {
+            background-color: #3700b3; /* 悬停时的背景颜色 */
         }
     </style>
-    <script src="cron.js"></script>
-    <script>
-        // 函数用于显示或隐藏cronDerper及蒙层
-        function toggleCronDerper() {
-
-            const cronDerper = document.getElementById('cronDerper');
-            const overlay = document.getElementById('overlay');
-            const isDisplayed = cronDerper.style.display === 'block';
-
-            // 切换显示状态
-            cronDerper.style.display = isDisplayed ? 'none' : 'block';
-            overlay.style.display = isDisplayed ? 'none' : 'block';
-        }
-    </script>
 </head>
 <body>
-    <!-- 蒙层 -->
-    <div id="overlay" onclick="toggleCronDerper()"></div>
 
-    <!-- 显示按钮，点击时展示cronDerper -->
-    <button onclick="toggleCronDerper()">Show CronDerper</button>
+    <button id="openDialogButton">Open Confirm Dialog</button>
 
-    <!-- cronDerper div，默认隐藏 -->
-    <div id="cronDerper">
-        <div class="cronDerperSections">
-            <div class="cronDerperSection">
-                <span>
-                    <select id="cronViewSelection" oninput="derp.populateDiv(this.value);">
-                        <option value="MINUTE_INTERVAL" selected="selected">Minute interval</option>
-                        <option value="HOUR_INTERVAL">Hour interval</option>
-                        <option value="DAILY">Daily</option>
-                        <option value="WEEKLY">Weekly</option>
-                        <option value="MONTHLY">Monthly</option>
-                        <option value="YEARLY">Yearly</option>
-                        <option value="ADVANCED">Advanced</option>
-                    </select> |
-                </span>
-                <span id="cronInput"></span>
-            </div>
-            <div class="cronDerperSection">
-                <span>
-                    <button onclick="derp.generateOutput();">Generate</button>
-                    <input id="cronOutput" />
-                </span>
-            </div>
+    <div id="confirmDialog">
+        <div class="dialog">
+            <h2 id="dialogTitle"></h2>
+            <p id="dialogMessage"></p>
+            <button class="button" id="confirmButton">Yes</button>
+            <button class="button" id="cancelButton">No</button>
         </div>
     </div>
 
     <script>
-        // 页面加载时初始化CronDerper对象
-        window.onload = function() {
-            window.derp = new CronDerper();
-            derp.populateDiv('MINUTE_INTERVAL');
+        // 显示自定义确认对话框并返回 Promise
+        function showConfirmDialog(title, message) {
+            return new Promise((resolve) => {
+                document.getElementById("dialogTitle").innerText = title; // 设置标题
+                document.getElementById("dialogMessage").innerText = message; // 设置消息
+                document.getElementById("confirmDialog").style.display = "flex"; // 显示对话框
+
+                // 确认按钮事件
+                document.getElementById("confirmButton").onclick = function() {
+                    resolve(true); // 用户点击确认，解析 Promise
+                    closeDialog();
+                };
+
+                // 取消按钮事件
+                document.getElementById("cancelButton").onclick = function() {
+                    resolve(false); // 用户点击取消，解析 Promise
+                    closeDialog();
+                };
+            });
+        }
+
+        // 关闭对话框的函数
+        function closeDialog() {
+            document.getElementById("confirmDialog").style.display = "none"; // 隐藏对话框
+        }
+
+        // 绑定按钮点击事件
+        document.getElementById("openDialogButton").onclick = async function() {
+            const result = await showConfirmDialog('Custom Title', 'Are you sure you want to proceed?');
+            if (result) {
+                alert("Confirmed!");
+            } else {
+                alert("Canceled!");
+            }
         };
     </script>
+
 </body>
 </html>

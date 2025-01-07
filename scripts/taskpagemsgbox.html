@@ -29,7 +29,7 @@
             /*top: 8px;原来的高度*/
             top: 8px;
             right: 8px;
-            background: #007bff;
+            background: #146ebe;
             color: white;
             border: none;
             border-radius: 4px;
@@ -321,6 +321,48 @@
             opacity: 1;
         }
 
+        /* 对话框的基本样式 */
+        #confirmDialog {
+            display: none; /* 初始隐藏 */
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8); /* 背景黑色半透明 */
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* 确保对话框在最上层 */
+        }
+        .dialog {
+            background-color: #121212; /* 深色背景 */
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5); /* 增加阴影效果 */
+        }
+        .dialog h2 {
+            color: #ffffff; /* 标题颜色 */
+            margin: 0;
+        }
+        .dialog p {
+            color: #aaaaaa; /* 消息颜色 */
+            margin: 10px 0;
+        }
+        .button {
+            margin: 5px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            color: #ffffff; /* 按钮文字颜色 */
+            background-color: #146ebe; /* 按钮背景颜色 */
+            cursor: pointer;
+            transition: background-color 0.3s; /* 添加过渡效果 */
+        }
+        .button:hover {
+            background-color: #2b7ec9; /* 悬停时的背景颜色 */
+        }
+
     </style>
     <script src="qwebchannel.js"></script>
 </head>
@@ -367,8 +409,6 @@
     <ul>
         <li onclick="copyContent(this)">拷贝</li>
         <li onclick="editContent(this)">编辑</li>
-        <li onclick="executeContent(this)">运行</li>
-        <li onclick="alertContent(this)">打开</li>
     </ul>
 </div>
 
@@ -390,14 +430,24 @@
         <li onclick="collectMessage()" data-tooltip="收藏内容">
             <img src="../images/bookmark.png" alt="收藏内容"> 收藏
         </li>
-        <li onclick="toggle_parent_menu()" data-tooltip="更多选项">
-            <img src="../images/more.png" alt="更多选项"> 更多
+        <li onclick="toggle_parent_menu()" data-tooltip="多选进行批处理">
+            <img src="../images/more.png" alt="多选进行批处理"> 多选
         </li>
     </ul>
 </div>
 
 <!-- Toast 消息框 -->
 <div id="toast" class="toast">内容已拷贝</div>
+
+<!--确定消息框-->
+<div id="confirmDialog">
+        <div class="dialog">
+            <h2 id="dialogTitle"></h2>
+            <p id="dialogMessage"></p>
+            <button class="button" id="confirmButton">Yes</button>
+            <button class="button" id="cancelButton">No</button>
+        </div>
+    </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/highlight.min.js"></script>
@@ -495,13 +545,120 @@
         });
     }
 
-    function show_title_msg(msg){
+    function show_title_msg(msg) {
         let tmpdiv = document.createElement('div');
+        // alert(msg);
         tmpdiv.innerHTML = msg;
+        // tmpdiv.innerText = msg;
+        allContentDiv.appendChild(tmpdiv.firstElementChild); // Add to fragment
+
+    }
+
+    function show_user_ask_msgbakokkkk(msg) {
+        let tmpdiv = document.createElement('div');
+        let tmpdiv2 = document.createElement('div');
+        let tmpp = document.createElement('p');
+        tmpp.style.marginLeft = "24px";
+        //<div style='margin-left:24px'><p>
+        // alert(msg);
+        // tmpdiv.innerHTML = msg;
+        // tmpdiv.innerText = msg;
+        tmpdiv.appendChild(tmpdiv2);
+        tmpdiv2.appendChild(tmpp);
+
+        msg = msg.replace(/_back_cjrok_slash_/g, "`");
+        msg = msg.replace(/_sla_cjrok_sh_/g, "\\");
+        msg = msg.replace(/\\\$\\\{/g, '${')
+
+        tmpp.textContent = msg;
+
         allContentDiv.appendChild(tmpdiv.firstElementChild); // Add to fragment
     }
 
-    function show_response_msg(words) {
+    // 定义一个替换规则的对象
+    const replacements = {
+        '_back_cjrok_slash_': '`',
+        '_sla_cjrok_sh_': '\\',
+        '\\\$\\\{': '${'
+    };
+
+    // 创建一个正则表达式，匹配所有需要替换的模式
+    const regex = new RegExp(Object.keys(replacements).join('|'), 'g');
+
+
+    function show_user_ask_msg(msg) {
+        const fragment = document.createDocumentFragment();
+
+        // 创建外部 div，并设置样式
+        const outerDiv = document.createElement('div');
+        outerDiv.style.marginLeft = "24px";
+
+        // 创建 p 元素
+        const paragraph = document.createElement('p');
+
+
+// 使用 replace 方法，并通过回调函数进行替换
+        msg = msg.replace(regex, (match) => {
+            // 返回对应的替换值，或者保持原样
+            return replacements[match] || match;
+        });
+
+
+        // 设置 p 元素的文本内容
+        paragraph.textContent = msg;
+
+        // 将 p 元素追加到外部 div 中
+        outerDiv.appendChild(paragraph);
+
+        // 将外部 div 添加到文档片段中
+        fragment.appendChild(outerDiv);
+
+        // 最后将文档片段添加到目标 DOM 元素中
+        allContentDiv.appendChild(fragment);
+    }
+
+    function show_user_ask_msgbak2(msg) {
+        // 创建文档片段，以便在最终一次性加入到 DOM 中
+        let fragment = document.createDocumentFragment();
+
+        // 创建外部 div，并设置样式
+        let outerDivT = document.createElement('div');
+        let outerDiv = document.createElement('div');
+
+
+        // 创建 p 元素
+        let paragraph = document.createElement('p');
+        paragraph.style.marginLeft = "24px";
+
+        // 替换特定字符串，使用 replaceAll 提升可读性和效率
+        // msg = msg.replaceAll('_back_cjrok_slash_', "`").replaceAll('_sla_cjrok_sh_', "\\").replaceAll('\\\$\\\{', '${');
+        // msg = msg.replace(/_back_cjrok_slash_/g, "`");
+        // msg = msg.replace(/_sla_cjrok_sh_/g, "\\");
+        // msg = msg.replace(/\\\$\\\{/g, '${')
+
+
+// 使用 replace 方法，并通过回调函数进行替换
+        msg = msg.replace(regex, (match) => {
+            // 返回对应的替换值，或者保持原样
+            return replacements[match] || match;
+        });
+
+
+        // 将 p 元素追加到外部 div 中
+        outerDivT.appendChild(outerDiv);
+        outerDiv.appendChild(paragraph);
+
+        // 设置 p 元素的文本内容
+        paragraph.textContent = msg;
+        // 将外部 div 添加到文档片段中
+        fragment.appendChild(outerDivT);
+
+        // 最后将文档片段添加到目标 DOM 元素中
+        allContentDiv.appendChild(outerDivT.firstElementChild);
+    }
+
+
+    function show_response_msgbakok(words) {
         // alert(word)
         // words += word;
         // words=words.replace(/\\`/g, "\\\`");
@@ -509,10 +666,21 @@
         // var replacedStr = str.replace("\\\\`", "\\`");
         words = words.replace(/_back_cjrok_slash_/g, "`");
         words = words.replace(/_sla_cjrok_sh_/g, "\\");
+        words = words.replace(/\\\$\\\{/g, '${')
         renderNextWord(words);
     }
 
-    function show_response_msgv2(words) {
+    function show_response_msg(words) {
+
+// 使用 replace 方法，并通过回调函数进行替换
+        words = words.replace(regex, (match) => {
+            // 返回对应的替换值，或者保持原样
+            return replacements[match] || match;
+        });
+        renderNextWord(words);
+    }
+
+    function show_response_msgv2bakok(words) {
         // alert(word)
         // words += word;
         // words=words.replace(/\\`/g, "\\\`");
@@ -520,9 +688,20 @@
         // var replacedStr = str.replace("\\\\`", "\\`");
         words = words.replace(/_back_cjrok_slash_/g, "`");
         words = words.replace(/_sla_cjrok_sh_/g, "\\");
+        words = words.replace(/\\\$\\\{/g, '${')
+
         renderNextWordv2(words);
     }
 
+    function show_response_msgv2(words) {
+// 使用 replace 方法，并通过回调函数进行替换
+        words = words.replace(regex, (match) => {
+            // 返回对应的替换值，或者保持原样
+            return replacements[match] || match;
+        });
+
+        renderNextWordv2(words);
+    }
 
     function updatemaincontent() {
 
@@ -547,31 +726,31 @@
         k = 0;
     }
 
-    function updatemaincontentv2(){
+    function updatemaincontentv2() {
 
-            // 使用querySelectorAll选择该div内的所有pre code元素
-            var codeBlocks = memDiv.querySelectorAll('pre code');
+        // 使用querySelectorAll选择该div内的所有pre code元素
+        var codeBlocks = memDiv.querySelectorAll('pre code');
 
-            // 遍历这些code元素并使用hljs.highlightBlock进行高亮
-            codeBlocks.forEach((block) => {
-                hljs.highlightBlock(block);
-            });
+        // 遍历这些code元素并使用hljs.highlightBlock进行高亮
+        codeBlocks.forEach((block) => {
+            hljs.highlightBlock(block);
+        });
 
 
-            // allContentDiv.innerHTML += handlingContentDiv.innerHTML;
-            // allContentDiv.innerHTML += "<div style='margin-left: 24px;'>"+handlingContentDiv.innerHTML+"</div>";
+        // allContentDiv.innerHTML += handlingContentDiv.innerHTML;
+        // allContentDiv.innerHTML += "<div style='margin-left: 24px;'>"+handlingContentDiv.innerHTML+"</div>";
 
-            let tmpdiv = document.createElement('div');
-            tmpdiv.style.marginLeft = '24px';
-            tmpdiv.innerHTML = memDiv.innerHTML;
-            allContentDiv.appendChild(tmpdiv); // Add to fragment
+        let tmpdiv = document.createElement('div');
+        tmpdiv.style.marginLeft = '24px';
+        tmpdiv.innerHTML = memDiv.innerHTML;
+        allContentDiv.appendChild(tmpdiv); // Add to fragment
 
-            memDiv.innerHTML = "";
-            currentWordIndex = 0;
-            currentMarkdown = '';
-            words = '';
-            setCheckboxesBasedOnSelectedHistory();
-            k = 0;
+        memDiv.innerHTML = "";
+        currentWordIndex = 0;
+        currentMarkdown = '';
+        words = '';
+        setCheckboxesBasedOnSelectedHistory();
+        k = 0;
     }
 
     function re_init() {
@@ -636,24 +815,6 @@
         const code = menuItem.closest('#menu').codeElement;
         const text = code.innerText;
         api_object.edit_content_message(code_type, text);
-    }
-
-    // 弹出 code 标签中的内容
-    function executeContent(menuItem) {
-        // 获取关联的 code 标签
-        const code = menuItem.closest('#menu').codeElement;
-        const text = code.innerText;
-
-        alert(text);
-    }
-
-    // 弹出 code 标签中的内容
-    function alertContent(menuItem) {
-        // 获取关联的 code 标签
-        const code = menuItem.closest('#menu').codeElement;
-        const text = code.innerText;
-
-        alert(text);
     }
 
 
@@ -838,7 +999,7 @@
     }
 
     function copyMessage() {
-        alert(allContentDiv.outerHTML);
+        // alert(allContentDiv.outerHTML);
         const dataId = innermenu.getAttribute('data-id');
         const dataValue = innermenu.getAttribute('data-value');
         const dataText = innermenu.getAttribute('data-text');
@@ -906,48 +1067,8 @@
     }
 
     function deleteMessage() {
-        const dataId = innermenu.getAttribute('data-id');
-        const dataValue = innermenu.getAttribute('data-value');
-        const dataText = innermenu.getAttribute('data-text');
-        const dataIndex = innermenu.getAttribute('data-index');
-        api_object.delete_message(dataId);
+        showConfirmDialog('删除确认', '您确定要删除选中的内容吗?', onConfirmDelete, onCancelDelete);
 
-
-        // 获取起始 DIV 元素
-        const div1 = document.getElementById(dataId);
-
-        let currentNode = div1.nextSibling;
-
-        // 遍历兄弟节点
-        while (currentNode) {
-            // 检查节点类型
-            if (currentNode.nodeType === Node.ELEMENT_NODE) {
-                const id = currentNode.getAttribute('id');
-
-                // 检查 ID 是否以 'id_'
-                if (id && (id.startsWith('id_') || id.startsWith('id_'))) {
-                    break; // 找到目标 <div>，停止删除
-                }
-                // 删除元素节点
-                currentNode.parentNode.removeChild(currentNode);
-            } else if (currentNode.nodeType === Node.TEXT_NODE) {
-                // 如果是文本节点，直接删除
-                currentNode.parentNode.removeChild(currentNode);
-            }
-
-            // 移动到下一个兄弟节点
-            currentNode = div1.nextSibling; // 更新为下一个兄弟节点
-        }
-
-        // 删除 div1
-        div1.parentNode.removeChild(div1);
-
-        // const brElement = document.createElement('br');
-        // div1.parentNode.insertBefore(brElement, div1.nextSibling);
-        // div1.parentNode.removeChild(div1);
-
-
-        // 可以在此处添加其他处理逻辑
     }
 
     function transferMessage() {
@@ -1078,5 +1199,83 @@
     }
 
 </script>
+
+<script>
+        // 显示自定义确认对话框
+
+        function showConfirmDialog(title, message, onConfirm, onCancel) {
+            document.getElementById("dialogTitle").innerText = title; // 设置标题
+            document.getElementById("dialogMessage").innerText = message; // 设置消息
+            document.getElementById("confirmDialog").style.display = "flex"; // 显示对话框
+
+            // 确认按钮事件
+            document.getElementById("confirmButton").onclick = function() {
+                onConfirm(); // 调用确认回调
+                closeDialog();
+            };
+
+            // 取消按钮事件
+            document.getElementById("cancelButton").onclick = function() {
+                onCancel(); // 调用取消回调
+                closeDialog();
+            };
+        }
+
+        // 关闭对话框的函数
+        function closeDialog() {
+            document.getElementById("confirmDialog").style.display = "none"; // 隐藏对话框
+        }
+
+        // 示例确认和取消回调函数
+
+        function onConfirmDelete(){
+            const dataId = innermenu.getAttribute('data-id');
+            const dataValue = innermenu.getAttribute('data-value');
+            const dataText = innermenu.getAttribute('data-text');
+            const dataIndex = innermenu.getAttribute('data-index');
+            api_object.delete_message(dataId);
+
+
+            // 获取起始 DIV 元素
+            const div1 = document.getElementById(dataId);
+
+            let currentNode = div1.nextSibling;
+
+            // 遍历兄弟节点
+            while (currentNode) {
+                // 检查节点类型
+                if (currentNode.nodeType === Node.ELEMENT_NODE) {
+                    const id = currentNode.getAttribute('id');
+
+                    // 检查 ID 是否以 'id_'
+                    if (id && (id.startsWith('id_') || id.startsWith('id_'))) {
+                        break; // 找到目标 <div>，停止删除
+                    }
+                    // 删除元素节点
+                    currentNode.parentNode.removeChild(currentNode);
+                } else if (currentNode.nodeType === Node.TEXT_NODE) {
+                    // 如果是文本节点，直接删除
+                    currentNode.parentNode.removeChild(currentNode);
+                }
+
+                // 移动到下一个兄弟节点
+                currentNode = div1.nextSibling; // 更新为下一个兄弟节点
+            }
+
+            // 删除 div1
+            div1.parentNode.removeChild(div1);
+
+            // const brElement = document.createElement('br');
+            // div1.parentNode.insertBefore(brElement, div1.nextSibling);
+            // div1.parentNode.removeChild(div1);
+
+
+            // 可以在此处添加其他处理逻辑
+        }
+
+        function onCancelDelete() {
+            return false;
+        }
+    </script>
 </body>
 </html>

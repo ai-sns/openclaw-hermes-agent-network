@@ -97,7 +97,65 @@ class Main():
 
         return img_element  # 返回生成的图像 URL 列表
 
-    def generate_image(self, prompt, model="dall-e-2", n=2, size="512x512"):
+    def generate_image(self, prompt, model="dall-e-3", n=1, size="1024x1024"):
+        # 更新模型和参数的说明
+        """
+        The size of the generated images. Must be one of 1024x1024, 1792x1024, or 1024x1792 for dall-e-3 models.
+        The number of images to generate. Must be 1 for dall-e-3.
+        """
+
+        url = "https://api.chatanywhere.tech/v1/images/generations"
+        api_key = "sk-SVCuk9EAqrgUEvvh31PKxVIr1fZhwt5boDB2Hexw8vs2Bl26"  # 更新为您提供的 Bearer Token
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": size
+        }
+
+        # 发送 POST 请求
+        response = requests.post(url, headers=headers, json=data)
+        print("dallurl:", url)
+
+        # 检查响应状态
+        if response.status_code != 200:
+            print("Error:", response.text)
+            return []
+
+        # 提取 URL 列表
+        urls = [datum['url'] for datum in response.json().get('data', [])]
+        print(urls)
+
+        for i in range(len(urls)):
+            image_name = generate_random_id() + ".png"
+
+            task_id = self.task_id
+            directory_path = os.path.join('resource', 'attachment', 'chat', task_id)
+            os.makedirs(directory_path, exist_ok=True)
+
+            save_path = os.path.join('resource', 'attachment', 'chat', task_id, image_name)
+
+            save_path = os.path.join('resource', 'attachment', 'chat', image_name)
+            download_image(urls[i], save_path)
+            save_path = os.path.abspath(save_path).replace("\\", "/")
+            urls[i] = save_path  # 直接替换 urls 列表中对应位置的值
+
+        img_element = ''.join(f"""<br><a href="#" onclick="open_attachment('{url}');return false;" style="color:blue"><img src="file:///{url}" alt="{url}" style="width:300px;height:auto;" /></a><br>""" for url in urls)
+        print(img_element)
+
+        # 添加附件元素到页面中
+        self.browser_page.runJavaScript('document.getElementById("allcontent").innerHTML += `' + img_element + '`')
+        self.browser_page.runJavaScript("window.scrollTo(0, document.body.scrollHeight);")
+
+        return img_element  # 返回生成的图像 URL 列表
+
+    def generate_imagebakopenai(self, prompt, model="dall-e-2", n=2, size="512x512"):
         # ***dall-e-3的n必须是1，size只能是：'1024x1024', '1024x1792', '1792x1024'
         """
         The size of the generated images. Must be one of 256x256, 512x512, or 1024x1024 for dall-e-2. Must be one of 1024x1024, 1792x1024, or 1024x1792 for dall-e-3 models.

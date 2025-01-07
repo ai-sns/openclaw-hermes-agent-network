@@ -40,7 +40,7 @@ class TaskListGroup(QTreeWidget):
         self.groups = {}
         self.tree = {}
         # 创建一个图标
-        self.stick_icon = QIcon(QPixmap('images/start.png'))  # --> 增加一个置顶图标
+        self.stick_icon = QIcon(QPixmap('images/star.png'))  # --> 增加一个置顶图标
 
         self.load_pop_menu()
         self.offline = True

@@ -45,8 +45,8 @@ class DataRecordDialog(QDialog):
         layout.addRow(QLabel("参数:"), parameter_text_edit)
 
 
-        layout.addRow(QLabel("预定运行时间:"), QLabel(data.schedule_time.strftime("%Y-%m-%d %H:%M:%S")))
-        layout.addRow(QLabel("实际运行时间:"), QLabel(data.run_time.strftime("%Y-%m-%d %H:%M:%S")))
+        layout.addRow(QLabel("预定运行时间:"), QLabel(data.schedule_time.strftime("%Y-%m-%d %H:%M:%S") if data.schedule_time is not None else ""))
+        layout.addRow(QLabel("实际运行时间:"), QLabel(data.run_time.strftime("%Y-%m-%d %H:%M:%S") if data.run_time is not None else ""))
         layout.addRow(QLabel("运行结果:"), QLabel(data.run_result).setWordWrap(True))
         # 根据 data.status 的值动态设置 QLabel 显示的文本
         layout.addRow(QLabel("状态:"), QLabel("未开始" if data.status == 0 else "运行成功" if data.status == 1 else "运行失败" if data.status == 2 else "未知状态"))
@@ -110,17 +110,17 @@ class TaskSchedule(QWidget):
         #self.searchLineEdit.setMinimumWidth(100)  # 设置最小宽度为100像素
         self.searchLineEdit.textChanged.connect(self.filterTable)
 
-        self.add_button = QPushButton("新增")
+
         self.delete_button = QPushButton("删除")
         self.reload_button = QPushButton("刷新")
-        self.add_button.clicked.connect(self.add_file)
+
         self.delete_button.clicked.connect(self.delete_file)
         self.reload_button.clicked.connect(self.reload)
 
         # 将控件添加到按钮布局中
         button_layout.addWidget(self.select_all_checkbox)
         button_layout.addWidget(self.searchLineEdit)
-        button_layout.addWidget(self.add_button)
+
         button_layout.addWidget(self.delete_button)
         button_layout.addWidget(self.reload_button)
 
@@ -217,11 +217,6 @@ class TaskSchedule(QWidget):
             if item:
                 self.file_table.setRowHidden(row, text not in item.text())
 
-    def add_file(self):
-        fun_dialog = WorkFlowDesign(self,"","")
-        fun_dialog.setObjectName("workflowdesign")
-        self.parent().addWidget(fun_dialog)
-        self.parent().setCurrentWidget(fun_dialog)
 
 
 

@@ -2,13 +2,13 @@ import pyautogui
 from PyQt5 import QtGui
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtWidgets import QWidget, QDialog, QScrollArea, QGridLayout, QPushButton, QVBoxLayout, QFileDialog
-from PyQt5.QtCore import QSettings, Qt, QUrl, pyqtSignal
+from PyQt5.QtCore import QSettings, Qt, QUrl, pyqtSignal, QThread
 from PyQt5.QtGui import QIcon
 from ui.ui_MessageWidget import Ui_MessageWidget
 import hashlib
 import webbrowser
 import emoji
-from pytalk.speaker import Speaker_Log
+from speaker import Speaker_Log
 # 主要用于发送附件
 import asyncio
 from typing import Optional
@@ -25,27 +25,60 @@ from argparse import ArgumentParser
 import slixmpp
 from slixmpp import JID
 from slixmpp.exceptions import IqTimeout
-
+import json
 log = logging.getLogger(__name__)
-from Agent import Agent
-from db.DBFactory import query_AgentCfg, add_AIChatMessages
+from Agent import Agent, AgentMode
+from db.DBFactory import query_AgentCfg, add_AIChatMessages,add_AgentTask
 from pluginsmanager.plugins_gui.tab_plugin import load_plugin
+from util import generate_random_id, add_msg_to_message_window,get_myai_send_msg_title_formatted,add_msg_to_message_windowv3, get_user_ask_msg_title_formatted, get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, toggle_msg_loading_status, add_agent_reply_msg_to_message_window, add_msg_to_message_window_with_markdown_and_highlight, add_attachment_to_message_window, image_to_base64, generate_img_tag,add_msg_to_message_window_with_markdown_and_highlightv2
+
+class WorkerThread(QThread):
+    finished = pyqtSignal(str, str)
+
+
+    def __init__(self, agent,  question, messages, web_browser, task_id,parent=None):
+        super(WorkerThread, self).__init__(parent)
+        global current_agent
+        self.agent = agent
+        current_agent = self.agent
+        agent_cfg = agent.agent_cfg
+        self.agentcfg = agent_cfg
+        self.task_id = task_id
+        self.agent_name = agent_cfg.name
+        self.question = question
+        self.messages = messages
+        self.web_browser = web_browser
+        self.browser_page = web_browser.page()
+
+    def run(self):
+        agent = self.agent
+        browser_page = self.browser_page
+        agent.set_mode(AgentMode.ChatOnly)
+        question = self.question
+        answer = agent.ask_it(question, self.messages, browser_page, self.task_id)
+
+        self.finished.emit(question, answer)
+
+    def stop(self):
+        print("thread stopping....")
+        del self.agent
+        print("del agent....")
+
 
 class HttpUpload(slixmpp.ClientXMPP):
-
     """
     A basic client asking an entity if they confirm the access to an HTTP URL.
     """
 
     def __init__(
-        self,
-        jid: JID,
-        password: str,
-        recipient: JID,
-        filename: Path,
-        domain: Optional[JID] = None,
-        encrypted: bool = False,
-        url:str="",
+            self,
+            jid: JID,
+            password: str,
+            recipient: JID,
+            filename: Path,
+            domain: Optional[JID] = None,
+            encrypted: bool = False,
+            url: str = "",
     ):
         slixmpp.ClientXMPP.__init__(self, jid, password)
 
@@ -84,7 +117,7 @@ class HttpUpload(slixmpp.ClientXMPP):
             f'<body xmlns="http://www.w3.org/1999/xhtml">'
             f'<a href="{self.url}">{file_name}</a></body>'
         )
-        print("html",html)
+        print("html", html)
         message = self.make_message(mto=self.recipient, mbody=self.url, mhtml=html)
         message['oob']['url'] = self.url
         message.send()
@@ -102,9 +135,7 @@ class EmojiDialog(QDialog):
         print("当前鼠标位置 - X坐标：", x_position)
         print("当前鼠标位置 - Y坐标：", y_position)
 
-        self.setGeometry(x_position-300, y_position-320, 600, 300)
-
-
+        self.setGeometry(x_position - 300, y_position - 320, 600, 300)
 
         # 创建滚动区域
         scroll_area = QScrollArea()
@@ -142,15 +173,17 @@ class EmojiDialog(QDialog):
 
 class MessageBox(QWidget, Ui_MessageWidget):
     signal_msg_received = pyqtSignal()
-    def __init__(self, parent, con, jid, name,ai_chat_cfg):
+
+    def __init__(self, parent, con, jid, name, ai_chat_cfg):
         super(MessageBox, self).__init__(parent)
-        self.human_take_over=False
+        self.human_take_over = False
         self.jid = jid
         self.name = name
         self.con = con
         self.ai_chat_cfg = ai_chat_cfg
         self.conversation_id = ""
-        self.messages=[]
+        self.messages = []
+        self.page_index = 0
         self.setupUi(self)
 
         # self.messageBrowser.setPlainText("")
@@ -165,30 +198,33 @@ class MessageBox(QWidget, Ui_MessageWidget):
 
         # self.messageBrowser.anchorClicked.connect(self.openLink)
         # agent=global_agent_list["002"]#Musk
-        snsaccount=self.ai_chat_cfg.account
+        snsaccount = self.ai_chat_cfg.account
         agent_cfg = query_AgentCfg(snsaccount=snsaccount)
         self.agent = Agent(agent_cfg)
-        self.kmselectedList=[]
+        self.kmselectedList = []
         self.pluginselectedList = []
-        self.current_received_msg=""
-        self.signal_msg_received.connect(self.Agent_sendMessage)
+        self.current_received_msg = ""
+        self.signal_msg_received.connect(self.ask_agent_and_reply_message)
 
         self.humantakeoverCheckBox.setChecked(self.human_take_over)
         self.messages = []
 
         self.is_browser_page_loaded = False
-        self.event_cache=None
+        self.event_cache = None
         self.messageBrowser.page().loadFinished.connect(self.onLoadFinished)  # 第一次可能page没来得及load，所以需要在onload中处理
-        self.first_event=None
+        self.first_event = None
         self.first_reply = ""
         self.ChatCompletions_flag = ""
         self.ChatCompletions_content = ""
 
-        #plugin相关
-        self.chess_role=None
+        # plugin相关
+        self.chess_role = None
         self.chinese_chess_role = None
         self.system_role_prompt = "You are a helpful assistant who provides concise and accurate information."
 
+    def increment_page_index(self):
+        self.page_index += 1
+        return self.page_index
 
     def new_chat(self):
         # self.human_take_over = False
@@ -214,13 +250,9 @@ class MessageBox(QWidget, Ui_MessageWidget):
         # self.chinese_chess_role = None
         # self.system_role_prompt = "You are a helpful assistant who provides concise and accurate information."
 
-        #***********todo:附件的界面也要清除掉****************
-
+        # ***********todo:附件的界面也要清除掉****************
 
         self.messageBrowser.page().runJavaScript('re_init()')
-
-
-
 
     def onLoadFinished(self):
         self.is_browser_page_loaded = True
@@ -230,10 +262,8 @@ class MessageBox(QWidget, Ui_MessageWidget):
         # # self.messageEdit.setFocus()
 
     def receiveMessage(self, event):
-
-        if self.ChatCompletions_flag=="1":
+        if self.ChatCompletions_flag == "1":
             self.ChatCompletions_content = event['body']
-
 
         if event is not None:
             if "//中国象棋bak" in event['body']:
@@ -243,46 +273,39 @@ class MessageBox(QWidget, Ui_MessageWidget):
                     self.output_checkbox.setChecked(True)
                     self.toggle_output_checkbox(self.output_checkbox.checkState())
             elif "//中国象棋" in event['body']:
-
                 tabs = self.tabWidget
                 move_str = event['body'].replace("//中国象棋", "")
                 chess_view = tabs.findChild(QWebEngineView, "chinese_chess")
 
                 if chess_view is None:
-                    self.chinese_chess_role = "black"#如果收到消息尚未初始化，说明是对手启动棋局，我方为黑方
+                    self.chinese_chess_role = "black"  # 如果收到消息尚未初始化，说明是对手启动棋局，我方为黑方
                     self.tab_plugin = load_plugin(tabs, "中国象棋", "chinese_chess", "ChineseChess", content="red")
                     self.tab_plugin.handle_received_message(self, move_str)
-                    return_msg=""
+                    return_msg = ""
                 else:
                     return_msg = self.tab_plugin.handle_received_message(self, move_str)
-
 
                 if not self.output_checkbox.isChecked():
                     self.output_checkbox.setChecked(True)
                     self.toggle_output_checkbox(self.output_checkbox.checkState())
-
-
             elif "//国际象棋" in event['body']:
-
                 tabs = self.tabWidget
                 move_str = event['body'].replace("//国际象棋", "")
                 chess_view = tabs.findChild(QWebEngineView, "chess")
 
                 if chess_view is None:
-                    self.chess_role = "black"#如果收到消息尚未初始化，说明是对手启动棋局，我方为黑方
+                    self.chess_role = "black"  # 如果收到消息尚未初始化，说明是对手启动棋局，我方为黑方
                     self.tab_plugin = load_plugin(tabs, "国际象棋", "chess", "Chess", content=move_str)
                     self.tab_plugin.handle_received_message(self, move_str)
-                    return_msg=""
+                    return_msg = ""
                 else:
                     return_msg = self.tab_plugin.handle_received_message(self, move_str)
-
 
                 if not self.output_checkbox.isChecked():
                     self.output_checkbox.setChecked(True)
                     self.toggle_output_checkbox(self.output_checkbox.checkState())
 
-
-        if self.is_browser_page_loaded==False:
+        if self.is_browser_page_loaded == False:
             self.event_cache = event
             return
         else:
@@ -291,33 +314,27 @@ class MessageBox(QWidget, Ui_MessageWidget):
         if not event is None:
             message = f"""\n<strong><span style="color: darkblue; font-size:14px;">{self.name} :</span></strong> {event['body']}"""
             self.append_message(message)
-
-            #以下是AI自动对话相关
-
+            # 以下是AI自动对话相关
             if "//国际象棋" in event['body']:
-                if return_msg=="":
+                if return_msg == "":
                     return
                 else:
                     self.current_received_msg = return_msg
             elif "//中国象棋" in event['body']:
-
                 return
 
-                if return_msg=="":
+                if return_msg == "":
                     return
                 else:
                     self.current_received_msg = return_msg
-
             else:
                 self.current_received_msg = event['body']
-
-
-            if self.human_take_over==False:
+            if self.human_take_over == False:
                 self.signal_msg_received.emit()
 
     def sendMessage_click(self):
         if self.messageEdit.toPlainText():
-            self.sendMessage(self.messageEdit.toPlainText(),True)
+            self.sendMessage(self.messageEdit.toPlainText(), True)
             self.messageEdit.clear()
             self.messageEdit.setAcceptRichText(False)
             self.messageEdit.setTextColor(QtGui.QColor(0, 0, 0))
@@ -335,9 +352,8 @@ class MessageBox(QWidget, Ui_MessageWidget):
                     """)
             # self.messageEdit.setAcceptRichText(True)
 
-
-    #ChatCompletions
-    def sendMessage(self,content,by_click=False):
+    # ChatCompletions
+    def sendMessage(self, content, by_click=False):
         if content:
             if "//中国象棋" in content:
                 tabs = self.tabWidget
@@ -350,7 +366,7 @@ class MessageBox(QWidget, Ui_MessageWidget):
                 else:
                     return_msg = self.tab_plugin.handle_send_message(self, move_str)
                     self.messageEdit.setPlainText(return_msg)
-                    self.sendMessage(return_msg,True)
+                    self.sendMessage(return_msg, True)
                     return
 
                 if not self.output_checkbox.isChecked():
@@ -376,11 +392,14 @@ class MessageBox(QWidget, Ui_MessageWidget):
                     self.output_checkbox.setChecked(True)
                     self.toggle_output_checkbox(self.output_checkbox.checkState())
 
+            page_index = self.increment_page_index()
+            msg_user_info = get_myai_send_msg_title_formatted(page_index)
+            message = get_user_ask_msg_content_formatted(content)
 
-            message = f"""<strong><span style="color: darkblue; font-size:14pt;">用户 :</span></strong><br> {content}<br>"""
-            browser_page = self.messageBrowser.page()
+
             if by_click:
-                browser_page.runJavaScript('document.getElementById("allcontent").innerHTML +=`' + message + '`')
+                add_msg_to_message_window(self.messageBrowser.page(), msg_user_info, 1)
+                add_msg_to_message_window_with_markdown_and_highlightv2(self.messageBrowser.page(), message, 2)
                 add_AIChatMessages(self.conversation_id, 0, "", content, self.ai_chat_cfg.name, self.ai_chat_cfg.account, self.name, self.jid, False)
             self.append_message(message)
 
@@ -391,45 +410,34 @@ class MessageBox(QWidget, Ui_MessageWidget):
             else:
                 self.con.send_message(self.jid, content)
 
-
-
-    def ChatCompletions(self,content):
-        reply=""
+    def ChatCompletions(self, content):
+        reply = ""
         if content:
-           self.con.send_message(self.jid, content)
-           self.ChatCompletions_flag="1"
+            self.con.send_message(self.jid, content)
+            self.ChatCompletions_flag = "1"
 
-        while self.ChatCompletions_flag=="1":
+        while self.ChatCompletions_flag == "1":
             time.sleep(1)
-            if self.ChatCompletions_content!="":
-                reply=self.ChatCompletions_content
-                self.ChatCompletions_content=""
+            if self.ChatCompletions_content != "":
+                reply = self.ChatCompletions_content
+                self.ChatCompletions_content = ""
                 self.ChatCompletions_flag = ""
                 break
         return reply
 
-
-
-
-
-
-    def append_message(self,message):
+    def append_message(self, message):
         browser_page = self.messageBrowser.page()
         # self.message_handler.pass_message(message)#先去掉
         browser_page.runJavaScript("window.scrollTo(0, document.body.scrollHeight);")
 
-
-
-    def Agent_sendMessage(self):
-
-        pluginname = "OpenAI连接器: 1.0.0"
+    def ask_agent_and_reply_message(self):
+        pluginname = "OpenAI"
         modelname = "OpenAI"
 
         # vector_path = "C:\\dev\\ai-sns\\PyTalk\\pytalk\\vector_store"
         # embedding_model_name = 'shibing624/text2vec-bge-large-chinese'
         vector_path = ""
         embedding_model_name = ''
-
 
         question = self.current_received_msg
 
@@ -447,31 +455,32 @@ class MessageBox(QWidget, Ui_MessageWidget):
         agent.give_it_speaker(speaker)
 
         if self.chess_role:
-            messages=[messages[0],messages[-1]]
-            content = agent.ask_it(question, messages, self.messageBrowser, self.conversation_id)
-        else:
-            content = agent.ask_it(question, messages, self.messageBrowser, self.conversation_id)
+            messages = [messages[0], messages[-1]]
+
+        self.thread = WorkerThread(agent,question, messages, self.messageBrowser, self.conversation_id)
+        self.thread.finished.connect(self.on_agent_replied)
+        self.thread.start()
 
 
-        self.first_reply=content
+    def on_agent_replied(self,question,content):
+
+        self.first_reply = content
         if self.chess_role:
-            tmp_content=content.strip()
-            tmp_content=tmp_content.replace(".","")
+            tmp_content = content.strip()
+            tmp_content = tmp_content.replace(".", "")
 
-            self.sendMessage("//国际象棋"+tmp_content[-4:])
+            self.sendMessage("//国际象棋" + tmp_content[-4:])
         elif self.chinese_chess_role:
-            tmp_content=content.strip()
-            tmp_content=tmp_content.replace(".","")
+            tmp_content = content.strip()
+            tmp_content = tmp_content.replace(".", "")
 
-            self.sendMessage("//中国象棋"+tmp_content[-4:])
-
+            self.sendMessage("//中国象棋" + tmp_content[-4:])
         else:
-            self.sendMessage(content)
+            self.sendMessage(content,True)
 
     def showTaskResult(self, agent_name, task_result):
         message = f"""\n<strong><span style="color: darkblue; font-size:14px;">{agent_name} :</span></strong> {task_result}"""
         self.append_message(message)
-
 
     def startVideo(self):
         hash_value = hashlib.md5(self.jid.encode('utf-8')).hexdigest()
@@ -482,9 +491,9 @@ class MessageBox(QWidget, Ui_MessageWidget):
         webbrowser.open(url)
 
     def sendfile(self):
-        filepath=self.setOpenFileName()
+        filepath = self.setOpenFileName()
         if filepath == "":
-            return("")
+            return ("")
         filename = Path(filepath).name
         if sys.platform == 'win32':
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -566,13 +575,11 @@ class MessageBox(QWidget, Ui_MessageWidget):
         xmpp.connect()
         xmpp.process(forever=False)
 
-
-
         message = f"""\n<strong><em><span style="color: darkred; font-size:14px;">{self.tr("Me")} :</span></em></strong> <a href='{xmpp.url}'>{filename}</a>"""
         self.append_message(message)
 
     def humantakeoverhandle(self):
-        self.human_take_over=self.humantakeoverCheckBox.isChecked()
+        self.human_take_over = self.humantakeoverCheckBox.isChecked()
 
     def toggle_output_checkbox(self, state):
         if state == Qt.Checked:
@@ -581,16 +588,16 @@ class MessageBox(QWidget, Ui_MessageWidget):
             self.splitter.setSizes([1, ])
 
     def setOpenFileName(self):
-        openFileNameLabel=""
+        openFileNameLabel = ""
         options = QFileDialog.Options()
         native = True
         if not native:
             options |= QFileDialog.DontUseNativeDialog
         fileName, _ = QFileDialog.getOpenFileName(self,
-                "QFileDialog.getOpenFileName()", openFileNameLabel,
-                "All Files (*);;Text Files (*.txt)", options=options)
+                                                  "QFileDialog.getOpenFileName()", openFileNameLabel,
+                                                  "All Files (*);;Text Files (*.txt)", options=options)
         if fileName:
-            openFileNameLabel=fileName
+            openFileNameLabel = fileName
         print(openFileNameLabel)
         return openFileNameLabel
 
@@ -602,11 +609,11 @@ class MessageBox(QWidget, Ui_MessageWidget):
         if not native:
             options |= QFileDialog.DontUseNativeDialog
         files, _ = QFileDialog.getOpenFileNames(self,
-                "QFileDialog.getOpenFileNames()", openFilesPath,
-                "All Files (*);;Text Files (*.txt)", options=options)
+                                                "QFileDialog.getOpenFileNames()", openFilesPath,
+                                                "All Files (*);;Text Files (*.txt)", options=options)
         if files:
             openFilesPath = files[0]
-            openFileNamesLabel=("[%s]" % ', '.join(files))
+            openFileNamesLabel = ("[%s]" % ', '.join(files))
         print(openFileNamesLabel)
         return openFileNamesLabel
 

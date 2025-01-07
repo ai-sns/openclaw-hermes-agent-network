@@ -12,7 +12,7 @@ print("当前工作目录:", os.getcwd())
 
 import sys
 import datetime
-from db.DBFactory import add_AgentCfg, query_AgentCfg_All, update_AgentCfg, delete_AgentCfg
+from db.DBFactory import add_AgentCfg, query_AgentCfg_All, update_AgentCfg, delete_AgentCfg,query_AiChatCfg
 import copy
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QShortcut, QSystemTrayIcon, QAction, QMenu, QStyle
@@ -36,7 +36,8 @@ from pyqt_explanation_balloon.explanationBalloon import ExplanationBalloon
 from AboutDialog import AboutDialog
 from ConnectionDialog import ConnectionDialog
 from ConnectorThread import ConnectorThread
-from MessageBox import MessageBox
+# from MessageBox import MessageBox
+from MessageBoxEarth import MessageBox
 from BuddyList import BuddyList
 from TaskList import TaskList
 from KMList import KMList
@@ -44,7 +45,7 @@ from TechList import TechList
 from RosterRequest import RosterRequest
 from AddBuddyDialog import AddBuddyDialog
 from AddGroupDialog import AddGroupDialog
-
+from i18n import lt
 from jabber import STATUS
 import asyncio
 
@@ -77,7 +78,19 @@ import qtvscodestyle as qtvsc
 import qdarktheme
 from db.DBFactory import query_SystemCfg
 
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
+from PyQt5.QtWebEngineWidgets import QWebEnginePage, QWebEngineFullScreenRequest, QWebEngineView, QWebEngineProfile, QWebEngineSettings
 
+class MyWebEnginePage(QWebEnginePage):
+    def __init__(self, parent=None):
+        super(MyWebEnginePage, self).__init__(parent)
+
+    def featurePermissionRequested(self, securityOrigin, feature):
+        # 当请求访问摄像头或麦克风时自动允许
+        if feature in [QWebEnginePage.MediaAudioCapture, QWebEnginePage.MediaVideoCapture]:
+            self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionGrantedByUser)
+        else:
+            super().featurePermissionRequested(securityOrigin, feature)
 
 
 class CustomModernWindow(qtmodern.windows.ModernWindow):
@@ -88,7 +101,7 @@ class CustomModernWindow(qtmodern.windows.ModernWindow):
         # Init QSystemTrayIcon
         self.tray_icon = QSystemTrayIcon(self)
         # self.tray_icon.setIcon(self.style().standardIcon(QStyle.SP_ComputerIcon))
-        self.tray_icon.setIcon(QIcon('images/aisnsicon.png'))  # 设置自定义图标
+        self.tray_icon.setIcon(QIcon('images/logowithe.png'))  # 设置自定义图标
         self.tray_icon.setVisible(True)  # 显示托盘图标
         '''
             Define and add steps to work with the system tray icon
@@ -96,9 +109,9 @@ class CustomModernWindow(qtmodern.windows.ModernWindow):
             hide - hide window
             exit - exit from application
         '''
-        show_action = QAction("Show", self)
-        quit_action = QAction("Exit", self)
-        hide_action = QAction("Hide", self)
+        show_action = QAction(lt("Show","显示"), self)
+        quit_action = QAction(lt("Exit","退出"), self)
+        hide_action = QAction(lt("Hide","隐藏"), self)
         show_action.triggered.connect(self.show)
         hide_action.triggered.connect(self.hide)
         quit_action.triggered.connect(QApplication.instance().quit)
@@ -120,10 +133,10 @@ class CustomModernWindow(qtmodern.windows.ModernWindow):
             event.ignore()
             self.hide()
             self.tray_icon.showMessage(
-                "Ai-SNS",
-                "应用最小化到托盘",
+                "AI-SNS",
+                "应用最小化到托盘，可点击恢复，或语音：HI,AISNS唤醒数字人",
                 QSystemTrayIcon.Information,
-                100
+                500
             )
         else:
             super(CustomModernWindow, self).closeEvent(event)  # 调用父类的 closeEvent 方法
@@ -164,8 +177,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.notelist_recent_list = {}
         self.notelist_all_list = {}
         self.tasklist_list = {}
+        self.labellist_list = {}
         self.techlist_list = {}
         self.tasklist_group_list = {}
+        self.labellist_group_list = {}
         self.memberlist_group_list = {}
         self.buddylist_list = {}
         self.buddylist_human_list = {}
@@ -280,13 +295,44 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         self.agent_home = agent_home
 
         # ai home
-        ai_home = QWebEngineView()
-        self.ai_home_frame = QtWidgets.QFrame(self)
-        self.ai_home_frame.setContentsMargins(0, 0, 0, 0)
-        self.ai_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
-        ai_home_frame_layout = QtWidgets.QVBoxLayout(self.ai_home_frame)
-        ai_home_frame_layout.addWidget(ai_home)
-        ai_home.page().load(QUrl("http://www.ai-sns.org/index_aichat.html"))
+        # ai_home = QWebEngineView()
+        # self.ai_home_frame = QtWidgets.QFrame(self)
+        # self.ai_home_frame.setContentsMargins(0, 0, 0, 0)
+        # self.ai_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
+        # ai_home_frame_layout = QtWidgets.QVBoxLayout(self.ai_home_frame)
+        # ai_home_frame_layout.addWidget(ai_home)
+        #
+        # map_file_path = os.path.join(os.getcwd(), "scripts", "map.html")
+        # # file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "index3.html")
+        # # map_file_path = QUrl("https://developers.google.com/maps/documentation/javascript/advanced-markers/migration?hl=zh-cn")
+        # # map_file_path = QUrl("http://localhost:63342/PyTalk/googlemap.html?_ijt=22jvmp5acnr18vbkpqiku4a62g")
+        # map_file_path = QUrl("https://lbs.baidu.com/jsdemo.htm#webgl-pano6")
+        # # map_file_path = QUrl("https://sandcastle.cesium.com/?src=AEC%20Architectural%20Design.html")
+        # # map_file_path = QUrl("https://macys.3dcloud.io/")
+        # # map_file_path = QUrl("https://app.thegrapevine.tech/publicmain?spaceid=-Mm-4mxKw-uhJ0qgkBCF&key=-Mm-5-lAb1lqqL8oQC8E")
+        # map_file_path = QUrl("https://spotvirtual.com/@photon-4adbf52a4a823fbc/@office/@lounge")
+        # map_file_path = QUrl("https://saad-ahmed98.github.io/SomeBabylonGame/")
+        # map_file_path = QUrl("https://n3gis.github.io/exportToBabylon.html")
+        # map_file_path = QUrl("https://www.viseni.com/bjsdemo/07_Island/index.html")
+        # map_file_path = QUrl("http://localhost:63342/PyTalk/map/Apps/wushi/KeysDemo.html?_ijt=ka1t4agd06c4ei533q7737qsb6")
+        # map_file_path = QUrl("https://www.mercedes-benz.com/storage/formula-e/2021-eq-house-digital-showroom/speedboard/20211129-v2.html")
+        # map_file_path = QUrl("https://time-loop.fr/Therouanne/EXPERIENCES/3DSCAN/CATHEDRALE/#!/")
+        # map_file_path = QUrl("https://ukcpg.co.uk/scripts/mansion.php?hash=e46678965c21fa93869ab77ac97602b58cb31e601c1d845bab824bc981ef2346")
+        # map_file_path = QUrl("https://quirky-mcnulty-f68aa7.netlify.app/")
+        # map_file_path = QUrl("http://3dmad.online.fr/WebGL/Library_Interactive_Map_Mtp/index.html")
+        # map_file_path = QUrl("https://cdn-factory.marketjs.com/en/epic-city-driver/index.html")
+        # map_file_path = QUrl("https://www.shangshouculture.com/")
+        # map_file_path = QUrl("https://www.productexample.com/unit21/index.html")
+        # map_file_path = QUrl("https://campusalbano.se/view/all")
+        # map_file_path = QUrl("https://www.babylonjs.com/Demos/Retail/")
+        # map_file_path = QUrl("https://www.babylonjs.com/Demos/WCafe/")
+        # map_file_path = os.path.join(os.getcwd(), "scripts", "map.html")
+        #
+        #
+        # print(map_file_path)
+        # map_url_string = QUrl.fromLocalFile(map_file_path)
+        # # map_url_string = map_file_path
+        # ai_home.page().load(map_url_string)
 
         # human home
         human_home = QWebEngineView()
@@ -307,14 +353,45 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         km_home.page().load(QUrl("http://www.ai-sns.org/index_km.html"))
 
         # plugin home
+
+        # 创建 QWebEngineView
         plugin_home = QWebEngineView()
+
+        # 使用自定义的 QWebEnginePage
+        # page = MyWebEnginePage()
+        # page =QWebEnginePage()
+        # page.featurePermissionRequested()
+        # if feature in [QWebEnginePage.MediaAudioCapture, QWebEnginePage.MediaVideoCapture]:
+        #     page.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionGrantedByUser)
+        # else:
+        #     super().featurePermissionRequested(securityOrigin, feature)
+        plugin_home.page().setFeaturePermission(QUrl("http://localhost:63342/PyTalk/pytalk/scripts/3d/girlmovementv9.html?_ijt=foevlg175ogidfhsh6tn3mgvj7"),QWebEnginePage.MediaAudioCapture, QWebEnginePage.PermissionGrantedByUser)
+        plugin_home.page().setFeaturePermission(QUrl("http://localhost:63342/PyTalk/pytalk/scripts/3d/girlmovementv9.html?_ijt=foevlg175ogidfhsh6tn3mgvj7"), QWebEnginePage.MediaVideoCapture, QWebEnginePage.PermissionGrantedByUser)
+
+        # plugin_home.setPage(page)
+
+        # page.load()
+        # 加载需要访问摄像头和麦克风的网页
+
+        plugin_home.page().load(QUrl("http://localhost:63342/PyTalk/pytalk/scripts/3d/girlmovementv13.html?_ijt=3ikf1scackr935rcre6b8jbqnj"))  # 确保这个URL是您用来测试的HTML页面
+        # plugin_home.page().load(QUrl("https://www.viseni.com/readyplayer_talk/"))  # 确保这个URL是您用来测试的HTML页面
+        # plugin_home.page().load(QUrl("http://localhost:63342/PyTalk/mapplane4.html?_ijt=b168oljjt31bnmb8bb10ido895"))  # 一直报错，运行一段时间整个应用都退出了确保这个URL是您用来测试的HTML页面
+        plugin_home.page().setFeaturePermission(QUrl("http://localhost:63342/PyTalk/pytalk/scripts/3d/girlmovementv9.html?_ijt=foevlg175ogidfhsh6tn3mgvj7"), QWebEnginePage.MediaAudioCapture, QWebEnginePage.PermissionGrantedByUser)
+        plugin_home.page().setFeaturePermission(QUrl("http://localhost:63342/PyTalk/pytalk/scripts/3d/girlmovementv9.html?_ijt=foevlg175ogidfhsh6tn3mgvj7"), QWebEnginePage.MediaVideoCapture, QWebEnginePage.PermissionGrantedByUser)
+
+        # plugin_home.show()
+
+
+        # plugin_home = QWebEngineView()
         self.plugin_home_frame = QtWidgets.QFrame(self)
         self.plugin_home_frame.setContentsMargins(0, 0, 0, 0)
         self.plugin_home_frame.setStyleSheet("QFrame { border: 1px solid #c0c0c0;margin:0,0,0,0;padding:0,0,0,0;border-radius: 8px;}")
         plugin_home_frame_layout = QtWidgets.QVBoxLayout(self.plugin_home_frame)
         plugin_home_frame_layout.addWidget(plugin_home)
-        plugin_home.page().load(QUrl("http://www.ai-sns.org/index_plugin.html"))
 
+        # map_file_path = QUrl("https://spotvirtual.com/@photon-4adbf52a4a823fbc/@office/@lounge")
+        # plugin_home.page().load(QUrl("http://www.ai-sns.org/index_plugin.html"))
+        # plugin_home.page().load(QUrl("https://spotvirtual.com/@photon-4adbf52a4a823fbc/@office/@lounge"))
         # self.dialogwidge2.setStyleSheet("QTextBrowser { padding: 2px; }")
         # self.dialogwidge2.setReadOnly(True)
 
@@ -365,6 +442,25 @@ class MainWindow(QMainWindow, Ui_MainWindow):
         #
         # self.conversation_pages.addWidget(self.dialogwidge)
         #
+
+        self.ai_home_frame=None
+
+        print("in createMap")
+        # if not self.dialog:
+        self.map_window_stack = QDialog()
+        self.map_window_stack.setWindowIcon(QIcon("images/mail.png"))
+
+        # self.msg = MessageBox(self.dialog, self.connectionThread, self.jid, self.name, self.ai_chat_cfg)
+        aicfg_record = query_AiChatCfg(is_delete=0)
+        self.map_message_box = MessageBox(self.map_window_stack, None, "chenchen@xabber.de", "chenchen", aicfg_record)
+        layout = QVBoxLayout(self.map_window_stack)
+        layout.addWidget(self.map_message_box)
+        self.map_window_stack.setLayout(layout)
+        # self.conversation_pages.addWidget(self.dialog)
+        # self.conversation_pages.setCurrentWidget(self.dialog)
+        self.ai_home_frame=self.map_window_stack
+
+
         self.conversation_pages.addWidget(self.dialogwidge2)
         self.conversation_pages.addWidget(self.agent_home_frame)
         self.conversation_pages.addWidget(self.ai_home_frame)
@@ -376,7 +472,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 
         self.hlayout.addWidget(self.conversation_pages)  # hlayout在ui_mainwindow.py中定义了
         self.cjr = "cjrok"
-
+        self.map_message_box.setConnection(self.map_connectorThread)###重点cjr重点，注意登录的时候有可能登录未完成
         # self.shortcut = QShortcut(QKeySequence('Ctrl+F'), self)
         # self.shortcut.activated.connect(self.toggle_search_box)
 
@@ -572,6 +668,100 @@ class MainWindow(QMainWindow, Ui_MainWindow):
             print(self.toolBox_AiChat.findChild(QWidget, user_id))
             print(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)))
             self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+
+    @pyqtSlot(str, str, str, str)  # 也可以没有这个
+    # @pyqtSlot(int)#不能用这个
+    def on_configured_ai_map(self, user_id, jid, password, status):
+        if status == "0":
+            img_url = 'images/earth.png'
+        elif status == "1":
+            img_url = 'images/earth.png'
+        else:
+            img_url = 'images/earth.png'
+
+        if user_id in self.connectorThread_list:
+            connectorThread = self.connectorThread_list[user_id]
+
+            if connectorThread.isConnected():
+                # 已经连接
+                if status == "1":
+                    self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+                    return
+                elif status == "2":
+                    self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+                    return
+                else:
+                    connectorThread.disconnect()
+                    buddyList = self.buddylist_list[user_id]
+                    buddyList.clear()
+                    buddyList.re_init()
+
+                    infoList = self.contactlist_list[user_id]
+                    infoList.clear()
+                    infoList.re_init()
+
+                    self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+            else:
+                # 未连接
+
+                if status == "1":
+                    buddyList = self.buddylist_list[user_id]
+                    buddyList.topLevelItem(0).setText(0, "等待登录加载中...")
+
+                    infoList = self.contactlist_list[user_id]
+                    infoList.topLevelItem(0).setText(0, "等待登录加载中...")
+
+                    connectorThread.start()
+
+                    infoList.load()
+                    self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+
+                elif status == "2":
+                    buddyList = self.buddylist_list[user_id]
+                    buddyList.topLevelItem(0).setText(0, "等待登录加载中...")
+
+                    infoList = self.contactlist_list[user_id]
+                    infoList.topLevelItem(0).setText(0, "等待登录加载中...")
+
+                    connectorThread.start()
+
+                    infoList.load()
+
+                    self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+
+                else:
+                    return
+
+            connectorThread.status = status
+        else:
+            if status == "0":
+                return
+            print("on_configured_ai")
+            print("user_id", user_id)
+            buddyList = self.buddylist_list[user_id]
+            infoList = self.contactlist_list[user_id]
+            buddyList.topLevelItem(0).setText(0, "等待登录加载中...")
+            infoList.topLevelItem(0).setText(0, "等待登录加载中...")
+            connectorThread = ConnectorThread(status, jid, password)
+            connectorThread.start()
+            connectorThread.message.connect(buddyList.message)
+            connectorThread.friend_subscribe_request.connect(infoList.get_friend_subscribe_request)
+            connectorThread.error.connect(self.error)
+            connectorThread.connected.connect(lambda: self.connected_ai(user_id))
+            connectorThread.addBuddySig.connect(self.addBuddy)
+            infoList.load()
+            self.connectorThread_list[user_id] = connectorThread
+            self.connectorThread = connectorThread
+            self.BuddyList = buddyList
+            self.InfoList = infoList
+
+            # 处理在线状态
+            # self.toolBox_AiChat.setItemText(self.toolBox_AiChat.findChild(QWidget,user_id), "Ai智能体管理")
+            print(self.toolBox_AiChat.findChild(QWidget, user_id))
+            print(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)))
+            self.toolBox_AiChat.setItemIcon(self.toolBox_AiChat.indexOf(self.toolBox_AiChat.findChild(QWidget, user_id)), QIcon(img_url))
+
+        self.map_connectorThread=connectorThread
 
     @pyqtSlot(str, str, str)  # 也可以没有这个
     # @pyqtSlot(int)#不能用这个
@@ -957,6 +1147,7 @@ if __name__ == "__main__":
     #
     # app.setStyle('Windows')
     qtmodern.styles.light(app)  # qtmodern dark or light
+    # qtmodern.styles.dark(app)
     # mw = qtmodern.windows.ModernWindow(window)  # qtmodern
     mw = CustomModernWindow(window)
 
@@ -972,10 +1163,14 @@ if __name__ == "__main__":
     mw.setWindowIcon(QIcon("C:\\dev\\ai-sns\\PyTalk\\pytalk\\images\\aisns.png"))
     app.setWindowIcon(QIcon("C:\\dev\\ai-sns\\PyTalk\\pytalk\\images\\aisns.png"))
 
-    __eb = ExplanationBalloon(window.toolBox_Workflow, 300.0, 200.0, 'This is explanation balloon made out of PyQt')
-    __eb.setFont(QFont('Arial', 14))
-    __eb.setBackgroundColor(QColor(50, 50, 50, 255))
-    __eb.show()
+
+    #向导气泡
+    # __eb = ExplanationBalloon(window.toolBox_Workflow, 300.0, 200.0, 'This is explanation balloon made out of PyQt')
+    # __eb.setFont(QFont('Arial', 14))
+    # __eb.setBackgroundColor(QColor(50, 50, 50, 255))
+    # __eb.show()
+
+
     # app.setStyle('Fusion')
     # window.showMaximized()
     sys.exit(app.exec_())

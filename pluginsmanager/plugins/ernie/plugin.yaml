@@ -1,5 +1,5 @@
-name: 'ChatGLM在线连接器'
-alias: 'ChatGLM在线连接器'
+name: 'ChatGLM在线'
+alias: 'ChatGLM在线'
 plugin_type: 'LLM_Connector'
 creator: 'Photon'
 runtime:
@@ -9,6 +9,7 @@ runtime:
 repository: 'https://github.com/Photon/plugin-connector-llm-jiuzhou-yfd-chatglm'
 description: '用来连接ChatGLM在线模型'
 version: '1.0.0'
+model_type: 'ERNIE-Tiny-8K, ERNIE-Lite-8K, ERNIE-Speed-8K, ERNIE-Speed-128k, ERNIE-3.5-8K, ERNIE-3.5-128K, ERNIE-4.0-8K'
 requirements:
   - name: 'PyYAML'
     version: '5.3.1'

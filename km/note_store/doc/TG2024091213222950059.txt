@@ -7,16 +7,20 @@ https://mp.weixin.qq.com/s/mjUQaluHFAlm2scY06ipdA
 3.在线发布web系统
 https://vercel.com/pricing
 
+在线手册，文档发布：MkDocs
+User Interface - Modern XMPP
+设计规范
+
 Set up a modern web app by running one command.
 https://github.com/facebook/create-react-app
 
 在线制作图书
-少儿蓝球培训班招生宣传册 (flbook.com.cn)
+少儿蓝球培训班招生宣传册 (flbook.com.cn) 
 ￼
 
 Editing symbols and icons in iOS 17 Outlined Style, PNG, SVG (icons8.com)
 https://icons8.com/icon/set/editing/ios
-
+ 
 录屏软件参考
 https://haokan.baidu.com/v?pd=wisenatural&vid=11493966705463660484
 QQ录屏
@@ -33,3 +37,134 @@ InterwovenCode/ScreenPinKit: A mini screenshot and annotation tool that incorpor
 wkentaro/labelme: Image Polygonal Annotation with Python (polygon, rectangle, circle, line, point and image-level flag annotation). (github.com)
 https://www.alibabafonts.com/#/font
 alibaba免费字体
+
+ ppt生成
+ veasion/aippt: AI 智能生成 PPT，通过主题/文件/网址等方式生成PPT，支持原生图表、动画、3D特效等复杂PPT的解析和渲染，支持用户自定义模板，支持智能添加动画，可在线体验。AI generates PowerPoint Presentation, Supports parsing and rendering of complex PPT features such as native charts, animations, and 3D effects. (github.com)
+https://docmee.cn/open-platform/authentication
+￼
+veasion/aippt-vue: Vue3 接入文多多AiPPT，通过主题/文件/网址等方式生成PPT，支持原生图表、动画、3D特效等复杂PPT的解析和渲染，支持用户自定义模板，支持智能添加动画。AI generates PowerPoint Presentation, Supports parsing and rendering of complex PPT features such as native charts, animations, and 3D effects. (github.com)	
+https://github.com/veasion/aippt-api-python-demo			
+
+￼
+ip定位：https://lbsyun.baidu.com/faq/api?title=webapi/ip-api-base
+gif创建：https://ezgif.com/
+https://sketch.metademolab.com/ 动画
+https://medium.com/ 博客
+免费图床
+https://imgbb.com/
+
+cdn
+https://cdnjs.cloudflare.com/
+https://cdnjs.com/
+下面就以jsDelivr+Github 实现免费cdn加速为例，记录自己优化过程。
+https://zhuanlan.zhihu.com/p/346643522
+https://ilaozhu.com/archives/2062/#google_vignette
+
+https://cdn.jsdelivr.net/gh/photonchen/photonchen.github.io/airplane.glb 
+https://cdn.jsdelivr.net/gh/photonchen/photonchen.github.io@0.5.0/airplane.glb
+https://cdn.jsdelivr.net/gh/photonchen/photonchen.github.io@0.6.0/airplane.glb 
+cdn.jsdelivr.net无法访问的解决方法
+https://blog.csdn.net/u012899618/article/details/124949363
+	
+将cdn.jsdelivr.net域名替换为fastly.jsdelivr.net或者gcore.jsdelivr.net
+
+例如：https://cdn.jsdelivr.net/npm/tinymce-all-in-one@4.9.3/tinymce.min.js
+替换为：
+https://fastly.jsdelivr.net/npm/tinymce-all-in-one@4.9.3/tinymce.min.js
+https://gcore.jsdelivr.net/npm/tinymce-all-in-one@4.9.3/tinymce.min.js
+https://zhuanlan.zhihu.com/p/393779644  ********************	
+https://ilaozhu.com/archives/2063/#google_vignette
+https://www.tamsiree.com/%E9%9A%8F%E6%89%8B%E8%AE%B0/%E5%A5%BD%E7%94%A8%E7%9A%84CDN%E4%B9%8BjsDelivr/#githack
+
+办公室里行走
+https://blog.csdn.net/u014529917/article/details/106610955
+http://111.231.31.134/evolvision/examples/tpwalking.html
+
+游戏操作
+https://blog.csdn.net/qq_30100043/article/details/81844947?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-8-81844947-blog-129841892.235^v43^pc_blog_bottom_relevance_base7&spm=1001.2101.3001.4242.5&utm_relevant_index=11
+https://johnson2heng.github.io/GitChat-Three.js/16%20%E7%AE%80%E5%8D%95%E6%A1%88%E4%BE%8B/demo.html
+
+电子书
+http://zhangwenli.com/ThreeExample.js/
+threejs重点参考***************
+https://z2586300277.github.io/three-editor/dist/#/editor
+https://z2586300277.github.io/three-cesium-examples/#/example
+https://z2586300277.github.io/three-cesium-examples/#/codeMirror?navigation=ThreeJS&classify=animation&id=personAnimation
+智慧城市：在线编辑
+https://jiawanlong.github.io/examples/cesiumEx/editor.html#0
+https://z2586300277.github.io/three-editor/dist/#/editor
+https://github.com/wolfwind521/indoor3D
+跑步的人
+https://www.youtube.com/watch?v=C3s0UHpwlf8
+
+https://threejs.org/examples/#webgpu_animation_retargeting
+骨骼动画
+https://www.youtube.com/watch?v=EkPfhzIbp2g
+mixamo
+数字人 骨骼动画
+
+Mixamo 
+https://www.mixamo.com/
+
+开发一个rpg游戏
+https://www.youtube.com/watch?v=SBfZAVzbhCg
+https://github.com/simondevyoutube/Quick_3D_RPG
+https://www.youtube.com/watch?v=3DMZETkPieI
+
+https://www.youtube.com/watch?v=egQFAeu6Ihw
+数字人 捏数字人
+readyplayer.me
+https://demo.readyplayer.me/avatar?id=675fd1d74e9d591d3885e975
+https://models.readyplayer.me/675fd1d74e9d591d3885e975.glb   在线引用？？？
+数字人
+ReadyPlayerMe -- Talking Animation (viseni.com)
+ReadyPlayerMe Avatar -- Talking Animation (Morph Targets) - Tutorials and tips - Babylon.js (babylonjs.com)
+https://forum.babylonjs.com/t/readyplayerme-avatar-talking-animation-morph-targets/42387
+https://forum.babylonjs.com/t/readyplayerme-avatar-talking-animation-morph-targets/42387
+crazyramirez/readyplayer-talk: Babylon JS & ReadyPlayerMe -- Demo Talking Animation (github.com)
+crazyramirez/readyplayer-talk: Babylon JS & ReadyPlayerMe -- Demo Talking Animation (github.com)
+https://github.com/crazyramirez/readyplayer-talk
+数字人系列二：ReadyPlayerMe网站生成的数字人导入Unity环境使用_unity 根据图片生成数字人-CSDN博客
+https://blog.csdn.net/u011785316/article/details/131849694
+面部动画不可能 - 一般 - Ready Player Me 开发者论坛 --- Facial animation impossible - General - Ready Player Me Developer ForumsUnity 上的面部动画 - Unity - Ready Player Me 开发者论坛 --- Facial animation on Unity - Unity - Ready Player Me Developer Forums
+unity + ready player me + oculus lipsync 实现数字人说话对应口型 手把手 保姆教程-CSDN博客
+融资5600万美金的Ready Player Me为何能吸引3000家企业合作？|区块链|虚拟形象|虚拟世界|unity_网易订阅 (163.com)
+数字人系列二：ReadyPlayerMe网站生成的数字人导入Unity环境使用_unity 根据图片生成数字人-CSDN博客
+ CC4角色如何导出glb格式，可以嵌入网页 - YouTube
+ Character Creator (CC4) to Blender to GLB for AR - YouTube
+Character Creator 4 export to GLB & GLTF with Blender | CC4 Pipeline Tutorial | Blender - YouTube
+threejs导出glb模型_threejs 导出glb文件-CSDN博客
+Blender最简单的方法让角色开口说话姿态资产的应用提高动画效率动画教程part19_哔哩哔哩_bilibili  
+【Blender】三渲二动漫嘴的使用和制作教程_哔哩哔哩_bilibili
+blender自动口型动画_哔哩哔哩_bilibili
+【Blender|精翻中字】无需绑定！使用blender制作二次元风格化面部动画_哔哩哔哩_bilibili
+告别繁琐！轻松制作流畅的嘴型动画 | Blender_哔哩哔哩_bilibili
+blender·骨骼控制切换卡通表情教程_哔哩哔哩_bilibili
+【中字】Blender Faceit面部绑定插件教学（下）_哔哩哔哩_bilibili
+https://www.youtube.com/watch?v=EzzcEL_1o9o
+https://www.youtube.com/watch?v=EzzcEL_1o9o重点
+https://www.youtube.com/watch?v=yjpGVIe_Gy8
+
+https://www.fab.com/
+How to Create an Interactive 3D Character with Three.js
+https://tympanus.net/codrops/2019/10/14/how-to-create-an-interactive-3d-character-with-three-js/
+在blender如何给人体模型绑定骨架控制行动，下蹲
+https://jingyan.baidu.com/article/f3e34a128fb3adb4eb6535e3.html
+https://github.com/microsoft/markitdown
+https://letslook.net/super/deploy    qq帐号登录ps:psko     目前在用 至：20250122
+查看glb文件中的动画
+glTF Viewer (donmccurdy.com)
+Babylon.js - player.glb (babylonjs.com)
+
+Custom 3D Facial Expression | Character Creator (reallusion.com)
+
+公仔动画系列 说话 开口 模型 嘴巴 脸部动画
+https://sketchfab.com/sakuramoto/collections/roleplay-79296dcc1b3b41a3954897e6d5bd071c
+https://sketchfab.com/3d-models/zelensky-hero-0a7af1a6b9b3457b9f21f19f79487457   walk and say
+
+脸部动画：https://www.fab.com/listings/aa3f86bd-7e26-4b7e-9c1b-9b65ea7e8174
+
+
+天空盒
+Resting Place HDRI • Poly Haven
+https://www.tripo3d.ai/ 图片生成3d

@@ -22,11 +22,14 @@ from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg
 class TaskListLabel(TaskList):
     def __init__(self, parent, agent):
         # 首先调用父类的初始化方法
+
         super(TaskListLabel, self).__init__(parent, agent)
+        self.setHeaderLabel("标签列表")  # 需要设置此处的值，否则缺省值为1
 
     # --> 加载 数据
     def load_data(self):
         # 用于存储已经创建的分类项
+
         labels = {}
         self.tasklist = query_AgentTask(label=True,is_first=True, agent_id=self.agent_cfg.user_id)
         # 遍历联系人，按label分类
@@ -60,7 +63,7 @@ class TaskListLabel(TaskList):
     def reload(self, key_word):
         self.clear()
 
-        self.setHeaderLabel("对话列表")  # 需要设置此处的值，否则缺省值为1
+        self.setHeaderLabel("标签列表")  # 需要设置此处的值，否则缺省值为1
         self.buddies = {}
         self.groups = {}
         self.tree = {}

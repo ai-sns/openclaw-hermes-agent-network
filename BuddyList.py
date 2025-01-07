@@ -13,13 +13,14 @@ from db.DBFactory import query_AiChatCfg_Search_Content
 class BuddyList(QTreeWidget):
     """BuddyList implements the view in a Tree of the Roster"""
     rename_signal = pyqtSignal(object)
-    def __init__(self, parent,ai_chat_cfg):
+    def __init__(self, parent,ai_chat_cfg,chat_type="0"):
 
         super(BuddyList, self).__init__(parent)
         print("buddylist parent",parent)
         self.connection = None
         self.mainwindow=parent
         self.ai_chat_cfg = ai_chat_cfg
+        self.chat_type = chat_type#chat_type 0是普通聊天，1是地图聊天
 
         #
         #
@@ -87,7 +88,7 @@ class BuddyList(QTreeWidget):
             group = self.connection.getGroups(jid)[0]
             self.addGroup(group)
             if jid not in self.buddies.keys():
-                self.buddies[jid] = BuddyItem(self.groups[group], jid, self.connection,self.mainwindow,self.ai_chat_cfg)
+                self.buddies[jid] = BuddyItem(self.groups[group], jid, self.connection,self.mainwindow,self.ai_chat_cfg,self.chat_type)
                 self.buddies[jid].setName(self.connection.getName(jid))
                 print("the jid:",jid)
                 # self.buddies[jid].setObjectName(jid)

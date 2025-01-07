@@ -3,7 +3,7 @@ description: ''
 max_tokens: 400
 model: 函数管理器
 parameters: ''
-plugin_name: "函数管理器: 1.0.0"
+plugin_name: "函数管理器"
 secret_id: AKIDsz7ObuAWo298yw3nW2aDvfN8630440Ro
 secret_key: UsFbJpPw549LCtjVONKITl1462tbCtY9
 stream: true

@@ -15,8 +15,8 @@ from TaskPage import TaskPage
 from userinputdialog import UserInputDialog
 from util import generate_random_id, add_msg_to_message_window, get_user_ask_msg_title_formatted, \
     get_user_ask_msg_content_formatted, get_agent_reply_msg_title_formatted, get_agent_reply_msg_content_formatted, \
-    add_agent_reply_msg_to_message_window,add_msg_to_message_windowv2, add_msg_to_message_window_with_markdown_and_highlight, add_msg_to_message_window_with_markdown_and_highlightv2, \
-    get_content_from_attachment_content_list, add_attachment_to_message_window
+    add_agent_reply_msg_to_message_window, add_msg_to_message_windowv2, add_msg_to_message_window_with_markdown_and_highlight, add_msg_to_message_window_with_markdown_and_highlightv2, \
+    get_content_from_attachment_content_list, add_attachment_to_message_window, add_msg_to_message_windowv3
 
 
 class TaskList(QTreeWidget):
@@ -45,7 +45,8 @@ class TaskList(QTreeWidget):
         self.tree = {}
 
         # 创建一个图标
-        self.stick_icon = QIcon(QPixmap('images/start.png'))  # --> 增加一个置顶图标
+        self.stick_icon = QIcon(QPixmap('images/star.png')) # --> 增加一个置顶图标
+
 
         self.load_pop_menu()
 
@@ -81,7 +82,7 @@ class TaskList(QTreeWidget):
         # self.menu.addAction(QIcon("images/infos.png"), "信息", self.delete_item)
 
         self.customContextMenuRequested.connect(self.context)
-        self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
+        # self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
 
     # --> 加载 数据
     def load_data(self):
@@ -120,7 +121,7 @@ class TaskList(QTreeWidget):
         if self.verticalScrollBar().value() == self.verticalScrollBar().maximum():
             print("Reached bottom!")
 
-    def addItem(self, name, id, is_top=False, icon=False):
+    def addItembak(self, name, id, is_top=False, icon=False):
         item_count = self.topLevelItemCount()
 
         if item_count == 0:
@@ -146,6 +147,55 @@ class TaskList(QTreeWidget):
         top_item.setTextAlignment(0, 0)
 
         self.expandAll()
+
+    def addItem(self, name, id, is_top=False, icon=False,select_new_item=False):
+        item_count = self.topLevelItemCount()
+
+        if item_count == 0:
+            group_item = QTreeWidgetItem(self)
+            group_item.setText(0, "所有")
+        else:
+            group_item = self.topLevelItem(0)
+        # print("adding item:",name)
+
+        # top_item = QTreeWidgetItem(group_item)#不要这样构造，这样排序会缺省按字符排序，排序乱了
+        top_item = QTreeWidgetItem()
+        top_item.setText(0, name[0:50])
+        if icon == True:
+            top_item.setIcon(0, self.stick_icon)  # 设置第一列的图标
+        top_item.setToolTip(0, name)
+        top_item.setData(0, Qt.UserRole, id)  # Qt.UserRole, id)
+        if is_top == False:
+            # print("not top")
+            group_item.addChild(top_item)
+        else:
+            print("im toppppppppp....")
+            insert_index = 0
+            insert_index = self._findInsertPosition(group_item)
+            group_item.insertChild(insert_index, top_item)
+        top_item.setTextAlignment(0, 0)
+        # 选中刚添加的项
+        if select_new_item:
+            self.setCurrentItem(top_item)
+
+        self.expandAll()
+
+    def _findInsertPosition(self, group_item):
+        """
+        Finds the appropriate insert position for a non-top item to be placed after
+        all items with an icon.
+
+        Args:
+            group_item (QTreeWidgetItem): The group item to search within.
+
+        Returns:
+            int: The index to insert the new item after all icon items.
+        """
+        for index in range(group_item.childCount()):
+            child = group_item.child(index)
+            if child.icon(0).isNull():  # Check if the child does not have an icon
+                return index
+        return group_item.childCount()  # Default to appending if all items have icons
 
     def context(self, pos):
         item = self.itemAt(pos)
@@ -193,7 +243,7 @@ class TaskList(QTreeWidget):
                 oldName = ""
             # newName, ok = QInputDialog.getText(self, "加标签", "新标签:", text=oldName)
             window_title = '加标签'
-            label_txt = '新标签:'
+            label_txt = '添加或选择(去除标签,赋空值即可)'
             comb_val = query_AgentTask_ByLabel(agent_id=self.agent_cfg.user_id)
             dialog = UserInputDialog(window_title, label_txt, comb_val,oldName)
 
@@ -201,8 +251,11 @@ class TaskList(QTreeWidget):
             def handle_user_selection(selection):
                 print(f'主程序接收到用户选择: {selection}')
                 # 可以在这里添加更多处理逻辑
+                # if selection:
                 if selection:
                     update_AgentTask(id_value, label=selection)
+                else:
+                    update_AgentTask(id_value, label=None)
             dialog.user_selected.connect(handle_user_selection)
             # 以模态方式显示对话框
             if dialog.exec_() == QDialog.Accepted:
@@ -213,6 +266,10 @@ class TaskList(QTreeWidget):
             #     update_AgentTask(id_value, label=newName)
         else:
             QMessageBox.critical(None, "警告", "分类名不能加标签", QMessageBox.Ok)
+
+
+        labelList = self.mainwindow.labellist_list[self.agent_cfg.user_id]
+        labelList.reload("")
 
     def search(self, key_word):
         print("tasklist searching", key_word)
@@ -227,7 +284,6 @@ class TaskList(QTreeWidget):
         self.tree = {}
 
         self.load_pop_menu()
-        self.itemDoubleClicked.connect(self.on_itemDoubleClicked)
 
         if key_word.startswith('+++'):
             # 获取上一次的搜索结果并过滤
@@ -372,8 +428,11 @@ class TaskList(QTreeWidget):
             task_id = records[0].task_id
             for record in records:
                 problem = self.get_record_problem_for_message(record)
-                taskpage.messages.append({"role": "user", "content": problem})
-                taskpage.messages.append({"role": "assistant", "content": record.answer})
+                question_div_id = "id_" + str(record.id) + "_a"
+                answer_div_id = "id_" + str(record.id) + "_r"
+                taskpage.messages_mng.append_message(question_div_id,{"role":
+                                                                   "user", "content": problem})
+                taskpage.messages_mng.append_message(answer_div_id,{"role": "assistant", "content": record.answer})
 
         taskpage.task_id = task_id
         taskpage.is_first = False
@@ -435,7 +494,7 @@ class TaskList(QTreeWidget):
 
             # add_msg_to_message_window_and_format(browser_page, question, 2)
             message = get_user_ask_msg_content_formatted(question)
-            add_msg_to_message_windowv2(browser_page, message, 2)
+            add_msg_to_message_windowv3(browser_page, message, 2)
 
             directory_path = os.path.join('resource', 'attachment', 'chat', record.task_id)
             if record.attachment_list:
@@ -445,7 +504,7 @@ class TaskList(QTreeWidget):
                     add_attachment_to_message_window(browser_page, directory_path, filtered_attachments, 2)
 
         if record.answer:
-            message = get_agent_reply_msg_title_formatted(model_name, page_index + 1, create_time, False, record_id=record.id)
+            message = get_agent_reply_msg_title_formatted(f"{self.agent_cfg.name}: Powered by {model_name}", page_index + 1, create_time, False, record_id=record.id)
             add_msg_to_message_windowv2(browser_page, message, 1)
 
             if question.startswith("给我画"):

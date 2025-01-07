@@ -1,9 +1,11 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QVBoxLayout, QTableWidget, \
-    QTableWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QHeaderView, QMessageBox, QFormLayout, QComboBox
-from PyQt5.QtCore import Qt
-from db.DBFactory import Session, Prompt, query_PluginMng_All
 
+from PyQt5.QtGui import QStandardItem, QStandardItemModel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog, QVBoxLayout, QTableWidget, \
+    QTableWidgetItem, QTextEdit, QLineEdit, QHBoxLayout, QHeaderView, QMessageBox, QFormLayout, QComboBox, QToolTip
+from PyQt5.QtCore import Qt, QPoint, QTimer
+from db.DBFactory import Session, Prompt, query_PluginMng_All,get_prompt_frequent_by_agent_id,query_single_prompt_frequent,add_prompt_frequent
+from frequentpromptmng import FreezeTableDialog as FrequentFreezeTableDialog
 
 class PromptDialog(QDialog):
     def __init__(self, session, prompt=None):
@@ -19,10 +21,10 @@ class PromptDialog(QDialog):
         layout = QFormLayout()
 
         self.title_field = QLineEdit()
-        layout.addRow("角色名称:", self.title_field)
+        layout.addRow("*角色名称:", self.title_field)
 
         self.content_field = QTextEdit()
-        layout.addRow("角色描述:", self.content_field)
+        layout.addRow("*角色描述:", self.content_field)
 
         self.question_field = QTextEdit()
         layout.addRow("对话模板:", self.question_field)
@@ -73,8 +75,12 @@ class PromptDialog(QDialog):
         tags = self.tags_field.text()
         model_name =  self.model_field.currentText()
 
-        if not title or not content or not question or not tags:
-            QMessageBox.warning(self, "警告", "所有字段都是必填的")
+        if not title:
+            QMessageBox.warning(self, "警告", "角色名称必填")
+            return
+
+        if not content:
+            QMessageBox.warning(self, "警告", "角色描述必填")
             return
 
         if self.prompt:
@@ -92,9 +98,9 @@ class PromptDialog(QDialog):
 
 
 class PromptManager(QDialog):
-    def __init__(self, main_window,model_name=""):
+    def __init__(self, taskpage, model_name=""):
         super().__init__()
-        self.main_window = main_window
+        self.taskpage = taskpage
         self.model_name = model_name
         print("model_name-->", self.model_name)
         self.setWindowTitle("管理提示词")
@@ -113,8 +119,9 @@ class PromptManager(QDialog):
         # Table
         self.table = QTableWidget()
         self.table.setFixedWidth(window_width)
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(['角色名称', '角色描述', '对话模板(右击问答界面的管理按钮可置入模板)', '标签', '模型'])
+        self.table.setColumnCount(6)
+        self.table.setHorizontalHeaderLabels(['角色名称', '角色描述', '对话模板', '标签', '模型','ID'])
+        self.table.setColumnHidden(5,True)
         # 设置选择行为为选中整行
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)  # 不允许编辑
@@ -131,6 +138,7 @@ class PromptManager(QDialog):
         self.table.setColumnWidth(2, int(window_width * 0.30))  # 第三列30%
         self.table.setColumnWidth(3, int(window_width * 0.15))  # 第四列15%
         self.table.setColumnWidth(4, int(window_width * 0.10))  # 第四列10%
+        self.table.setColumnWidth(5, int(window_width * 0.01))  # 第五列隐藏
         # Setting stretch for the last section to fill remaining space
         self.table.horizontalHeader().setStretchLastSection(True)
 
@@ -142,7 +150,9 @@ class PromptManager(QDialog):
         self.add_btn = QPushButton("增加")
         self.modify_btn = QPushButton("修改")
         self.delete_btn = QPushButton("删除")
-        self.template_btn = QPushButton("使用模板")  # 新增按钮
+        self.template_btn = QPushButton("使用角色")
+        self.add_frequent_btn = QPushButton("设为常用")
+        self.show_frequent_btn = QPushButton("常用列表")
         # 关闭按钮
         self.close_btn = QPushButton("关闭")
         self.close_btn.clicked.connect(self.reject)  # 连接点击事件到关闭函数
@@ -150,6 +160,8 @@ class PromptManager(QDialog):
         btn_layout.addWidget(self.modify_btn)
         btn_layout.addWidget(self.delete_btn)
         btn_layout.addWidget(self.template_btn)  # 添加按钮到布局
+        btn_layout.addWidget(self.add_frequent_btn)  # 添加按钮到布局
+        btn_layout.addWidget(self.show_frequent_btn)  # 添加按钮到布局
         btn_layout.addWidget(self.close_btn)  # 添加按钮到布局
         layout.addLayout(btn_layout)
 
@@ -159,15 +171,84 @@ class PromptManager(QDialog):
         self.modify_btn.clicked.connect(self.modify_prompt)
         self.delete_btn.clicked.connect(self.delete_prompt)
         self.template_btn.clicked.connect(self.use_template)  # 连接新按钮的槽函数
+        self.add_frequent_btn.clicked.connect(self.add_frequent)  # 连接新按钮的槽函数
+        self.show_frequent_btn.clicked.connect(self.show_frequent)  # 连接新按钮的槽函数
 
-        self.refresh_table()
+        self.refresh_table()#加载数据
 
-    def use_template(self):
+    def show_frequent(self):
+
+        model = QStandardItemModel()
+        records = get_prompt_frequent_by_agent_id(self.taskpage.agent_cfg.user_id)
+        header = ["显示", "id", "标题", "内容", "标签"]
+        model.setHorizontalHeaderLabels(header)
+        row = 0
+        for record in records:
+            checkbox_item = QStandardItem()
+            checkbox_item.setCheckable(True)
+            model.setItem(row, 0, checkbox_item)
+
+            newItem = QStandardItem(str(record["id"]))#注意不能使用数字，否则后面会取不到值
+            newItem.setFlags(newItem.flags() & ~Qt.ItemIsEditable)  # Make items non-editable
+            model.setItem(row, 1, newItem)
+
+            newItem = QStandardItem(record["title"])
+            newItem.setFlags(newItem.flags() & ~Qt.ItemIsEditable)  # Make items non-editable
+            model.setItem(row, 2, newItem)
+
+            newItem2 = QStandardItem(record["content"])
+            newItem2.setFlags(newItem2.flags() & ~Qt.ItemIsEditable)  # Make items non-editable
+            model.setItem(row, 3, newItem2)
+
+            newItem3 = QStandardItem(record["tags"])
+            newItem3.setFlags(newItem3.flags() & ~Qt.ItemIsEditable)  # Make items non-editable
+            model.setItem(row, 4, newItem3)
+
+            row += 1
+
+        dialog = FrequentFreezeTableDialog(model, self)
+        dialog.exec_()
+
+
+
+    def show_tooltip(self,t_object,tooltip_text,seconds=2):
+
+        tooltip_position = t_object.mapToGlobal(t_object.rect().bottomLeft())
+        QToolTip.showText(tooltip_position, tooltip_text)
+
+        # 使用定时器在 2 秒后自动隐藏气泡
+        QTimer.singleShot(seconds, QToolTip.hideText)
+
+    def add_frequent(self,specify_value=""):
         selected_row = self.table.currentRow()
         if selected_row != -1:
+            prompt_id = self.table.item(selected_row, 5).text()
+            agent_id = self.taskpage.agent_cfg.user_id
+            prompt_frequent = query_single_prompt_frequent(prompt_id=int(prompt_id),belong_to_agent_id=agent_id)
+            if not prompt_frequent:#如果没有加入
+                add_prompt_frequent(prompt_id=int(prompt_id),position=999,belong_to_agent_id=agent_id)
+                if specify_value:
+                    self.taskpage.update_prompts_in_combobox(False,specify_value)#是否初始化缺省是false，指定了要使用的角色
+                else:
+                    self.taskpage.update_prompts_in_combobox()
+                self.show_tooltip(self.add_frequent_btn,"设置成功")
+            else:
+                self.show_tooltip(self.add_frequent_btn, "已在列表中")
+                if specify_value:
+                    self.taskpage.update_prompts_in_combobox(False,specify_value)#是否初始化缺省是false，指定了要使用的角色
+        else:
+            QMessageBox.warning(self, "警告", "请先选择一条提示词")
+
+    def use_template(self):
+
+        selected_row = self.table.currentRow()
+        if selected_row != -1:
+            prompt_id = self.table.item(selected_row, 5).text()
+            specify_value = prompt_id
+            self.add_frequent(specify_value)
             template_content = self.table.item(selected_row, 2).text()  # 获取对话模板内容
             self.accept()  # 关闭窗口
-            self.main_window.receive_template(template_content)  # 返回内容给主窗口
+            self.taskpage.receive_template(template_content)  # 返回内容给主窗口
         else:
             QMessageBox.warning(self, "警告", "请先选择一条提示词")
 
@@ -188,10 +269,11 @@ class PromptManager(QDialog):
             self.table.setItem(row, 2, QTableWidgetItem(prompt.question))
             self.table.setItem(row, 3, QTableWidgetItem(prompt.tags))
             self.table.setItem(row, 4, QTableWidgetItem(prompt.model_name))
+            self.table.setItem(row, 5, QTableWidgetItem(str(prompt.id)))
 
         session.close()
         try:
-            self.main_window.update_prompts_in_combobox()
+            self.taskpage.update_prompts_in_combobox()
         except Exception as e:
             print(str(e))
 
@@ -241,6 +323,7 @@ class PromptManager(QDialog):
             self.table.setItem(row, 2, QTableWidgetItem(prompt.question))
             self.table.setItem(row, 3, QTableWidgetItem(prompt.tags))
             self.table.setItem(row, 4, QTableWidgetItem(prompt.model_name ))
+            self.table.setItem(row, 5, QTableWidgetItem(str(prompt.id)))
 
         session.close()
 

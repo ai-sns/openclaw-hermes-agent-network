@@ -44,7 +44,7 @@ class OpenAIConnectionDialog(QDialog, ui_OpenAIConnectionDialog):
 
     def saveSettings(self):
         config = {
-            "plugin_name": "MiniMax连接器: 1.0.0",
+            "plugin_name": "MiniMax",
             "url": self.url_edit.text(),
             "api_key": self.api_key_edit.text(),
             "model": self.model_combobox.currentText(),

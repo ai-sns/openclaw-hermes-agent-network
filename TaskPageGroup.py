@@ -29,8 +29,8 @@ from PyQt5 import QtWidgets, QtGui, QtCore
 sys.path.append("..")
 sys.path.append("../..")
 from kmselect import FreezeTableDialog as KmFreezeTableDialog
-from pluginselect import FreezeTableDialog as PluginFreezeTableDialog, ComboBoxDelegate, ButtonDelegate
-from pluginselect import FreezeTableDialog as PluginFreezeTableDialog
+from pluginselect_llm import FreezeTableDialog as PluginFreezeTableDialog, ComboBoxDelegate, ButtonDelegate
+from pluginselect_llm import FreezeTableDialog as PluginFreezeTableDialog
 from db.DBFactory import add_KMCfg, query_KMCfg_All, update_KMCfg, delete_KMCfg, query_KMCfg
 from db.DBFactory import add_PluginMng, query_PluginMng_All, update_PluginMng, delete_PluginMng, query_PluginMng
 from db.DBFactory import add_AgentTaskMulti
@@ -462,7 +462,7 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
                 # modelname = self.pluginselectedList[0]
 
             else:
-                pluginname = "ChatGLM连接器: 1.0.0"
+                pluginname = "ChatGLM"
                 # modelname = "ChatGLM"
 
             if len(self.kmselectedList) > 0:
@@ -474,14 +474,14 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
                 embedding_model_name = ""
 
             agent = self.Agent
-            agent.give_it_plugin(pluginname)
+            agent.give_it_llm(pluginname)
             agent.give_it_km(vector_path, embedding_model_name)
 
             modelname = agent.name
 
-            pluginname = "百川连接器: 1.0.0"
+            pluginname = "百川"
             agent_musk = self.Agent_Musk
-            agent_musk.give_it_plugin(pluginname)
+            agent_musk.give_it_llm(pluginname)
             agent_musk.give_it_km(vector_path, embedding_model_name)
 
             # agent_list_to_run_task = {}
@@ -526,7 +526,7 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
                 # modelname = self.pluginselectedList[0]
 
             else:
-                pluginname = "ChatGLM连接器: 1.0.0"
+                pluginname = "ChatGLM"
                 # modelname = "ChatGLM"
 
             if len(self.kmselectedList) > 0:
@@ -538,14 +538,14 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
                 embedding_model_name = ""
 
             agent = self.Agent
-            agent.give_it_plugin(pluginname)
+            agent.give_it_llm(pluginname)
             agent.give_it_km(vector_path, embedding_model_name)
 
             modelname = agent.name
 
-            pluginname = "百川连接器: 1.0.0"
+            pluginname = "百川"
             agent_musk = self.Agent_Musk
-            agent_musk.give_it_plugin(pluginname)
+            agent_musk.give_it_llm(pluginname)
             agent_musk.give_it_km(vector_path, embedding_model_name)
 
             # agent_list_to_run_task = {}
@@ -835,7 +835,7 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
 
                 modelname = self.pluginselectedList[0]
             else:
-                pluginname = "ChatGLM连接器: 1.0.0"
+                pluginname = "ChatGLM"
                 modelname = "ChatGLM"
 
             promptstr = ""
@@ -851,13 +851,13 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
             talk_template_common = f'请根据后面提供的背景内容回答问题，回答只能限制在背景内容的范围内，问题是：{question};供参考的背景内容是：{back_ground_knowledge}'
 
             agent = self.Agent
-            agent.give_it_plugin(pluginname)
+            agent.give_it_llm(pluginname)
             agent.give_it_km(vector_path, embedding_model_name)
             content = agent.ask_it(question)
             modelname = agent.name
 
             agent_musk = self.Agent_Musk
-            agent_musk.give_it_plugin(pluginname)
+            agent_musk.give_it_llm(pluginname)
             agent_musk.give_it_km(vector_path, embedding_model_name)
             content_musk = agent_musk.ask_it(question)
 
@@ -1083,98 +1083,6 @@ class TaskPageGroup(QWidget, Ui_TaskPageWidget):
 
         self.add_attachment_area(files)
 
-    def opendialogpluginbak(self):
-        pluginselectedList = self.pluginselectedList
-        selected_items = []
-        unselected_items = []
-
-        agents = query_PluginMng_All(is_delete=0)
-        model = QStandardItemModel()
-        header = ["", "plugin_id", "名称", "简称", "型号", "版本", "功能描述", "操作"]
-        model.setHorizontalHeaderLabels(header)
-
-        def create_item(text, editable=False):
-            item = QStandardItem(text)
-            if not editable:
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-            return item
-
-        agent_dict = {f"{agent.name}: {agent.version}": agent for agent in agents}
-
-        # Process selected items first according to the order in pluginselectedList
-        for selected in pluginselectedList:
-            if selected in agent_dict:
-                agent = agent_dict.pop(selected)
-                row_data = [
-                    create_item(agent.plugin_id),
-                    create_item(agent.name),
-                    create_item(agent.alias_name),
-                    create_item(agent.detail),
-                    create_item(agent.version),
-                    create_item(agent.description),
-                    create_item("操作")
-                ]
-                checkbox_item = QStandardItem()
-                checkbox_item.setCheckable(True)
-                checkbox_item.setCheckState(Qt.Checked)
-                row_data.insert(0, checkbox_item)
-
-                selected_items.append(row_data)
-
-        # Process the rest of the items
-        for agent in agent_dict.values():
-            row_data = [
-                create_item(agent.plugin_id),
-                create_item(agent.name),
-                create_item(agent.alias_name),
-                create_item(agent.detail),
-                create_item(agent.version),
-                create_item(agent.description),
-                create_item("操作")
-            ]
-            checkbox_item = QStandardItem()
-            checkbox_item.setCheckable(True)
-            row_data.insert(0, checkbox_item)
-            unselected_items.append(row_data)
-
-        # Add selected items to model first
-        row = 0
-        for item_row in selected_items + unselected_items:
-            for col, item in enumerate(item_row):
-                model.setItem(row, col, item)
-
-            # Create a combo box for '模型型号'
-            combo_item = QStandardItem("gpt-3.5-turbo")
-            model.setItem(row, 4, combo_item)
-
-            # Placeholder for button, actual button will be inserted by delegate
-            model.setItem(row, 7, QStandardItem())
-
-            row += 1
-
-        dialog = PluginFreezeTableDialog(model)
-
-        items_per_row = {
-            0: ["gpt-3.5-turbo", "gpt-4", "gpt-4o"],
-            1: ["gpt-3.5-turbo22", "gpt-422", "gpt-4o22"],
-            2: ["gpt-3.5-turbo23", "gpt-43", "gpt-4o3"],
-            3: ["gpt-3.5-turbo4", "gpt-444", "gpt-444"],
-            4: ["gpt-3.5-55", "gpt-55", "gpt-55"],
-            # Add more rows as needed
-        }
-        combo_delegate = ComboBoxDelegate(items_per_row, dialog.tableView)
-        dialog.tableView.setItemDelegateForColumn(4, combo_delegate)
-        button_delegate = ButtonDelegate(dialog.tableView)
-        dialog.tableView.setItemDelegateForColumn(7, button_delegate)
-
-        if dialog.exec_() == QDialog.Accepted:
-            self.pluginselectedList = dialog.getResult()
-            print("self.pluginselectedList:", self.pluginselectedList)
-            print("self.pluginselectedListjoin:", ",".join(self.pluginselectedList))
-            update_AgentCfg(self.agent_cfg.id, plugins=",".join(self.pluginselectedList))
-            self.agent.reset_cfg_plugin_llm()
-            tech_list = self.application.techlist_list[self.agent_cfg.user_id]
-            tech_list.reload()
 
     def opendialogplugin(self):
         pluginselectedList = self.pluginselectedList

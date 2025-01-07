@@ -8,7 +8,7 @@ from AddBuddyDialog import AddBuddyDialog
 from jabber import STATUS
 from jabber import STATUS_IMAGE
 from db.DBFactory import add_AIChatMessages
-from util import generate_random_id
+from util import generate_random_id,get_aifriend_msg_title_formatted,add_msg_to_message_windowv2,add_msg_to_message_window_with_markdown_and_highlightv2
 class BuddyItem(QTreeWidgetItem):
     """
       BuddyItem implements the view of a Buddy from the Roster
@@ -17,7 +17,7 @@ class BuddyItem(QTreeWidgetItem):
     dialog = None  # 一个联系人对应一个dialog
     msg = None
 
-    def __init__(self, parent, jid, con, mainwindow,ai_chat_cfg):
+    def __init__(self, parent, jid, con, mainwindow,ai_chat_cfg,chat_type="0"):
         super(BuddyItem, self).__init__(parent, [jid], QTreeWidgetItem.UserType + 1)
 
         # QTreeWidgetItem configuration
@@ -30,6 +30,7 @@ class BuddyItem(QTreeWidgetItem):
         self.mainwindow = mainwindow
         self.ai_chat_cfg = ai_chat_cfg
         self.is_browser_page_loaded = False
+        self.chat_type = chat_type  # chat_type 0是普通聊天，1是地图聊天
         # self.setObjectName(jid)
 
     def setStatus(self, status):
@@ -63,15 +64,30 @@ class BuddyItem(QTreeWidgetItem):
 
     def createDialog(self):
         print("in createDialog")
-        if not self.dialog:
-            self.dialog = QDialog()
-            self.dialog.setWindowIcon(QIcon("images/mail.png"))
 
-            self.msg = MessageBox(self.dialog, self.connectionThread, self.jid, self.name,self.ai_chat_cfg)
-            layout = QVBoxLayout(self.dialog)
-            layout.addWidget(self.msg)
-            self.dialog.setLayout(layout)
-            self.dialog.setWindowTitle(self.dialog.tr("Chat with ") + self.name)
+        if self.chat_type == "1":
+            if not self.dialog:
+                self.dialog = self.mainwindow.map_window_stack
+                self.dialog.setWindowIcon(QIcon("images/mail.png"))
+
+                self.msg = self.mainwindow.map_message_box
+                layout = QVBoxLayout(self.dialog)
+                layout.addWidget(self.msg)
+                self.dialog.setLayout(layout)
+                self.dialog.setWindowTitle(self.dialog.tr("Chat with ") + self.name)
+
+        else:
+            if not self.dialog:
+                self.dialog = QDialog()
+                self.dialog.setWindowIcon(QIcon("images/mail.png"))
+
+                self.msg = MessageBox(self.dialog, self.connectionThread, self.jid, self.name,self.ai_chat_cfg)
+                layout = QVBoxLayout(self.dialog)
+                layout.addWidget(self.msg)
+                self.dialog.setLayout(layout)
+                self.dialog.setWindowTitle(self.dialog.tr("Chat with ") + self.name)
+
+
         # self.dialog.show() #orgok
         # self.dialog.raise_() #orgok
         print("goingaddconver")
@@ -105,20 +121,19 @@ class BuddyItem(QTreeWidgetItem):
             self.msg.receiveMessage(event)
             self.is_browser_page_loaded = True
 
-            # browser_page = self.messageBrowser.page()
-            # self.message_handler.pass_message(message)
-            # message="cjrok222222"
 
             if not event is None:
-                message = f"""\n<strong><span style="color: darkblue; font-size:14pt;">{self.name} :</span></strong><br> {event['body']}<br>"""
 
-                # 以下是AI自动对话相关
-                # self.current_received_msg = event['body']
-                #
-                # if self.human_take_over == False:
-                #     self.signal_msg_received.emit()
+                self.msg.increment_page_index()
+                page_index = self.msg.page_index
 
-            browser_page.runJavaScript('document.getElementById("allcontent").innerHTML +=`' + message + '`')
+                friend_msg_title = get_aifriend_msg_title_formatted(page_index,self.name)
+                add_msg_to_message_windowv2(browser_page, friend_msg_title, 1)
+
+                add_msg_to_message_window_with_markdown_and_highlightv2(browser_page, event['body'], 2)
+
+
+
             if not self.msg.conversation_id:
                 conversation_id = generate_random_id()
                 self.msg.conversation_id = conversation_id
@@ -130,14 +145,14 @@ class BuddyItem(QTreeWidgetItem):
             add_AIChatMessages( self.msg.conversation_id,1,event['body'],event['body'],self.ai_chat_cfg.name,self.ai_chat_cfg.account,self.name,self.jid,is_first)
 
 
-            if self.msg.first_reply:
-                message = f"""<strong><span style="color: darkblue; font-size:14pt;">用户 :</span></strong><br> {self.msg.first_reply}<br>"""
-
-                browser_page.runJavaScript('document.getElementById("allcontent").innerHTML +=`' + message + '`')
-
-                add_AIChatMessages( self.msg.conversation_id, 0, event['body'], self.msg.first_reply, self.ai_chat_cfg.name, self.ai_chat_cfg.account, self.name, self.jid, False)
-
-                self.msg.first_reply = ""
+            # if self.msg.first_reply:
+            #     message = f"""<strong><span style="color: darkblue; font-size:14pt;">buddyitem用户 :</span></strong><br> {self.msg.first_reply}<br>"""
+            #
+            #     browser_page.runJavaScript('document.getElementById("allcontent").innerHTML +=`' + message + '`')
+            #
+            #     add_AIChatMessages( self.msg.conversation_id, 0, event['body'], self.msg.first_reply, self.ai_chat_cfg.name, self.ai_chat_cfg.account, self.name, self.jid, False)
+            #
+            #     self.msg.first_reply = ""
 
             browser_page.runJavaScript("window.scrollTo(0, document.body.scrollHeight);")
 

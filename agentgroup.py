@@ -44,7 +44,7 @@ import sys
 sys.path.append("../..")
 sys.path.append("../../..")
 from kmselect import FreezeTableDialog as KmFreezeTableDialog
-from pluginselect import FreezeTableDialog as PluginFreezeTableDialog
+from pluginselect_llm import FreezeTableDialog as PluginFreezeTableDialog
 from db.DBFactory import add_KMCfg, query_KMCfg_All, update_KMCfg, delete_KMCfg, query_KMCfg
 from db.DBFactory import add_PluginMng, query_PluginMng_All, update_PluginMng, delete_PluginMng, query_PluginMng
 from globals import global_plugin_list
@@ -81,7 +81,7 @@ class AgentGroup:
         if self.plugin_name != "":
             thinking_engine_name = self.plugin_name
         else:
-            thinking_engine_name = "ChatGLM连接器: 1.0.0"
+            thinking_engine_name = "ChatGLM"
 
         brain = global_plugin_list[thinking_engine_name]
 
@@ -352,7 +352,7 @@ class AgentGroup:
         if self.plugin_name != "":
             thinking_engine_name = self.plugin_name
         else:
-            thinking_engine_name = "ChatGLM连接器: 1.0.0"
+            thinking_engine_name = "ChatGLM"
 
         brain = global_plugin_list[thinking_engine_name]
 

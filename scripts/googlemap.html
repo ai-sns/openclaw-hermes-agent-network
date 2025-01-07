@@ -1,0 +1,82 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+<meta charset="utf-8" />
+<title>Google地图轨迹回放测试</title>
+<style type="text/css">
+body, html,#mapContainer {width: 100%;height: 100%;overflow: hidden;margin:0;z-index: 1;}
+</style>
+<script src="http://maps.googleapis.com/maps/api/js?v=3&key=AIzaSyAY-HsXXPsBUqsbQLDFO8kpNWLANwH0E7k&sensor=false&libraries=drawing,places"></script>
+<script language="javascript">
+var map;
+function initialize() {
+
+      var mapOptions = {
+        center: new google.maps.LatLng(30.65721817, 104.06594494),
+        zoom: 16,
+        panControl: true,
+        zoomControl: true,
+        mapTypeControl: true,
+        scaleControl: true,
+        overviewMapControl: true,
+        mapTypeId: google.maps.MapTypeId.ROADMAP
+      };
+
+      map = new google.maps.Map(document.getElementById('mapContainer'),mapOptions);
+
+      //圆移动
+      var lineCoordinates = [
+            new google.maps.LatLng(30.65721817, 104.06594494),
+            new google.maps.LatLng(30.656361,104.065477 ),
+            new google.maps.LatLng(30.652691, 104.066058  ),
+            new google.maps.LatLng( 30.652485,104.068823 ),
+            new google.maps.LatLng(30.655939,104.071278 )
+          ];
+
+          var lineSymbol = {
+            path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+            //scale: 2,
+            strokeColor: '#393'
+          };
+
+          line = new google.maps.Polyline({
+            path: lineCoordinates,
+            icons: [{
+              icon: lineSymbol,
+              offset: '0%'
+            }],
+            map: map
+          });
+
+          animateCircle();
+}
+//圆移动
+function animateCircle() {
+    var count = 0;
+    var animate1=window.setInterval(function() {
+      count = (count + 1) % 200;
+      var icons = line.get('icons');
+      icons[0].offset = (count / 2) + '%';
+      line.set('icons', icons);
+      //终点停车
+      /*
+      if((count / 2)>=99){
+          clearInterval(animate1);
+      }
+      */
+  }, 20);
+}
+google.maps.event.addDomListener(window, 'load', initialize);
+</script>
+
+</head>
+
+<body>
+
+  <div id="mapContainer"></div>
+
+</body>
+
+</html>

@@ -44,7 +44,7 @@ class OpenAIConnectionDialog(QDialog, ui_OpenAIConnectionDialog):
 
     def saveSettings(self):
         config = {
-            "plugin_name": "百度文心连接器: 1.0.0",
+            "plugin_name": "百度文心",
             "qianfan_ak": self.qianfan_ak_edit.text(),
             "qianfan_sk": self.qianfan_sk_edit.text(),
             "model": self.model_combobox.currentText(),

@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Office Scene with HDR Sky and First Person View</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/loaders/RGBELoader.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // 创建场景
+        const scene = new THREE.Scene();
+let tooltipPlane; // 用于存储气泡的平面
+        let tooltipPlane2; // 用于存储气泡的平面
+        // 创建相机
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 3); // 默认的相机高度和位置
+
+        // 创建渲染器
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 创建相机控制
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+        // 创建灯光
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        directionalLight.position.set(5, 10, 7.5);
+        directionalLight.castShadow = true;
+        scene.add(directionalLight);
+
+        // 使用 RGBELoader 加载 HDR 环境贴图
+        const rgbeLoader = new THREE.RGBELoader();
+        rgbeLoader.load('sky.hdr', function(texture) {
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+            scene.background = texture;
+            scene.environment = texture;
+        });
+
+        // 加载办公室场景
+        const gltfLoader = new THREE.GLTFLoader();
+        let mixer;
+        let character, office;
+        let actions = {};
+        let currentAction = null;
+
+        // 加载办公室场景
+// 加载办公室场景
+gltfLoader.load('aigccenter.glb', function(gltf) {
+    office = gltf.scene;
+
+    // 定义缩放比例
+    const scaleFactor = 1;
+    office.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+    // 将办公室场景添加到主场景中
+    scene.add(office);
+
+    // 计算办公室的边界盒并获取中心点
+    const box = new THREE.Box3().setFromObject(office);
+    const center = box.getCenter(new THREE.Vector3());
+
+    // // 设置角色的初始位置为办公室的中间
+    // if (character) {
+    //     character.position.set(center.x - 1, 0.3, 3); // 角色位置
+    // }
+    // 加载角色
+    loadCharacter(center);
+    // 加载老板角色并设置位置
+    loadBoss(center);
+});
+
+// 加载角色模型并设置位置
+function loadCharacter(center) {
+    gltfLoader.load('playergirl.glb', function(gltf) {
+        character = gltf.scene;
+
+        // 定义缩放比例并缩放模型
+        const scaleFactor = 1; // 定义缩放比例
+        character.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+        // 将角色添加到主场景中
+        scene.add(character);
+
+        // 创建动画混合器
+        mixer = new THREE.AnimationMixer(character);
+
+        // 为每个动画剪辑创建动作
+        gltf.animations.forEach((clip) => {
+            const action = mixer.clipAction(clip);
+            actions[clip.name] = action;
+        });
+
+        // 设置角色的初始位置
+        character.position.set(center.x +1.8, 0.3, 0.9); // 角色位置
+        // 启动动作播放
+        playAction('idle');
+        character.rotation.y += 3
+    });
+}
+
+// 加载老板模型并设置位置
+function loadBoss(center) {
+    gltfLoader.load('boss.glb', function(gltf) {
+        boss = gltf.scene;
+
+        // 定义缩放比例并缩放模型
+        const scaleFactor = 0.7;
+        boss.scale.set(scaleFactor, scaleFactor, scaleFactor);
+
+        // 创建动画混合器
+        mixerboss = new THREE.AnimationMixer(boss);
+
+        // 为每个动画剪辑创建动作
+        gltf.animations.forEach((clip) => {
+            const action = mixerboss.clipAction(clip);
+            actions[clip.name] = action;
+        });
+
+        // 设置老板的位置
+        boss.position.set(center.x + 1.8, 0.3, -0.8); // 老板位置
+
+        // 将老板场景加入到主场景
+        scene.add(boss);
+
+        // 启动动作播放
+        playAction('mixamo.com');
+    });
+}
+
+
+
+        let keys = {};
+        let isFirstPersonView = false; // 控制是否为第一人称视角
+
+        // 处理键盘事件
+        window.addEventListener('keydown', (event) => {
+            keys[event.code] = true;
+            handleKeyDown(event.code);
+        });
+
+        window.addEventListener('keyup', (event) => {
+            keys[event.code] = false;
+        });
+
+        function handleKeyDown(code) {
+            const actionMap = {
+                'KeyR': 'mixamo.com',
+                'KeyW': 'walk',
+                'KeyI': 'idle',
+                'KeyS': 'swim',
+                'KeyM': 'idle_water',
+                'KeyP': 'showTextBubble', // 添加P键处理
+                'KeyO': 'showTextBubble_boss', // 添加P键处理
+                'KeyQ': 'toggleFirstPerson' // 添加Q键用于切换第一人称视角
+            };
+
+            if (actionMap[code]) {
+
+                if (actionMap[code] === 'toggleFirstPerson') {
+                    toggleFirstPersonView();
+                } else if (actionMap[code] !== 'showTextBubble' && actionMap[code] !== 'showTextBubble_boss') {
+                    playAction(actionMap[code]);
+                } else  if (actionMap[code] == 'showTextBubble_boss') {
+
+                   tooltipPlane2 =  createTooltip2(boss, '你好，欢迎兑换tokens.');
+                }else {
+                    // createSpeechBubble('Hello, world'); // 直接创建文本气泡
+                  tooltipPlane =  createTooltip(character, '你好，我是c宝.');
+                }
+            }
+        }
+
+        // 切换第一人称视角
+        function toggleFirstPersonView() {
+            isFirstPersonView = !isFirstPersonView; // 切换视角状态
+            if (isFirstPersonView) {
+                // 设置相机位置为角色的眼睛高度
+                camera.position.copy(character.position);
+                camera.position.y += 1.6; // 调整至角色眼睛位置（可以根据模型高度进行调整）
+                camera.rotation.copy(character.rotation); // 设置相机朝向与角色相同
+            } else {
+                camera.position.set(0, 1.6, 3); // 返回到默认的第三人称视角位置
+                camera.lookAt(0, 1.6, 0); // 让相机看向原点
+            }
+        }
+
+        function playAction(actionName) {
+            // if (currentAction) currentAction.stop();
+            const action = actions[actionName];
+            if (action) {
+                action.reset().play();
+                currentAction = action;
+            }
+        }
+
+         // 创建文本气泡
+        function createSpeechBubble(text) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = '48px Arial';
+            context.fillStyle = 'black';
+            context.fillText(text, 10, 50);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture });
+
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(2, 1, 1);
+            sprite.position.set(character.position.x, character.position.y + 1.5, character.position.z);
+
+            // 让气泡跟随角色
+            scene.add(sprite);
+            // 设置气泡在3秒后自动关闭
+            setTimeout(() => {
+                scene.remove(sprite); // 从场景中移除气泡
+            }, 3000);
+        }
+
+                // 创建文字工具提示
+        function createTooltipbak(t_character, text) {
+            alert(text);
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 24;
+            const maxWidth = 200; // 最大宽度，超出则换行
+            const lineHeight = fontSize * 1.2;
+            context.font = `Bold \$\{fontSize}px Arial`;
+
+            // 分割文本为多行
+            const words = text.split(' ');
+            let line = '';
+            const lines = [];
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = context.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && line !== '') {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // 计算画布大小
+            const canvasWidth = maxWidth + 20;
+            const canvasHeight = lineHeight * lines.length + 40; // 加额外空间以容纳下三角形
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // 绘制圆角矩形和三角形
+            context.fillStyle = 'white';
+            context.beginPath();
+            const borderRadius = 10;
+            context.moveTo(borderRadius, 0);
+            context.lineTo(canvasWidth - borderRadius, 0);
+            context.quadraticCurveTo(canvasWidth, 0, canvasWidth, borderRadius);
+            context.lineTo(canvasWidth, canvasHeight - borderRadius - 10);
+            context.quadraticCurveTo(canvasWidth, canvasHeight - 10, canvasWidth - borderRadius, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2 + 10, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2, canvasHeight); // 三角形顶点
+            // context.lineTo(canvasWidth / 2 - 10, canvasHeight - 10);
+            context.lineTo(borderRadius, canvasHeight - 10);
+            context.quadraticCurveTo(0, canvasHeight - 10, 0, canvasHeight - borderRadius - 10);
+            context.lineTo(0, borderRadius);
+            context.quadraticCurveTo(0, 0, borderRadius, 0);
+            context.closePath();
+            context.fill();
+
+            // 绘制文本，垂直居中
+            context.fillStyle = 'red';
+            const textYOffset = (canvasHeight - 30) / 2 - (lineHeight * lines.length) / 2 + lineHeight; // Y轴偏移量，确保垂直居中
+            for (let i = 0; i < lines.length; i++) {
+                context.fillText(lines[i], 10, textYOffset + lineHeight * i);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const planeGeometry = new THREE.PlaneGeometry(canvasWidth / 100, canvasHeight / 100); // 缩放平面尺寸
+            const planeMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            // 将平面放在角色头顶
+            plane.position.set(1, 2.3, 0);
+            t_character.add(plane);
+
+                        setTimeout(() => {
+                t_character.remove(plane); // 从场景中移除气泡
+            }, 3000);
+        }
+
+         function createTooltip(t_character, text) {
+    // 创建一个画布元素并获取其2D上下文
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    // 设置字体大小、最大行宽和行高
+    const fontSize = 24;
+    const maxWidth = 200; // 超出该宽度则换行
+    const lineHeight = fontSize * 1.2;
+    const scaleFactor = 2; // 提升分辨率的比例因子
+    context.font = `Bold ${fontSize * scaleFactor}px Arial`;
+
+    // 将文本分割为多行以适应最大宽度
+    const words = text.split(' ');
+    let line = '';
+    const lines = [];
+
+    // 构造每行文本
+    for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = context.measureText(testLine);
+        const testWidth = metrics.width / scaleFactor; // 调整宽度测量
+        if (testWidth > maxWidth && line !== '') {
+            lines.push(line.trim());
+            line = words[n] + ' ';
+        } else {
+            line = testLine;
+        }
+    }
+    lines.push(line.trim());
+
+    // 计算画布尺寸，乘以scaleFactor来提高分辨率
+    const canvasWidth = (maxWidth + 20) * scaleFactor;
+    const canvasHeight = (lineHeight * lines.length + 40) * scaleFactor;
+
+    // 设置画布尺寸
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    context.scale(scaleFactor, scaleFactor); // 缩放上下文
+
+    // 绘制圆角矩形背景
+    context.fillStyle = 'white';
+    const borderRadius = 10;
+    context.beginPath();
+    context.moveTo(borderRadius, 0);
+    context.lineTo(maxWidth + 20 - borderRadius, 0);
+    context.quadraticCurveTo(maxWidth + 20, 0, maxWidth + 20, borderRadius);
+    context.lineTo(maxWidth + 20, lineHeight * lines.length + 30 - borderRadius);
+    context.quadraticCurveTo(maxWidth + 20, lineHeight * lines.length + 30, maxWidth + 20 - borderRadius, lineHeight * lines.length + 30);
+    context.lineTo(borderRadius, lineHeight * lines.length + 30);
+    context.quadraticCurveTo(0, lineHeight * lines.length + 30, 0, lineHeight * lines.length + 30 - borderRadius);
+    context.lineTo(0, borderRadius);
+    context.quadraticCurveTo(0, 0, borderRadius, 0);
+    context.closePath();
+    context.fill();
+
+    // 绘制文本，居中
+    context.fillStyle = 'black';
+    const textYOffset = ((lineHeight * lines.length + 30) - 30) / 2 - (lineHeight * lines.length) / 2 + lineHeight;
+    lines.forEach((line, i) => {
+        context.fillText(line, 10, textYOffset + lineHeight * i);
+    });
+
+    // 将画布作为纹理应用于THREE.js的平面几何体上
+    const texture = new THREE.CanvasTexture(canvas);
+    const planeGeometry = new THREE.PlaneGeometry((maxWidth + 20) / 100, (lineHeight * lines.length + 40) / 100); // 缩放平面尺寸
+    const planeMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+    // 将平面放置在角色头顶
+    // 将平面放在角色头顶
+            plane.position.set(0, 1.8, 0);
+            t_character.add(plane);
+
+                        setTimeout(() => {
+                t_character.remove(plane); // 从场景中移除气泡
+            }, 3000);
+    t_character.add(plane);
+
+    return plane; // 返回创建的工具提示平面
+}
+
+         function createTooltip2(t_character, text) {
+    // 创建一个画布元素并获取其2D上下文
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    // 设置字体大小、最大行宽和行高
+    const fontSize = 24;
+    const maxWidth = 200; // 超出该宽度则换行
+    const lineHeight = fontSize * 1.2;
+    const scaleFactor = 2; // 提升分辨率的比例因子
+    context.font = `Bold ${fontSize * scaleFactor}px Arial`;
+
+    // 将文本分割为多行以适应最大宽度
+    const words = text.split(' ');
+    let line = '';
+    const lines = [];
+
+    // 构造每行文本
+    for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = context.measureText(testLine);
+        const testWidth = metrics.width / scaleFactor; // 调整宽度测量
+        if (testWidth > maxWidth && line !== '') {
+            lines.push(line.trim());
+            line = words[n] + ' ';
+        } else {
+            line = testLine;
+        }
+    }
+    lines.push(line.trim());
+
+    // 计算画布尺寸，乘以scaleFactor来提高分辨率
+    const canvasWidth = (maxWidth + 20) * scaleFactor;
+    const canvasHeight = (lineHeight * lines.length + 40) * scaleFactor;
+
+    // 设置画布尺寸
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+    context.scale(scaleFactor, scaleFactor); // 缩放上下文
+
+    // 绘制圆角矩形背景
+    context.fillStyle = 'white';
+    const borderRadius = 10;
+    context.beginPath();
+    context.moveTo(borderRadius, 0);
+    context.lineTo(maxWidth + 20 - borderRadius, 0);
+    context.quadraticCurveTo(maxWidth + 20, 0, maxWidth + 20, borderRadius);
+    context.lineTo(maxWidth + 20, lineHeight * lines.length + 30 - borderRadius);
+    context.quadraticCurveTo(maxWidth + 20, lineHeight * lines.length + 30, maxWidth + 20 - borderRadius, lineHeight * lines.length + 30);
+    context.lineTo(borderRadius, lineHeight * lines.length + 30);
+    context.quadraticCurveTo(0, lineHeight * lines.length + 30, 0, lineHeight * lines.length + 30 - borderRadius);
+    context.lineTo(0, borderRadius);
+    context.quadraticCurveTo(0, 0, borderRadius, 0);
+    context.closePath();
+    context.fill();
+
+    // 绘制文本，居中
+    context.fillStyle = 'black';
+    const textYOffset = ((lineHeight * lines.length + 30) - 30) / 2 - (lineHeight * lines.length) / 2 + lineHeight;
+    lines.forEach((line, i) => {
+        context.fillText(line, 10, textYOffset + lineHeight * i);
+    });
+
+    // 将画布作为纹理应用于THREE.js的平面几何体上
+    const texture = new THREE.CanvasTexture(canvas);
+    const planeGeometry = new THREE.PlaneGeometry((maxWidth + 20) / 100, (lineHeight * lines.length + 40) / 100); // 缩放平面尺寸
+    const planeMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+    // 将平面放置在角色头顶
+    // 将平面放在角色头顶
+            plane.position.set(0, 2.8, 0);
+            t_character.add(plane);
+
+                        setTimeout(() => {
+                t_character.remove(plane); // 从场景中移除气泡
+            }, 3000);
+    t_character.add(plane);
+
+    return plane; // 返回创建的工具提示平面
+}
+
+
+        // 创建文字工具提示
+        function createTooltipbakok(t_character, text) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 12;
+            const maxWidth = 200; // 最大宽度，超出则换行
+            const lineHeight = fontSize * 1.2;
+            context.font = `Bold ${fontSize}px Arial`;
+
+            // 分割文本为多行
+            const words = text.split(' ');
+            let line = '';
+            const lines = [];
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = context.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && line !== '') {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // 计算画布大小
+            const canvasWidth = maxWidth + 20;
+            const canvasHeight = lineHeight * lines.length + 40; // 加额外空间以容纳下三角形
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // 绘制圆角矩形和三角形
+            context.fillStyle = 'white';
+            context.beginPath();
+            const borderRadius = 10;
+            context.moveTo(borderRadius, 0);
+            context.lineTo(canvasWidth - borderRadius, 0);
+            context.quadraticCurveTo(canvasWidth, 0, canvasWidth, borderRadius);
+            context.lineTo(canvasWidth, canvasHeight - borderRadius - 10);
+            context.quadraticCurveTo(canvasWidth, canvasHeight - 10, canvasWidth - borderRadius, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2 + 10, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2, canvasHeight); // 三角形顶点
+            // context.lineTo(canvasWidth / 2 - 10, canvasHeight - 10);
+            context.lineTo(borderRadius, canvasHeight - 10);
+            context.quadraticCurveTo(0, canvasHeight - 10, 0, canvasHeight - borderRadius - 10);
+            context.lineTo(0, borderRadius);
+            context.quadraticCurveTo(0, 0, borderRadius, 0);
+            context.closePath();
+            context.fill();
+
+            // 绘制文本，垂直居中
+            context.fillStyle = 'black';
+            const textYOffset = (canvasHeight - 30) / 2 - (lineHeight * lines.length) / 2 + lineHeight;
+            for (let i = 0; i < lines.length; i++) {
+
+                context.fillText(lines[i], 10, textYOffset + lineHeight * i);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const planeGeometry = new THREE.PlaneGeometry(canvasWidth / 100, canvasHeight / 100); // 缩放平面尺寸
+            const planeMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+            // 将平面放在角色头顶
+            plane.position.set(0, 1.8, 0);
+            t_character.add(plane);
+
+                        setTimeout(() => {
+                t_character.remove(plane); // 从场景中移除气泡
+            }, 3000);
+
+            return plane; // 返回创建的工具提示平面
+        }
+
+        // 创建文字工具提示
+        function createTooltip2bakok(t_character, text) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            const fontSize = 24;
+            const maxWidth = 200; // 最大宽度，超出则换行
+            const lineHeight = fontSize * 1.2;
+            context.font = `Bold ${fontSize}px Arial`;
+
+            // 分割文本为多行
+            const words = text.split(' ');
+            let line = '';
+            const lines = [];
+
+            for (let n = 0; n < words.length; n++) {
+                const testLine = line + words[n] + ' ';
+                const metrics = context.measureText(testLine);
+                const testWidth = metrics.width;
+                if (testWidth > maxWidth && line !== '') {
+                    lines.push(line);
+                    line = words[n] + ' ';
+                } else {
+                    line = testLine;
+                }
+            }
+            lines.push(line);
+
+            // 计算画布大小
+            const canvasWidth = maxWidth + 20;
+            const canvasHeight = lineHeight * lines.length + 40; // 加额外空间以容纳下三角形
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // 绘制圆角矩形和三角形
+            context.fillStyle = 'white';
+            context.beginPath();
+            const borderRadius = 10;
+            context.moveTo(borderRadius, 0);
+            context.lineTo(canvasWidth - borderRadius, 0);
+            context.quadraticCurveTo(canvasWidth, 0, canvasWidth, borderRadius);
+            context.lineTo(canvasWidth, canvasHeight - borderRadius - 10);
+            context.quadraticCurveTo(canvasWidth, canvasHeight - 10, canvasWidth - borderRadius, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2 + 10, canvasHeight - 10);
+            // context.lineTo(canvasWidth / 2, canvasHeight); // 三角形顶点
+            // context.lineTo(canvasWidth / 2 - 10, canvasHeight - 10);
+            context.lineTo(borderRadius, canvasHeight - 10);
+            context.quadraticCurveTo(0, canvasHeight - 10, 0, canvasHeight - borderRadius - 10);
+            context.lineTo(0, borderRadius);
+            context.quadraticCurveTo(0, 0, borderRadius, 0);
+            context.closePath();
+            context.fill();
+
+            // 绘制文本，垂直居中
+            context.fillStyle = 'black';
+            const textYOffset = (canvasHeight - 30) / 2 - (lineHeight * lines.length) / 2 + lineHeight;
+            for (let i = 0; i < lines.length; i++) {
+
+                context.fillText(lines[i], 10, textYOffset + lineHeight * i);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const planeGeometry = new THREE.PlaneGeometry(canvasWidth / 100, canvasHeight / 100); // 缩放平面尺寸
+            const planeMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+
+            // 将平面放在角色头顶
+            plane.position.set(0, 2.8, 0);
+            t_character.add(plane);
+                        setTimeout(() => {
+                t_character.remove(plane); // 从场景中移除气泡
+            }, 3000);
+            return plane; // 返回创建的工具提示平面
+        }
+
+        function send_talk_message(from_str,to_str,msg){
+            if(from_str=="wangwang@xabber.de"){
+              tooltipPlane =   createTooltip(character, msg);
+            }
+            else{
+              tooltipPlane2 =   createTooltip2(boss, msg);
+            }
+        }
+
+        // 动画循环
+        function animate() {
+            requestAnimationFrame(animate);
+
+                        // 使工具提示面向相机
+            if (tooltipPlane) {
+                tooltipPlane.lookAt(camera.position);
+            }
+
+                        if (tooltipPlane2) {
+                tooltipPlane2.lookAt(camera.position);
+            }
+
+            updateCharacterPositionAndRotation();
+
+            if (mixer) {
+                mixer.update(0.01);
+            }
+                        if (mixerboss) {
+                mixerboss.update(0.01);
+            }
+
+            // 更新相机位置用于第一人称视角
+            if (isFirstPersonView) {
+                camera.position.copy(character.position); // 让相机始终在角色位置
+                camera.position.y += 1.6; // 确保相机高度在角色眼睛水平
+                camera.rotation.copy(character.rotation); // 让相机与角色朝向一致
+            }
+
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+
+        // 更新角色位置和旋转
+        function updateCharacterPositionAndRotation() {
+            if (character) {
+                const moveSpeed = 0.05;
+                const rotateSpeed = 0.02;
+                if (keys['ArrowUp']) character.position.z -= moveSpeed;
+                if (keys['ArrowDown']) character.position.z += moveSpeed;
+                if (keys['ArrowLeft']) character.position.x -= moveSpeed;
+                if (keys['ArrowRight']) character.position.x += moveSpeed;
+                if (keys['KeyD']) character.rotation.y += rotateSpeed;
+                if (keys['KeyA']) character.rotation.y -= rotateSpeed;
+            }
+        }
+
+        animate();
+
+        window.addEventListener('resize', function() {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+    </script>
+</body>
+</html>

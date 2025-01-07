@@ -56,9 +56,22 @@ from collections import deque
 
 made_move = False
 
+def set_status_to_outside(new_data):
+        """
+        将新的字符串数据写入文件。
+
+        :param new_data: 要写入文件的新字符串数据
+        """
+        with open('C:\\tmp\\data.txt', 'w') as file:
+            file.write(new_data)
+            print(f"文件内容更新为: {new_data}")
+
+
+
 
 class TextToSpeechThread(QThread, QObject):
     sin_out = pyqtSignal(str)
+    speek_over = pyqtSignal()
 
     def __init__(self, obj, parent=None):
         # super().__init__()
@@ -66,6 +79,7 @@ class TextToSpeechThread(QThread, QObject):
         QObject.__init__(self, parent)
         self.obj = obj
         self.engine = pyttsx3.init()
+        self.talking_flag = False
 
         voices = self.engine.getProperty('voices')
 
@@ -82,7 +96,9 @@ class TextToSpeechThread(QThread, QObject):
             #     return
 
         # self.engine.setProperty('voice', "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices\Tokens\MSTTS_V110_zhCN_KangkangM")  # 设置当前声音为“男性”，当前声音可读中文也可读英文
-        self.engine.setProperty('voice', voices[2].id) #设置当前声音为“女性”，当前声音不可读中文
+        self.engine.setProperty('voice', voices[0].id) #设置当前声音为“女性”，当前声音不可读中文
+        # self.engine.setProperty('voice', voices[1].id)  # 设置当前声音为“女性”，当前声音不可读中文
+        # self.engine.setProperty('voice', voices[2].id)  # 设置当前声音为“男性”，当前声音不可读中文
 
 
         # rate = self.engine.getProperty('rate')  # 设置语速
@@ -107,9 +123,20 @@ class TextToSpeechThread(QThread, QObject):
         while True:
             time.sleep(0.1)#必须加上，不然各种弹出框，比如模型，插件弹出框会卡死
             if self.obj.queue:
+                if self.talking_flag == False:
+                    print("start talking")
+                    set_status_to_outside("talk")
+                self.talking_flag = True
                 words=self.obj.queue.popleft()
                 self.engine.say(words)
                 self.engine.runAndWait()
+            else:
+                if self.talking_flag == True:
+                    time.sleep(0.1)
+                    self.talking_flag = False
+                    print("all is speak over")
+                    set_status_to_outside("idle")
+                    self.speek_over.emit()
 
     def run(self):
         # self.engine = pyttsx3.init()
@@ -118,9 +145,11 @@ class TextToSpeechThread(QThread, QObject):
         # self.engine.setProperty('rate', rate - 50)
         self.engine.setProperty('rate', 200)
         self.sin_out.emit("...开始播放语音...")
+        print("cjr bofangluyinn")
         time.sleep(1)
         self.Threading_topo()
         time.sleep(1)
+        print("cjr bofangluyinn jieshu")
         self.sin_out.emit("...结束播放语音...")
 
 
@@ -170,6 +199,7 @@ class GetVoiceThread(QThread, QObject):
         with sr.Microphone(sample_rate=self.rate) as source:
             self.sin_voice.emit("...开始录音,请说话...")
             self.sin_button.emit("请说话")
+            set_status_to_outside("waitsay")
             print('please say something')
             try:
                 audio = r.listen(source, timeout=2)
@@ -337,6 +367,7 @@ class Main(QWidget, PluginInterface):
         self.voice_text = ""
         self.speech_thread = TextToSpeechThread(self, None)
         self.speech_thread.sin_out.connect(self.show_status_text)
+        self.speech_thread.speek_over.connect(self.handle_speak_over)
         self.print_text = []
         self.print_thread = PrintTextThread(self, None)
         self.print_thread.sin_print.connect(self.show_status_text)
@@ -436,6 +467,8 @@ Do not apologize for making illegal moves.
                         self.speech_start_flag = True
                     self.words = ""
                     self.words_count = 0
+                    # print("cjr all speak over")
+                    # self.on_checkbutton_clicked()
 
 
                 return message
@@ -618,6 +651,11 @@ Do not apologize for making illegal moves.
     def show_status_text(self, text):
         self.status_bar.showMessage(text)
         print(text)
+        if text=="...结束录音...":
+           set_status_to_outside("stopsay")
+
+    def handle_speak_over(self):
+        self.on_checkbutton_clicked()
 
     def show_button_text(self, text):
         self.checkButton.setText(text)
@@ -625,10 +663,12 @@ Do not apologize for making illegal moves.
 
     def show_msg_text(self, text):
         self.chatInput.setText(text)
-        print(text)
-        self.parent.messageEdit.setPlainText(text)
-        self.parent.sendMessage()
-
+        print("sending text to llm:",text)
+        if text:
+            self.parent.messageEdit.setPlainText(text)
+            self.parent.sendMessage()
+        else:
+            self.on_checkbutton_clicked()
     def show_reqest_text(self, text):
         self.status_bar.showMessage(text)
         print(text)

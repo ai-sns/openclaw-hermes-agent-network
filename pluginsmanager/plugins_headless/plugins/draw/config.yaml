@@ -1,4 +1,4 @@
-api_key: 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
+api_key: sk-SVCuk9EAqrgUEvvh31PKxVIr1fZhwt5boDB2Hexw8vs2Bl26
 custom_params: false
 description: "\u7528\u6765\u753B\u753B\u3002\u53EF\u4EE5\u6839\u636E\u7528\u6237\u6307\
   \u4EE4\u753B\u753B\u3002"
@@ -10,4 +10,4 @@ parameters: "{\n    \"model\": \"gpt-4o\",\n    \"max_tokens\": 4000,\n    \"tem
 stream: true
 temperature: 0.8
 top_p: 0.7
-url: https://api.openai.com/v1/chat/completions
+url: https://api.chatanywhere.tech/v1/images/generations

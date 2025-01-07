@@ -1,19 +1,25 @@
 
         <!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport"content="width=device-width, initial-scale=1.0"><title>产品研发流程图</title><style>.mermaid{text-align:center}</style></head><body><script type="module">import mermaid from'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true});</script><div class="mermaid">
-        graph TD
-    A[需求分析a] --> B[设计阶段a]
-    B --> C[开发阶段]
-    C --> D[测试阶段]
-    D --> E[部署阶段]
-    E --> F[维护阶段]
-    F --> A
+        flowchart TD
+    A[产品概念] --> B[市场调研]
+    B --> C[需求分析]
+    C --> D[产品设计]
+    D --> E[设计评审]
+    
+    E -->|通过| F[开发阶段]
+    E -->|不通过| D  <!-- 返回设计阶段 -->
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#fcf,stroke:#333,stroke-width:2px
-    style C fill:#cff,stroke:#333,stroke-width:2px
-    style D fill:#ccf,stroke:#333,stroke-width:2px
-    style E fill:#cfc,stroke:#333,stroke-width:2px
-    style F fill:#ffc,stroke:#333,stroke-width:2px
+    F --> G[测试阶段]
+    G --> H[测试结果]
+    
+    H -->|合格| I[产品发布]
+    H -->|不合格| F  <!-- 返回开发阶段 -->
+
+    I --> J[市场推广]
+    J --> K[用户反馈]
+    K --> L[迭代开发] 
+
+    L --> A  <!-- 可以返回到产品概念 -->
 
         </div></body></html>
         

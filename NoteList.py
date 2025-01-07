@@ -48,7 +48,7 @@ class NoteList(QTreeWidget):
         self.tree = {}
 
         # 创建一个图标
-        self.stick_icon = QIcon(QPixmap('images/start.png'))  # --> 增加一个置顶图标
+        self.stick_icon = QIcon(QPixmap('images/star.png'))  # --> 增加一个置顶图标
 
         self.load_pop_menu()
 
@@ -310,7 +310,7 @@ class NoteList(QTreeWidget):
         else:
             QMessageBox.critical(None, "警告", "分类不能删除", QMessageBox.Ok)
             return
-        self.parent().parent().findChild(NoteList, "recentnotelist").reload()
+        self.parent().parent().findChild(NoteList, "labelallnotelist").reload()
         self.parent().parent().findChild(NoteList, "allnotelist").reload()
 
     def getInfo(self):

@@ -39,7 +39,7 @@ class ComboBoxDelegate(QItemDelegate):
         version_column_value = index.model().data(version_column_index)
         selected_value = combo.currentText()
         print(f"Row {index.row()+1}, First Column: {name_column_value}, Selected: {selected_value}")
-        plugin_full_name = name_column_value + ": " + version_column_value
+        plugin_full_name = name_column_value
         plug_in = global_plugin_list[plugin_full_name]
         config = plug_in.get_config()
         config['model'] = selected_value
@@ -50,7 +50,7 @@ class ComboBoxDelegate(QItemDelegate):
         name_column_value = index.model().data(name_column_index)
         version_column_index = index.model().index(index.row(), 5)
         version_column_value = index.model().data(version_column_index)
-        plugin_full_name = name_column_value + ": " + version_column_value
+        plugin_full_name = name_column_value
         plug_in = global_plugin_list[plugin_full_name]
         config = plug_in.get_config()
         return config['model']

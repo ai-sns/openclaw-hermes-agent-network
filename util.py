@@ -14,6 +14,22 @@ import sys
 import requests
 
 
+def convert_unicode_to_chinese(unicode_string):
+    """
+    将字符串中的 Unicode 转换为中文字符
+
+    :param unicode_string: 包含 Unicode 的字符串
+    :return: 转换后的中文字符串
+    """
+    try:
+        # 使用 'unicode_escape' 解码字符串
+        chinese_string = unicode_string.encode('utf-8').decode('unicode_escape')
+        return chinese_string
+    except Exception as e:
+        # 捕获解码过程中可能发生的异常
+        print("解码过程中发生错误:", e)
+        return None
+
 def format_string_for_run_javascriptbakbak(t_string):
     # \\`\\`\\`Python
     t_string = t_string.replace("\\\\`\\\\`\\\\`", "\\`\\`\\`")
@@ -70,6 +86,7 @@ def format_string_for_run_javascript(t_string):
 
 
 def format_string_for_run_javascript_user(t_string):
+    # return t_string
     # ${
     t_string = t_string.replace("${", "\$\{")
 
@@ -141,6 +158,20 @@ def add_msg_to_message_windowv2(browser_page, message, line_breaks=1):
     # formatted_message = f'{line_break}'
     # browser_page.runJavaScript('document.getElementById("allcontent").innerHTML += "' + formatted_message + '"')
 
+def add_msg_to_message_windowv3(browser_page, message, line_breaks=1):
+    print("get the message html:",message)
+
+    script_string_to_run = 'show_user_ask_msg(`' + message + '`)'
+    print("script_string_to_run:")
+    print(script_string_to_run)
+    browser_page.runJavaScript(script_string_to_run)
+
+    # browser_page.runJavaScript('document.getElementById("allcontent").innerHTML +=`' + message + '`')
+    # line_breaks = 0
+    # line_break = '<br>' * line_breaks
+    # formatted_message = f'{line_break}'
+    # browser_page.runJavaScript('document.getElementById("allcontent").innerHTML += "' + formatted_message + '"')
+
 
 # def add_attachment_to_message_window(browser_page, directory_path, attachment_list, line_breaks=1):
 #     attachment_list = ["c:\\a.doc", "c:\\d.doc", "c:\\c.doc"]
@@ -190,6 +221,24 @@ def add_attachment_to_message_window(browser_page, directory_path, attachment_li
     browser_page.runJavaScript('document.getElementById("allcontent").innerHTML += "' + formatted_message + '"')
 
 
+def get_myai_send_msg_title_formatted(page_index, createtime=None,show_checkbox="none",checked="",record_id=""):
+    if createtime is None:
+        createtime = datetime.datetime.now()
+    if record_id:
+        div_id = f"id_{record_id}_a"
+    else:
+        div_id = f"msg_div_{page_index}"
+    message = f"""
+    <div style="display: flex; align-items: center;" id="{div_id}" data-value="{page_index}v" data-text="{page_index}t" data-index="{page_index}i" onmouseover='handleMouseOver(this)' onmouseleave='handleMouseLeave(event)'>
+		 <input class="styled-checkbox" style="display:{show_checkbox}" {checked} type="checkbox" id="msg_checkbox_{page_index}" data-id="{div_id}" data-value="{page_index}" onclick="add_to_selected_msg(this,'question')">
+		 <img src="file:///images/ybot.png" style="width:18px;height:31px">
+		 <span style='color: darkred;font-size:18px;margin-left:5px'>我的AI</span>
+		 <span style='color: #c0c0c0; font-size:18px;;margin-left:10px'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span>
+    </div>
+        """
+
+    return (message)
+
 def get_user_ask_msg_title_formatted(page_index, createtime=None,show_checkbox="none",checked="",record_id=""):
     if createtime is None:
         createtime = datetime.datetime.now()
@@ -211,8 +260,10 @@ def get_user_ask_msg_title_formatted(page_index, createtime=None,show_checkbox="
 
 
 def get_user_ask_msg_content_formatted(content):
-    message = format_string_for_run_javascript_user(content)
-    message = f"""<div style='margin-left:24px'><p>{message}</p></div>"""
+    # message = format_string_for_run_javascript_user(content)
+    message = format_string_for_run_javascript(content)
+    # message = f"""<div style='margin-left:24px'><p>{message}</p></div>"""
+
     return (message)
 
 
@@ -237,6 +288,24 @@ def get_agent_reply_msg_title_formatted(model_name, page_index, createtime=None,
          <span style='color: darkblue; font-size:18px;margin-left:5px'>{model_name}</span>
          <span style='color: #c0c0c0; font-size:18px;margin-left:10px'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span>
          <img class='imgcls' style='width: 15px; height: 15px;margin-bottom:7px;margin-left:20px;{display_setting}' src='{loading_img}'>
+    </div>"""
+    return (message)
+
+def get_aifriend_msg_title_formatted(page_index,friend_name, createtime=None, show_checkbox="none",checked="",record_id=""):
+
+    if createtime is None:
+        createtime = datetime.datetime.now()
+
+    if record_id:
+        div_id = f"id_{record_id}_r"
+    else:
+        div_id = f"msg_div_{page_index}"
+    message = f"""
+    <div style='display: flex; align-items: center;' id="{div_id}" data-value="{page_index}v" data-text="{page_index}t" data-index="{page_index}i"  onmouseover='handleMouseOver(this)' onmouseleave='handleMouseLeave(event)'>
+         <input class="styled-checkbox"  style="display:{show_checkbox}" {checked} type="checkbox" id="msg_checkbox_{page_index}" data-id="{div_id}" data-value="{page_index}" onclick="add_to_selected_msg(this,'answer')">
+         <img src="file:///images/robot.png" style="width:18px;height:24px">
+         <span style='color: darkblue; font-size:18px;margin-left:5px'>{friend_name}</span>
+         <span style='color: #c0c0c0; font-size:18px;margin-left:10px'>{createtime.strftime("%Y-%m-%d %H:%M:%S")}</span>         
     </div>"""
     return (message)
 

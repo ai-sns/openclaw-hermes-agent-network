@@ -60,7 +60,7 @@ class FreezeTableDialog(QDialog):
             if slider_widget:
                 slider_value = slider_widget.get_value()
                 second_column_data = self.model.index(row, 1).data()
-                pluginfullname = self.model.index(row, 2).data() + ": " + self.model.index(row, 4).data()
+                pluginfullname = self.model.index(row, 2).data()
                 aliasname = self.model.index(row, 3).data()
                 selected_data.append((slider_value, second_column_data, pluginfullname, aliasname))
 

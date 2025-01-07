@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import typing
 from pathlib import Path
 import shutil
@@ -9,7 +10,7 @@ from autogen.coding import LocalCommandLineCodeExecutor
 from termcolor import colored
 
 from db.DBFactory import (add_AgentCfg, query_AgentCfg, query_AgentCfg_All, update_AgentCfg,
-                          delete_AgentCfg, add_AgentTask, get_prompt_by_title,
+                          delete_AgentCfg, add_AgentTask, get_prompt_by_title,get_prompt_by_id,
                           get_agent_system_prompt, get_agent_specialization_description, query_workflow_mng,query_function_mng
                           )
 
@@ -629,10 +630,21 @@ class Agent(ConversableAgent):
         self._name = agent_cfg.name if agent_cfg is not None else name
         self.chat_in_group = chat_in_group
         self.agent_cfg = agent_cfg
-        self.plugin_name = ""
+        self.logger = None
         self.plugin_list = []
+        self.default_llm = ""
+        self.default_role = ""
         self.llm_dict = {}
-        self.llm = None
+
+
+        self.llm_connector_name = ""
+        self.llm_model_type = ""
+        self.llm_connector_plugin = None
+
+        self.system_role_id = -1
+        self.system_role_prompt = ""
+
+
         self.km_path = ""
         self.speaker = None
         self.embedding_model_name = ""
@@ -651,10 +663,31 @@ class Agent(ConversableAgent):
         self.retrieve_doc_list = []
         self.retrieve_doc_content = ""
         self.task_id = ""
+        self.plugin_tool_record_selected_list = None
         if agent_cfg is not None:
+
+            self.default_llm = agent_cfg.defaultmodel
+            self.last_llm = agent_cfg.lastmodel
+            use_last_model = agent_cfg.uselastmodel
+            if use_last_model:
+                llm = self.last_llm
+            else:
+                llm = self.default_llm
+
+            self.give_it_llm(llm)#设置缺省模型
+
+            self.default_role = agent_cfg.defaultrole
+            self.last_role = agent_cfg.lastrole
+            use_last_role = agent_cfg.uselastrole
+            if use_last_role:
+                role_id = self.last_role
+            else:
+                role_id = self.default_role
+
+            self.give_it_role(role_id)  # 设置缺省模型
+
+
             self.set_plugin_list()
-            self.set_llm_dict()
-            self.set_llm()
 
 
         if chat_in_group:
@@ -690,19 +723,7 @@ class Agent(ConversableAgent):
         if agent_cfg.plugins != "":
             self.plugin_list = agent_cfg.plugins.split(",")
 
-    def set_llm_dict(self):
-        plugin_list = self.plugin_list
-        llm_dict = {}
-        for plugin_name in plugin_list:
-            plugin = global_plugin_list[plugin_name]
-            if plugin.type == "LLM_Connector":
-                llm_dict[plugin_name] = plugin
-        self.llm_dict = llm_dict
 
-    def set_llm(self):
-        llm_dict = self.llm_dict
-        llm = list(llm_dict.values())[0]
-        self.llm = llm
 
     def set_mode(self, mode=AgentMode.ChatOnly):
         self.mode = mode
@@ -713,14 +734,20 @@ class Agent(ConversableAgent):
     def reload_agent_cfg(self):
         self.agent_cfg = query_AgentCfg(id=self.agent_cfg.id)
 
-    def reset_cfg_plugin_llm(self):
-        self.reload_agent_cfg()
-        self.set_plugin_list()
-        self.set_llm_dict()
-        self.set_llm()
 
-    def give_it_plugin(self, plugin_name):
-        self.plugin_name = plugin_name
+
+    def give_it_llm(self,llm_full_name):
+        self.llm_connector_name = llm_full_name.split(":")[0]
+        self.llm_model_type = llm_full_name.split(":")[1]
+        self.llm_connector_plugin = global_plugin_list[self.llm_connector_name]
+
+    def give_it_role(self,role_id,system_role_prompt=""):
+        self.system_role_id = role_id
+        if system_role_prompt:
+            self.system_role_prompt = system_role_prompt
+        else:
+            self.system_role_prompt = get_prompt_by_id(role_id)
+
 
     def give_it_plugin_tool(self,plugin_tool_record_selected_list):
         self.plugin_tool_record_selected_list=plugin_tool_record_selected_list
@@ -728,6 +755,9 @@ class Agent(ConversableAgent):
     def give_it_km(self, km_path, embedding_model_name):
         self.km_path = km_path
         self.embedding_model_name = embedding_model_name
+
+    def give_it_logger(self,logger):
+        self.logger=logger
 
     def give_it_attachment_content_list(self, attachment_content_list):
         attachment_doc_content, attachment_image_list, _ = get_content_from_attachment_content_list(attachment_content_list)  # retrieve_doc_content这里还没有值
@@ -807,7 +837,10 @@ class Agent(ConversableAgent):
             messages[-1]["content"] = new_attachment_list
 
         # 处理插件
-        plugin_tool_record_selected_list = self.plugin_tool_record_selected_list
+        if self.plugin_tool_record_selected_list:
+            plugin_tool_record_selected_list = self.plugin_tool_record_selected_list
+        else:
+            plugin_tool_record_selected_list=[]
         for record in plugin_tool_record_selected_list:
             if "previous_to_ask_b" in record.plugin_event:
                 index_event = record.plugin_event.split(",").index("previous_to_ask_b")
@@ -840,8 +873,27 @@ class Agent(ConversableAgent):
         if question.startswith("给我画"):
             answer = self.generate_image(question)
 
-        elif question.startswith("//workflow_id"):
-            workflow_id = question.replace("//workflow_id","")
+        elif  "workflow_id:" in question:
+            # workflow_id = question.replace("//workflow_id","")
+
+            workflow_id = ""
+
+
+                # 输入字符串
+            input_string = question
+
+            # 使用正则表达式匹配'sktll_id:'后面的所有字符串
+            match = re.search(r'workflow_id:(.*)', input_string)
+
+            # 检查是否找到匹配项
+            if match:
+                # 提取匹配的字符串并去除前后的空格
+                workflow_id = match.group(1).strip()
+
+
+
+
+
             answer = self.run_workflow(workflow_id)
 
         else:
@@ -854,6 +906,9 @@ class Agent(ConversableAgent):
 
             else:
                 answer = self.chat_only(messages)
+                if self.logger:
+                    if messages:
+                        self.logger.debug("agent log:"+list(messages[0].values())[0])
 
         # else:
         #     speaker=self.speaker
@@ -885,7 +940,67 @@ class Agent(ConversableAgent):
         # task_page_group.signal_report_to_commander.emit(agent_name,task_id,task_result)
         return task_result
 
+
     def generate_image(self, prompt, model="dall-e-3", n=1, size="1024x1024"):
+        # 更新模型和参数的说明
+        """
+        The size of the generated images. Must be one of 1024x1024, 1792x1024, or 1024x1792 for dall-e-3 models.
+        The number of images to generate. Must be 1 for dall-e-3.
+        """
+
+        url = "https://api.chatanywhere.tech/v1/images/generations"
+        api_key = "sk-SVCuk9EAqrgUEvvh31PKxVIr1fZhwt5boDB2Hexw8vs2Bl26"  # 更新为您提供的 Bearer Token
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "n": n,
+            "size": size
+        }
+
+        # 发送 POST 请求
+        response = requests.post(url, headers=headers, json=data)
+        print("dallurl:", url)
+
+        # 检查响应状态
+        if response.status_code != 200:
+            print("Error:", response.text)
+            return []
+
+        # 提取 URL 列表
+        urls = [datum['url'] for datum in response.json().get('data', [])]
+        print(urls)
+
+        for i in range(len(urls)):
+            image_name = generate_random_id() + ".png"
+
+            task_id = self.task_id
+            directory_path = os.path.join('resource', 'attachment', 'chat', task_id)
+            os.makedirs(directory_path, exist_ok=True)
+
+            save_path = os.path.join('resource', 'attachment', 'chat', task_id, image_name)
+
+            save_path = os.path.join('resource', 'attachment', 'chat', image_name)
+            download_image(urls[i], save_path)
+            save_path = os.path.abspath(save_path).replace("\\", "/")
+            urls[i] = save_path  # 直接替换 urls 列表中对应位置的值
+
+        img_element = ''.join(f"""<br><a href="#" onclick="open_attachment('{url}');return false;" style="color:blue"><img src="file:///{url}" alt="{url}" style="width:300px;height:auto;" /></a><br>""" for url in urls)
+        print(img_element)
+
+        # 添加附件元素到页面中
+        self.browser_page.runJavaScript('document.getElementById("allcontent").innerHTML += `' + img_element + '`')
+        self.browser_page.runJavaScript("window.scrollTo(0, document.body.scrollHeight);")
+
+        return img_element  # 返回生成的图像 URL 列表
+
+
+    def generate_imagebakok2(self, prompt, model="dall-e-3", n=1, size="1024x1024"):
         # 更新模型和参数的说明
         """
         The size of the generated images. Must be one of 1024x1024, 1792x1024, or 1024x1792 for dall-e-3 models.
@@ -1120,14 +1235,15 @@ class Agent(ConversableAgent):
         user_proxy.initiate_chat(assistant, message="请写一首关于秋天的1000字的诗")
         # assistant.initiate_chat(user_proxy, message="你是谁?")
 
-    def format_llm_config(self, llm):
-
+    def format_llm_config(self):
+        llm = self.llm_connector_plugin
+        model_type = self.llm_model_type
         config = llm.get_config()
         connection_mode = llm.connection_mode
 
         if config.get("custom_params", False) == False:
             llm_config = {
-                "model": config.get("model", ""),
+                "model": model_type if model_type else config.get("model", ""),
                 "api_key": config.get("api_key", ""),
                 "cache_seed": None,
                 "seed": None,  # 42
@@ -1138,7 +1254,7 @@ class Agent(ConversableAgent):
             json_string = config.get("parameters", "")
             custom_config = json.loads(json_string)
             llm_config = {
-                "model": custom_config.get("model", ""),
+                "model": model_type if model_type else custom_config.get("model", ""),
                 "api_key": config.get("api_key", ""),
                 "cache_seed": None,
                 "seed": None,  # 42
@@ -1182,10 +1298,10 @@ class Agent(ConversableAgent):
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = ConversableAgent(
                 "chatbot",
@@ -1196,7 +1312,7 @@ class Agent(ConversableAgent):
 
             )
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = ConversableAgent(
                 "chatbot",
@@ -1209,7 +1325,7 @@ class Agent(ConversableAgent):
 
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = ConversableAgent(
                 "chatbot",
@@ -1266,7 +1382,7 @@ class Agent(ConversableAgent):
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
         autogen.Completion.set_cache(False)
         message = messages[-1]["content"]
@@ -1283,7 +1399,7 @@ class Agent(ConversableAgent):
         "You are a helpful AI assistant.\nSolve tasks using your coding and language skills.\nIn the following cases, suggest python code (in a python coding block) or shell script (in a sh coding block) for the user to execute.\n    1. When you need to collect info, use the code to output the info you need, for example, browse or search the web, download/read a file, print the content of a webpage or a file, get the current date/time, check the operating system. After sufficient info is printed and the task is ready to be solved based on your language skill, you can solve the task by yourself.\n    2. When you need to perform some task with code, use the code to perform the task and output the result. Finish the task smartly.\nSolve the task step by step if you need to. If a plan is not provided, explain your plan first. Be clear which step uses code, and which step uses your language skill.\nWhen using code, you must indicate the script type in the code block. The user cannot provide any other feedback or perform any other action beyond executing the code you suggest. The user can\'t modify your code. So do not suggest incomplete code which requires users to modify. Don\'t use a code block if it\'s not intended to be executed by the user.\nIf you want the user to save the code in a file before executing it, put # filename: <filename> inside the code block as the first line. Don\'t include multiple code blocks in one response. Do not ask users to copy and paste the result. Instead, use \'print\' function for the output when relevant. Check the execution result returned by the user.\nIf the result indicates there is an error, fix the error and output the code again. Suggest the full code instead of partial code or code changes. If the error can\'t be fixed or if the task is not solved even after the code is executed successfully, analyze the problem, revisit your assumption, collect additional info you need, and think of a different approach to try.\nWhen you find an answer, verify the answer carefully. Include verifiable evidence in your response if possible."
         "Return 'TERMINATE' when the task is done."
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -1291,7 +1407,7 @@ class Agent(ConversableAgent):
                 llm_config=llm_config,
             )
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -1301,7 +1417,7 @@ class Agent(ConversableAgent):
 
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -1337,7 +1453,7 @@ class Agent(ConversableAgent):
         agent.register_for_llm(name=func_name, description=description)(fun)
         user_proxy.register_for_execution(name=func_name)(fun)
 
-        if self.llm.connection_mode != "OpenAI":
+        if self.llm_connector_plugin.connection_mode != "OpenAI":
             # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
@@ -1497,11 +1613,11 @@ class Agent(ConversableAgent):
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
         autogen.Completion.set_cache(False)
 
-        if self.llm.connection_mode != "OpenAI":
+        if self.llm_connector_plugin.connection_mode != "OpenAI":
             llm_config = {"cache_seed": None, "config_list": [llm_config]}  # 注意格式和openai不同
 
         # message = messages[-1]["content"]
@@ -1561,15 +1677,15 @@ class Agent(ConversableAgent):
                     print("workflow start")
 
                     # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
-                    if self.llm.connection_mode == "OpenAI-compatible":
+                    if self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
                         agent_tools_wizard.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                         agent_task_handler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
-                    elif self.llm.connection_mode == "SparkAI":
+                    elif self.llm_connector_plugin.connection_mode == "SparkAI":
                         agent_tools_wizard.register_model_client(model_client_cls=SparkAI)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=SparkAI)
                         agent_task_handler.register_model_client(model_client_cls=SparkAI)
-                    elif self.llm.connection_mode != "OpenAI":
+                    elif self.llm_connector_plugin.connection_mode != "OpenAI":
                         # 其他的自定义ai连接客户端
                         agent_tools_wizard.register_model_client(model_client_cls=CustomizeClient)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=CustomizeClient)
@@ -1602,15 +1718,15 @@ class Agent(ConversableAgent):
                         agent_human.register_for_execution(name=func_name)(fun)
 
                         # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
-                        if self.llm.connection_mode == "OpenAI-compatible":
+                        if self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
                             agent_tools_wizard.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                             agent_task_handler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
-                        elif self.llm.connection_mode == "SparkAI":
+                        elif self.llm_connector_plugin.connection_mode == "SparkAI":
                             agent_tools_wizard.register_model_client(model_client_cls=SparkAI)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=SparkAI)
                             agent_task_handler.register_model_client(model_client_cls=SparkAI)
-                        elif self.llm.connection_mode != "OpenAI":
+                        elif self.llm_connector_plugin.connection_mode != "OpenAI":
                             # 其他的自定义ai连接客户端
                             agent_tools_wizard.register_model_client(model_client_cls=CustomizeClient)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=CustomizeClient)
@@ -1638,15 +1754,15 @@ class Agent(ConversableAgent):
                         print("local function cur_node.plugin", cur_node["plugin"])
 
                         # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
-                        if self.llm.connection_mode == "OpenAI-compatible":
+                        if self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
                             agent_tools_wizard.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                             agent_task_handler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
-                        elif self.llm.connection_mode == "SparkAI":
+                        elif self.llm_connector_plugin.connection_mode == "SparkAI":
                             agent_tools_wizard.register_model_client(model_client_cls=SparkAI)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=SparkAI)
                             agent_task_handler.register_model_client(model_client_cls=SparkAI)
-                        elif self.llm.connection_mode != "OpenAI":
+                        elif self.llm_connector_plugin.connection_mode != "OpenAI":
                             # 其他的自定义ai连接客户端
                             agent_tools_wizard.register_model_client(model_client_cls=CustomizeClient)
                             agent_task_plan_scheduler.register_model_client(model_client_cls=CustomizeClient)
@@ -1693,15 +1809,15 @@ class Agent(ConversableAgent):
                 elif cur_node["type"] == "end":
 
                     # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
-                    if self.llm.connection_mode == "OpenAI-compatible":
+                    if self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
                         agent_tools_wizard.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
                         agent_task_handler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
-                    elif self.llm.connection_mode == "SparkAI":
+                    elif self.llm_connector_plugin.connection_mode == "SparkAI":
                         agent_tools_wizard.register_model_client(model_client_cls=SparkAI)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=SparkAI)
                         agent_task_handler.register_model_client(model_client_cls=SparkAI)
-                    elif self.llm.connection_mode != "OpenAI":
+                    elif self.llm_connector_plugin.connection_mode != "OpenAI":
                         # 其他的自定义ai连接客户端
                         agent_tools_wizard.register_model_client(model_client_cls=CustomizeClient)
                         agent_task_plan_scheduler.register_model_client(model_client_cls=CustomizeClient)
@@ -1784,11 +1900,11 @@ class Agent(ConversableAgent):
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
         autogen.Completion.set_cache(False)
 
-        if self.llm.connection_mode != "OpenAI":
+        if self.llm_connector_plugin.connection_mode != "OpenAI":
             llm_config = {"cache_seed": None, "config_list": [llm_config]}  # 注意格式和openai不同
 
         message = messages[-1]["content"]
@@ -2054,15 +2170,15 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
         agent_human.register_for_execution(name=func_name)(fun)
 
         # 如果不是openai的模式要再所有的工具登记之后把model client登记一下，前面登记的没有用，必须放在后面
-        if self.llm.connection_mode == "OpenAI-compatible":
+        if self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
             agent_tools_wizard.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
             agent_task_plan_scheduler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
             agent_task_handler.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
             agent_tools_wizard.register_model_client(model_client_cls=SparkAI)
             agent_task_plan_scheduler.register_model_client(model_client_cls=SparkAI)
             agent_task_handler.register_model_client(model_client_cls=SparkAI)
-        elif self.llm.connection_mode != "OpenAI":
+        elif self.llm_connector_plugin.connection_mode != "OpenAI":
             # 其他的自定义ai连接客户端
             agent_tools_wizard.register_model_client(model_client_cls=CustomizeClient)
             agent_task_plan_scheduler.register_model_client(model_client_cls=CustomizeClient)
@@ -2181,7 +2297,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
         autogen.Completion.set_cache(False)
 
@@ -2193,14 +2309,14 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
 
         )
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = AssistantAgent(
                 name="chatbot",
                 llm_config=llm_config,
             )
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2209,7 +2325,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
 
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2272,13 +2388,10 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
         # 出来system角色的提示词
-        system_role_prompt = "You are a helpful AI assistant. "
-        if messages[0]["role"] == "system":
-            system_role_prompt = messages[0]["content"]
-            messages = messages[1:]
+        system_role_prompt = self.system_role_prompt
 
         user_proxy = ConversableAgent(
             name="User",
@@ -2287,7 +2400,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             human_input_mode="NEVER",
         )
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2297,7 +2410,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
 
 
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2307,7 +2420,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
 
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "OpenAI-customize":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2318,7 +2431,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeLLMClient)
 
 
-        elif self.llm.connection_mode == "OpenAI-customize-v2":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize-v2":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2329,7 +2442,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeV2LLMClient)
 
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2418,7 +2531,8 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             # speaker.speak("", sep="", end="")
             # speaker.speak("", sep="", end="")
             # speaker.speak("__end_speak__", sep="", end="")
-            speaker.commit_and_refresh()
+            if speaker:
+                speaker.commit_and_refresh()
 
         return reply
 
@@ -2429,7 +2543,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
 
         user_proxy = ConversableAgent(
@@ -2439,7 +2553,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             human_input_mode="NEVER",
         )
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2450,7 +2564,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             )
 
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2460,7 +2574,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
 
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "OpenAI-customize":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2471,7 +2585,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeLLMClient)
 
 
-        elif self.llm.connection_mode == "OpenAI-customize-v2":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize-v2":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2482,7 +2596,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeV2LLMClient)
 
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2533,7 +2647,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
         # config_list = {"model": "glm-4", "api_type": "chatglm", "api_key": "7381c942a00d9419873da0f978afa822.TCmepxaLAPIV7pO7", "temperature": 0.7, "cache_seed": None,"base_url": "https://open.bigmodel.cn/api/paas/v4","stream": True}
         # ********注意，注意，注意有些大模型的temprature不能为0***************
         # Create the agent that uses the LLM.
-        llm_config = self.format_llm_config(self.llm)
+        llm_config = self.format_llm_config()
         print("llm_config", llm_config)
 
         user_proxy = ConversableAgent(
@@ -2543,7 +2657,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             human_input_mode="NEVER",
         )
 
-        if self.llm.connection_mode == "OpenAI":
+        if self.llm_connector_plugin.connection_mode == "OpenAI":
 
             agent = AssistantAgent(
                 name="chatbot",
@@ -2562,7 +2676,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
                 description="你是一个可以用来获取煤炭价格的工具，可以根据城市和时间获取相应的煤炭价格。",
             )
 
-        elif self.llm.connection_mode == "OpenAI-compatible":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-compatible":
 
             agent = ConversableAgent(
                 name="Assistant",
@@ -2582,7 +2696,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             )
             agent.register_model_client(model_client_cls=OpenAICompatibleLLMClient)
 
-        elif self.llm.connection_mode == "OpenAI-customize":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize":
 
             agent = ConversableAgent(
                 name="Assistant",
@@ -2603,7 +2717,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeLLMClient)
 
 
-        elif self.llm.connection_mode == "OpenAI-customize-v2":
+        elif self.llm_connector_plugin.connection_mode == "OpenAI-customize-v2":
 
             agent = ConversableAgent(
                 name="Assistant",
@@ -2624,7 +2738,7 @@ def send_file_to_wechat_tool_for_call(file_path: str,friend_name: str) -> str:
             agent.register_model_client(model_client_cls=OpenAICustomizeV2LLMClient)
 
 
-        elif self.llm.connection_mode == "SparkAI":
+        elif self.llm_connector_plugin.connection_mode == "SparkAI":
 
             agent = AssistantAgent(
                 name="chatbot",

@@ -122,7 +122,7 @@ class MyXMPPClient(slixmpp.ClientXMPP):
     async def on_session_start(self, event):
         self.send_presence()
         await self.get_roster()
-        # 启动心跳任务
+        # 启动心跳任务--开关
         self.heartbeat_task = asyncio.create_task(self.heartbeat())
         self.send_message(
             mto=self.recipient_jid,

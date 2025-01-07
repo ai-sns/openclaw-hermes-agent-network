@@ -10,7 +10,7 @@ import math
 from PyQt5.QtCore import (pyqtSignal, QLineF, QPointF, QRect, QRectF, QSize,
                           QSizeF, Qt)
 from PyQt5.QtGui import (QBrush, QColor, QFont, QIcon, QIntValidator, QPainter,
-                         QPainterPath, QPen, QPixmap, QPolygonF)
+                         QPainterPath, QPen, QPixmap, QPolygonF, QCursor)
 from PyQt5.QtWidgets import (QAction, QApplication, QButtonGroup, QComboBox,
                              QFontComboBox, QGraphicsItem, QGraphicsLineItem, QGraphicsPolygonItem,
                              QGraphicsScene, QGraphicsTextItem, QGraphicsView, QGridLayout,
@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import QApplication, QDialog, QHeaderView, QTableView, QVBo
 from NoteListLabel import NoteListLabel
 from TaskListGroupLabel import TaskListGroupLabel
 from model_metric import ModelEvaluationDialog
-
+import numpy as np
 sys.path.append("..")
 sys.path.append("../..")
 import MainWindow_rc
@@ -43,6 +43,8 @@ from userconfigdialog import ConfigDialog as UserConfigDialog
 from agentconfigdialog import ConfigDialog as AgentConfigDialog
 from agentmuticonfigdialog import ConfigDialog as AgentMutiConfigDialog
 from aichatconfigdialog import ConfigDialog as AiChatConfigDialog
+from aimapconfigdialog import ConfigDialog as AiMapConfigDialog
+from aimaptaskdialog import ConfigDialog as AiMapTaskDialog
 from humanchatconfigdialog import ConfigDialog as HumanChatConfigDialog
 from kmconfigdialog import ConfigDialog as KmConfigDialog
 from agentmng import FreezeTableDialog as AgentFreezeTableDialog
@@ -82,6 +84,7 @@ from BuddyList import BuddyList
 from BuddyListHuman import BuddyListHuman
 from InfoList import InfoList
 from TaskList import TaskList
+from MapTaskList import MapTaskList
 from TechList import TechList
 from TaskListLabel import TaskListLabel
 from TaskListGroup import TaskListGroup
@@ -103,6 +106,13 @@ from skill_manager import SkillManager
 from util import open_file
 from keyvalue_mng import KeyValueManager
 
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib.pyplot as plt
+
+# 设置字体，确保支持中文
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 使用黑体
+plt.rcParams['axes.unicode_minus'] = False  # 解决负号显示问题
 
 class Arrow(QGraphicsLineItem):
     def __init__(self, startItem, endItem, parent=None, scene=None):
@@ -432,6 +442,121 @@ class DiagramScene(QGraphicsScene):
         return False
 
 
+class RadarChartCanvas(FigureCanvas):
+    def __init__(self, data, categories, *args, **kwargs):
+        # 创建一个 Matplotlib Figure 对象
+        self.figure = Figure(facecolor='#E1E1E1')
+        super().__init__(self.figure)
+        # 设置图表的固定尺寸
+        self.setFixedSize(150, 100)
+        # 设置大小策略，以使画布自适应布局
+        # self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        # self.updateGeometry()
+
+
+        # 设置工具提示和鼠标指针样式
+        self.setToolTip("请点击")
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+        # 保存数据和类别
+        self.data = data
+        self.categories = categories
+
+        # 绘制雷达图
+        self.plot_radar_chart()
+
+    def plot_radar_chart(self):
+        # 创建一个极坐标系的子图
+        ax = self.figure.add_subplot(111, polar=True)
+        # 设置子图背景颜色为 #E1E1E1
+        ax.set_facecolor('#E1E1E1')
+        for spine in ax.spines.values():
+            spine.set_edgecolor('#ff9d9d')
+        # 设置刻度线和刻度标签的颜色
+        ax.tick_params(axis='both', colors='#727272')
+        # 计算角度
+        num_vars = len(self.categories)
+        angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+
+        # 使雷达图闭合
+        self.data += self.data[:1]
+        angles += angles[:1]
+
+        # 绘制数据和填充颜色
+        ax.plot(angles, self.data, linewidth=1, linestyle='solid')
+        ax.fill(angles, self.data, 'b', alpha=0.1)
+
+        # 设置类别标签
+        ax.set_yticklabels([])
+        ax.set_xticks(angles[:-1])
+        ax.set_xticklabels(self.categories)
+
+        # 调整雷达图的大小和布局
+        self.figure.subplots_adjust(left=0.25, right=0.90, top=0.75, bottom=0.25)
+
+    def mousePressEvent(self, event):
+        print("hello")
+
+class BarChartCanvas(FigureCanvas):
+    def __init__(self, indicators, values, colors, *args, **kwargs):
+        # 创建一个 Matplotlib Figure 对象
+        self.figure = Figure(facecolor='#E1E1E1')
+        super().__init__(self.figure)
+        # 设置图表的固定尺寸
+        self.setFixedSize(150, 100)
+        # 设置大小策略，以使画布自适应布局
+        # self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        # self.updateGeometry()
+
+
+        # 设置工具提示和鼠标指针样式
+        self.setToolTip("请点击")
+        self.setCursor(QCursor(Qt.PointingHandCursor))
+
+        # 保存指标和相应的值、颜色
+        self.indicators = indicators
+        self.values = values
+        self.colors = colors
+
+        # 绘制横向柱状图
+        self.plot_bar_chart()
+
+    def plot_bar_chart(self):
+        # 创建一个常规坐标系的子图
+        ax = self.figure.add_subplot(111)
+        # 设置子图背景颜色为 #E1E1E1
+        ax.set_facecolor('#E1E1E1')
+        # 设置子图边框颜色为 #c0c0c0
+        # for spine in ax.spines.values():
+        #     spine.set_edgecolor('#c0c0c0')
+        for spine_name, spine in ax.spines.items():
+            if spine_name in ['left', 'bottom']:  # 仅保留左边框和下边框
+                spine.set_edgecolor('#727272')
+            else:
+                spine.set_visible(False)  # 移除上边框和右边框
+        # 设置刻度线和刻度标签的颜色
+        ax.tick_params(axis='both', colors='#727272')
+        # 绘制横向柱状图
+        y_pos = np.arange(len(self.indicators))
+        bars = ax.barh(y_pos, self.values, color=self.colors, align='center')
+
+        # 在每个柱子上直接显示指标名称
+        for bar, indicator in zip(bars, self.indicators):
+            ax.text(bar.get_width() / 2, bar.get_y() + bar.get_height() / 2, indicator,
+                    va='center', ha='center', color='#727272', fontsize=10)
+
+        # 移除 Y 轴标签
+        ax.set_yticks([])
+
+        # 调整布局
+        self.figure.tight_layout()
+        # 调整雷达图的大小和布局
+        self.figure.subplots_adjust(left=0.05, right=0.95, top=1, bottom=0.2)
+
+    def mousePressEvent(self, event):
+        print("hello")
+
+
+
 class WorkerThread(QThread):
     finished = pyqtSignal()
 
@@ -625,15 +750,15 @@ class Ui_MainWindow(object):
         # self.stack_toolbox.setAutoFillBackground(False)
         # self.stack_toolbox.setObjectName("stack_toolbox")
 
-        self.stack_toolbox.addWidget(self.toolBox_AgentChat)
-        self.stack_toolbox.addWidget(self.toolBox_AiChat)
-        self.stack_toolbox.addWidget(self.toolBox_KM)
-        self.stack_toolbox.addWidget(self.toolBox_HumanChat)
+        self.stack_toolbox.addWidget(self.toolBox_AgentChat)#前面create出来的
+        self.stack_toolbox.addWidget(self.toolBox_AiChat)#前面create出来的
+        self.stack_toolbox.addWidget(self.toolBox_KM)#前面create出来的
+        self.stack_toolbox.addWidget(self.toolBox_HumanChat)#前面create出来的
 
-        self.stack_toolbox.addWidget(self.toolBox_Plugin)
-        self.stack_toolbox.addWidget(self.toolBox_Setting)
+        self.stack_toolbox.addWidget(self.toolBox_Plugin)#前面create出来的
+        self.stack_toolbox.addWidget(self.toolBox_Setting)#前面create出来的
 
-        self.stack_toolbox.addWidget(self.toolBox_Workflow)
+        self.stack_toolbox.addWidget(self.toolBox_Workflow)#前面create出来的
 
         self.stack_toolbox.setCurrentIndex(0)
         # self.stack_toolbox.setCurrentWidget(self.toolBox_AgentChat)
@@ -906,17 +1031,17 @@ class Ui_MainWindow(object):
         tabWidget = QTabWidget()
         layout.addWidget(tabWidget, 2, 0, 3, 2)
         taskList = TaskList(self, agent)
-        techList = TechList(self, agent)
+        # techList = TechList(self, agent)
         labelList = TaskListLabel(self, agent)
         # self.taskList_Task = taskList
         # self.techList_Tech = techList
         # self.labelList_label = labelList
 
         self.tasklist_list[agent_cfg.user_id] = taskList
-        self.techlist_list[agent_cfg.user_id] = techList
-        # self.labellist_list[agent_cfg.user_id] = labelList  # 功能？
+        # self.techlist_list[agent_cfg.user_id] = techList
+        self.labellist_list[agent_cfg.user_id] = labelList
         tabWidget.addTab(taskList, "对话列表")
-        tabWidget.addTab(techList, "技能列表")
+        # tabWidget.addTab(techList, "技能列表")
         tabWidget.addTab(labelList, "标签列表")  # -->
         self.CurTabTextChatTech = "对话列表"
         # 直接在 connect 方法中使用 lambda 函数处理标签页切换
@@ -958,7 +1083,7 @@ class Ui_MainWindow(object):
             elif self.CurTabTextChatTech == "技能列表":
                 # todo
                 print("技能列表")
-                techList.search(key_word)
+                # techList.search(key_word)
             else:
                 print("其他")
 
@@ -1000,7 +1125,8 @@ class Ui_MainWindow(object):
             lambda index: setattr(self, 'CurTabTextChatMem', tabWidget.tabText(index))
         )
         layout.setRowStretch(3, 10)
-        # layout.setColumnStretch(2, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
         itemWidget.setObjectName(agent_cfg_multi.group_id)
@@ -1069,7 +1195,8 @@ class Ui_MainWindow(object):
                                                                    'images/fileline.png'), 2, 1)
 
         settingLayout.setRowStretch(3, 10)
-        # settingLayout.setColumnStretch(2, 10)
+        settingLayout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        settingLayout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
 
         settingWidget = QWidget()
         settingWidget.setLayout(settingLayout)
@@ -1082,12 +1209,6 @@ class Ui_MainWindow(object):
         self.toolBox_AgentChat.setItemIcon(self.toolBox_AgentChat.indexOf(settingWidget), QIcon('images/setting.png'))
 
         self.toolBox_AgentChat.currentChanged.connect(self.on_agentchat_toolbox_item_changed)
-
-        # 打印 QToolBox 的样式表
-        current_stylesheet = self.toolBox_AgentChat.styleSheet()
-        print("Current QToolBox Stylesheet:")
-        print(current_stylesheet)
-
 
 
         self.toolBox_AgentChat.setStyleSheet("""
@@ -1135,13 +1256,7 @@ class Ui_MainWindow(object):
 
             """)
 
-        # settingWidget.setStyleSheet("""
-        #     QWidget {
-        #
-        #         border-radius: 6px;
-        #     }
-        # """)
-    # Ai Chat tool box
+
 
     def on_agentchat_toolbox_item_changed(self, index):
         # 获取当前 item 的文本并打印
@@ -1190,7 +1305,8 @@ class Ui_MainWindow(object):
         )
 
         layout.setRowStretch(3, 10)
-        # layout.setColumnStretch(2, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
         itemWidget.setObjectName(agent.user_id)
@@ -1203,6 +1319,108 @@ class Ui_MainWindow(object):
                                            QIcon('images/messageoffline.png'), agent.nickname)
         # textEdit.returnPressed.connect(lambda: buddyList.search(textEdit.text()))
         textEdit.returnPressed.connect(lambda: self.filterItemsBuddyList(textEdit.text()))
+
+
+
+    def createToolBoxUnit_AiChat_earth(self, agent, pos=-1):
+
+        # two button 两个按钮
+        print("createToolBoxUnit_AiChat-->")
+        # 定义示例数据和类别
+        radar_data = [5, 3, 4, 2, 4]
+        radar_categories = ['智力:5', '成长:4', '技能:5', '知识:2', '速度:1']
+
+        # 定义柱状图数据
+        bar_indicators = ['财富:100K', '诚信:90', '等级:1']  # 使用中文标签
+        bar_values = [5, 6, 8]
+        bar_colors = ['#ffb676', '#c3f1d7', '#99d4ff']  # 使用协调的颜色
+
+        # 创建雷达图和柱状图的画布
+        self.radar_chart = RadarChartCanvas(radar_data, radar_categories)
+        self.bar_chart = BarChartCanvas(bar_indicators, bar_values, bar_colors)
+
+
+
+
+
+        layout = QGridLayout()
+        layout.addWidget(self.bar_chart,
+                         0, 0)
+        layout.addWidget(self.radar_chart, 0,
+                         1)
+
+
+
+        config_button=self.create_ai_cfg_button_earth("设置&帮助", agent, DiagramItem.Step)
+
+
+
+        mission_button =self.create_ai_task_button_earth("指派任务", agent, DiagramItem.Step)
+
+
+        layout.addWidget(mission_button,
+                         1, 0)
+        layout.addWidget(config_button, 1,
+                         1)
+
+        # search input 搜索框
+        textEdit = QLineEdit()
+        textEdit.setPlaceholderText("搜索...")
+        # textEdit.setToolTip("关键字以+++开头表示在搜索结果中继续搜索")
+        layout.addWidget(textEdit, 2, 0, 1, 2)
+
+        # 页签
+        tabWidget = QTabWidget()
+        layout.addWidget(tabWidget, 3, 0, 3, 2)  # rowspan为3，此时tab在垂直方向上铺满
+        buddyList = BuddyList(self, agent,"1")
+        maptasklist = MapTaskList(self, agent)
+        visitList = InfoList(self, agent)
+        toolList = InfoList(self, agent)
+        tradeList = InfoList(self, agent)
+        infoList = InfoList(self, agent)
+        self.buddylist_list[agent.user_id] = buddyList
+        self.contactlist_list[agent.user_id] = infoList
+        self.maptasklist = maptasklist
+
+
+
+        tabWidget.addTab(buddyList, "聊天")
+        tabWidget.addTab(maptasklist, "任务")
+        tabWidget.addTab(visitList, "打卡")
+        tabWidget.addTab(toolList, "技能")
+        tabWidget.addTab(tradeList, "交易")
+        tabWidget.addTab(infoList, "通知")
+
+
+
+        self.CurTabTextAI = "聊天"
+
+        # 直接在 connect 方法中使用 lambda 函数处理标签页切换
+        tabWidget.currentChanged.connect(
+            lambda index: setattr(self, 'CurTabTextAI', tabWidget.tabText(index))
+        )
+
+        layout.setRowStretch(4, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+        itemWidget = QWidget()
+        itemWidget.setLayout(layout)
+        itemWidget.setObjectName(agent.user_id)
+        self.toolBox_AiChat.setMinimumWidth(itemWidget.sizeHint().width() + 50)
+
+        if pos == -1:
+            self.toolBox_AiChat.addItem(itemWidget, QIcon('images/earth.png'), "漫游地球-"+agent.nickname)
+        else:
+            self.toolBox_AiChat.insertItem(self.toolBox_AiChat.count() - 1, itemWidget,
+                                           QIcon('images/earth.png'), "漫游地球-"+agent.nickname)
+        # textEdit.returnPressed.connect(lambda: buddyList.search(textEdit.text()))
+        textEdit.returnPressed.connect(lambda: self.filterItemsBuddyList(textEdit.text()))
+
+        #自动登录
+        self.on_configured_ai_map(agent.user_id, agent.account, agent.password,"1")
+
+
+
 
     def filterItemsBuddyList(self, text):
         """根据用户输入的关键词过滤树节点"""
@@ -1239,10 +1457,19 @@ class Ui_MainWindow(object):
         self.buttonGroup_AiChat.setExclusive(False)
         self.buttonGroup_AiChat.buttonClicked[int].connect(self.buttonGroupClicked)
 
+        agent_record=query_AiChatCfg(is_delete=0)
+
+        self.createToolBoxUnit_AiChat_earth(agent_record)
+
         records = query_AiChatCfg_All()
         for record in records:
             # print(f"ID: {record.id}, Name: {record.name}, Memo: {record.memo}")
-            self.createToolBoxUnit_AiChat(record)
+            if record.user_id !="1":
+                self.createToolBoxUnit_AiChat(record)
+
+
+
+
 
         self.backgroundButtonGroup_AiChat = QButtonGroup()
 
@@ -1253,12 +1480,60 @@ class Ui_MainWindow(object):
                                                                   'images/usermng.png'), 0, 1)
 
         backgroundLayout.setRowStretch(2, 10)
-        # backgroundLayout.setColumnStretch(2, 10)
+        backgroundLayout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        backgroundLayout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(backgroundLayout)
 
         self.toolBox_AiChat.addItem(backgroundWidget, QIcon('images/setting.png'), "帐号管理")
+
+        self.toolBox_AiChat.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
+
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
+
 
     # Human Chat tool box
 
@@ -1291,6 +1566,8 @@ class Ui_MainWindow(object):
 
         layout.setRowStretch(3, 10)
         # layout.setColumnStretch(2, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         itemWidget = QWidget()
         itemWidget.setLayout(layout)
 
@@ -1319,6 +1596,9 @@ class Ui_MainWindow(object):
                                                                      'images/usermng.png'), 0, 1)
 
         backgroundLayout.setRowStretch(2, 10)
+        backgroundLayout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        backgroundLayout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
         # backgroundLayout.setColumnStretch(2, 10)
 
         backgroundWidget = QWidget()
@@ -1387,6 +1667,8 @@ class Ui_MainWindow(object):
 
         # Stretch settings
         layout.setRowStretch(3, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         # layout.setColumnStretch(2, 10)
 
         # Create and set widget
@@ -1452,6 +1734,8 @@ class Ui_MainWindow(object):
         )
 
         layout.setRowStretch(3, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         # layout.setColumnStretch(2, 10)
         itemWidget = QWidget()
         itemWidget.setObjectName(kmrecord.km_id)
@@ -1501,12 +1785,59 @@ class Ui_MainWindow(object):
                                                               'images/database.png'), 1, 0)
 
         backgroundLayout.setRowStretch(2, 10)
+        backgroundLayout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        backgroundLayout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
         # backgroundLayout.setColumnStretch(2, 10)
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(backgroundLayout)
 
         self.toolBox_KM.addItem(backgroundWidget, QIcon('images/setting.png'), "知识库设置")
+        self.toolBox_KM.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
+
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
 
         # Plugin Tool Box
 
@@ -1529,8 +1860,12 @@ class Ui_MainWindow(object):
         self.textEdit.setPlaceholderText("搜索...")
         self.textEdit.textChanged.connect(self.filterTextEdit)
         self.layout.addWidget(self.textEdit, 0, 0, 1, 2)
+        self.layout.addWidget(self.create_install_llm_plugin_local_button("导入/拷贝插件",
+                                                                                'images/add.png'), 1, 0)
+        self.layout.addWidget(self.create_install_llm_plugin_local_button("删除模型插件",
+                                                                                'images/delete.png'), 1, 1)
         i = 0
-        row = 1
+        row = 2
         col = 0
         records = query_PluginMng_All(plugin_type="LLM_Connector")
         # print("records-->:", records)
@@ -1549,6 +1884,8 @@ class Ui_MainWindow(object):
             col = col + 1
 
         self.layout.setRowStretch(row + 1, 10)
+        self.layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        self.layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         # self.layout.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
@@ -1568,8 +1905,12 @@ class Ui_MainWindow(object):
         self.textEdit_tool.setPlaceholderText("搜索...")
         self.textEdit_tool.textChanged.connect(self.filterTextEditTool)
         self.layout_tool.addWidget(self.textEdit_tool, 0, 0, 1, 2)
+        self.layout_tool.addWidget(self.create_install_llm_plugin_local_button("导入本地插件",
+                                                                                'images/add.png'), 1, 0)
+        self.layout_tool.addWidget(self.create_install_llm_plugin_local_button("删除插件",
+                                                                                'images/delete.png'), 1, 1)
         i = 0
-        row = 1
+        row = 2
         col = 0
         records = query_PluginMng_All_Tool()
         for record in records:
@@ -1586,6 +1927,9 @@ class Ui_MainWindow(object):
             col = col + 1
 
         self.layout_tool.setRowStretch(row + 1, 10)
+        self.layout_tool.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        self.layout_tool.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
         # self.layout_tool.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
@@ -1616,6 +1960,9 @@ class Ui_MainWindow(object):
                                   1, 1)
 
         layout_function.setRowStretch(row + 1, 10)
+        layout_function.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout_function.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
         # layout_function.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
@@ -1646,6 +1993,9 @@ class Ui_MainWindow(object):
                                   1, 1)
 
         layout_skill.setRowStretch(row + 1, 10)
+        layout_skill.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout_skill.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
         # layout_skill.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
@@ -1669,8 +2019,9 @@ class Ui_MainWindow(object):
         self.textEdit2.setPlaceholderText("搜索...")
         self.textEdit2.textChanged.connect(self.filterTextEdit2)
         self.backgroundLayout.addWidget(self.textEdit2, 0, 0, 1, 2)
-        self.backgroundLayout.addWidget(self.create_install_plugin_local_button("导入本地插件",
-                                                                                'images/add.png'), 1, 0)
+
+        # self.backgroundLayout.addWidget(self.create_install_plugin_local_button("导入本地插件",
+        #                                                                         'images/add.png'), 1, 0)
 
         conn = http.client.HTTPConnection("www.ai-sns.org", 80)
         headers = {
@@ -1710,16 +2061,11 @@ class Ui_MainWindow(object):
 
         for plugin_data in json_data:
 
-            if row == 1:
-                col = 1
-
             self.backgroundLayout.addWidget(self.create_install_plugin_button(plugin_data,
                                                                               'images/plugin.png'), row, col % 2)
-            if row == 1:
+
+            if (col % 2) == 1:
                 row = row + 1
-            else:
-                if (col % 2) == 1:
-                    row = row + 1
             col = col + 1
 
         # # 打开文件并加载JSON数据
@@ -1732,11 +2078,58 @@ class Ui_MainWindow(object):
 
         self.backgroundLayout.setRowStretch(4, 10)
         self.backgroundLayout.setColumnStretch(4, 10)
+        self.backgroundLayout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        self.backgroundLayout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
+
 
         backgroundWidget = QWidget()
         backgroundWidget.setLayout(self.backgroundLayout)
 
         self.toolBox_Plugin.addItem(backgroundWidget, QIcon('images/market.png'), "插件市场")
+        self.toolBox_Plugin.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
+
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
 
     def filterTextEdit(self, text):
         # 根据输入框的内容过滤表格项的标题列
@@ -1900,6 +2293,51 @@ class Ui_MainWindow(object):
         self.toolBox_Workflow.setMinimumWidth(itemWidget.sizeHint().width())
         self.toolBox_Workflow.addItem(itemWidget, QIcon('images/workflow_toolbox.png'), "工作流")
 
+        self.toolBox_Workflow.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
+
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
+
     # Setting Tool Box
 
     def createToolBox_Setting(self):
@@ -1928,6 +2366,8 @@ class Ui_MainWindow(object):
         # layout.addWidget(textWidget, 1, 1)
 
         layout.setRowStretch(3, 10)
+        layout.setColumnStretch(0, 1)  # 设置第0列的拉伸系数以均衡布局
+        layout.setColumnStretch(1, 1)  # 设置第1列的拉伸系数以均衡布局
         # layout.setColumnStretch(2, 10)
 
         itemWidget = QWidget()
@@ -1937,8 +2377,52 @@ class Ui_MainWindow(object):
         self.toolBox_Setting.setSizePolicy(QSizePolicy(QSizePolicy.Maximum, QSizePolicy.Ignored))
         self.toolBox_Setting.setMinimumWidth(itemWidget.sizeHint().width())
         self.toolBox_Setting.addItem(itemWidget, QIcon('images/setting.png'), "系统管理")
+        self.toolBox_Setting.setStyleSheet("""
+        QToolBox {
+            background: #f0f0f0;  /* 整体背景颜色 */
+            border-radius: 8px;
+            padding: 5px;
+        }
+        QToolBox::tab {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #ffffff, stop:1 #e0e0e0);  /* 渐变背景 */
 
-    def ShowAiAssistantStack(self):
+            border-radius: 6px;
+            color: #333;  /* 文本颜色 */
+            /*padding: 10px 15px;*/
+            padding-bottom:0px;
+            margin: 0px;
+            font-size: 14px;
+            transition: background 0.3s;  /* 背景过渡效果 */
+            height: 100px;  /* 确保标签有足够的高度 */
+        }
+        QToolBox::tab:selected {
+
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #f0f0f0); 
+            /*background: qlineargradient(x1:0, y1:0, x2:1, y2:0,stop:0 #4facfe, stop:1 #00f2fe); */ /* 选中的标签渐变色 */
+            /*color: #ffffff;*/  /* 选中状态下的文本颜色 */
+            font-weight: bold;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        QToolBox::tab:hover {
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                                    stop:0 #e0e0e0, stop:1 #f0f0f0); 
+        }
+        QToolBox::tab QLabel {
+            color: #333; /* 确保标签内的文本颜色 */
+        }
+
+        QToolBox > QWidget {  /* 仅设置QToolBox子项的背景 */
+            background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                        stop:0 #e0e0e0, stop:1 #e0e0e0);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+            """)
+
+    def ShowAiAssistantStack(self,show_home_flag=True):
         orgfont = QFont()
         orgfont.setBold(False)
         orgfont.setUnderline(False)
@@ -1957,7 +2441,8 @@ class Ui_MainWindow(object):
 
         self.ai2meAction.setFont(font)
         self.stack_toolbox.setCurrentIndex(0)
-        self.showagenthome()
+        if show_home_flag:
+            self.showagenthome()
 
     def ShowAiChatStack(self):
         orgfont = QFont()
@@ -2199,11 +2684,12 @@ class Ui_MainWindow(object):
         ai_toolbar.addAction(self.ai2meAction)
         ai_toolbar.addAction(self.ai2aiAction)
         # ai_toolbar.addAction(self.chatAction)
-        ai_toolbar.addAction(self.workflowAction)
         ai_toolbar.addAction(self.kmAction)
+        ai_toolbar.addAction(self.workflowAction)
         ai_toolbar.addAction(self.pluginAction)
         ai_toolbar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
-        ai_toolbar.setFixedHeight(350)
+        # ai_toolbar.setFixedHeight(350)
+        ai_toolbar.setFixedHeight(600)
         self.aiToolBar = self.addToolBar(Qt.LeftToolBarArea, ai_toolbar)
 
         # Create setting Toolbar
@@ -2567,6 +3053,27 @@ class Ui_MainWindow(object):
         zip_file_path = self.setOpenFileName()
         if zip_file_path != "":
             self.plugin_install(zip_file_path)
+
+
+    def create_install_llm_plugin_local_button(self, text, image):
+
+        button = QToolButton()
+        button.setIcon(QIcon(image))
+        button.setIconSize(QSize(50, 50))
+        button.setCheckable(True)
+        button.clicked.connect(self.plugin_install_local)
+
+        # self.buttonGroup_Plugin_install.addButton(button)
+
+        layout = QGridLayout()
+        layout.addWidget(button, 0, 0, Qt.AlignHCenter)
+        layout.addWidget(QLabel(text), 1, 0, Qt.AlignCenter)
+
+        widget = QWidget()
+        widget.setLayout(layout)
+
+        return widget
+
 
     def create_install_plugin_local_button(self, text, image):
 
@@ -2964,7 +3471,7 @@ class Ui_MainWindow(object):
         message_box.setStandardButtons(QMessageBox.Ok)
         # message_box.setDefaultButton(QMessageBox.Ok)
         user_response = message_box.exec_()
-        pass
+
 
     def createTaskGroup(self, agent):
         print("in createDialogGroup")
@@ -3185,6 +3692,45 @@ class Ui_MainWindow(object):
         widget.setLayout(layout)
 
         return widget
+
+    def create_ai_cfg_button_earth(self, text, agent, diagramType):
+        agentconfigdlg = AiMapConfigDialog(self, agent)
+        self.ai_chat_cfg_dialog_list[agent.user_id] = agentconfigdlg
+
+        # 创建按钮并添加图标
+        agentcfgbutton = QPushButton("设置&&帮助")
+        agentcfgbutton.setIcon(QIcon('images/setting.png'))  # 添加配置管理图标
+
+        agentconfigdlg.configured.connect(self.on_configured_ai_map)
+        agentcfgbutton.clicked.connect(agentconfigdlg.exec_)
+
+        self.buttonGroup.addButton(agentcfgbutton, diagramType)
+
+
+        return agentcfgbutton
+
+    def open_new_map_task(self):
+        ai_map_task_dialog = AiMapTaskDialog(self)
+        ai_map_task_dialog.configured.connect(self.on_configured_ai_map)
+        ai_map_task_dialog.exec_()
+
+
+
+    def create_ai_task_button_earth(self, text, agent, diagramType):
+
+
+        # 创建按钮并添加图标
+        task_button = QPushButton("指派任务")
+        task_button.setIcon(QIcon('images/mission.png'))  # 添加配置管理图标
+
+
+        task_button.clicked.connect(self.open_new_map_task)
+
+        self.buttonGroup.addButton(task_button, diagramType)
+
+
+        return task_button
+
 
     def create_ai_cfg_button(self, text, agent, diagramType):
         agentconfigdlg = AiChatConfigDialog(self, agent)
@@ -3427,7 +3973,7 @@ class Ui_MainWindow(object):
 
         delegate = global_plugin_list[plugin_full_name]
 
-        if plugin_full_name == "函数管理器: 1.0.0":
+        if plugin_full_name == "函数管理器":
             content = delegate.invoke(command=["open_config_dialog"], app=self)
         else:
             content = delegate.invoke(command=["open_config_dialog"])
@@ -3472,7 +4018,7 @@ class Ui_MainWindow(object):
 
     def show_skill_list(self,type_str):
 
-        skill_dialog = SkillManager(type_str)
+        skill_dialog = SkillManager(type_str,self)
         skill_dialog.setObjectName("skillmanager")
         self.conversation_pages.addWidget(skill_dialog)
         self.conversation_pages.setCurrentWidget(skill_dialog)
@@ -3548,7 +4094,7 @@ class Ui_MainWindow(object):
             type_str="2"
         print(keyword)
         print("type_str",type_str)
-        skill_dialog = SkillManager(type_str)
+        skill_dialog = SkillManager(type_str,self)
         skill_dialog.setObjectName("skillmanager")
         self.conversation_pages.addWidget(skill_dialog)
         self.conversation_pages.setCurrentWidget(skill_dialog)
@@ -3563,8 +4109,8 @@ class Ui_MainWindow(object):
         button.setIconSize(QSize(50, 50))
         button.setCheckable(True)
 
-        button.clicked.connect(lambda: self.show_plugin_cfg(record.name + ": " + record.version))
-
+        # button.clicked.connect(lambda: self.show_plugin_cfg(record.name + ": " + record.version))
+        button.clicked.connect(lambda: self.show_plugin_cfg(record.name))
         self.buttonGroup_Plugin.addButton(button, diagramType)
         # self.buttonGroup.addButton(button, diagramType)
 
@@ -3734,7 +4280,8 @@ class Ui_MainWindow(object):
         return QIcon(pixmap)
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(QtWidgets.QApplication.translate("MainWindow", "Ai-SNS"))
+        MainWindow.setWindowTitle(QtWidgets.QApplication.translate(
+            "MainWindow", "AI-SNS"))
         self.statusBox.addItem(QtGui.QIcon("images/status/available.png"),
                                QtWidgets.QApplication.translate("MainWindow", "Available"))
         self.statusBox.addItem(QtGui.QIcon("images/status/chat.png"),

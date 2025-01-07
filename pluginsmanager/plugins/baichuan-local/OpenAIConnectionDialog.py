@@ -26,7 +26,7 @@ class OpenAIConnectionDialog(QDialog, ui_OpenAIConnectionDialog):
     def readSettings(self):
         try:
             file_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-            with open(file_path, "r") as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
                 self.url_edit.setText(config.get("url", ""))
                 self.api_key_edit.setText(config.get("api_key", ""))
@@ -56,6 +56,13 @@ class OpenAIConnectionDialog(QDialog, ui_OpenAIConnectionDialog):
             "parameters": self.parameters_textedit.toPlainText()
         }
         file_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-        with open(file_path, "w") as f:
-            yaml.dump(config, f, default_flow_style=False)
+
+        with open(file_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(
+                config,
+                f,
+                allow_unicode=True,  # 确保中文字符不被转义为Unicode序列
+                default_flow_style=False  # 使用块样式而不是流样式
+            )
+
         self.configured.emit()

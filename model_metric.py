@@ -441,8 +441,11 @@ class MainWindow(QMainWindow):
         self.button = QPushButton("模型评测", self)
         self.button.clicked.connect(self.show_dialog)
 
+
+
         layout = QVBoxLayout()
         layout.addWidget(self.button)
+        layout.addWidget(self.button_frequent)
 
         container = QWidget()
         container.setLayout(layout)

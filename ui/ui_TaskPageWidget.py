@@ -12,7 +12,7 @@ import subprocess
 import time
 import urllib
 import pyperclip
-import webbrowser,re
+import webbrowser, re
 from urllib.parse import urlparse
 from PyQt5 import QtCore, QtGui, QtWidgets, QtWebEngineWidgets
 from PyQt5.QtCore import QUrl
@@ -27,33 +27,37 @@ from qtpy.QtCore import Qt, QMetaObject, Signal, Slot, QEvent
 from pathlib import Path
 from langchainhandler import get_file_content_tuple
 
-
 import json
-from util import generate_random_id,extract_json_string_from_llm
+from util import generate_random_id, extract_json_string_from_llm,convert_unicode_to_chinese
+
 sys.path.append("../..")
 sys.path.append("../../..")
 from speaker import Speaker
 
-from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QMainWindow, QPushButton, QVBoxLayout,QTabWidget
+from PyQt5.QtCore import QThread, pyqtSignal, QSize
+
+from PyQt5.QtWidgets import QWidget, QApplication, QMessageBox, QMainWindow, QPushButton, QVBoxLayout, QTabWidget
 from PyQt5.QtCore import pyqtSlot, Qt, QUrl, QFileInfo, pyqtProperty
-from prompts import PromptDialog,PromptManager
-from db.DBFactory import Session, Prompt,query_AgentTask_By_Id,delete_AgentTask,update_AgentTask,query_KMCfg_All,query_AiChatCfg_All,query_AIFriend_All,query_KMCfg,query_AiChatCfg,add_workflow_mng,get_prompt_by_title
+from prompts import PromptDialog, PromptManager
+from db.DBFactory import Session, Prompt, query_AgentTask_By_Id, delete_AgentTask, update_AgentTask, query_KMCfg_All, query_AiChatCfg_All, query_AIFriend_All, query_KMCfg, query_AiChatCfg, add_workflow_mng, get_prompt_by_title, query_llm_frequents, update_AgentCfg, get_prompt_by_id, get_prompt_frequent_by_agent_id, add_llm_frequent, add_prompt_frequent, query_PluginMng,query_note_mng_ByLabel,update_prompt
 from pluginsmanager.plugins_gui.tab_plugin import load_plugin
 from noteeditor.msword import Main as NoteEditor
 from file_manager import FileManager
 import sys
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QWidget, QMenu, QAction, QHBoxLayout, QShortcut,QPlainTextEdit
+    QApplication, QMainWindow, QLineEdit, QPushButton, QVBoxLayout, QWidget, QMenu, QAction, QHBoxLayout, QShortcut, QPlainTextEdit
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QUrl, Qt
-from PyQt5.QtGui import QKeySequence
+from PyQt5.QtGui import QKeySequence, QPalette, QColor
 from i18n import lt
+from globals import global_plugin_list
+from Agent import Agent, AgentMode
+from speaker import Speaker_Log
 class MessageHandler(QWidget):
     on_message = pyqtSignal(str)
-    on_message_checked = pyqtSignal(int,str,str)
-    on_edit_content_message  = pyqtSignal(str,str)
+    on_message_checked = pyqtSignal(int, str, str)
+    on_edit_content_message = pyqtSignal(str, str)
     on_message_file_clicked = pyqtSignal(str)
     on_message_open_link = pyqtSignal(str)
     on_message_copy_message = pyqtSignal(str)
@@ -65,7 +69,6 @@ class MessageHandler(QWidget):
     on_message_task_run_code = pyqtSignal()
     on_message_task_next_step = pyqtSignal()
     on_message_task_exit = pyqtSignal()
-
 
     def __init__(self):
         super().__init__()
@@ -80,21 +83,21 @@ class MessageHandler(QWidget):
         QMessageBox.information(self, "从网页来的信息", tmpstr)
 
     @pyqtSlot(int, str, str, result=str)
-    def check_message(self,i,id,status):
-        print("i:",i)
+    def check_message(self, i, id, status):
+        print("i:", i)
         print("id:", id)
-        print("status",status)
-        self.on_message_checked.emit(i,id,status)
+        print("status", status)
+        self.on_message_checked.emit(i, id, status)
 
     @pyqtSlot(str, str, result=str)
-    def edit_content_message(self,code_type,text):
-        print("codetype:",code_type)
-        print("text:",text)
-        self.on_edit_content_message.emit(code_type,text)
+    def edit_content_message(self, code_type, text):
+        print("codetype:", code_type)
+        print("text:", text)
+        self.on_edit_content_message.emit(code_type, text)
 
     @pyqtSlot(str, result=str)
-    def file_clicked_message(self,file_path):
-        print("file_path:",file_path)
+    def file_clicked_message(self, file_path):
+        print("file_path:", file_path)
         self.on_message_file_clicked.emit(file_path)
 
     @pyqtSlot(str, result=str)
@@ -146,10 +149,15 @@ class MessageHandler(QWidget):
     def pass_message(self, messsage):
         self.on_message.emit(messsage)
 
+    @pyqtSlot(str, result=str)
+    def get_msg_from_js(self, theteststr):
+        print(theteststr)
+
     thevalue = pyqtProperty(str, fget=PyQt52WebValue, fset=Web2PyQt5Value)
 
 
 class Ui_TaskPageWidget(object):
+
     def setupUi(self, TaskWidget):
         TaskWidget.setObjectName("TaskWidget")
         TaskWidget.resize(800, 600)
@@ -161,6 +169,7 @@ class Ui_TaskPageWidget(object):
         self.vboxlayout.setObjectName("vboxlayout")
         self.vboxlayout.setContentsMargins(0, 0, 0, 0)  # 不留间隙
 
+        # 顶部控件栏start
         # 创建一个水平布局并添加到类的属性中
         self.hboxlayoutlabel = QtWidgets.QHBoxLayout()
 
@@ -168,6 +177,7 @@ class Ui_TaskPageWidget(object):
         left_layout = QtWidgets.QHBoxLayout()
         center_layout = QtWidgets.QHBoxLayout()
         right_layout = QtWidgets.QHBoxLayout()
+        right_layout.addStretch()  # 要添加一个弹性空间否则上面的控件会被拉伸
 
         # 左布局添加空白间隔项
         # left_layout.addItem(QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum))
@@ -180,7 +190,7 @@ class Ui_TaskPageWidget(object):
         ha = 21
 
         # 创建标题标签并设置样式
-        self.title_labela = QLabel(lt("换模型","换模型","Select"), TaskWidget)
+        self.title_labela = QLabel(lt("换模型", "换模型", "Select"), TaskWidget)
         self.title_labela.setCursor(Qt.PointingHandCursor)
         self.title_labela.mousePressEvent = self.on_label_click
         self.title_labela.setStyleSheet(
@@ -214,30 +224,53 @@ class Ui_TaskPageWidget(object):
         # self.place_holder_labela.setFixedHeight(30)  # 设置固定高度以影响间隙
         # self.place_holder_labela.setContentsMargins(0, 0, 0, 0)  # 不留间隙
         # icon_and_title_layouta.addWidget(self.place_holder_labela, alignment=QtCore.Qt.AlignLeft)
-
-        left_layout.addWidget(self.title_labela)
-        left_layout.addWidget(self.model_label)
+        # 先隐藏了,后面做了个空的leftlayout
+        self.title_labela.setHidden(True)
+        self.model_label.setHidden(True)
+        # left_layout.addWidget(self.title_labela)
+        # left_layout.addWidget(self.model_label)
         # left_layout.addLayout(icon_and_title_layouta)
 
         # 根据任务类型设置标题标签的文本和图标路径
         if self.task_type == 'single':
             title_text = " " + self.name
-            icon_path = "images/agentsinglesm.png"
-            w=18
-            h=20
+            # icon_path = "images/agentsinglesm.png"
+            icon_path = "images/ybot.png"
+            w = 18
+            h = 20
         else:
             title_text = " " + self.name
             icon_path = "images/agentmultism.png"  # 假设群组图标的路径
-            w=26
-            h=21
+            w = 26
+            h = 21
 
         # 创建图标标签并加载图标
-        self.icon_label = QLabel("",TaskWidget)
-        pixmap = QtGui.QPixmap(icon_path)
-        self.icon_label.setPixmap(pixmap.scaled(w,h,1))  # 调整图标大小
-        self.icon_label.setFixedHeight(30)  # 设置固定高度以影响间隙
-        self.icon_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        # self.icon_label = QLabel("",TaskWidget)
+        # pixmap = QtGui.QPixmap(icon_path)
+        # self.icon_label.setPixmap(pixmap.scaled(w,h,1))  # 调整图标大小
+        # self.icon_label.setFixedHeight(30)  # 设置固定高度以影响间隙
+        # self.icon_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
 
+        self.icon_label = QPushButton(TaskWidget)
+        icon1 = icon_path
+
+        self.icon_label.setIcon(QtGui.QIcon(icon1))
+
+        # 设置按钮的样式表，修改边框颜色
+        self.icon_label.setStyleSheet("""
+                                    QPushButton {
+                                border: 0px;                /* 默认无边框 */
+                                border-radius: 2px;         /* 边框圆角 */
+                                padding: 2px;               /* 按钮内边距 */
+                                height: 28px;               /* 按钮高度 */
+                                width: 10px;                /* 按钮宽度 */
+                                margin:0px;
+                            }
+                            QPushButton:hover {
+                               /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                               background:#E1E1E1
+                            }
+                                """)
 
         # 创建标题标签并设置样式
         self.title_label = QLabel(title_text, TaskWidget)
@@ -248,23 +281,114 @@ class Ui_TaskPageWidget(object):
 
         # 将图标标签和标题标签放在一个新的水平布局中
         icon_and_title_layout = QtWidgets.QHBoxLayout()
-        icon_and_title_layout.addWidget(self.icon_label,alignment=QtCore.Qt.AlignRight)
-        icon_and_title_layout.addWidget(self.title_label,alignment=QtCore.Qt.AlignLeft)
+        # icon_and_title_layout.addWidget(self.icon_label,alignment=QtCore.Qt.AlignRight)
+        # icon_and_title_layout.addWidget(self.title_label,alignment=QtCore.Qt.AlignLeft)
         icon_and_title_layout.setSpacing(0)  # 设置间隙为零
         icon_and_title_layout.setContentsMargins(0, 0, 0, 0)  # 设置边距为零
 
         # 将新的水平布局添加到中间布局中，并设置居中对齐
-        center_layout.addLayout(icon_and_title_layout,stretch=0)
+        center_layout.addLayout(icon_and_title_layout, stretch=0)
 
         # 创建模型标签并设置样式
 
+        # 将模型标签添加到右边布局中
+        self.place_holder_label_left = QLabel("", TaskWidget)  # 初始文本为空
+        self.place_holder_label_left.setStyleSheet("color: #909090;")
+        self.place_holder_label_left.setFixedHeight(30)  # 设置固定高度以影响间隙
+        self.place_holder_label_left.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        left_layout.addWidget(self.place_holder_label_left, alignment=QtCore.Qt.AlignLeft)
+
+        # 创建模型标签并设置样式
 
         # 将模型标签添加到右边布局中
-        self.place_holder_label = QLabel("", TaskWidget)  # 初始文本为空
-        self.place_holder_label.setStyleSheet("color: #909090;")
-        self.place_holder_label.setFixedHeight(30)  # 设置固定高度以影响间隙
-        self.place_holder_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
-        right_layout.addWidget(self.place_holder_label, alignment=QtCore.Qt.AlignRight)
+        # self.place_holder_label = QLabel("", TaskWidget)  # 初始文本为空
+        # self.place_holder_label.setStyleSheet("color: #909090;")
+        # self.place_holder_label.setFixedHeight(30)  # 设置固定高度以影响间隙
+        # self.place_holder_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        #
+        # right_layout.setSpacing(0)
+        # right_layout.addWidget(self.place_holder_label, alignment=QtCore.Qt.AlignRight)
+
+        self.icon_label.setVisible(False)
+        self.title_label.setVisible(False)
+        # right_layout.addWidget(self.icon_label, alignment=QtCore.Qt.AlignRight)
+        # right_layout.addWidget(self.title_label, alignment=QtCore.Qt.AlignRight)
+
+        # 创建标题标签并设置样式
+        # self.title_labela2 = QLabel(lt("模型", "模型", "LLM"), TaskWidget)
+        # self.title_labela2.setCursor(Qt.PointingHandCursor)
+        # self.title_labela2.mousePressEvent = self.on_label_click
+        # self.title_labela2.setStyleSheet(
+        #     "color: #146ebe; font-weight: bold; border: solid 1px red"
+        # )
+        # self.title_labela2.setFixedSize(32, 40)  # 设置固定大小以影响间隙
+        # self.title_labela2.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        # self.title_labela2.setHidden(False)  # 确保title_labela可见
+
+        self.title_labela2 = QPushButton(TaskWidget)
+        icon1 = "images/selectllm.png"
+
+        self.title_labela2.setIcon(QtGui.QIcon(icon1))
+
+        # 设置按钮的样式表，修改边框颜色
+        self.title_labela2.setStyleSheet("""
+                                            QPushButton {
+                                        border: 0px;                /* 默认无边框 */
+                                        border-radius: 2px;         /* 边框圆角 */
+                                        padding: 2px;               /* 按钮内边距 */
+                                        height: 28px;               /* 按钮高度 */
+                                        width: 18px;                /* 按钮宽度 */
+                                        margin:0px;
+                                    }     
+                                        """)
+        self.title_labela2.setCursor(Qt.PointingHandCursor)
+
+        self.title_labela2.setToolTip("点此处选择模型")
+        self.title_labela2.setFixedWidth(30)
+        self.title_labela2.clicked.connect(self.on_label_click)
+        right_layout.addWidget(self.title_labela2)
+
+        self.model_combobox = QComboBox(TaskWidget)
+        right_layout.addWidget(self.model_combobox)
+
+        # # 创建标题标签并设置样式
+        # self.role_label = QLabel(lt("角色", "角色", "Role"), TaskWidget)
+        # self.role_label.setCursor(Qt.PointingHandCursor)
+        # self.role_label.mousePressEvent = self.on_role_label_click
+        # self.role_label.setStyleSheet(
+        #     "color: #146ebe; font-weight: bold; border: solid 1px red;"
+        # )
+        # self.role_label.setFixedSize(32, 40)  # 设置固定大小以影响间隙
+        # self.role_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        # self.role_label.setHidden(False)  # 确保title_labela可见
+
+        self.role_label = QPushButton(TaskWidget)
+        icon1 = "images/selectrole.png"
+
+        self.role_label.setIcon(QtGui.QIcon(icon1))
+
+        # 设置按钮的样式表，修改边框颜色
+        self.role_label.setStyleSheet("""
+                                                    QPushButton {
+                                                border: 0px;                /* 默认无边框 */
+                                                border-radius: 2px;         /* 边框圆角 */
+                                                padding: 2px;               /* 按钮内边距 */
+                                                height: 28px;               /* 按钮高度 */
+                                                width: 28px;                /* 按钮宽度 */
+                                                margin:0px;
+                                            }
+  
+                                                """)
+        self.role_label.setCursor(Qt.PointingHandCursor)
+
+        self.role_label.setToolTip("点此处选择角色")
+        self.role_label.clicked.connect(self.on_role_label_click)
+        self.role_label.setFixedWidth(30)
+        right_layout.addWidget(self.role_label)
+
+        self.prompt_combobox = QComboBox(TaskWidget)
+        self.prompt_combobox.setStyleSheet("QComboBox {margin-right:5px}")
+        right_layout.addWidget(self.prompt_combobox)
 
         # 将三个子布局添加到主的水平布局中
         self.hboxlayoutlabel.addLayout(left_layout)
@@ -273,6 +397,10 @@ class Ui_TaskPageWidget(object):
 
         # 将水平布局添加到垂直布局中
         self.vboxlayout.addLayout(self.hboxlayoutlabel)
+
+        # 顶部控件栏End
+
+        # 中间messagebrowser和tab控件栏start
 
         # 使用 QSplitter 来管理 self.frame 和 self.tabWidget
         self.splitter = QSplitter(Qt.Horizontal, TaskWidget)
@@ -290,14 +418,15 @@ class Ui_TaskPageWidget(object):
         self.tabWidget = QTabWidget(self.splitter)
         self.tabWidget.setObjectName("tabWidget")
         self.tabWidget.setTabPosition(QTabWidget.South)
+        # self.tabWidget.setTabsClosable(True)
 
-        self.tab_output = QtWidgets.QWidget()
-        self.tab_output.setObjectName("tab_output")
-        self.tabLayout_output = QtWidgets.QVBoxLayout(self.tab_output)
-        self.tabLayout_output.setContentsMargins(0, 0, 0, 0)
-        self.output_webview = QWebEngineView(self.tab_output)
-        self.tabLayout_output.addWidget(self.output_webview)
-        self.tabWidget.addTab(self.tab_output, "输出")
+        # self.tab_output = QtWidgets.QWidget()
+        # self.tab_output.setObjectName("tab_output")
+        # self.tabLayout_output = QtWidgets.QVBoxLayout(self.tab_output)
+        # self.tabLayout_output.setContentsMargins(0, 0, 0, 0)
+        # self.output_webview = QWebEngineView(self.tab_output)
+        # self.tabLayout_output.addWidget(self.output_webview)
+        # self.tabWidget.addTab(self.tab_output, "输出")
 
         self.tab_log = QtWidgets.QWidget()
         self.tab_log.setObjectName("tab_log")
@@ -306,6 +435,93 @@ class Ui_TaskPageWidget(object):
         self.textEdit_log = QtWidgets.QTextEdit(self.tab_log)
         self.textEdit_log.setReadOnly(True)
         self.tabLayout_log.addWidget(self.textEdit_log)
+
+        # model
+        self.model_debug_checkbox = QtWidgets.QCheckBox(self.tab_log)
+        self.model_debug_checkbox.setVisible(False)
+        self.model_debug_checkbox.setText("调试模型参数:")
+        self.model_debug_checkbox.stateChanged.connect(self.model_debug_check)
+        self.model_debug_checkbox.setStyleSheet("QCheckBox{margin:10px,0px,0px,3px}")
+        self.tabLayout_log.addWidget(self.model_debug_checkbox)
+
+        self.textEdit_model = QtWidgets.QTextEdit(self.tab_log)
+        self.textEdit_model.setVisible(False)
+        self.textEdit_model.setFixedHeight(100)
+        self.tabLayout_log.addWidget(self.textEdit_model)
+
+        self.hblayout_model_opr =  QtWidgets.QHBoxLayout(self.tab_log)
+        self.textline_optimize = QtWidgets.QLineEdit(self.tab_log)
+        self.textline_optimize.setVisible(False)
+        self.textline_optimize.setPlaceholderText("请输入优化要求")
+        self.button_optimize = QtWidgets.QPushButton(self.tab_log)
+        self.button_optimize.setVisible(False)
+        self.button_optimize.setText("优化")
+        self.button_optimize.clicked.connect(self.optimize_model)
+        self.button_accept = QtWidgets.QPushButton(self.tab_log)
+        self.button_accept.setVisible(False)
+        self.button_accept.setText("应用")
+        self.button_accept.clicked.connect(self.accept_model_optimization)
+
+        self.hblayout_model_opr.addWidget(self.textline_optimize)
+        self.hblayout_model_opr.addWidget(self.button_optimize)
+        self.hblayout_model_opr.addWidget(self.button_accept)
+        self.hblayout_model_opr.setContentsMargins(0, 0, 0, 0)
+
+        self.tabLayout_log.addLayout(self.hblayout_model_opr)
+
+
+        # prompt
+        self.prompt_debug_checkbox = QtWidgets.QCheckBox(self.tab_log)
+        self.prompt_debug_checkbox.setVisible(False)
+        self.prompt_debug_checkbox.setText("调试角色提示词:")
+        self.prompt_debug_checkbox.stateChanged.connect(self.prompt_debug_check)
+        self.prompt_debug_checkbox.setStyleSheet("QCheckBox{margin:10px,0px,0px,3px}")
+
+        self.tabLayout_log.addWidget(self.prompt_debug_checkbox)
+
+        self.textEdit_prompt = QtWidgets.QTextEdit(self.tab_log)
+        self.textEdit_prompt.setVisible(False)
+        self.textEdit_prompt.setFixedHeight(100)
+        self.tabLayout_log.addWidget(self.textEdit_prompt)
+
+        self.hblayout_prompt_opr = QtWidgets.QHBoxLayout(self.tab_log)
+        self.textline_optimize_prompt = QtWidgets.QLineEdit(self.tab_log)
+        self.textline_optimize_prompt.setVisible(False)
+        self.textline_optimize_prompt.setPlaceholderText("请输入优化要求")
+        self.button_optimize_prompt = QtWidgets.QPushButton(self.tab_log)
+        self.button_optimize_prompt.setVisible(False)
+        self.button_optimize_prompt.setText("优化")
+        self.button_optimize_prompt.clicked.connect(self.optimize_prompt)
+        self.button_accept_prompt = QtWidgets.QPushButton(self.tab_log)
+        self.button_accept_prompt.setVisible(False)
+        self.button_accept_prompt.setText("应用")
+        self.button_accept_prompt.clicked.connect(self.accept_prompt_optimization)
+
+        self.hblayout_prompt_opr.addWidget(self.textline_optimize_prompt)
+        self.hblayout_prompt_opr.addWidget(self.button_optimize_prompt)
+        self.hblayout_prompt_opr.addWidget(self.button_accept_prompt)
+        self.hblayout_prompt_opr.setContentsMargins(0,0,0,0)
+
+        self.tabLayout_log.addLayout(self.hblayout_prompt_opr)
+
+        self.hblayout_checkbox_org = QtWidgets.QHBoxLayout(self.tab_log)
+
+        self.model_debug_checkbox_org = QtWidgets.QCheckBox(self.tab_log)
+        self.model_debug_checkbox_org.setText("调试模型参数:")
+        self.model_debug_checkbox_org.stateChanged.connect(self.model_debug_check_org)
+        self.model_debug_checkbox_org.setStyleSheet("QCheckBox{margin:10px,0px,0px,3px}")
+        self.hblayout_checkbox_org.addWidget(self.model_debug_checkbox_org)
+
+        self.prompt_debug_checkbox_org = QtWidgets.QCheckBox(self.tab_log)
+        self.prompt_debug_checkbox_org.setText("调试角色提示词:")
+        self.prompt_debug_checkbox_org.stateChanged.connect(self.prompt_debug_check_org)
+        self.prompt_debug_checkbox_org.setStyleSheet("QCheckBox{margin:10px,0px,0px,3px}")
+        self.hblayout_checkbox_org.addWidget(self.prompt_debug_checkbox_org)
+        self.hblayout_checkbox_org.addStretch()
+
+        self.tabLayout_log.addLayout(self.hblayout_checkbox_org)
+
+
         self.tabWidget.addTab(self.tab_log, "日志")
 
         self.tab_file = FileManager()
@@ -314,12 +530,13 @@ class Ui_TaskPageWidget(object):
         self.tabLayout_file.setContentsMargins(0, 0, 0, 0)
         self.tabWidget.addTab(self.tab_file, "文件")
 
-
-        self.splitter.setSizes([1, ])#设置初始状态不显示输出窗口
+        self.splitter.setSizes([1, ])  # 设置初始状态不显示输出窗口
 
         self.vboxlayout.addWidget(self.splitter)
 
-        # 内容菜单
+        # 中间messagebrowser和tab控件栏End
+
+        # 内容菜单 Start
         self.hboxlayout_content_menu = QHBoxLayout()
         self.content_menu_group_box = QGroupBox("")
         self.content_menu_group_box.setFixedHeight(100)
@@ -333,8 +550,6 @@ class Ui_TaskPageWidget(object):
         self.task_mode_checkboxa = QCheckBox("全选", TaskWidget)
         self.hboxlayout_content_menu_inner.addWidget(self.task_mode_checkboxa)
         self.task_mode_checkboxa.stateChanged.connect(self.toggle_page_all_checkboxes_status)
-
-
 
         self.delete_batch_button = QPushButton(TaskWidget)
         icon1a = QtGui.QIcon()
@@ -352,7 +567,6 @@ class Ui_TaskPageWidget(object):
         self.shareButton.clicked.connect(self.transfer_message_batch)
         self.hboxlayout_content_menu_inner.addWidget(self.shareButton)
 
-
         self.collectButton = QPushButton(TaskWidget)
         self.collectButton.setIcon(QtGui.QIcon("images/bookmark.png"))
         self.collectButton.setObjectName("collectButton")
@@ -367,11 +581,6 @@ class Ui_TaskPageWidget(object):
         self.workflowButton.clicked.connect(self.workflow_button_click)
         self.hboxlayout_content_menu_inner.addWidget(self.workflowButton)
 
-
-
-
-
-
         self.close_button = QPushButton(TaskWidget)
         self.close_button.setText("X")
         self.close_button.setToolTip("关闭操作")
@@ -381,18 +590,17 @@ class Ui_TaskPageWidget(object):
                         border: 1px solid #c0c0c0; /* 设置边框 */
                         background:#c0c0c0;
                         color:#146ebe;
-                        width:40px;
-                        height:40px;
-                        font-size:16pt;
+                        width:25px;
+                        height:25px;
+                        font-size:13pt;
                     }
                         QPushButton:hover { /* 鼠标悬浮时的样式 */
                         background: #d3d3d3; /* 鼠标悬浮时按钮背景颜色变浅 */
                     }
 
                 """)
-        self.close_button.clicked.connect(lambda:self.toggle_content_menu("unchecked"))
+        self.close_button.clicked.connect(lambda: self.toggle_content_menu("unchecked"))
         self.hboxlayout_content_menu_inner.addWidget(self.close_button)
-
 
         self.content_menu_group_box.setLayout(self.hboxlayout_content_menu_inner)
 
@@ -401,86 +609,256 @@ class Ui_TaskPageWidget(object):
         self.hboxlayout_content_menu_inner.addItem(spacerItem1_content_menu)
         self.vboxlayout.addLayout(self.hboxlayout_content_menu)
 
-
         # 添加其他控件
         self.hboxlayout = QHBoxLayout()
         self.hboxlayout.setObjectName("hboxlayout")
-        spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
-        self.hboxlayout.addItem(spacerItem)
-
+        # spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+        # self.hboxlayout.addItem(spacerItem)
 
         self.newButton = QPushButton(TaskWidget)
-        self.newButton.setIcon(QtGui.QIcon("images/task.png"))
+        self.newButton.setIcon(QtGui.QIcon("images/newtopic.png"))
         self.newButton.setObjectName("newButton")
         self.hboxlayout.addWidget(self.newButton)
 
+        # 设置按钮的样式表，修改边框颜色
+        self.newButton.setCursor(Qt.PointingHandCursor)
+        self.newButton.setStyleSheet("""
+                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px;
+                    }
+
+                        """)
+
+        # # 创建标题标签并设置样式
+        # self.title_labela2 = QLabel(lt("模型", "模型", "LLM"), TaskWidget)
+        # self.title_labela2.setCursor(Qt.PointingHandCursor)
+        # self.title_labela2.mousePressEvent = self.on_label_click
+        # self.title_labela2.setStyleSheet(
+        #     "color: #146ebe; font-weight: bold; border: solid 1px red"
+        # )
+        # self.title_labela2.setFixedSize(32, 40)  # 设置固定大小以影响间隙
+        # self.title_labela2.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        # self.title_labela2.setHidden(False)  # 确保title_labela可见
+        # self.title_labela2.setToolTip("点此处选择模型")
+        # self.hboxlayout.addWidget(self.title_labela2)
+        #
+        # self.model_combobox = QComboBox(TaskWidget)
+        # self.hboxlayout.addWidget(self.model_combobox)
+        #
+        # # 创建标题标签并设置样式
+        # self.role_label = QLabel(lt("角色", "角色", "Role"), TaskWidget)
+        # self.role_label.setCursor(Qt.PointingHandCursor)
+        # self.role_label.mousePressEvent = self.on_role_label_click
+        # self.role_label.setStyleSheet(
+        #     "color: #146ebe; font-weight: bold; border: solid 1px red;"
+        # )
+        # self.role_label.setFixedSize(32, 40)  # 设置固定大小以影响间隙
+        # self.role_label.setContentsMargins(0, 0, 0, 0)  # 不留间隙
+        # self.role_label.setHidden(False)  # 确保title_labela可见
+        # self.role_label.setToolTip("点此处选择角色")
+        # self.hboxlayout.addWidget(self.role_label)
+        #
+        # self.prompt_combobox = QComboBox(TaskWidget)
+        # self.hboxlayout.addWidget(self.prompt_combobox)
+
+        self.manage_button = QPushButton("管理", TaskWidget)
+        self.manage_button.setToolTip("右击该按钮可置入对应对话模板")
+        self.manage_button.setVisible(False)
+        # self.hboxlayout.addWidget(self.manage_button)
 
         self.attach_button = QPushButton(TaskWidget)
         icon1 = QtGui.QIcon()
         icon1.addFile("images/attachment.png")
         self.attach_button.setIcon(icon1)
         self.attach_button.setObjectName("fontButton")
-        self.hboxlayout.addWidget(self.attach_button)
 
-        self.kmButton = QPushButton(TaskWidget)
-        self.kmButton.setIcon(QtGui.QIcon("images/km.png"))
-        self.kmButton.setObjectName("kmButton")
-        self.hboxlayout.addWidget(self.kmButton)
+        # 设置按钮的样式表，修改边框颜色
+        self.attach_button.setStyleSheet("""
+                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px;
+                    }
+
+                        """)
+        self.attach_button.setCursor(Qt.PointingHandCursor)
+        self.hboxlayout.addWidget(self.attach_button)
 
         self.plugin_button = QPushButton(TaskWidget)
         icon2 = QtGui.QIcon()
         icon2.addFile("images/plugin.png")
         self.plugin_button.setIcon(icon2)
         self.plugin_button.setObjectName("pluginButton")
+        # 设置按钮的样式表，修改边框颜色
+        self.plugin_button.setStyleSheet("""
+                                   QPushButton {
+                               border: 0px;                /* 默认无边框 */
+                               border-radius: 2px;         /* 边框圆角 */
+                               padding: 2px;               /* 按钮内边距 */
+                               height: 28px;               /* 按钮高度 */
+                               width: 28px;                /* 按钮宽度 */
+                               margin:0px;
+                           }
+
+                               """)
+        self.plugin_button.setCursor(Qt.PointingHandCursor)
         self.hboxlayout.addWidget(self.plugin_button)
+        # self.plugin_button.setIcon(QtGui.QIcon("images/pluginred.png"))
+
+        self.kmButton = QPushButton(TaskWidget)
+        self.kmButton.setIcon(QtGui.QIcon("images/km.png"))
+        self.kmButton.setObjectName("kmButton")
+        self.hboxlayout.addWidget(self.kmButton)
+
+        # self.kmButton.setIcon(QtGui.QIcon("images/kmred.png"))
+
+        # 设置按钮的样式表，修改边框颜色
+        self.kmButton.setStyleSheet("""
+                    QPushButton {
+                border: 0px;                /* 默认无边框 */
+                border-radius: 2px;         /* 边框圆角 */
+                padding: 2px;               /* 按钮内边距 */
+                height: 28px;               /* 按钮高度 */
+                width: 28px;                /* 按钮宽度 */
+                margin:0px;
+            }
+
+                """)
+
+        self.kmButton.setCursor(Qt.PointingHandCursor)
+        # button=self.kmButton
+        # # 创建一个调色板
+        # palette = button.palette()
+        # # 设置按钮的字体颜色
+        # palette.setColor(QPalette.ButtonText, QColor(255, 0, 0))  # 设置字体颜色为红色
+        # button.setPalette(palette)
+        # # 设置按钮的背景颜色
+        # palette.setColor(QPalette.Button, QColor(0, 0, 255))  # 设置背景颜色为蓝色
+        # button.setAutoFillBackground(True)  # 允许按钮使用调色板的背景色
+        # button.setPalette(palette)
+
+        self.context_button = QPushButton(TaskWidget)
+        icon_context = QtGui.QIcon()
+        icon_context.addFile("images/context_2.png")
+        self.context_button.setIcon(icon_context)
+        self.context_button.setObjectName("context_button")
+        self.context_button.setStyleSheet("""
+                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 0px 0px 2px;
+                        background:#E1E1E1;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#a9d7ff
+                    }
+                        """)
+        self.context_button.setCursor(Qt.PointingHandCursor)
+        self.context_button.clicked.connect(self.toggle_context_mode)
+        self.hboxlayout.addWidget(self.context_button)
+
+        self.task_button = QPushButton(TaskWidget)
+        icon_task = QtGui.QIcon()
+        icon_task.addFile("images/mode_task.png")
+        self.task_button.setIcon(icon_task)
+        self.task_button.setObjectName("task_button")
+        self.task_button.setStyleSheet("""
+                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 2px;
+                        background:#E1E1E1;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#a9d7ff;
+                    }
+                        """)
+        self.task_button.setCursor(Qt.PointingHandCursor)
+        self.task_button.clicked.connect(self.toggle_task_mode)
+        self.hboxlayout.addWidget(self.task_button)
+
+        self.sidepane_button = QPushButton(TaskWidget)
+        icon_sidepane = QtGui.QIcon()
+        icon_sidepane.addFile("images/sidepane_1.png")
+        self.sidepane_button.setIcon(icon_sidepane)
+        self.sidepane_button.setObjectName("sidepane_button")
+        self.sidepane_button.setStyleSheet("""
+                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 0px;
+                        background:#E1E1E1;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#a9d7ff
+                    }
+                        """)
+        self.sidepane_button.setCursor(Qt.PointingHandCursor)
+        self.sidepane_button.clicked.connect(self.toggle_sidepane_mode)
+        self.hboxlayout.addWidget(self.sidepane_button)
+
+        self.hboxlayout.setSpacing(0)  # 设置按钮之间的间距为0
 
         self.model_select_checkbox = QCheckBox("指定模型")
-        #self.model_select_checkbox = QCheckBox("指定模型", TaskWidget)
-        #self.hboxlayout.addWidget(self.model_select_checkbox)#暂时不添加了
-
-
-        self.task_mode_checkbox = QCheckBox("任务模式", TaskWidget)
-        self.hboxlayout.addWidget(self.task_mode_checkbox)
+        # self.model_select_checkbox = QCheckBox("指定模型", TaskWidget)
+        # self.hboxlayout.addWidget(self.model_select_checkbox)#暂时不添加了
 
         self.history_mode_checkbox = QCheckBox("指定上下文", TaskWidget)
         self.hboxlayout.addWidget(self.history_mode_checkbox)
+        self.history_mode_checkbox.setVisible(False)
 
-        self.prompt_combobox = QComboBox(TaskWidget)
-        self.prompt_combobox.addItem("请选择提示词")
-        self.prompt_combobox.addItem("a.你是个资深的程序员")
-        self.prompt_combobox.addItem("b.你是个资深的架构师")
-        self.hboxlayout.addWidget(self.prompt_combobox)
-
-        self.manage_button = QPushButton("管理", TaskWidget)
-        self.manage_button.setToolTip("右击该按钮可置入对应对话模板")
-        self.hboxlayout.addWidget(self.manage_button)
+        self.task_mode_checkbox = QCheckBox("任务模式", TaskWidget)
+        self.hboxlayout.addWidget(self.task_mode_checkbox)
+        self.task_mode_checkbox.setVisible(False)
 
         # 添加 "输出" QCheckBox
         self.output_checkbox = QCheckBox(lt("Side Pane|边窗"), TaskWidget)
         self.output_checkbox.stateChanged.connect(self.toggle_output_checkbox)
         self.output_checkbox.setChecked(False)
         self.hboxlayout.addWidget(self.output_checkbox)
+        self.output_checkbox.setVisible(False)
 
         spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.hboxlayout.addItem(spacerItem1)
-        self.vboxlayout.addLayout(self.hboxlayout)
+
+        # self.vboxlayout.addLayout(self.hboxlayout)#cjr modified
 
         self.hboxlayout1 = QHBoxLayout()
         self.hboxlayout1.setObjectName("hboxlayout1")
         self.messageEdit = QtWidgets.QTextEdit(TaskWidget)
-        self.messageEdit.setAcceptRichText(False)#设置为不接受富文本，否则格式特别是背景总数很混乱
-        self.messageEdit.setPlaceholderText("Ctrl+/可以调出插件")
-        self.messageEdit.setFixedHeight(45)  # 假设每行高度为20像素
+        self.messageEdit.setAcceptRichText(False)  # 设置为不接受富文本，否则格式特别是背景总数很混乱
+        self.messageEdit.setPlaceholderText("Ctrl+/可以插入当前角色的对话模板")
+        self.messageEdit.setFixedHeight(80)  # 假设每行高度为20像素,设置为45
         self.messageEdit.setStyleSheet("""
 
             QTextEdit {
-            border: 1px solid #c0c0c0; /* 边框颜色 */
+            border: 0px solid #c0c0c0; /* 边框颜色 */
             border-radius: 8px;       /* 圆角半径 */
             padding: 2px;              /* 内边距 */
-            /*background-color: #ffffff;*/ /* 背景颜色 */
+            background-color: #F0F0F0; /* 背景颜色 */
         }
             QTextEdit:focus {
-                border-color: #61addf; /* 设置焦点时的边框颜色 */
+                border-color: #146ebe; /* 设置焦点时的边框颜色 */
             }
         """)
 
@@ -491,23 +869,96 @@ class Ui_TaskPageWidget(object):
 
         self.sendButton = QPushButton(TaskWidget)
         icon3 = QtGui.QIcon()
-        icon3.addFile("images/sendmessage.png")
+        icon3.addFile("images/sendbutton.png")
         self.sendButton.setIcon(icon3)
         self.sendButton.setObjectName("sendButton")
-        self.hboxlayout1.addWidget(self.sendButton)
-        self.vboxlayout.addLayout(self.hboxlayout1)
+        self.hboxlayout.addWidget(self.sendButton)
+        # self.vboxlayout.addLayout(self.hboxlayout1)#cjr modified
 
+        # 设置按钮的样式表，修改边框颜色
+        self.sendButton.setIconSize(QSize(30, 30))
+        self.sendButton.setStyleSheet("""
+                                   QPushButton {
+                               border:0px;                /* 默认无边框 */
+                               padding: 0px;               /* 按钮内边距 */
+                               margin:0px 5px 5px 0px;
+                           }
+                           QPushButton:hover {
+                              /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                             /*   background:#E1E1E1 */
+                           }
+                               """)
+
+        self.sendButton.setCursor(Qt.PointingHandCursor)
 
         self.stopButton = QPushButton(TaskWidget)
         icon3 = QtGui.QIcon()
-        icon3.addFile("images/stop.png")
+        icon3.addFile("images/stopblue.png")
         self.stopButton.setIcon(icon3)
         self.stopButton.setObjectName("stopButton")
-        self.hboxlayout1.addWidget(self.stopButton)
+        self.hboxlayout.addWidget(self.stopButton)
+        self.stopButton.setIconSize(QSize(30, 30))
+        self.stopButton.setStyleSheet("""
+                                           QPushButton {
+                                       border:0px;                /* 默认无边框 */
+                                       padding: 0px;               /* 按钮内边距 */
+                                       margin:0px 5px 5px 0px;
+                                   }
+                                   QPushButton:hover {
+                                      /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                                     /*   background:#E1E1E1 */
+                                   }
+                                       """)
+        self.stopButton.setCursor(Qt.PointingHandCursor)
         self.stopButton.setVisible(False)
 
+        self.frame_bottom = QtWidgets.QFrame()
+        self.frame_bottom.setStyleSheet("QFrame { border: 1px solid #c0c0c0;border-radius: 8px;margin-right:5px}")
+        # self.frame_bottom.setFixedHeight(180)
+        self.frame_bottom.setMinimumHeight(120)
+        self.frame_bottom.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
 
+        self.frame_bottom_layout = QtWidgets.QVBoxLayout(self.frame_bottom)
+        self.frame_bottom_layout.setContentsMargins(0, 0, 0, 0)
+        self.frame_bottom_layout.setSpacing(0)
+        self.hboxlayout1.setContentsMargins(0, 0, 0, 0)
+        self.hboxlayout1.setSpacing(0)
+        self.hboxlayout.setContentsMargins(5, 0, 0, 0)
+        self.hboxlayout.setSpacing(0)
+        self.frame_bottom_layout.addLayout(self.hboxlayout1)
+        self.frame_bottom_layout.addLayout(self.hboxlayout)
 
+        self.frame_bottom.setLayout(self.frame_bottom_layout)
+
+        self.vboxlayout.addWidget(self.frame_bottom)
+
+        # self.vboxlayout_send_area = QVBoxLayout()
+        # self.vboxlayout_send_area.setSpacing(3)
+        # self.sendButton = QPushButton(TaskWidget)
+        # icon3 = QtGui.QIcon()
+        # icon3.addFile("images/sendmessage.png")
+        # self.sendButton.setIcon(icon3)
+        # self.sendButton.setObjectName("sendButton")
+        #
+        # self.vboxlayout_send_area.addWidget(self.history_mode_checkbox)
+        # self.vboxlayout_send_area.addWidget(self.task_mode_checkbox)
+        #
+        # # self.vboxlayout_send_area.addWidget(self.output_checkbox)
+        # self.vboxlayout_send_area.addWidget(self.sendButton)
+        #
+        # self.hboxlayout1.addLayout(self.vboxlayout_send_area)
+        #
+        #
+        # self.vboxlayout.addLayout(self.hboxlayout1)
+        #
+        #
+        # self.stopButton = QPushButton(TaskWidget)
+        # icon3 = QtGui.QIcon()
+        # icon3.addFile("images/stop.png")
+        # self.stopButton.setIcon(icon3)
+        # self.stopButton.setObjectName("stopButton")
+        # self.hboxlayout1.addWidget(self.stopButton)
+        # self.stopButton.setVisible(False)
 
         self.retranslateUi(TaskWidget)
 
@@ -515,9 +966,88 @@ class Ui_TaskPageWidget(object):
 
         self.remaining_attachments = 0  # 初始化可见附件计数
 
+    def model_debug_check_org(self,state):
+        if state ==Qt.Checked:
+            self.model_debug_checkbox.setChecked(True)
+            self.model_debug_checkbox.setVisible(True)
+            self.textEdit_model.setVisible(True)
+            self.textline_optimize.setVisible(True)
+            self.button_optimize.setVisible(True)
+            self.button_accept.setVisible(True)
+
+
+
+            self.model_debug_checkbox.setVisible(True)
+            self.prompt_debug_checkbox.setVisible(True)
+            self.model_debug_checkbox_org.setVisible(False)
+            self.prompt_debug_checkbox_org.setVisible(False)
+
+    def model_debug_check(self,state):
+        if state ==Qt.Unchecked:
+            self.textEdit_model.setVisible(False)
+            self.textline_optimize.setVisible(False)
+            self.button_optimize.setVisible(False)
+            self.button_accept.setVisible(False)
+
+            if self.prompt_debug_checkbox.checkState()==Qt.Unchecked:
+                self.model_debug_checkbox.setVisible(False)
+                self.prompt_debug_checkbox.setVisible(False)
+                self.model_debug_checkbox_org.setVisible(True)
+                self.prompt_debug_checkbox_org.setVisible(True)
+
+                self.model_debug_checkbox_org.setChecked(False)
+                self.prompt_debug_checkbox_org.setChecked(False)
+
+        elif state == Qt.Checked:
+            self.textEdit_model.setVisible(True)
+            self.textline_optimize.setVisible(True)
+            self.button_optimize.setVisible(True)
+            self.button_accept.setVisible(True)
+
+
+    def prompt_debug_check_org(self,state):
+        if state == Qt.Checked:
+            self.prompt_debug_checkbox.setChecked(True)
+            self.prompt_debug_checkbox.setVisible(True)
+            self.textEdit_prompt.setVisible(True)
+            self.textline_optimize_prompt.setVisible(True)
+            self.button_optimize_prompt.setVisible(True)
+            self.button_accept_prompt.setVisible(True)
+
+
+            self.model_debug_checkbox.setVisible(True)
+            self.prompt_debug_checkbox.setVisible(True)
+            self.model_debug_checkbox_org.setVisible(False)
+            self.prompt_debug_checkbox_org.setVisible(False)
+
+    def prompt_debug_check(self,state):
+        if state == Qt.Unchecked:
+            self.textEdit_prompt.setVisible(False)
+            self.textline_optimize_prompt.setVisible(False)
+            self.button_optimize_prompt.setVisible(False)
+            self.button_accept_prompt.setVisible(False)
+
+            if self.model_debug_checkbox.checkState() == Qt.Unchecked:
+                self.model_debug_checkbox.setVisible(False)
+                self.prompt_debug_checkbox.setVisible(False)
+                self.model_debug_checkbox_org.setVisible(True)
+                self.prompt_debug_checkbox_org.setVisible(True)
+
+                self.model_debug_checkbox_org.setChecked(False)
+                self.prompt_debug_checkbox_org.setChecked(False)
+        elif state == Qt.Checked:
+            self.textEdit_prompt.setVisible(True)
+            self.textline_optimize_prompt.setVisible(True)
+            self.button_optimize_prompt.setVisible(True)
+            self.button_accept_prompt.setVisible(True)
+
+
+
+
+
     def adjustHeight(self):
         line_height = 20  # 每行高度为20像素
-        min_height = 40  # 最小高度为40像素
+        min_height = 80  # 最小高度为40像素
         max_height = 200  # 最大高度为90像素
         print("in adjustHeight")
 
@@ -530,7 +1060,7 @@ class Ui_TaskPageWidget(object):
         new_height = max(min_height, min(max_height, lines * line_height))
 
         # 设置新的高度
-        self.messageEdit.setFixedHeight(new_height+5)
+        self.messageEdit.setFixedHeight(new_height + 5)
 
     def handle_key_press(self, event):
         # 检查是否按下了Ctrl+/组合键
@@ -556,6 +1086,8 @@ class Ui_TaskPageWidget(object):
         #                                                                                "<script>hljs.highlightAll();</script></body></html>"))
 
         file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "taskpagemsgbox.html")
+        # file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "map.html")
+        # file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "googlemap.html")
         # file_path = os.path.join(Path(__file__).resolve().parent.parent, "scripts", "index3.html")
         print(file_path)
         url_string = QUrl.fromLocalFile(file_path)
@@ -563,31 +1095,31 @@ class Ui_TaskPageWidget(object):
         print("transform")
         print(url_string)
         # self.messageBrowser.page().load(url_string)
-        mind_path="C:\\dev\\ai-sns\\PyTalk\\mindmap.html"
+        mind_path = "C:\\dev\\ai-sns\\PyTalk\\mindmap.html"
         mind_path = "C:\\dev\\ai-sns\\PyTalk\\pytalk\\coding\\mycode_workflow.html"
         mind_url_string = QUrl.fromLocalFile(mind_path)
         # mind_url_string = QUrl("https://examples.logic-flow.cn/demo/dist/organizer")
         # mind_url_string = QUrl("https://sebastien.drouyer.com/jquery.flowchart-demo/")
         #
         # self.output_webview.page().load(mind_url_string)
-        print("url_string:",url_string)
+        print("url_string:", url_string)
         print("mind_url_string:", mind_url_string)
 
-        print(self.output_webview.settings().defaultSettings())
-        self.output_webview.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
+        # print(self.output_webview.settings().defaultSettings())
+        # self.output_webview.settings().setAttribute(QWebEngineSettings.PluginsEnabled, True)
 
         # 显示开发者工具
-        self.output_webview.page().runJavaScript('console.log("Opening DevTools");')
-        self.output_webview.show()
-        self.output_webview.page().profile().setPersistentStoragePath("<your_storage_path>")
-        self.output_webview.page().setDevToolsPage(self.output_webview.page())  # 允许开发者工具
-        # self.output_webview.page().devToolsPage() # 显示开发者工具
-        self.output_webview.page().load(mind_url_string)
-        qurl_remote_url = QUrl("http://www.ai-sns.org/index_agent.html")
+        # self.output_webview.page().runJavaScript('console.log("Opening DevTools");')
+        # self.output_webview.show()
+        # self.output_webview.page().profile().setPersistentStoragePath("<your_storage_path>")
+        # self.output_webview.page().setDevToolsPage(self.output_webview.page())  # 允许开发者工具
+        # # self.output_webview.page().devToolsPage() # 显示开发者工具
+        # self.output_webview.page().load(mind_url_string)
+        qurl_remote_url = QUrl("https://lbs.baidu.com/jsdemo.htm#webgl6_0")
         self.qurl_remote_url = qurl_remote_url
         self.qurl_local_url = url_string
         self.messageBrowser.page().load(self.qurl_local_url)
-        print("the url:",self.messageBrowser.page().url())
+        print("the url:", self.messageBrowser.page().url())
         global channel
         global message_handler
         channel = QWebChannel()
@@ -599,8 +1131,8 @@ class Ui_TaskPageWidget(object):
         # self.messageBrowser.page().setWebChannel(channel)
         self.messageBrowser.page().setWebChannel(channel)
 
-
-        message_handler.on_message_checked.connect(self.set_selected_history_index)
+        # message_handler.on_message_checked.connect(self.set_selected_history_index)
+        message_handler.on_message_checked.connect(self.set_message_checked)
         message_handler.on_edit_content_message.connect(self.edit_selected_content)
         message_handler.on_message_file_clicked.connect(self.attachment_clicked)
         message_handler.on_message_open_link.connect(self.open_link)
@@ -618,8 +1150,6 @@ class Ui_TaskPageWidget(object):
         self.speaker = Speaker(message_handler, self.messageBrowser)
         self.speaker.on_message_ask_for_feedback.connect(self.save_task_output)
 
-
-
         # file_path = os.path.join(Path(__file__).resolve().parent, "scripts", "taskpagemsgbox.html")
         # url_string = QUrl.fromLocalFile(file_path)
         # web_browser.page().load(url_string)
@@ -630,18 +1160,17 @@ class Ui_TaskPageWidget(object):
 
         # self.shared=shared
 
-        self.newButton.setText(_translate("TaskWidget", "新对话"))
-        self.attach_button.setText(_translate("TaskWidget", "附件"))
-        self.kmButton.setText(_translate("TaskWidget", "知识库"))
-        self.plugin_button.setText(_translate("TaskWidget", "插件"))
-        self.sendButton.setText(_translate("TaskWidget", "发送"))
+        self.newButton.setText(_translate("TaskWidget", ""))
+        self.attach_button.setText(_translate("TaskWidget", ""))
+        self.kmButton.setText(_translate("TaskWidget", ""))
+        self.plugin_button.setText(_translate("TaskWidget", ""))
+        self.sendButton.setText(_translate("TaskWidget", ""))
         self.stopButton.setText(_translate("TaskWidget", "停止"))
         # self.sendButton.setShortcut(_translate("TaskWidget", "Return"))
         # self.sendButton.setShortcut(QtGui.QKeySequence(Qt.Key_Return))
         self.sendButton.setShortcut(QtGui.QKeySequence(Qt.ControlModifier + Qt.Key_Return))
 
-
-        #search 相关
+        # search 相关
         self.messageBrowser.setContextMenuPolicy(Qt.CustomContextMenu)
         self.messageBrowser.customContextMenuRequested.connect(self.show_context_menu)
 
@@ -690,10 +1219,15 @@ class Ui_TaskPageWidget(object):
 
     def on_label_click(self, event):
         """处理 QLabel 点击事件，调用打开对话框的函数"""
-        if event.button() == 1:  # 检查是否为左键点击
-            self.opendialogplugin()
+        # if event.button() == 1:  # 检查是否为左键点击
+        self.open_llm_cfg_dialog()
 
-    def attachment_clicked(self,file_path):
+    def on_role_label_click(self, event):
+        """处理 QLabel 点击事件，调用打开对话框的函数"""
+        # if event.button() == 1:  # 检查是否为左键点击
+        self.on_manage_button_clicked()
+
+    def attachment_clicked(self, file_path):
         print(file_path)
         main_directory = os.getcwd()
 
@@ -706,15 +1240,6 @@ class Ui_TaskPageWidget(object):
         print(f"Absolute path: {absolute_path}")
 
         self.open_file(absolute_path)
-
-
-    def toggle_output_checkbox(self, state):
-        self.check_if_scrolled_to_top()
-
-        if state == Qt.Checked:
-            self.splitter.setSizes([300, 1])
-        else:
-            self.splitter.setSizes([1, ])
 
     def check_if_scrolled_to_top(self):
         # 使用 JavaScript 检查当前滚动位置是否为 0
@@ -740,55 +1265,237 @@ class Ui_TaskPageWidget(object):
         else:
             print("The webpage is not scrolled to the top.")
 
+    def toggle_output_checkbox(self, state):
+        self.check_if_scrolled_to_top()
+
+        if state == Qt.Checked:
+            self.splitter.setSizes([300, 1])
+        else:
+            self.splitter.setSizes([1, ])
+
+    def toggle_sidepane_mode(self):
+        state = self.output_checkbox.checkState()
+
+        if state == QtCore.Qt.Checked:
+            self.sidepane_button.setStyleSheet("""
+                                                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 0px;
+                        background:#E1E1E1;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#a9d7ff;
+                    }
+                                                        """)
+            self.output_checkbox.setChecked(False)
+        else:
+            self.sidepane_button.setStyleSheet("""
+                                                QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 0px;
+                        background:#a9d7ff;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#E1E1E1;
+                    }
+                                            """)
+            self.output_checkbox.setChecked(True)
 
     def toggle_chat_mode(self, state):
-
         if state == QtCore.Qt.Checked:
             self.agent.chat_mode = 'task'
         else:
             self.agent.chat_mode = 'chat'
 
-    def toggle_history_mode(self, state):
+    def toggle_task_mode(self):
+        state = self.task_mode_checkbox.checkState()
 
         if state == QtCore.Qt.Checked:
+            self.task_button.setStyleSheet("""
+                                                            QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 2px;
+                        background:#E1E1E1;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#a9d7ff;
+                    }
+                                                        """)
+            self.task_mode_checkbox.setChecked(False)
+        else:
+            self.task_button.setStyleSheet("""
+                                                QPushButton {
+                        border: 0px;                /* 默认无边框 */
+                        border-radius: 2px;         /* 边框圆角 */
+                        padding: 2px;               /* 按钮内边距 */
+                        height: 28px;               /* 按钮高度 */
+                        width: 28px;                /* 按钮宽度 */
+                        margin:0px 2px 0px 2px;
+                        background:#a9d7ff;
+                    }
+                    QPushButton:hover {
+                       /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                       background:#E1E1E1;
+                    }
+                                            """)
+            self.task_mode_checkbox.setChecked(True)
+
+    def toggle_history_mode(self, state):
+        if state == QtCore.Qt.Checked:
+            self.messages_mng.set_specified_status(True)
             self.agent.history_mode = 'specify'
             self.messageBrowser.page().runJavaScript('displayCheckboxes();')
         else:
+            self.messages_mng.set_specified_status(False)
             self.agent.history_mode = 'all'
             self.messageBrowser.page().runJavaScript('setAllCheckboxesChecked(false);')
             self.messageBrowser.page().runJavaScript('hideCheckboxes();')
 
+    def toggle_context_mode(self):
+        state = self.history_mode_checkbox.checkState()
+
+        if state == QtCore.Qt.Checked:
+            self.context_button.setStyleSheet("""
+                                                    QPushButton {
+                                                border: 0px;                /* 默认无边框 */
+                                                border-radius: 2px;         /* 边框圆角 */
+                                                padding: 2px;               /* 按钮内边距 */
+                                                height: 28px;               /* 按钮高度 */
+                                                width: 28px;                /* 按钮宽度 */
+                                                margin:0px 0px 0px 2px;
+                                                background:#E1E1E1;
+                                            }
+                                            QPushButton:hover {
+                                               /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                                               background:#a9d7ff;
+                                            }
+                                                """)
+            self.history_mode_checkbox.setChecked(False)
+        else:
+            self.context_button.setStyleSheet("""
+                                        QPushButton {
+                                    border: 0px;                /* 默认无边框 */
+                                    border-radius: 2px;         /* 边框圆角 */
+                                    padding: 2px;               /* 按钮内边距 */
+                                    height: 28px;               /* 按钮高度 */
+                                    width: 28px;                /* 按钮宽度 */
+                                    margin:0px 0px 0px 2px;
+                                    background:#a9d7ff;
+                                }
+                                QPushButton:hover {
+                                   /*  border: 1px solid #146ebe;  悬浮时边框颜色和宽度 */
+                                   background:#E1E1E1
+                                }
+                                    """)
+            self.history_mode_checkbox.setChecked(True)
+
+
 
     def set_prompt_string(self, index):
-        # if index>0:
-        #     self.agent.current_prompt = self.prompt_combobox.itemText(index)
-        # else:
-        #     self.agent.current_prompt = ""
         title = self.prompt_combobox.currentText()
-        content = self.prompt_combobox.currentData()
-        print(f"Title: {title}, Content: {content}")
-        self.system_role_prompt = content
+        role_id = self.prompt_combobox.currentData()
+        self.system_role_id = role_id
+        self.system_role_prompt = get_prompt_by_id(role_id)
+        if self.system_role_prompt:
+            update_AgentCfg(self.agent_cfg.id, lastrole=role_id)
+            self.agent.reload_agent_cfg()
 
-        # title = self.prompt_combobox.currentText()
-        # session = Session()
-        # record = session.query(Prompt).filter(Prompt.title == title).first()
-        # if record:
-        #     q_template = record.question
-        #     if q_template:
-        #         # self.messageEdit.setPlainText(q_template+self.messageEdit.toPlainText())
-        #         # self.messageEdit.insertPlainText(q_template)
-        #         cursor = self.messageEdit.textCursor()
-        #         cursor.movePosition(cursor.Start)
-        #
-        #         # Insert the text
-        #         cursor.insertText(q_template)
-        #         self.messageEdit.setTextCursor(cursor)
+            self.textEdit_prompt.setPlainText(self.system_role_prompt)
 
+    def set_current_model(self, index):
+        if index==-1:#clear的时候
+            return
+        model_abbr = self.model_combobox.currentText()
+        llm_fullname = self.model_combobox.currentData()
+        if self.llm_fullname_selected_list:
+            # 刚启动的时候没有初始化，加载过程会调用该函数，注意逻辑****cjr
+            self.llm_fullname_selected_list.clear()  # 清空列表
+            self.llm_fullname_selected_list.append(llm_fullname)  # 添加新元素
+            update_AgentCfg(self.agent_cfg.id, lastmodel=llm_fullname)
+            self.agent.reload_agent_cfg()
 
+        llm_connector_name = llm_fullname.split(":")[0]
+        llm_connector_plugin = global_plugin_list[llm_connector_name]
+        config = llm_connector_plugin.get_config()
+        config_str = json.dumps(config,ensure_ascii=False,indent=4)
+        # config_str = convert_unicode_to_chinese(config_str)
+        self.textEdit_model.setPlainText(config_str)
 
+    def accept_model_optimization(self):
+        llm_fullname = self.model_combobox.currentData()
+        llm_connector_name = llm_fullname.split(":")[0]
+        llm_connector_plugin = global_plugin_list[llm_connector_name]
+        config_str =self.textEdit_model.toPlainText()
+        config = json.loads(config_str)
+        llm_connector_plugin.set_config(config)
 
+    def optimize_model(self):
+        agent = self.agent
+        browser_page = self.messageBrowser.page()
+        agent.set_mode(AgentMode.ChatOnly)
+        system_role_prompt_tmp = f"你是一个AI大模型专家，你善于对各种大模型参数进行优化。我正在对我的AI大模型参数进行优化，请你对我的现有参数进行优化。请记住我的要求是:每次都直接给出最终优化好的参数，而不要做任何解释，不要输出任何与最终参数无关的信息。"
+        agent.give_it_role(-1, system_role_prompt_tmp)
+        question = f"我的AI大模型参数是:{self.textEdit_model.toPlainText()}"
+        if self.textline_optimize.text():
+            question = f"{question},我的要求是:{self.textline_optimize.text()}"
+        message = {"role": "user", "content": question}
+        self.messages_debug_model.append(message)
+        speaker = Speaker_Log()
+        agent.give_it_speaker(speaker)
 
+        answer = agent.ask_it(question, self.messages_debug_model, browser_page, self.task_id)
+        message = {"role": "assistant", "content": answer}
+        self.messages_debug_model.append(message)
+        self.textEdit_model.setPlainText(answer)
+        self.textline_optimize.setText("")
 
+    def accept_prompt_optimization(self):
+        title = self.prompt_combobox.currentText()
+        role_id = self.prompt_combobox.currentData()
+
+        system_role_prompt=self.textEdit_prompt.toPlainText()
+        update_prompt(role_id,content=system_role_prompt)
+
+        self.system_role_id = role_id
+        self.system_role_prompt = get_prompt_by_id(role_id)
+
+    def optimize_prompt(self):
+        title = self.prompt_combobox.currentText()
+        role_id = self.prompt_combobox.currentData()
+        agent = self.agent
+        browser_page = self.messageBrowser.page()
+        agent.set_mode(AgentMode.ChatOnly)
+        system_role_prompt_tmp=f"你是一个提示词专家，你善于对各种提示词进行优化。我正在对我的AI角色:{title}进行提示词优化，请你对我的现有提示词进行优化。请记住我的要求是:每次都直接给出最终优化好的提示词，而不要做任何解释，不要输出任何与最终提示词无关的信息。"
+        agent.give_it_role(-1,system_role_prompt_tmp)
+        question =f"我的提示词是:{self.textEdit_prompt.toPlainText()}"
+        if self.textline_optimize_prompt.text():
+            question = f"{question},我的要求是:{self.textline_optimize_prompt.text()}"
+        message ={"role": "user", "content": question}
+        self.messages_debug_prompt.append(message)
+        speaker = Speaker_Log()
+        agent.give_it_speaker(speaker)
+
+        answer = agent.ask_it(question, self.messages_debug_prompt, browser_page, self.task_id)
+
+        message = {"role": "assistant", "content": answer}
+        self.messages_debug_prompt.append(message)
+        self.textEdit_prompt.setPlainText(answer)
+        self.textline_optimize_prompt.setText("")
 
     def toggle_model_select_type(self, state):
         if state == QtCore.Qt.Checked:
@@ -798,19 +1505,17 @@ class Ui_TaskPageWidget(object):
 
     def on_manage_button_clicked(self):
         print("hello")
-        print("model_label-->",self.model_label.text())
-        self.prompt_manager = PromptManager(self,self.model_label.text())
+        print("model_label-->", self.model_label.text())
+        self.prompt_manager = PromptManager(self, self.model_label.text())
         self.prompt_manager.exec_()
 
     def receive_template(self, template_content):
-            q_template = template_content
-            cursor = self.messageEdit.textCursor()
-            cursor.movePosition(cursor.Start)
-            # Insert the text
-            cursor.insertText(q_template)
-            self.messageEdit.setTextCursor(cursor)
-
-
+        q_template = template_content
+        cursor = self.messageEdit.textCursor()
+        cursor.movePosition(cursor.Start)
+        # Insert the text
+        cursor.insertText(q_template)
+        self.messageEdit.setTextCursor(cursor)
 
     def set_default_chat_template(self):
         title = self.prompt_combobox.currentText()
@@ -828,13 +1533,10 @@ class Ui_TaskPageWidget(object):
                 cursor.insertText(q_template)
                 self.messageEdit.setTextCursor(cursor)
 
-
-
     def manage_button_mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.on_manage_button_clicked()
         elif event.button() == Qt.RightButton:
-
             # 处理模板的添加
             # title = self.prompt_combobox.currentText()
             # session = Session()
@@ -855,25 +1557,101 @@ class Ui_TaskPageWidget(object):
         if event.modifiers() == Qt.ShiftModifier:
             print("shiftclick")
 
-    def update_prompts_in_combobox(self):
-        current_value = self.prompt_combobox.currentText()
-        self.prompt_combobox.clear()
-        session = Session()
-        prompts = session.query(Prompt).all()
-        for prompt in prompts:
-            self.prompt_combobox.addItem(prompt.title, prompt.content)
-        session.close()
+    def update_prompts_in_combobox(self, init_flag=False, specify_value=""):
+        if specify_value:
+            current_value = int(specify_value)
+        else:
+            if init_flag:
+                use_last_role = self.agent_cfg.uselastrole
+                default_role = self.agent_cfg.defaultrole
+                last_role = self.agent_cfg.lastrole
+                if use_last_role:
+                    current_value = last_role
+                else:
+                    current_value = default_role
+            else:
+                current_value = self.prompt_combobox.currentData()
 
-        index = self.prompt_combobox.findText(current_value)
+        if not current_value:
+            agent_id = self.agent_cfg.user_id
+            prompt_id = default_role
+
+            add_prompt_frequent(prompt_id=int(prompt_id), position=999, belong_to_agent_id=agent_id)
+
+        self.prompt_combobox.clear()
+
+        records = get_prompt_frequent_by_agent_id(self.agent_cfg.user_id)
+        if records:
+            for record in records:
+                self.prompt_combobox.addItem(record["title"], record["prompt_id"])
+
+        # else:
+        #
+        #     session = Session()
+        #     prompts = session.query(Prompt).all()
+        #     for prompt in prompts:
+        #         self.prompt_combobox.addItem(prompt.title, prompt.id)
+        #     session.close()
+
+        index = self.prompt_combobox.findData(current_value)
         if index != -1:
             self.prompt_combobox.setCurrentIndex(index)
+        else:
+            if current_value:
+                agent_id = self.agent_cfg.user_id
+                prompt_id = current_value
+                add_prompt_frequent(prompt_id=int(prompt_id), position=999, belong_to_agent_id=agent_id)
+                self.update_prompts_in_combobox(init_flag=False, specify_value=current_value)
+
+    def set_llm_frequent_in_combobox(self, init_flag=False, specify_value=""):
+        if specify_value:
+            current_value = specify_value
+        else:
+            if init_flag:
+                use_last_model = self.agent_cfg.uselastmodel
+                default_model = self.agent_cfg.defaultmodel
+                last_model = self.agent_cfg.lastmodel
+                if use_last_model:
+                    current_value = last_model
+                else:
+                    current_value = default_model
+            else:
+                current_value = self.model_combobox.currentData()
+
+        if not current_value:
+            agent_id = self.agent_cfg.user_id
+            name = default_model.split(":")[0]
+            model_type = default_model.split(":")[1]
+            alias_name = default_model
+            plugin_id = query_PluginMng(name=name).plugin_id
+            add_llm_frequent(plugin_id=plugin_id, name=name, model_type=model_type, alias_name=alias_name, belong_to_agent_id=agent_id, position=999, is_delete=0)
+
+        self.model_combobox.clear()
+
+        models = query_llm_frequents(belong_to_agent_id=self.agent_cfg.user_id)
+        for model in models:
+            self.model_combobox.addItem(model.alias_name, model.name + ":" + model.model_type)
+
+        index = self.model_combobox.findData(current_value)
+        if index != -1:
+            self.model_combobox.setCurrentIndex(index)
+
+        else:
+            if current_value:
+                agent_id = self.agent_cfg.user_id
+                name = current_value.split(":")[0]
+                model_type = current_value.split(":")[1]
+                alias_name = current_value
+                plugin_id = query_PluginMng(name=name).plugin_id
+                add_llm_frequent(plugin_id=plugin_id, name=name, model_type=model_type, alias_name=alias_name, belong_to_agent_id=agent_id, position=999, is_delete=0)
+                self.set_llm_frequent_in_combobox(False, current_value)
 
     def print_selected_prompt(self):
         title = self.prompt_combobox.currentText()
         content = self.prompt_combobox.currentData()
         print(f"Title: {title}, Content: {content}")
 
-    #webpage serch
+    # webpage serch
 
     def show_context_menu(self, position):
         context_menu = QMenu()
@@ -881,7 +1659,6 @@ class Ui_TaskPageWidget(object):
         selected_text = self.messageBrowser.page().selectedText()
 
         if selected_text:
-
             if self.is_url(selected_text):
                 print("is link")
                 open_link_action = QAction("打开链接", self)
@@ -895,8 +1672,6 @@ class Ui_TaskPageWidget(object):
             copy_action = QAction("拷贝(Ctrl+C)", self)
             copy_action.triggered.connect(self.copy_text)
             context_menu.addAction(copy_action)
-
-
 
             print("selected_text:", selected_text)
 
@@ -916,20 +1691,21 @@ class Ui_TaskPageWidget(object):
 
     def open_link(self, url):
         cleaned_url = url.strip()
-        print("cleaned_url:",cleaned_url)
-        if not (cleaned_url[-20:]=="taskpagemsgbox.html#"):#排除文件链接
+        print("cleaned_url:", cleaned_url)
+        if not (cleaned_url[-20:] == "taskpagemsgbox.html#"):  # 排除文件链接
             webbrowser.open(cleaned_url)
 
     def copy_message(self, data_id):
-        type_str=data_id[-1]
-        record_id=data_id[3:]
-        record_id=record_id[0:-2]
-        record=query_AgentTask_By_Id(record_id)
-        if type_str=="a":
-            message=record.problem
+        type_str = data_id[-1]
+        record_id = data_id[3:]
+        record_id = record_id[0:-2]
+        record = query_AgentTask_By_Id(record_id)
+        if type_str == "a":
+            message = record.problem
         else:
-            message=record.answer
+            message = record.answer
         pyperclip.copy(message)
+
     def edit_message(self, data_id):
         type_str = data_id[-1]
         record_id = data_id[3:]
@@ -942,71 +1718,54 @@ class Ui_TaskPageWidget(object):
         self.messageEdit.setPlainText(message)
 
     def delete_message(self, data_id):
-        reply = QMessageBox.question(self, '删除确定',
-                                     f"您确定要删除吗?",
-                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
-        if reply == QMessageBox.Yes:
-            type_str = data_id[-1]
-            record_id = data_id[3:]
-            record_id = record_id[0:-2]
-            record = query_AgentTask_By_Id(record_id)
-            if type_str == "a":
-                message = record.answer
-                if message=="":
-                    delete_AgentTask(int(record_id))
-                else:
-                    update_AgentTask(int(record_id),problem="")
+        type_str = data_id[-1]
+        record_id = data_id[3:]
+        record_id = record_id[0:-2]
+        record = query_AgentTask_By_Id(record_id)
+        is_first = record.is_first
+        if type_str == "a":
+            message = record.answer
+            if message == "" and is_first==False:
+                delete_AgentTask(int(record_id))
             else:
-                message = record.problem
-                if message=="":
-                    delete_AgentTask(int(record_id))
-                else:
-                    update_AgentTask(int(record_id),answer="")
+                update_AgentTask(int(record_id), problem="")
+        else:
+            message = record.problem
+            if message == "" and is_first==False:
+                delete_AgentTask(int(record_id))
+            else:
+                update_AgentTask(int(record_id), answer="")
+        self.messages_mng.remove_message_by_id(data_id)
 
     def delete_message_batch(self):
         reply = QMessageBox.question(self, '删除确定',
                                      f"您确定要删除吗?",
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+
         if reply == QMessageBox.Yes:
-            for data_id in self.selected_history_id:
-                type_str = data_id[-1]
-                record_id = data_id[3:]
-                record_id = record_id[0:-2]
-                record = query_AgentTask_By_Id(record_id)
-                if type_str == "a":
-                    message = record.answer
-                    if message=="":
-                        delete_AgentTask(int(record_id))
-                    else:
-                        update_AgentTask(int(record_id),problem="")
-                else:
-                    message = record.problem
-                    if message=="":
-                        delete_AgentTask(int(record_id))
-                    else:
-                        update_AgentTask(int(record_id),answer="")
-
-                browser_page=self.messageBrowser.page()
-
+            browser_page = self.messageBrowser.page()
+            specified_context_message_list = self.messages_mng.specified_context_message_list[:]
+            for data_id in specified_context_message_list:
+                self.delete_message(data_id)
                 browser_page.runJavaScript('dataId=`' + data_id + '`')
                 browser_page.runJavaScript('deleteMessageById(dataId)')
 
     def task_run_code(self):
-        message="ok"
+        message = "ok"
         self.messageEdit.setPlainText(message)
         self.sendMessage()
 
     def task_next_step(self):
-        message="exit"
+        message = "exit"
         self.messageEdit.setPlainText(message)
         self.sendMessage()
 
     def task_exit(self):
-        message="exit"
+        message = "exit"
         self.messageEdit.setPlainText(message)
         # self.sendMessage()
 
-    def update_contact_combobox(self,forwardComboBox,contactComboBox):
+    def update_contact_combobox(self, forwardComboBox, contactComboBox):
         """根据forwardComboBox的值更新contactComboBox的选项"""
         current_text = forwardComboBox.currentText()
         current_data = forwardComboBox.currentData()
@@ -1028,8 +1787,6 @@ class Ui_TaskPageWidget(object):
         else:
             message = record.answer
 
-
-
         transfer_dialog = QDialog()
         dialog = QDialog()
         dialog.setWindowTitle("请选择要转发给哪个帐号的联系人")
@@ -1045,7 +1802,7 @@ class Ui_TaskPageWidget(object):
         dialog.forwardComboBox = QComboBox()
         records = query_AiChatCfg_All(is_delete=0)
         for record in records:
-            dialog.forwardComboBox.addItem(record.nickname,record.account)
+            dialog.forwardComboBox.addItem(record.nickname, record.account)
 
         form_layout.addRow("AI社交帐号：", dialog.forwardComboBox)
 
@@ -1089,14 +1846,14 @@ class Ui_TaskPageWidget(object):
             selected_contact = dialog.contactComboBox.currentData()
             description = dialog.descriptionEdit.text()
             print(f"Selected AI Account: {selected_ai_account}, Contact: {selected_contact}, Description: {description}, Message:{message}")
-            record=query_AiChatCfg(account=selected_ai_account)
-            user_id=record.user_id
-            application=self.application
-            buddyList =  application.buddylist_list[user_id]
+            record = query_AiChatCfg(account=selected_ai_account)
+            user_id = record.user_id
+            application = self.application
+            buddyList = application.buddylist_list[user_id]
             buddyList.send_message(selected_contact, message)
 
     def transfer_message_batch(self):
-        message_batch=""
+        message_batch = ""
         for data_id in self.selected_history_id:
             type_str = data_id[-1]
             record_id = data_id[3:]
@@ -1108,10 +1865,6 @@ class Ui_TaskPageWidget(object):
                 message = record.answer
 
             message_batch = message_batch + message + "\n"
-
-
-
-
 
         transfer_dialog = QDialog()
         dialog = QDialog()
@@ -1128,7 +1881,7 @@ class Ui_TaskPageWidget(object):
         dialog.forwardComboBox = QComboBox()
         records = query_AiChatCfg_All(is_delete=0)
         for record in records:
-            dialog.forwardComboBox.addItem(record.nickname,record.account)
+            dialog.forwardComboBox.addItem(record.nickname, record.account)
 
         form_layout.addRow("AI社交帐号：", dialog.forwardComboBox)
 
@@ -1172,13 +1925,13 @@ class Ui_TaskPageWidget(object):
             selected_contact = dialog.contactComboBox.currentData()
             description = dialog.descriptionEdit.text()
             print(f"Selected AI Account: {selected_ai_account}, Contact: {selected_contact}, Description: {description}, Message:{message_batch}")
-            record=query_AiChatCfg(account=selected_ai_account)
-            user_id=record.user_id
-            application=self.application
-            buddyList =  application.buddylist_list[user_id]
+            record = query_AiChatCfg(account=selected_ai_account)
+            user_id = record.user_id
+            application = self.application
+            buddyList = application.buddylist_list[user_id]
             buddyList.send_message(selected_contact, message_batch)
 
-    def collect_message(self, data_id):
+    def collect_messagebak(self, data_id):
         type_str = data_id[-1]
         record_id = data_id[3:]
         record_id = record_id[0:-2]
@@ -1200,10 +1953,10 @@ class Ui_TaskPageWidget(object):
 
         # 创建组合框和标签
         transfer_dialog.comboBox = QComboBox()
-        transfer_dialog.comboBox.setEditable(True)
+        transfer_dialog.comboBox.setEditable(False)
         records = query_KMCfg_All(kmtype="1")
         for record in records:
-            transfer_dialog.comboBox.addItem(record.name)
+            transfer_dialog.comboBox.addItem(record.name,record.km_id)
 
         # transfer_dialog.populate_combobox()
         form_layout.addRow("收藏至笔记：", transfer_dialog.comboBox)
@@ -1211,9 +1964,14 @@ class Ui_TaskPageWidget(object):
         # 创建组合框和标签
         transfer_dialog.comboBox_label = QComboBox()
         transfer_dialog.comboBox_label.setEditable(True)
-        records = query_KMCfg_All(kmtype="1")
-        for record in records:
-            transfer_dialog.comboBox_label.addItem(record.name)
+
+        current_km_id = transfer_dialog.comboBox.currentData()
+
+        label_list = query_note_mng_ByLabel(km_id=current_km_id)
+
+
+        for label_txt in label_list:
+            transfer_dialog.comboBox_label.addItem(label_txt)
 
         # transfer_dialog.populate_combobox()
         form_layout.addRow("标签：", transfer_dialog.comboBox_label)
@@ -1251,7 +2009,7 @@ class Ui_TaskPageWidget(object):
             title = transfer_dialog.titleEdit.text()
             print(f"Selected Note: {selected_note}, selected_label: {selected_label}, Title: {title}, Message:{message}")
 
-            km_cfg=query_KMCfg(name=selected_note)
+            km_cfg = query_KMCfg(name=selected_note)
             note_editor = NoteEditor(self.application)
             note_editor.setObjectName('NoteEditorObject')
             # note_editor.show()
@@ -1263,9 +2021,123 @@ class Ui_TaskPageWidget(object):
             note_editor.save(title)
             QMessageBox.information(self, "信息", "收藏成功!")
 
+    def collect_message(self, data_id,message=""):
+        """
+        Collects messages based on the provided data_id and displays a dialog for user input.
+
+        Parameters:
+        data_id (str): The identifier for the data being processed.
+        """
+        if not message:
+            # 从 data_id 中提取类型和记录 ID
+            type_str = data_id[-1]
+            record_id = data_id[3:-2]
+
+            # 根据记录 ID 查询记录
+            record = query_AgentTask_By_Id(record_id)
+            message = record.problem if type_str == "a" else record.answer
+
+        # 创建对话框
+        transfer_dialog = QDialog()
+        transfer_dialog.setWindowTitle("收藏")
+        transfer_dialog.setMinimumWidth(500)
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局
+        form_layout = QFormLayout()
+
+        # 创建第一个组合框并填充数据
+        transfer_dialog.comboBox = QComboBox()
+        transfer_dialog.comboBox.setEditable(False)
+        records = query_KMCfg_All(kmtype="1")
+
+        for record in records:
+            transfer_dialog.comboBox.addItem(record.name, record.km_id)
+
+        form_layout.addRow("收藏至笔记：", transfer_dialog.comboBox)
+
+        # 创建第二个组合框
+        transfer_dialog.comboBox_label = QComboBox()
+        transfer_dialog.comboBox_label.setEditable(True)
+
+        def update_label_combobox():
+            """
+            内部函数：更新标签组合框的内容
+            根据当前选择的 km_id 重新查询并填充标签组合框
+            """
+            current_km_id = transfer_dialog.comboBox.currentData()  # 获取当前选择的 km_id
+            label_list = query_note_mng_ByLabel(km_id=current_km_id)  # 查询标签列表
+
+            # 清空旧标签
+            transfer_dialog.comboBox_label.clear()
+
+            # 添加新标签
+            for label_txt in label_list:
+                transfer_dialog.comboBox_label.addItem(label_txt)
+
+        # 初始加载标签
+        update_label_combobox()
+
+        # 连接 comboBox 的当前索引变化信号，触发标签更新
+        transfer_dialog.comboBox.currentIndexChanged.connect(update_label_combobox)
+
+        form_layout.addRow("标签：", transfer_dialog.comboBox_label)
+
+        # 创建标题输入框
+        transfer_dialog.titleEdit = QLineEdit()
+        form_layout.addRow("标题：", transfer_dialog.titleEdit)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建按钮布局
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)
+
+        # 创建确定和取消按钮
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+
+        # 连接按钮事件
+        ok_button.clicked.connect(transfer_dialog.accept)
+        cancel_button.clicked.connect(transfer_dialog.reject)
+
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        transfer_dialog.setLayout(main_layout)
+
+        # 显示对话框并处理结果
+        if transfer_dialog.exec_():
+            selected_note = transfer_dialog.comboBox.currentText()
+            selected_label = transfer_dialog.comboBox_label.currentText()
+            title = transfer_dialog.titleEdit.text()
+            print(f"Selected Note: {selected_note}, selected_label: {selected_label}, Title: {title}, Message: {message}")
+
+            # 查询选中的知识管理配置
+            km_cfg = query_KMCfg(name=selected_note)
+            note_editor = NoteEditor(self.application)
+            note_editor.setObjectName('NoteEditorObject')
+            note_editor.record_id = 0
+            note_editor.km_id = km_cfg.km_id
+            note_editor.km_cfg = km_cfg
+            note_editor.loadFile()
+            note_editor.text.setText(message)
+            note_editor.save(title,selected_label)
+
+            # 显示成功信息
+            QMessageBox.information(self, "信息", "收藏成功!")
+
     def collect_message_batch(self):
         message_batch = ""
-        for data_id in self.selected_history_id:
+
+        for data_id in self.messages_mng.specified_context_message_list:
             type_str = data_id[-1]
             record_id = data_id[3:]
             record_id = record_id[0:-2]
@@ -1277,80 +2149,9 @@ class Ui_TaskPageWidget(object):
 
             message_batch = message_batch + message + "\n"
 
-        transfer_dialog = QDialog()
-        transfer_dialog.setWindowTitle("收藏")
-        transfer_dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
+        self.collect_message("",message_batch)
 
-        # 创建主垂直布局
-        main_layout = QVBoxLayout()
 
-        # 创建表单布局：用于整洁地排列标签和输入部件
-        form_layout = QFormLayout()
-
-        # 创建组合框和标签
-        transfer_dialog.comboBox = QComboBox()
-        transfer_dialog.comboBox.setEditable(True)
-        records = query_KMCfg_All(kmtype="1")
-        for record in records:
-            transfer_dialog.comboBox.addItem(record.name)
-
-        # transfer_dialog.populate_combobox()
-        form_layout.addRow("收藏至笔记：", transfer_dialog.comboBox)
-
-        # 创建组合框和标签
-        transfer_dialog.comboBox_label = QComboBox()
-        transfer_dialog.comboBox_label.setEditable(True)
-        records = query_KMCfg_All(kmtype="1")
-        for record in records:
-            transfer_dialog.comboBox_label.addItem(record.name)
-
-        # transfer_dialog.populate_combobox()
-        form_layout.addRow("标签：", transfer_dialog.comboBox_label)
-
-        # 创建单行文本编辑器和标签
-        transfer_dialog.titleEdit = QLineEdit()
-        form_layout.addRow("标题：", transfer_dialog.titleEdit)
-
-        # 将表单布局添加到主布局
-        main_layout.addLayout(form_layout)
-
-        # 创建水平布局用于按钮
-        button_layout = QHBoxLayout()
-        button_layout.addStretch(1)  # 添加弹性空间，使按钮靠右对齐
-
-        ok_button = QPushButton("确定")
-        cancel_button = QPushButton("取消")
-        ok_button.clicked.connect(transfer_dialog.accept)
-        cancel_button.clicked.connect(transfer_dialog.reject)
-
-        # 将按钮添加到水平布局
-        button_layout.addWidget(ok_button)
-        button_layout.addWidget(cancel_button)
-
-        # 将按钮布局添加到主布局
-        main_layout.addLayout(button_layout)
-
-        # 设置主布局
-        transfer_dialog.setLayout(main_layout)
-
-        if transfer_dialog.exec_():
-            # 在对话框被接受时执行的代码
-            selected_note = transfer_dialog.comboBox.currentText()
-            selected_label = transfer_dialog.comboBox_label.currentText()
-            title = transfer_dialog.titleEdit.text()
-            print(f"Selected Note: {selected_note}, selected_label: {selected_label}, Title: {title}, Message:{message_batch}")
-
-            km_cfg=query_KMCfg(name=selected_note)
-            note_editor = NoteEditor(self.application)
-            note_editor.setObjectName('NoteEditorObject')
-            # note_editor.show()
-            note_editor.record_id = 0
-            note_editor.km_id = km_cfg.km_id
-            note_editor.km_cfg = km_cfg
-            note_editor.loadFile()
-            note_editor.text.setText(message_batch)
-            note_editor.save(title)
-            QMessageBox.information(self, "信息", "收藏成功!")
 
     def message_to_node(self, message, type_str, index):
         """
@@ -1380,7 +2181,6 @@ class Ui_TaskPageWidget(object):
         if "```json" in workflow_json_str:
             workflow_json_str = extract_json_string_from_llm(workflow_json_str)
 
-
         # 定义常量
         NODE_SIZE = 120  # 节点的边长
         NODE_DISTANCE = 200  # 节点之间的距离
@@ -1404,12 +2204,11 @@ class Ui_TaskPageWidget(object):
             # 如果 workflow_json 既不是列表也不是字典
             print("workflow_json is neither a list nor a dictionary")
 
-
         last_node = nodes[-1]
 
-        if last_node["type"]!="end":
+        if last_node["type"] != "end":
             l = len(nodes)
-            end_node_id = "node"+str(l)
+            end_node_id = "node" + str(l)
             nodes.append({
                 "id": f"{end_node_id}",
                 "title": "任务结束",
@@ -1417,7 +2216,7 @@ class Ui_TaskPageWidget(object):
                 "type": "end",
                 "type_str": "结束",
                 "plugin": ""
-                    })
+            })
 
         # 为每个节点添加坐标和连接器
         for index, node in enumerate(nodes):
@@ -1446,8 +2245,8 @@ class Ui_TaskPageWidget(object):
 
         # 输出结果
         print(json.dumps(nodes, ensure_ascii=False, indent=2))
-        workflow_cfg = {"nodes":nodes,"lines":connectors}
-        detail=json.dumps(workflow_cfg, ensure_ascii=False, indent=4)
+        workflow_cfg = {"nodes": nodes, "lines": connectors}
+        detail = json.dumps(workflow_cfg, ensure_ascii=False, indent=4)
         title = self.work_flow_title
         selected_label = self.work_flow_label
         desc = self.work_flow_desc
@@ -1464,8 +2263,6 @@ class Ui_TaskPageWidget(object):
         self.work_flow_desc = ""
 
     def workflow_button_click(self):
-
-
         transfer_dialog = QDialog()
         transfer_dialog.setWindowTitle("转为工作流")
         transfer_dialog.setMinimumWidth(500)  # 设置对话框的最小宽度
@@ -1489,7 +2286,6 @@ class Ui_TaskPageWidget(object):
 
         # transfer_dialog.populate_combobox()
         form_layout.addRow("标签：", transfer_dialog.comboBox_label)
-
 
         # 创建单行文本编辑器和标签
         transfer_dialog.descEdit = QPlainTextEdit()
@@ -1522,10 +2318,9 @@ class Ui_TaskPageWidget(object):
             title = transfer_dialog.titleEdit.text()
             selected_label = transfer_dialog.comboBox_label.currentText()
             desc = transfer_dialog.descEdit.toPlainText()
-            self.work_flow_title= title
-            self.work_flow_label= selected_label
-            self.work_flow_desc= desc
-
+            self.work_flow_title = title
+            self.work_flow_label = selected_label
+            self.work_flow_desc = desc
 
             print(f"Selected desc: {desc}, selected_label: {selected_label}, Title: {title}")
 
@@ -1539,14 +2334,9 @@ class Ui_TaskPageWidget(object):
         self.messageEdit.setPlainText(message)
         self.sendMessage()
 
-
-
-
-
     def explain_text(self, txt):
         self.messageEdit.setPlainText(f"给我解释一下以下内容：{txt}")
         self.sendMessage()
-
 
     def is_urlbak(self, text):
         url_regex = re.compile(
@@ -1584,8 +2374,6 @@ class Ui_TaskPageWidget(object):
         except ValueError:
             return False
 
-
-
     def toggle_search_box(self):
         print("..taskpage searching..")
         if self.search_box.isVisible():
@@ -1601,8 +2389,6 @@ class Ui_TaskPageWidget(object):
     def search_in_page(self):
         search_text = self.search_box.text()
         self.messageBrowser.findText(search_text)
-
-
 
     def open_file(self, file_path):
         if sys.platform == "win32":
@@ -1698,15 +2484,14 @@ class Ui_TaskPageWidget(object):
             self.messageBrowser.page().runJavaScript('setAllCheckboxesChecked(true);')
         else:  # 复选框未选中
             # 调用 JavaScript 函数将所有复选框设为未选中
-            if self.conten_menu_closing == True:#点击了内容菜单的关闭按钮
-                if self.history_mode_checkbox.isChecked()==False:#如果没有选中指定上下文
+            if self.conten_menu_closing == True:  # 点击了内容菜单的关闭按钮
+                if self.history_mode_checkbox.isChecked() == False:  # 如果没有选中指定上下文
                     self.messageBrowser.page().runJavaScript('setAllCheckboxesChecked(false);')
 
-                self.conten_menu_closing = False#处理好复原
+                self.conten_menu_closing = False  # 处理好复原
 
-            else:#如果不是点击关闭内容菜单按钮
+            else:  # 如果不是点击关闭内容菜单按钮
                 self.messageBrowser.page().runJavaScript('setAllCheckboxesChecked(false);')
-
 
 
 class SearchBox(QLineEdit):

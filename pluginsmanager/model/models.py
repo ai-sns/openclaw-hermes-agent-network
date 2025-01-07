@@ -36,7 +36,8 @@ class Meta:
     version: str
 
     def __str__(self) -> str:
-        return f'{self.name}: {self.version}'
+        # return f'{self.name}: {self.version}'
+        return f'{self.name}'
 
 
 @dataclass

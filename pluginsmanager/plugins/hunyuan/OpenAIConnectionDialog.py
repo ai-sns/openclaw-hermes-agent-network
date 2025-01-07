@@ -44,7 +44,7 @@ class OpenAIConnectionDialog(QDialog, ui_OpenAIConnectionDialog):
 
     def saveSettings(self):
         config = {
-            "plugin_name": "腾讯混元连接器: 1.0.0",
+            "plugin_name": "腾讯混元",
             "secret_id": self.secret_id_edit.text(),
             "secret_key": self.secret_key_edit.text(),
             "model": self.model_combobox.currentText(),

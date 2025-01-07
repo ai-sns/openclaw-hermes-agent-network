@@ -1,5 +1,5 @@
-name: 'ChatGLM在线连接器'
-alias: 'ChatGLM在线连接器'
+name: 'ChatGLM在线'
+alias: 'ChatGLM在线'
 plugin_type: 'LLM_Connector'
 creator: 'Photon'
 runtime:
@@ -9,6 +9,7 @@ runtime:
 repository: 'https://github.com/Photon/plugin-connector-llm-jiuzhou-yfd-chatglm'
 description: '用来连接ChatGLM在线模型'
 version: '1.0.0'
+model_type: 'abab5.5s-chat, abab5.5-chat, abab6.5g-chat, abab6.5t-chat, abab6.5s-chat, abab6.5-chat'
 requirements:
   - name: 'PyYAML'
     version: '5.3.1'

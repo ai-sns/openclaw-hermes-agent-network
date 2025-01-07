@@ -1,7 +1,7 @@
 company: '北京百川信息'
 company_abbr: 'baichuan'
-name: '百川连接器'
-alias: 'Baichuan-13B 连接器'
+name: '百川'
+alias: 'Baichuan-13B'
 plugin_type: 'LLM_Connector'
 creator: 'Photon'
 runtime:
@@ -12,6 +12,8 @@ repository: 'https://github.com/Photon/plugin-connector-baichuan2-13B'
 plugin_directory: 'baichuan_connector'
 description: '用来连接baichuan-13B模型'
 version: '1.0.0'
+model_type: 'gpt-4o,gpt-4o-mini,baichuan-inc/Baichuan-7B-Chat, 
+baichuan-inc/Baichuan-13B-Chat, baichuan-inc/Baichuan2-7B-Chat, baichuan-inc/Baichuan2-13B-Chat'
 requirements:
   - name: 'PyYAML'
     version: '5.3.1'

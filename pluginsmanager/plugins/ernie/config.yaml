@@ -15,7 +15,7 @@ description: "GLM-4-0520\t\u6211\u4EEC\u5F53\u524D\u7684\u6700\u5148\u8FDB\u6700
 max_tokens: 4000
 model: ERNIE-3.5-128K
 parameters: ''
-plugin_name: "\u767E\u5EA6\u6587\u5FC3\u8FDE\u63A5\u5668: 1.0.0"
+plugin_name: "\u767E\u5EA6\u6587\u5FC3"
 qianfan_ak: iSbdJbzkQRvOLlbWaxBVHKLg
 qianfan_sk: 0Qa9UEYSXowrnQCH2GQkdL887rfeFuKM
 stream: true

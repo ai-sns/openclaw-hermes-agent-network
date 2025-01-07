@@ -3,17 +3,24 @@ import os
 import datetime
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QTableWidget,
-    QTableWidgetItem, QPushButton, QFileDialog, QMessageBox, QHeaderView, QCheckBox, QHBoxLayout,QLineEdit
+    QTableWidgetItem, QPushButton, QFileDialog, QMessageBox, QHeaderView, QCheckBox, QHBoxLayout, QLineEdit, QDialog, QFormLayout, QComboBox
 )
 from PyQt5.QtCore import Qt
 from workflow_design import WorkFlowDesign
-from db.DBFactory import query_workflow_mng_all,delete_workflow_mng,copy_workflow
+from db.DBFactory import query_workflow_mng_all,delete_workflow_mng,copy_workflow,query_AgentCfg_All
 from util import generate_random_id
+from globals import global_agent_list
+from TaskPage import TaskPage
 
 
 class WorkFlowManager(QWidget):
     def __init__(self, workflow_tags=""):
         super().__init__()
+        self.workflow_id = ""
+        self.workflow_name = ""
+        self.taskpage = None
+        self.app = None
+
         self.workflow_tags = workflow_tags
         if workflow_tags:
             self.records = query_workflow_mng_all(workflow_tags=workflow_tags)
@@ -55,10 +62,12 @@ class WorkFlowManager(QWidget):
         self.searchLineEdit.textChanged.connect(self.filterTable)
 
         self.add_button = QPushButton("新增")
+        self.run_button = QPushButton("运行")
         self.copy_button = QPushButton("拷贝")
         self.delete_button = QPushButton("删除")
         self.reload_button = QPushButton("刷新")
         self.add_button.clicked.connect(self.add_file)
+        self.run_button.clicked.connect(self.run_workflow)
         self.copy_button.clicked.connect(self.copy_flow)
         self.delete_button.clicked.connect(self.delete_file)
         self.reload_button.clicked.connect(self.reload)
@@ -67,6 +76,7 @@ class WorkFlowManager(QWidget):
         button_layout.addWidget(self.select_all_checkbox)
         button_layout.addWidget(self.searchLineEdit)
         button_layout.addWidget(self.add_button)
+        button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.copy_button)
         button_layout.addWidget(self.delete_button)
         button_layout.addWidget(self.reload_button)
@@ -165,6 +175,114 @@ class WorkFlowManager(QWidget):
         fun_dialog.setObjectName("workflowdesign")
         self.parent().addWidget(fun_dialog)
         self.parent().setCurrentWidget(fun_dialog)
+
+
+    def run_workflow(self):
+        selected_indexes = self.file_table.selectionModel().selectedRows()
+        if selected_indexes:
+            rows_selected = [index.row() for index in selected_indexes]
+            for row in reversed(rows_selected):
+                item = self.file_table.item(row, 1)
+                if item:
+                    workflow_id = item.data(Qt.UserRole)  # 使用 Qt.UserRole 获取数据
+                    self.workflow_id=workflow_id
+                    print(workflow_id)
+
+                name_item = self.file_table.item(row, 1)
+                if name_item:
+                    name = name_item.text()  # 使用 Qt.UserRole 获取数据
+                    print(name)
+                    self.workflow_name = name
+
+        else:
+            QMessageBox.warning(self, "警告", "请先选择一个要运行的工作流。")
+            return
+
+        # 创建对话框
+        transfer_dialog = QDialog()
+        transfer_dialog.setWindowTitle("选择Agent")
+        transfer_dialog.setMinimumWidth(500)
+
+        # 创建主垂直布局
+        main_layout = QVBoxLayout()
+
+        # 创建表单布局
+        form_layout = QFormLayout()
+
+        # 创建第一个组合框并填充数据
+        transfer_dialog.comboBox = QComboBox()
+        transfer_dialog.comboBox.setEditable(False)
+        records = query_AgentCfg_All(is_delete=0)
+
+        for record in records:
+            transfer_dialog.comboBox.addItem(record.name, record.user_id)
+
+        form_layout.addRow("选择测试运行的Agent：", transfer_dialog.comboBox)
+
+        # 将表单布局添加到主布局
+        main_layout.addLayout(form_layout)
+
+        # 创建按钮布局
+        button_layout = QHBoxLayout()
+        button_layout.addStretch(1)
+
+        # 创建确定和取消按钮
+        ok_button = QPushButton("确定")
+        cancel_button = QPushButton("取消")
+
+        # 连接按钮事件
+        ok_button.clicked.connect(transfer_dialog.accept)
+        cancel_button.clicked.connect(transfer_dialog.reject)
+
+        button_layout.addWidget(ok_button)
+        button_layout.addWidget(cancel_button)
+
+        # 将按钮布局添加到主布局
+        main_layout.addLayout(button_layout)
+
+        # 设置主布局
+        transfer_dialog.setLayout(main_layout)
+
+        self.app = self.parent().parent().parent()
+        # 显示对话框并处理结果
+        if transfer_dialog.exec_():
+            agent_id = transfer_dialog.comboBox.currentData()
+            agent_name = transfer_dialog.comboBox.currentText()
+            self.app.ShowAiAssistantStack()
+
+            agent_item = self.app.toolBox_AgentChat.findChild(QWidget, agent_id)
+
+            if agent_item:
+                current_index = self.app.toolBox_AgentChat.indexOf(agent_item)  # 获取当前索引
+                self.app.toolBox_AgentChat.setCurrentIndex(current_index)
+
+            agents = global_agent_list.values()  # 前面已经从数据库中初始化了agent列表，直接使用前面已经初始化的列表获取其agent_cfg即可
+            for agent in agents:
+                if agent.name == agent_name:
+                    self.app.open_exist_agent_task_chat(agent)
+
+                    agent_chat_window = self.app.agent_chat_window_list[agent_id]
+                    taskpage = agent_chat_window.findChild(TaskPage, "TaskPageObject")
+                    self.taskpage = taskpage
+
+                    browser_page = taskpage.messageBrowser.page()
+                    browser_page.loadFinished.connect(self.onBrowserLoadFinished)  # 第一次可能page没来得及load，所以需要在onload中处理
+
+                    self.is_browser_page_loaded = False
+                    if taskpage.is_browser_page_loaded == True:  # page是否已经load了
+                        self.is_browser_page_loaded = True
+
+                    if self.is_browser_page_loaded == True:
+                        self.onBrowserLoadFinished(True)
+
+    def onBrowserLoadFinished(self, success):
+        if success:
+            taskpage = self.taskpage
+            taskpage.messageEdit.setFocus()
+
+            taskpage.messageEdit.setPlainText(f"请运行一下工作流:{self.workflow_name},//workflow_id:{self.workflow_id}")
+            taskpage.sendMessage()
+
 
     def copy_flow(self):
         """删除所选文件"""

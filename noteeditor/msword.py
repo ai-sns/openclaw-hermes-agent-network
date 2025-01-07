@@ -18,27 +18,43 @@ from util import generate_random_id
 from langchainhandler import savevector,update_vector
 
 from PyQt5.QtWidgets import QApplication, QTextEdit, QVBoxLayout, QWidget, QMessageBox
-from PyQt5.QtGui import QImage, QClipboard, QKeySequence, QDesktopServices, QTextDocument
+from PyQt5.QtGui import QImage, QClipboard, QKeySequence, QDesktopServices, QTextDocument, QTextCharFormat
 from PyQt5.QtCore import Qt, QBuffer, QByteArray
 import sys
 import base64
-
+from i18n import lt
 
 class CustomizedQTextEdit(QtWidgets.QTextEdit):
 
-    def mouseMoveEvent(self, e):
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.anchor = None
-        self.anchor = self.anchorAt(e.pos())
-        if self.anchor:
-            print("move anchor")
-            QApplication.setOverrideCursor(Qt.PointingHandCursor)
-        else:
-            print("no move anchor")
-            # QApplication.setOverrideCursor(Qt.IBeamCursor)
-            QApplication.restoreOverrideCursor()
 
-            self.anchor = None
+    def mouseMoveEvent(self, e):
+
+        old_anchor = self.anchor
+        self.anchor = self.anchorAt(e.pos())
+        if self.anchor != old_anchor:
+            if self.anchor:
+                QApplication.setOverrideCursor(Qt.PointingHandCursor)
+            else:
+                # QApplication.restoreOverrideCursor()
+                self.restore_cursor_multiple_times()
         super().mouseMoveEvent(e)
+
+    # def mouseMoveEvent(self, e):
+    #     self.anchor = None
+    #     self.anchor = self.anchorAt(e.pos())
+    #     if self.anchor:
+    #         print("move anchor")
+    #         QApplication.setOverrideCursor(Qt.PointingHandCursor)
+    #     else:
+    #         print("no move anchor")
+    #         # QApplication.setOverrideCursor(Qt.IBeamCursor)
+    #         QApplication.restoreOverrideCursor()
+    #
+    #         self.anchor = None
+    #     super().mouseMoveEvent(e)
 
     # def mousePressEvent(self, e):
     #     self.anchor = self.anchorAt(e.pos())
@@ -60,9 +76,60 @@ class CustomizedQTextEdit(QtWidgets.QTextEdit):
 
         :param e: QEvent
         """
-
-        QApplication.restoreOverrideCursor()
+        print("leave event..")
+        # QApplication.setOverrideCursor(Qt.IBeamCursor)
+        # QApplication.restoreOverrideCursor()
+        self.restore_cursor_multiple_times()
         super().leaveEvent(e)
+
+
+    def insertFromMimeData(self, source):
+            """
+            重载此方法以控制粘贴操作。
+            """
+            cursor = self.textCursor()
+
+            # 检查剪贴板是否有图像
+            if source.hasImage():
+                image = source.imageData()
+                cursor.insertImage(image)
+            elif source.hasHtml():
+                # 如果剪贴板有HTML格式的数据
+                cursor.insertHtml(source.html())
+            else:
+                super().insertFromMimeData(source)
+            # elif source.hasText():
+            #     # 如果剪贴板有纯文本数据
+            #     cursor.insertText(source.text())
+
+            # 恢复默认文本格式
+            default_format = QTextCharFormat()
+            cursor.setCharFormat(default_format)
+            # 恢复默认文本格式
+            default_format = QTextCharFormat()
+            cursor.insertText(' ', default_format)  # 插入一个空格，以恢复后续文本为默认格式
+
+
+
+
+    def restore_cursor_multiple_times(self,times=100):
+        """
+        Restore the overridden cursor back to the default cursor multiple times.
+
+        :param times: Number of times to restore the cursor, default is 100.
+        """
+        for _ in range(times):
+            # Restore the overridden cursor to the default cursor
+            QApplication.restoreOverrideCursor()
+
+    def keyPressEvent(self, event):
+        print("in key")
+        # 检查是否按下了Ctrl和F键
+        if event.key() == Qt.Key_F and event.modifiers() == Qt.ControlModifier:
+            print("searching")
+        else:
+            # 处理其他按键事件
+            super(CustomizedQTextEdit, self).keyPressEvent(event)
 
 
 class Main(QtWidgets.QMainWindow):
@@ -180,8 +247,10 @@ class Main(QtWidgets.QMainWindow):
 
         self.toolbar = self.addToolBar("Options")
 
-        self.toolbar.addAction(self.newAction)
-        self.toolbar.addAction(self.openAction)
+        # self.toolbar.addAction(self.newAction)
+        # self.toolbar.addAction(self.openAction)
+        self.newAction.setVisible(False)
+        self.openAction.setVisible(False)
         self.toolbar.addAction(self.saveAction)
 
         self.toolbar.addSeparator()
@@ -384,12 +453,13 @@ class Main(QtWidgets.QMainWindow):
 
         self.initToolbar()
         self.initFormatbar()
-        self.initMenubar()
+        # self.initMenubar()#隐藏掉最上方的菜单栏
 
         self.setCentralWidget(self.text)
 
         # Initialize a statusbar for the window
         self.statusbar = self.statusBar()
+        self.statusbar.setVisible(False)#暂时隐藏掉最下方用户显示行列的状态栏
 
 
         self.text.cursorPositionChanged.connect(self.cursorPosition)
@@ -525,7 +595,9 @@ class Main(QtWidgets.QMainWindow):
                     openLinkAction.triggered.connect(lambda: webbrowser.open(selected_text))
                     menu.addAction(openLinkAction)
 
-
+            cleanFormatAction = QtWidgets.QAction("Remove format behind", self)
+            cleanFormatAction.triggered.connect(self.clean_format)
+            menu.addAction(cleanFormatAction)
 
 
             pos = self.mapToGlobal(pos)
@@ -563,7 +635,40 @@ class Main(QtWidgets.QMainWindow):
                     openLinkAction.triggered.connect(lambda: webbrowser.open(selected_text))
                     menu.addAction(openLinkAction)
 
+            cleanFormatAction = QtWidgets.QAction("Remove format behind", self)
+            cleanFormatAction.triggered.connect(self.clean_format)
+            menu.addAction(cleanFormatAction)
+
+            # 获取默认的 Paste 操作
+            paste_action = None
+            for action in menu.actions():
+                print(action.text())
+                if action.text() == "&Paste":
+                    paste_action = action
+                    break
+
+            if paste_action:
+                # 根据剪贴板内容是否为空来启用或禁用 Paste 操作
+                paste_action.setEnabled(self.canPaste())
+
             menu.exec_(self.mapToGlobal(pos))
+
+    def clean_format(self):
+        cursor = self.text.textCursor()
+        default_format = QTextCharFormat()
+        cursor.setCharFormat(default_format)
+        # 恢复默认文本格式
+        default_format = QTextCharFormat()
+        cursor.insertText(' ', default_format)  # 插入一个空格，以恢复后续文本为默认格式
+
+    def canPaste(self):
+        """
+        检查剪贴板中是否有可粘贴的内容（文本或图像）。
+        """
+        clipboard = QApplication.clipboard()
+        mime_data = clipboard.mimeData()
+
+        return mime_data.hasText() or mime_data.hasImage()
 
     def removeRow(self):
 
@@ -654,7 +759,10 @@ class Main(QtWidgets.QMainWindow):
             with open(self.filename,"rt",encoding='utf-8') as file:
                 self.text.setText(file.read())
 
-    def save(self,title=""):
+    def save(self,title="",label=""):
+        content = self.text.toPlainText()
+        if not content.strip():
+            return
         record_id=0
         self.km_cfg = query_KMCfg(id=self.km_cfg.id)
 
@@ -669,7 +777,20 @@ class Main(QtWidgets.QMainWindow):
             self.note_id = note_id
             self.filename = os.path.join(os.getcwd(),"km", self.km_id,"doc", note_id)
             content=self.text.toPlainText()
-            first_line = content.strip().splitlines()[0] if content else "无标题"
+            print(content.strip())
+            print(content.strip().splitlines()[0])
+            if isinstance(content, str):
+                print("Content is a valid string.")
+                # 移除不可见的控制字符（如果有）
+                tmpcontent = content.strip().splitlines()[0]
+                cleaned_content = ''.join(c for c in tmpcontent if c.isprintable())
+                first_line = cleaned_content if cleaned_content else "无标题"
+                first_line = first_line if first_line != '￼' else '无标题'
+            else:
+                print("Content is not a string. Please check the input.")
+                first_line = "无标题"
+
+
             # 截取前 50 个字符
             if not title:
                 title = first_line[:50]
@@ -679,8 +800,9 @@ class Main(QtWidgets.QMainWindow):
             tag_2 = ""
             tag_3 = ""
 
+
             record_id=add_note_mng(note_id, title, file_name, content,self.km_id, tag_1, tag_2,
-                     tag_3,waitvectorization)
+                     tag_3,waitvectorization,label)
             self.is_first = True
         else:
             note_id = self.note_id
