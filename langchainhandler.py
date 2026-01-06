@@ -10,10 +10,10 @@ os.environ["GOOGLE_CSE_ID"] = "53b9c3fd76d8d4cbb"
 os.environ["GOOGLE_API_KEY"] = "AIzaSyAYEpRPu24tU41bFn4QQB_2cZFmlOZxEEE"
 # from langchain_community.document_loaders import TextLoader, powerpoint, word_document, excel, PyPDFLoader, \
 #     markdown, html, csv_loader
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 # from langchain.text_splitter import TokenTextSplitter
-from langchain.vectorstores.chroma import Chroma
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from util import image_to_base64
 
 

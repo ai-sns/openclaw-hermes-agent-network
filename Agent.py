@@ -5,7 +5,7 @@ import typing
 from pathlib import Path
 import shutil
 import autogen
-from PyQt5.QtCore import QThread
+import threading
 from autogen.coding import LocalCommandLineCodeExecutor
 from termcolor import colored
 
@@ -164,18 +164,24 @@ class AgentMode(Enum):
 
 
 from autogen.agentchat.groupchat import GroupChatManager, GroupChat
-from PyQt5.QtCore import QThread, pyqtSignal
 from db.DBFactory import AgentCfg,MutiAgentCfg,query_PluginMng
 
 
-class AgentWorkerThread(QThread):
-    finished = pyqtSignal(str, str, int)
+class AgentWorkerThread(threading.Thread):
+    """使用 threading.Thread 替代 QThread，适配 Electron 架构"""
 
-    def __init__(self, agent_commander: AgentCommander, agent, parent=None):
+    def __init__(self, agent_commander: AgentCommander, agent, parent=None, callback=None):
+        super(AgentWorkerThread, self).__init__()
         self.agent_commander = agent_commander
         self.agent = agent
         self.agent_group_cfg = agent_commander.agent_group_cfg
-        super(AgentWorkerThread, self).__init__(parent)
+        self._callback = callback  # 替代 pyqtSignal 的回调函数
+        self.daemon = True  # 设为守护线程
+
+    def emit_finished(self, arg1: str, arg2: str, arg3: int):
+        """替代 pyqtSignal 的 finished.emit()"""
+        if self._callback:
+            self._callback(arg1, arg2, arg3)
 
     def run(self):
 

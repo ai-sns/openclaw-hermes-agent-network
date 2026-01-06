@@ -1,0 +1,33 @@
+# AI Agent Open Platform Dependencies
+# Install: pip install -r requirements_platform.txt
+
+# ========== Web Framework ==========
+fastapi>=0.100.0
+uvicorn>=0.23.0
+starlette>=0.27.0
+
+# ========== Data Validation ==========
+pydantic>=2.0.0
+
+# ========== Async I/O ==========
+aiofiles>=23.0.0
+httpx>=0.25.0
+
+# ========== SSE Streaming ==========
+sse-starlette>=1.8.0
+
+# ========== Database ==========
+sqlalchemy>=2.0.0
+
+# ========== Blockchain (Ethereum) ==========
+web3>=6.0.0
+eth-account>=0.10.0
+
+# ========== gRPC (A2A Protocol v0.3) ==========
+grpcio>=1.60.0
+grpcio-tools>=1.60.0
+protobuf>=4.25.0
+
+# ========== Optional: Testing ==========
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
