@@ -1635,32 +1635,104 @@ const PageControllers = {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) return;
 
-        // 检查百度地图API是否已加载
-        if (typeof BMap !== 'undefined') {
-            this.initMap();
-        } else {
-            // 动态加载百度地图
-            const script = document.createElement('script');
-            script.src = 'https://api.map.baidu.com/api?v=3.0&ak=YOUR_BAIDU_MAP_AK&callback=initBaiduMap';
-            script.async = true;
-            document.head.appendChild(script);
-
-            window.initBaiduMap = () => {
-                this.initMap();
-            };
-        }
+        // 直接加载 Google Map 3D 页面
+        this.initMap();
     },
 
     initMap() {
         const mapContainer = document.getElementById('mapContainer');
-        if (!mapContainer || typeof BMap === 'undefined') return;
+        if (!mapContainer) return;
 
+        // 清除地图容器内容
         mapContainer.innerHTML = '';
-        const map = new BMap.Map(mapContainer);
-        map.centerAndZoom(new BMap.Point(116.404, 39.915), 5);
-        map.enableScrollWheelZoom(true);
-        map.addControl(new BMap.NavigationControl());
-        map.addControl(new BMap.ScaleControl());
+
+        // 创建 iframe 加载 Google Map 3D 页面
+        const iframe = document.createElement('iframe');
+        iframe.src = 'http://localhost:8900/scripts/map.html';
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.display = 'block';
+
+        mapContainer.appendChild(iframe);
+
+        // 等待 iframe 加载完成后建立通信
+        iframe.onload = () => {
+            console.log('地图页面加载完成');
+
+            // 向 iframe 发送初始数据
+            const initialData = {
+                type: 'init',
+                data: {
+                    message: 'Hello from AI-SNS Electron App!',
+                    timestamp: Date.now()
+                }
+            };
+            iframe.contentWindow.postMessage(initialData, 'http://localhost:8900');
+        };
+
+        // 监听来自 iframe 的消息
+        window.addEventListener('message', (event) => {
+            // 验证消息来源
+            if (event.origin === 'http://localhost:8900') {
+                const data = event.data;
+                console.log('收到地图页面消息:', data);
+
+                // 处理不同类型的消息
+                switch (data.type) {
+                    case 'locationUpdate':
+                        this.handleLocationUpdate(data.data);
+                        break;
+                    case 'mapClick':
+                        this.handleMapClick(data.data);
+                        break;
+                    case 'markerAdd':
+                        this.handleMarkerAdd(data.data);
+                        break;
+                    default:
+                        console.log('未知消息类型:', data.type);
+                }
+            }
+        });
+    },
+
+    // 处理地图位置更新
+    handleLocationUpdate(data) {
+        console.log('位置更新:', data);
+        // 可以更新 UI 显示当前位置
+        // 例如：更新状态面板中的位置信息
+        const lngElement = document.querySelector('.status-row.sub span[class="value"]');
+        const latElement = document.querySelectorAll('.status-row.sub span[class="value"]')[1];
+        if (lngElement && data.lng) {
+            lngElement.textContent = `: ${data.lng}`;
+        }
+        if (latElement && data.lat) {
+            latElement.textContent = `: ${data.lat}`;
+        }
+    },
+
+    // 处理地图点击事件
+    handleMapClick(data) {
+        console.log('地图点击:', data);
+        // 可以在地图上添加标记或执行其他操作
+    },
+
+    // 处理添加标记事件
+    handleMarkerAdd(data) {
+        console.log('添加标记:', data);
+        // 可以在地图上添加自定义标记
+    },
+
+    // 向地图页面发送消息的方法
+    sendMessageToMap(type, data) {
+        const iframe = document.querySelector('#mapContainer iframe');
+        if (iframe && iframe.contentWindow) {
+            const message = {
+                type: type,
+                data: data
+            };
+            iframe.contentWindow.postMessage(message, 'http://localhost:8900');
+        }
     },
 
     loadSNSData() {
