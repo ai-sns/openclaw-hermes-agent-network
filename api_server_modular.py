@@ -23,6 +23,8 @@ import uvicorn
 
 # 导入所有模块的路由
 from backend.modules.agent.router import router as agent_router
+from backend.modules.agent.llm_router import router as llm_router
+from backend.modules.agent.role_router import router as role_router
 from backend.modules.chat.router import router as chat_router
 from backend.modules.map.router import router as map_router
 from backend.modules.km.router import router as km_router
@@ -56,6 +58,8 @@ app.mount("/scripts", StaticFiles(directory="scripts"), name="scripts")
 
 # 注册所有模块路由
 app.include_router(agent_router)
+app.include_router(llm_router)
+app.include_router(role_router)
 app.include_router(chat_router)
 app.include_router(map_router)
 app.include_router(km_router)

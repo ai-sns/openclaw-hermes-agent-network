@@ -331,3 +331,72 @@ class ToolList(Base):
     plugin_type = Column(String, doc="Plugin type")
     confirm_needed = Column(Boolean, doc="Confirm needed")
     can_be_sold = Column(Boolean, doc="Can be sold")
+
+
+class LlmConfig(Base):
+    """LLM model configuration."""
+    __tablename__ = 'llm_config'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    config_id = Column(String(50), unique=True, nullable=False, doc="Configuration unique ID")
+    name = Column(String(100), nullable=False, doc="Display name")
+    provider = Column(String(50), nullable=False, doc="Provider type: openai|claude|gemini|custom")
+    plugin_id = Column(String(100), doc="Associated plugin ID")
+
+    # Basic connection configuration
+    api_endpoint = Column(String(500), doc="API endpoint URL")
+    api_key = Column(Text, doc="API key (encrypted)")
+    model_name = Column(String(100), doc="Model name")
+
+    # Advanced parameters
+    temperature = Column(Float, default=0.7, doc="Temperature (0-2)")
+    max_tokens = Column(Integer, default=2048, doc="Max tokens")
+    top_p = Column(Float, default=1.0, doc="Top P")
+    frequency_penalty = Column(Float, default=0.0, doc="Frequency penalty")
+    presence_penalty = Column(Float, default=0.0, doc="Presence penalty")
+    stream = Column(Boolean, default=True, doc="Enable streaming")
+
+    # Custom parameters (JSON format)
+    custom_params = Column(Text, doc="Custom parameters in JSON")
+
+    # Metadata
+    description = Column(Text, doc="Description")
+    is_active = Column(Boolean, default=True, doc="Is active")
+    is_default = Column(Boolean, default=False, doc="Is default model")
+    position = Column(Integer, default=9999, doc="Display position")
+    creator = Column(String(100), doc="Creator")
+    is_delete = Column(Boolean, default=False, doc="Soft delete")
+    create_time = Column(DateTime, default=datetime.now, doc="Create time")
+    update_time = Column(DateTime, onupdate=datetime.now, doc="Update time")
+
+
+class RoleConfig(Base):
+    """Role/Persona configuration."""
+    __tablename__ = 'role_config'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role_id = Column(String(50), unique=True, nullable=False, doc="Role unique ID")
+    name = Column(String(100), nullable=False, doc="Role name")
+    display_name = Column(String(100), doc="Display name")
+
+    # Prompt configuration
+    system_prompt = Column(Text, nullable=False, doc="System prompt")
+    greeting_message = Column(Text, doc="Greeting message")
+
+    # Role attributes
+    role_type = Column(String(50), doc="Role type: preset|custom")
+    category = Column(String(50), doc="Category: developer|writer|analyst|assistant|other")
+    avatar = Column(String(200), doc="Avatar URL or icon")
+
+    # Metadata
+    description = Column(Text, doc="Description")
+    tags = Column(String(200), doc="Tags (comma separated)")
+    is_active = Column(Boolean, default=True, doc="Is active")
+    is_default = Column(Boolean, default=False, doc="Is default role")
+    is_preset = Column(Boolean, default=False, doc="Is preset template")
+    position = Column(Integer, default=9999, doc="Display position")
+    usage_count = Column(Integer, default=0, doc="Usage count")
+    creator = Column(String(100), doc="Creator")
+    is_delete = Column(Boolean, default=False, doc="Soft delete")
+    create_time = Column(DateTime, default=datetime.now, doc="Create time")
+    update_time = Column(DateTime, onupdate=datetime.now, doc="Update time")

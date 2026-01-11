@@ -7,12 +7,16 @@ import agentState from './agentState.js';
 import agentApi from './agentApi.js';
 
 const agentHandlers = {
+    currentManagementPage: null, // 跟踪当前打开的管理页面
+
     /**
      * 初始化
      */
     init() {
         this.loadAgentList();
         this.loadChatList();
+        this.loadModelOptions();
+        this.loadRoleOptions();
         this.bindEvents();
         this.initChatStreamListeners();
     },
@@ -74,6 +78,9 @@ const agentHandlers = {
             });
         });
 
+        // 管理页面导航 - 初始绑定（loadAgentList 后会重新绑定）
+        this.bindManagementButtonEvents();
+
         // 右侧设置面板 - 页签切换
         this.initSettingsPanelTabs();
 
@@ -94,25 +101,32 @@ const agentHandlers = {
      * 初始化设置面板页签切换
      */
     initSettingsPanelTabs() {
-        const settingsTabs = document.querySelectorAll('.settings-tab');
-        const tabPanes = document.querySelectorAll('.settings-tab-content .tab-pane');
+        // 使用事件委托绑定到父容器，避免缓存问题
+        const settingsTabs = document.getElementById('settingsTabs');
+        if (!settingsTabs) return;
 
-        settingsTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const targetTab = tab.dataset.tab;
+        settingsTabs.addEventListener('click', (e) => {
+            // 查找被点击的页签按钮
+            const tab = e.target.closest('.settings-tab');
+            if (!tab) return;
 
-                // 切换激活状态
-                settingsTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
+            const targetTab = tab.dataset.tab;
 
-                // 切换内容显示
-                tabPanes.forEach(pane => {
-                    if (pane.dataset.tab === targetTab) {
-                        pane.classList.add('active');
-                    } else {
-                        pane.classList.remove('active');
-                    }
-                });
+            // 每次点击时重新查询所有页签（包括动态添加的插件页签）
+            const allTabs = document.querySelectorAll('.settings-tab');
+            const allPanes = document.querySelectorAll('.settings-tab-content .tab-pane');
+
+            // 切换激活状态
+            allTabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // 切换内容显示
+            allPanes.forEach(pane => {
+                if (pane.dataset.tab === targetTab) {
+                    pane.classList.add('active');
+                } else {
+                    pane.classList.remove('active');
+                }
             });
         });
     },
@@ -445,21 +459,7 @@ const agentHandlers = {
             this.removePluginTab(pluginId);
         });
 
-        // 绑定页签切换事件
-        tabButton.addEventListener('click', () => {
-            // 切换激活状态
-            document.querySelectorAll('.settings-tab').forEach(t => t.classList.remove('active'));
-            tabButton.classList.add('active');
-
-            // 切换内容显示
-            document.querySelectorAll('.settings-tab-content .tab-pane').forEach(pane => {
-                if (pane.dataset.tab === `plugin-${pluginId}`) {
-                    pane.classList.add('active');
-                } else {
-                    pane.classList.remove('active');
-                }
-            });
-        });
+        // 注意：页签切换事件由 initSettingsPanelTabs() 的事件委托统一处理，这里不需要单独绑定
 
         settingsTabs.appendChild(tabButton);
         console.log('[AgentHandlers] ✓ 已创建页签按钮');
@@ -668,6 +668,82 @@ const agentHandlers = {
     },
 
     /**
+     * 加载模型选项
+     */
+    async loadModelOptions() {
+        const modelSelector = document.getElementById('modelSelector');
+        if (!modelSelector) return;
+
+        try {
+            const response = await fetch('http://localhost:8788/api/agent/llm-configs');
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                const models = result.data.filter(m => m.is_active !== false);
+
+                if (models.length > 0) {
+                    // 保存第一个选项，如果没有默认模型
+                    let defaultModel = models.find(m => m.is_default) || models[0];
+
+                    modelSelector.innerHTML = models.map(model => `
+                        <option value="${model.config_id}" ${model.is_default ? 'selected' : ''}>
+                            ${model.name}${model.provider ? ` (${model.provider})` : ''}
+                        </option>
+                    `).join('');
+
+                    // 设置当前选中的模型
+                    if (defaultModel) {
+                        agentState.setModel(defaultModel.config_id);
+                    }
+                } else {
+                    modelSelector.innerHTML = '<option value="">暂无可用模型</option>';
+                }
+            }
+        } catch (error) {
+            console.error('加载模型列表失败:', error);
+            // 保留默认选项
+        }
+    },
+
+    /**
+     * 加载角色选项
+     */
+    async loadRoleOptions() {
+        const roleSelector = document.getElementById('roleSelector');
+        if (!roleSelector) return;
+
+        try {
+            const response = await fetch('http://localhost:8788/api/agent/role-configs');
+            const result = await response.json();
+
+            if (result.success && result.data) {
+                const roles = result.data.filter(r => r.is_active !== false);
+
+                if (roles.length > 0) {
+                    // 保存第一个选项，如果没有默认角色
+                    let defaultRole = roles.find(r => r.is_default) || roles[0];
+
+                    roleSelector.innerHTML = roles.map(role => `
+                        <option value="${role.role_id}" ${role.is_default ? 'selected' : ''}>
+                            ${role.name}${role.category ? ` - ${role.category}` : ''}
+                        </option>
+                    `).join('');
+
+                    // 设置当前选中的角色
+                    if (defaultRole) {
+                        agentState.setRole(defaultRole.role_id);
+                    }
+                } else {
+                    roleSelector.innerHTML = '<option value="">暂无可用角色</option>';
+                }
+            }
+        } catch (error) {
+            console.error('加载角色列表失败:', error);
+            // 保留默认选项
+        }
+    },
+
+    /**
      * 加载Agent列表
      */
     async loadAgentList() {
@@ -681,11 +757,13 @@ const agentHandlers = {
 
             if (agents.length === 0) {
                 agentList.innerHTML = '<div class="empty-state">暂无Agent</div>';
+                // 仍然需要添加管理按钮
+                this.appendManagementButtons(agentList);
                 return;
             }
 
-            // 保留最后一项 "Agent Management"
-            const managementItem = agentList.querySelector('.agent-management');
+            // 保留所有管理按钮
+            const managementItems = agentList.querySelectorAll('.agent-management');
 
             agentList.innerHTML = agents.map(agent => `
                 <div class="agent-item" data-id="${agent.id}">
@@ -696,14 +774,59 @@ const agentHandlers = {
                 </div>
             `).join('');
 
-            // 重新添加 Management 项
-            if (managementItem) {
-                agentList.appendChild(managementItem);
-            }
+            // 重新添加所有管理按钮
+            managementItems.forEach(item => {
+                agentList.appendChild(item.cloneNode(true));
+            });
+
+            // 重新绑定管理按钮的事件
+            this.bindManagementButtonEvents();
         } catch (error) {
             console.error('加载Agent列表失败:', error);
             agentList.innerHTML = '<div class="empty-state error">加载失败</div>';
+            // 加载失败时也添加管理按钮
+            this.appendManagementButtons(agentList);
         }
+    },
+
+    /**
+     * 添加管理按钮
+     */
+    appendManagementButtons(agentList) {
+        const managementButtonsHtml = `
+            <div class="agent-item agent-management" data-page="model-management">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <span>模型管理</span>
+            </div>
+            <div class="agent-item agent-management" data-page="role-management">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
+                    <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                </svg>
+                <span>角色管理</span>
+            </div>
+            <div class="agent-item agent-management">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                </svg>
+                <span>Agent Management</span>
+            </div>
+        `;
+        agentList.insertAdjacentHTML('beforeend', managementButtonsHtml);
+        this.bindManagementButtonEvents();
+    },
+
+    /**
+     * 绑定管理按钮的事件
+     */
+    bindManagementButtonEvents() {
+        document.querySelectorAll('.agent-management[data-page]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = btn.dataset.page;
+                this.navigateToManagementPage(page);
+            });
+        });
     },
 
     /**
@@ -741,6 +864,9 @@ const agentHandlers = {
      * 处理新建对话
      */
     handleNewChat() {
+        // 关闭管理页面
+        this.closeManagementPage();
+
         if (typeof Modal === 'undefined') {
             console.error('Modal component not loaded');
             return;
@@ -827,6 +953,9 @@ const agentHandlers = {
      * 发送消息
      */
     async sendMessage() {
+        // 关闭管理页面
+        this.closeManagementPage();
+
         const input = document.getElementById('chatInput');
         const messagesContainer = document.getElementById('chatMessages');
         const sendBtn = document.getElementById('sendMessageBtn');
@@ -1210,6 +1339,46 @@ if __name__ == "__main__":
                 // 移除其他消息
                 messagesContainer.querySelectorAll('.message-item').forEach(item => item.remove());
             }
+        }
+    },
+
+    /**
+     * 导航到管理页面
+     */
+    async navigateToManagementPage(page) {
+        // 先销毁之前打开的管理页面
+        if (this.currentManagementPage) {
+            if (this.currentManagementPage.destroy) {
+                this.currentManagementPage.destroy();
+            }
+            this.currentManagementPage = null;
+        }
+
+        // Import management pages dynamically
+        const { ModelManagementPage, RoleManagementPage } = await import('./index.js').then(m => m.default);
+
+        if (page === 'model-management' && ModelManagementPage) {
+            this.currentManagementPage = ModelManagementPage;
+            await ModelManagementPage.init();
+        } else if (page === 'role-management' && RoleManagementPage) {
+            this.currentManagementPage = RoleManagementPage;
+            await RoleManagementPage.init();
+        }
+    },
+
+    /**
+     * 关闭管理页面，显示主聊天界面
+     */
+    closeManagementPage() {
+        if (this.currentManagementPage) {
+            if (this.currentManagementPage.destroy) {
+                this.currentManagementPage.destroy();
+            }
+            this.currentManagementPage = null;
+
+            // 重新加载模型和角色选项（因为可能在管理页面中修改了）
+            this.loadModelOptions();
+            this.loadRoleOptions();
         }
     },
 

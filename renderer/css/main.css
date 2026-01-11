@@ -434,7 +434,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     border-right: 1px solid var(--border-light);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
     transition: width var(--transition-slow), min-width var(--transition-slow),
                 margin-left var(--transition-slow), opacity var(--transition-slow);
     flex-shrink: 0;

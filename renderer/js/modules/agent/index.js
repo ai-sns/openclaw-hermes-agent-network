@@ -6,6 +6,8 @@
 import AgentPage from './AgentPage.js';
 import AgentSidebar from './AgentSidebar.js';
 import agentHandlers from './agentHandlers.js';
+import ModelManagementPage from './ModelManagementPage.js';
+import RoleManagementPage from './RoleManagementPage.js';
 
 export default {
     name: 'agent',
@@ -37,5 +39,11 @@ export default {
      */
     destroy() {
         agentHandlers.destroy();
-    }
+    },
+
+    /**
+     * 导出管理页面
+     */
+    ModelManagementPage,
+    RoleManagementPage
 };

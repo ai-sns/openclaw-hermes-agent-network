@@ -25,6 +25,12 @@ const agentState = {
     // 聊天列表
     chats: [],
 
+    // 模型列表
+    models: [],
+
+    // 角色列表
+    roles: [],
+
     /**
      * 重置状态
      */
@@ -164,6 +170,34 @@ const agentState = {
      */
     getChats() {
         return this.chats;
+    },
+
+    /**
+     * 设置模型列表
+     */
+    setModels(models) {
+        this.models = models;
+    },
+
+    /**
+     * 获取模型列表
+     */
+    getModels() {
+        return this.models;
+    },
+
+    /**
+     * 设置角色列表
+     */
+    setRoles(roles) {
+        this.roles = roles;
+    },
+
+    /**
+     * 获取角色列表
+     */
+    getRoles() {
+        return this.roles;
     }
 };
 
