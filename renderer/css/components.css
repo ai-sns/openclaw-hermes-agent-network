@@ -5967,6 +5967,10 @@ body.theme-dark .form-select:focus {
     transition: transform 0.3s ease;
 }
 
+.param-toggle .toggle-slider::after {
+    content: none; /* 隐藏继承的 ::after 伪元素 */
+}
+
 .param-toggle input[type="checkbox"]:checked + .toggle-slider {
     background: var(--color-primary);
 }
