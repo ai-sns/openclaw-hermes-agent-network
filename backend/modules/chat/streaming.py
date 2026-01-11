@@ -5,7 +5,9 @@ Chat module - SSE streaming functionality
 import json
 import logging
 import httpx
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
+
+from db.DBFactory import add_AIChatMessages, query_AIChatMessages_All
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +21,8 @@ class StreamingService:
         ai_config: dict,
         model: str,
         temperature: float,
-        max_tokens: int
+        max_tokens: int,
+        conversation_id: Optional[str] = None
     ) -> AsyncGenerator:
         """
         Stream chat responses using Server-Sent Events
@@ -30,10 +33,14 @@ class StreamingService:
             model: Model name
             temperature: Temperature parameter
             max_tokens: Max tokens parameter
+            conversation_id: Conversation ID for saving messages
 
         Yields:
             SSE event dictionaries
         """
+        # Accumulate the complete assistant response
+        accumulated_content = ""
+
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 api_url = f"{ai_config['api_base'].rstrip('/')}/chat/completions"
@@ -82,6 +89,58 @@ class StreamingService:
                             if line.startswith('data: '):
                                 data = line[6:]
                                 if data == '[DONE]':
+                                    # Save messages to database if conversation_id is provided
+                                    if conversation_id and accumulated_content:
+                                        try:
+                                            # Extract user message (last user message in the list)
+                                            user_message = ""
+                                            for msg in reversed(messages):
+                                                if msg.get('role') == 'user':
+                                                    user_message = msg.get('content', '')
+                                                    break
+
+                                            # Check if this is a new conversation
+                                            existing_messages = query_AIChatMessages_All(conversation_id=conversation_id)
+                                            is_new_conversation = not existing_messages or len(existing_messages) == 0
+
+                                            # Only set title and is_first for new conversations
+                                            if is_new_conversation:
+                                                title = user_message[:50] + "..." if len(user_message) > 50 else user_message
+                                                is_first = True
+                                            else:
+                                                title = None
+                                                is_first = False
+
+                                            # Save user message
+                                            add_AIChatMessages(
+                                                conversation_id=conversation_id,
+                                                flag=0,  # 0 = user message
+                                                title=title,
+                                                content=user_message,
+                                                owner_name="User",
+                                                owner_account="user",
+                                                friend_name="AI Assistant",
+                                                friend_account="assistant",
+                                                is_first=is_first
+                                            )
+
+                                            # Save assistant message
+                                            add_AIChatMessages(
+                                                conversation_id=conversation_id,
+                                                flag=1,  # 1 = AI message
+                                                title=None,
+                                                content=accumulated_content,
+                                                owner_name="AI Assistant",
+                                                owner_account="assistant",
+                                                friend_name="User",
+                                                friend_account="user",
+                                                is_first=False
+                                            )
+
+                                            logger.info(f"Saved chat messages to database for conversation {conversation_id}")
+                                        except Exception as e:
+                                            logger.error(f"Failed to save messages to database: {e}")
+
                                     yield {
                                         "event": "done",
                                         "data": json.dumps({"status": "completed"})
@@ -93,6 +152,7 @@ class StreamingService:
                                     if choices and len(choices) > 0:
                                         content = choices[0].get('delta', {}).get('content', '')
                                         if content:
+                                            accumulated_content += content  # Accumulate content
                                             yield {
                                                 "event": "message",
                                                 "data": json.dumps({"content": content})
@@ -111,12 +171,65 @@ class StreamingService:
                                 if choices and len(choices) > 0:
                                     content = choices[0].get('delta', {}).get('content', '')
                                     if content:
+                                        accumulated_content += content  # Accumulate content
                                         yield {
                                             "event": "message",
                                             "data": json.dumps({"content": content})
                                         }
                             except json.JSONDecodeError:
                                 pass
+
+                    # Save messages to database if conversation_id is provided
+                    if conversation_id and accumulated_content:
+                        try:
+                            # Extract user message (last user message in the list)
+                            user_message = ""
+                            for msg in reversed(messages):
+                                if msg.get('role') == 'user':
+                                    user_message = msg.get('content', '')
+                                    break
+
+                            # Check if this is a new conversation
+                            existing_messages = query_AIChatMessages_All(conversation_id=conversation_id)
+                            is_new_conversation = not existing_messages or len(existing_messages) == 0
+
+                            # Only set title and is_first for new conversations
+                            if is_new_conversation:
+                                title = user_message[:50] + "..." if len(user_message) > 50 else user_message
+                                is_first = True
+                            else:
+                                title = None
+                                is_first = False
+
+                            # Save user message
+                            add_AIChatMessages(
+                                conversation_id=conversation_id,
+                                flag=0,  # 0 = user message
+                                title=title,
+                                content=user_message,
+                                owner_name="User",
+                                owner_account="user",
+                                friend_name="AI Assistant",
+                                friend_account="assistant",
+                                is_first=is_first
+                            )
+
+                            # Save assistant message
+                            add_AIChatMessages(
+                                conversation_id=conversation_id,
+                                flag=1,  # 1 = AI message
+                                title=None,
+                                content=accumulated_content,
+                                owner_name="AI Assistant",
+                                owner_account="assistant",
+                                friend_name="User",
+                                friend_account="user",
+                                is_first=False
+                            )
+
+                            logger.info(f"Saved chat messages to database for conversation {conversation_id}")
+                        except Exception as e:
+                            logger.error(f"Failed to save messages to database: {e}")
 
                     yield {
                         "event": "done",

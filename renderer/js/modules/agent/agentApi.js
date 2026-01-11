@@ -53,19 +53,8 @@ const agentApi = {
      */
     async getChatHistory() {
         try {
-            if (window.api && window.api.getChatHistory) {
-                return await window.api.getChatHistory();
-            }
-            // 模拟数据
-            return {
-                success: true,
-                data: [
-                    { id: 1, title: 'introduce me to the functio...', lastMessage: 'Function介绍...', starred: true },
-                    { id: 2, title: 'hello', lastMessage: '你好！', starred: false },
-                    { id: 3, title: '@upload:go', lastMessage: 'Go文件上传...', starred: false },
-                    { id: 4, title: '@download:go', lastMessage: 'Go文件下载...', starred: false }
-                ]
-            };
+            // 调用新的对话列表API
+            return await this.getConversations();
         } catch (error) {
             console.error('获取聊天历史失败:', error);
             return { success: false, data: [] };
@@ -73,13 +62,42 @@ const agentApi = {
     },
 
     /**
+     * 获取对话列表
+     */
+    async getConversations(limit = 50) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/chat/conversations?limit=${limit}`);
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('获取对话列表失败:', error);
+            return { success: false, data: [] };
+        }
+    },
+
+    /**
+     * 获取对话消息
+     */
+    async getConversationMessages(conversationId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/chat/conversations/${conversationId}`);
+            const result = await response.json();
+            return result;
+        } catch (error) {
+            console.error('获取对话消息失败:', error);
+            return { success: false, data: [] };
+        }
+    },
+
+    /**
      * 发送消息 (流式) - 使用 HTTP SSE
      */
-    async sendMessageStream(messages, requestId, modelConfigId = null, modelConfig = null, callbacks = {}) {
+    async sendMessageStream(messages, requestId, modelConfigId = null, modelConfig = null, conversationId = null, callbacks = {}) {
         try {
             // 构建请求体
             const requestBody = {
                 messages: messages,
+                conversation_id: conversationId,  // 添加conversation_id
                 model_config_id: modelConfigId
             };
 

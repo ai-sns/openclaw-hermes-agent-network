@@ -177,3 +177,82 @@ class ChatService:
                 "timestamp": str(msg.timestamp) if hasattr(msg, 'timestamp') else None
             })
         return result
+
+    @staticmethod
+    def get_conversations(limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get conversation list (ordered by last message time)
+
+        Args:
+            limit: Maximum number of conversations to return
+
+        Returns:
+            List of conversations with title and last message time
+        """
+        try:
+            # Query all first messages (is_first=True) to get conversations
+            conversations = query_AIChatMessages(is_first=True, is_delete=False)
+
+            # Group by conversation_id and get latest timestamp
+            conversation_dict = {}
+            for msg in conversations:
+                conv_id = msg.conversation_id
+                if conv_id not in conversation_dict:
+                    conversation_dict[conv_id] = {
+                        "conversation_id": conv_id,
+                        "title": msg.title or msg.content[:50],
+                        "last_message_time": msg.create_time,
+                        "first_message": msg.content[:100]
+                    }
+                else:
+                    # Update if this message is newer
+                    if msg.create_time > conversation_dict[conv_id]["last_message_time"]:
+                        conversation_dict[conv_id]["last_message_time"] = msg.create_time
+
+            # Convert to list and sort by last message time (descending)
+            result = list(conversation_dict.values())
+            result.sort(key=lambda x: x["last_message_time"], reverse=True)
+
+            # Limit results
+            return result[:limit]
+        except Exception as e:
+            logger.error(f"Error getting conversations: {e}")
+            return []
+
+    @staticmethod
+    def get_conversation_messages(conversation_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all messages in a conversation
+
+        Args:
+            conversation_id: The conversation ID
+
+        Returns:
+            List of messages in chronological order
+        """
+        try:
+            messages = query_AIChatMessages(
+                conversation_id=conversation_id,
+                is_delete=False
+            )
+
+            result = []
+            for msg in messages:
+                # Determine role from flag (0=user, 1=assistant)
+                role = "user" if msg.flag == 0 else "assistant"
+
+                result.append({
+                    "id": msg.id,
+                    "role": role,
+                    "content": msg.content,
+                    "create_time": str(msg.create_time) if hasattr(msg, 'create_time') else None
+                })
+
+            # Sort by create_time
+            result.sort(key=lambda x: x.get("create_time", ""))
+
+            return result
+        except Exception as e:
+            logger.error(f"Error getting conversation messages: {e}")
+            return []
+

@@ -855,27 +855,56 @@ const agentHandlers = {
         if (!chatList) return;
 
         try {
-            const response = await agentApi.getChatHistory();
-            const chats = response.data || [];
-            agentState.setChats(chats);
+            // 调用真实API从数据库加载对话列表
+            const response = await agentApi.getConversations(50);
+            const conversations = response.data || [];
 
             const treeChildren = chatList.querySelector('.tree-children');
             if (!treeChildren) return;
 
-            if (chats.length === 0) {
+            if (conversations.length === 0) {
                 treeChildren.innerHTML = '<div class="empty-state">暂无对话</div>';
                 return;
             }
 
-            treeChildren.innerHTML = chats.map((chat, index) => `
-                <div class="tree-item ${index === 1 ? 'active' : ''}" data-id="${chat.id}">
-                    ${chat.starred ? '<span class="item-icon">⭐</span>' : ''}
-                    <span class="item-text">${chat.title}</span>
+            // 渲染对话列表
+            treeChildren.innerHTML = conversations.map((conv) => `
+                <div class="tree-item" data-conversation-id="${conv.conversation_id}">
+                    <span class="item-text">${this.escapeHtml(conv.title || '新对话')}</span>
                 </div>
             `).join('');
+
+            // 绑定点击事件
+            this.bindChatListItemEvents();
         } catch (error) {
             console.error('加载聊天列表失败:', error);
+            const treeChildren = chatList.querySelector('.tree-children');
+            if (treeChildren) {
+                treeChildren.innerHTML = '<div class="empty-state error">加载失败</div>';
+            }
         }
+    },
+
+    /**
+     * 绑定聊天列表项点击事件
+     */
+    bindChatListItemEvents() {
+        document.querySelectorAll('#chatList .tree-item[data-conversation-id]').forEach(item => {
+            // 移除旧的事件监听器
+            const newItem = item.cloneNode(true);
+            item.parentNode.replaceChild(newItem, item);
+
+            // 添加新的事件监听器
+            newItem.addEventListener('click', () => {
+                const conversationId = newItem.dataset.conversationId;
+                // 移除其他项的active class
+                document.querySelectorAll('#chatList .tree-item').forEach(i => i.classList.remove('active'));
+                // 添加当前项的active class
+                newItem.classList.add('active');
+                // 加载对话
+                this.loadConversation(conversationId);
+            });
+        });
     },
 
     /**
@@ -885,30 +914,122 @@ const agentHandlers = {
         // 关闭管理页面
         this.closeManagementPage();
 
-        if (typeof Modal === 'undefined') {
-            console.error('Modal component not loaded');
-            return;
+        // 清空当前对话
+        const messagesContainer = document.getElementById('chatMessages');
+        if (!messagesContainer) return;
+
+        const welcomeMsg = messagesContainer.querySelector('.welcome-message');
+        if (welcomeMsg) {
+            welcomeMsg.style.display = 'block';
+        } else {
+            // 如果没有欢迎消息，清空所有消息
+            messagesContainer.innerHTML = '';
         }
 
-        Modal.show({
-            title: '新建对话',
-            content: `
-                <div class="form-group">
-                    <label>对话标题（可选）</label>
-                    <input type="text" class="form-input" id="chatTitle" placeholder="输入对话标题">
-                </div>
-            `,
-            confirmText: '创建',
-            showCancel: true,
-            onConfirm: () => {
-                const title = document.getElementById('chatTitle')?.value || '新对话';
-                agentState.reset();
-                this.clearChatMessages();
-                if (typeof Notification !== 'undefined') {
-                    Notification.success(`已创建对话: ${title}`);
-                }
-            }
+        // 生成新的 conversation_id
+        const newConversationId = agentState.generateConversationId();
+        agentState.setConversationId(newConversationId);
+
+        // 清空聊天历史
+        agentState.clearChatHistory();
+
+        // 取消所有选中状态
+        document.querySelectorAll('#chatList .tree-item').forEach(item => {
+            item.classList.remove('active');
         });
+
+        console.log('[AgentHandlers] 新建对话，ID:', newConversationId);
+    },
+
+    /**
+     * 加载对话
+     */
+    async loadConversation(conversationId) {
+        try {
+            console.log('[AgentHandlers] 加载对话:', conversationId);
+
+            // 获取对话消息
+            const response = await agentApi.getConversationMessages(conversationId);
+            const messages = response.data || [];
+
+            // 清空当前聊天区域
+            const messagesContainer = document.getElementById('chatMessages');
+            if (!messagesContainer) return;
+
+            messagesContainer.innerHTML = '';
+
+            // 设置当前 conversation_id
+            agentState.setConversationId(conversationId);
+
+            // 清空聊天历史
+            agentState.clearChatHistory();
+
+            // 渲染历史消息
+            for (const msg of messages) {
+                if (msg.role === 'system') continue;
+
+                const messageHtml = this.createMessageElement(
+                    msg.role,
+                    msg.content,
+                    this.formatTime(msg.create_time)
+                );
+                messagesContainer.insertAdjacentHTML('beforeend', messageHtml);
+
+                // 添加到状态
+                agentState.addMessage(msg.role, msg.content);
+            }
+
+            // 滚动到底部
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            console.log('[AgentHandlers] 对话加载完成，消息数:', messages.length);
+        } catch (error) {
+            console.error('加载对话失败:', error);
+            if (typeof Notification !== 'undefined') {
+                Notification.error('加载对话失败');
+            }
+        }
+    },
+
+    /**
+     * 创建消息元素
+     */
+    createMessageElement(role, content, time) {
+        const isUser = role === 'user';
+        const avatarSvg = isUser ?
+            '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>' :
+            '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
+
+        return `
+            <div class="message-item ${isUser ? 'user-message' : 'assistant-message'}">
+                <div class="message-header">
+                    <div class="message-avatar ${isUser ? 'user-avatar' : 'assistant-avatar'}">
+                        ${avatarSvg}
+                    </div>
+                    <span class="message-sender">${isUser ? 'You' : 'AI Assistant'}</span>
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message-body">${this.renderMarkdown(content)}</div>
+            </div>
+        `;
+    },
+
+    /**
+     * 格式化时间
+     */
+    formatTime(timestamp) {
+        if (!timestamp) return '';
+        try {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return '';
+        }
     },
 
     /**
@@ -1031,6 +1152,14 @@ const agentHandlers = {
         // 保存用户消息到历史
         agentState.addMessage('user', message);
 
+        // 获取或生成 conversation_id
+        let conversationId = agentState.getConversationId();
+        if (!conversationId) {
+            conversationId = agentState.generateConversationId();
+            agentState.setConversationId(conversationId);
+            console.log('[AgentHandlers] 生成新对话ID:', conversationId);
+        }
+
         // 添加AI回复容器（带思考动画）
         const assistantMessageHtml = `
             <div class="message-item assistant-message streaming">
@@ -1092,7 +1221,7 @@ const agentHandlers = {
             };
 
             // 调用新的 HTTP SSE 方式
-            await agentApi.sendMessageStream(messages, requestId, modelConfigId, modelConfig, callbacks);
+            await agentApi.sendMessageStream(messages, requestId, modelConfigId, modelConfig, conversationId, callbacks);
 
             // 设置超时处理
             setTimeout(() => {
@@ -1107,6 +1236,8 @@ const agentHandlers = {
             const checkComplete = setInterval(() => {
                 if (!agentState.getRequestId()) {
                     enableSendBtn();
+                    // 流式响应完成后，重新加载聊天列表以显示新对话
+                    this.loadChatList();
                     clearInterval(checkComplete);
                 }
             }, 100);

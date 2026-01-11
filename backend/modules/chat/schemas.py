@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
 class StreamChatRequest(BaseModel):
     """Stream chat request model"""
     messages: List[Dict[str, str]]
+    conversation_id: Optional[str] = None  # Conversation ID for message history
     model_config_id: Optional[str] = None  # LLM configuration ID from agent module
     model: Optional[str] = None
     temperature: Optional[float] = 1.0

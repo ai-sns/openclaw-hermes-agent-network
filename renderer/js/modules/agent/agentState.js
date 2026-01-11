@@ -7,6 +7,9 @@ const agentState = {
     // 聊天历史记录
     chatHistory: [],
 
+    // 当前对话ID
+    currentConversationId: null,
+
     // 当前请求ID
     currentRequestId: null,
 
@@ -42,6 +45,7 @@ const agentState = {
      */
     reset() {
         this.chatHistory = [];
+        this.currentConversationId = null;
         this.currentRequestId = null;
         this.streamingContent = '';
     },
@@ -58,6 +62,34 @@ const agentState = {
      */
     getChatHistory() {
         return [...this.chatHistory];
+    },
+
+    /**
+     * 清空聊天历史
+     */
+    clearChatHistory() {
+        this.chatHistory = [];
+    },
+
+    /**
+     * 设置当前对话ID
+     */
+    setConversationId(id) {
+        this.currentConversationId = id;
+    },
+
+    /**
+     * 获取当前对话ID
+     */
+    getConversationId() {
+        return this.currentConversationId;
+    },
+
+    /**
+     * 生成新的对话ID
+     */
+    generateConversationId() {
+        return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     },
 
     /**

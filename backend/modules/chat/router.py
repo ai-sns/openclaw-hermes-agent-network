@@ -111,6 +111,50 @@ async def get_chat_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/conversations", response_model=dict)
+async def get_conversations(
+    limit: int = 50,
+    service: ChatService = Depends(get_chat_service)
+):
+    """
+    Get conversation list (ordered by last message time)
+
+    Args:
+        limit: Maximum number of conversations to return
+
+    Returns:
+        List of conversations
+    """
+    try:
+        conversations = service.get_conversations(limit)
+        return {"success": True, "data": conversations}
+    except Exception as e:
+        logger.error(f"Error getting conversations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversations/{conversation_id}", response_model=dict)
+async def get_conversation_messages(
+    conversation_id: str,
+    service: ChatService = Depends(get_chat_service)
+):
+    """
+    Get all messages in a conversation
+
+    Args:
+        conversation_id: The conversation ID
+
+    Returns:
+        List of messages in chronological order
+    """
+    try:
+        messages = service.get_conversation_messages(conversation_id)
+        return {"success": True, "data": messages}
+    except Exception as e:
+        logger.error(f"Error getting conversation messages: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stream")
 async def stream_chat_info():
     """
@@ -226,7 +270,8 @@ async def stream_chat(
             ai_config,
             model,
             temperature,
-            max_tokens
+            max_tokens,
+            request.conversation_id  # Pass conversation_id
         )
     )
 
