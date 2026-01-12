@@ -1,38 +1,23 @@
 /**
- * Agent State - 状态管理
- * 管理聊天历史、流式状态等
+ * Agent State - 多Agent状态管理
+ * 管理多个Agent的聊天历史、流式状态等
  */
 
 const agentState = {
-    // 聊天历史记录
-    chatHistory: [],
+    // 当前活动的agent ID
+    currentAgentId: null,
 
-    // 当前对话ID
-    currentConversationId: null,
+    // 所有agents的列表
+    agents: [],
 
-    // 当前请求ID
+    // 每个agent的独立状态 { agent_id: { chatHistory, conversationId, modelConfig, roleConfig, ... } }
+    agentStates: {},
+
+    // 当前请求ID（用于流式响应）
     currentRequestId: null,
 
     // 当前流式内容
-    streamingContent: '',
-
-    // 当前选择的模型
-    selectedModel: 'gpt-4o',
-
-    // 当前选择的角色
-    selectedRole: 'senior-dev',
-
-    // 当前模型的完整配置
-    currentModelConfig: null,
-
-    // 当前角色的完整配置
-    currentRoleConfig: null,
-
-    // Agent列表
-    agents: [],
-
-    // 聊天列表
-    chats: [],
+    currentStreamingContent: '',
 
     // 模型列表
     models: [],
@@ -41,179 +26,236 @@ const agentState = {
     roles: [],
 
     /**
-     * 重置状态
+     * 设置当前活动的agent
      */
-    reset() {
-        this.chatHistory = [];
-        this.currentConversationId = null;
-        this.currentRequestId = null;
-        this.streamingContent = '';
-    },
-
-    /**
-     * 添加消息到历史
-     */
-    addMessage(role, content) {
-        this.chatHistory.push({ role, content });
-    },
-
-    /**
-     * 获取聊天历史
-     */
-    getChatHistory() {
-        return [...this.chatHistory];
-    },
-
-    /**
-     * 清空聊天历史
-     */
-    clearChatHistory() {
-        this.chatHistory = [];
-    },
-
-    /**
-     * 设置当前对话ID
-     */
-    setConversationId(id) {
-        this.currentConversationId = id;
-    },
-
-    /**
-     * 获取当前对话ID
-     */
-    getConversationId() {
-        return this.currentConversationId;
-    },
-
-    /**
-     * 生成新的对话ID
-     */
-    generateConversationId() {
-        return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-    },
-
-    /**
-     * 设置当前请求ID
-     */
-    setRequestId(id) {
-        this.currentRequestId = id;
-    },
-
-    /**
-     * 获取当前请求ID
-     */
-    getRequestId() {
-        return this.currentRequestId;
-    },
-
-    /**
-     * 清除当前请求ID
-     */
-    clearRequestId() {
-        this.currentRequestId = null;
-    },
-
-    /**
-     * 设置流式内容
-     */
-    setStreamingContent(content) {
-        this.streamingContent = content;
-    },
-
-    /**
-     * 追加流式内容
-     */
-    appendStreamingContent(content) {
-        this.streamingContent += content;
-    },
-
-    /**
-     * 获取流式内容
-     */
-    getStreamingContent() {
-        return this.streamingContent;
-    },
-
-    /**
-     * 清除流式内容
-     */
-    clearStreamingContent() {
-        this.streamingContent = '';
-    },
-
-    /**
-     * 设置选择的模型
-     */
-    setModel(model) {
-        this.selectedModel = model;
-    },
-
-    /**
-     * 获取选择的模型
-     */
-    getModel() {
-        return this.selectedModel;
-    },
-
-    /**
-     * 设置选择的角色
-     */
-    setRole(role) {
-        this.selectedRole = role;
-    },
-
-    /**
-     * 获取选择的角色
-     */
-    getRole() {
-        return this.selectedRole;
-    },
-
-    /**
-     * 获取系统提示词
-     */
-    getSystemPrompt() {
-        // 优先使用当前角色配置的 system_prompt
-        if (this.currentRoleConfig && this.currentRoleConfig.system_prompt) {
-            return this.currentRoleConfig.system_prompt;
+    setCurrentAgent(agentId) {
+        this.currentAgentId = agentId;
+        // 如果该agent没有状态，初始化它
+        if (!this.agentStates[agentId]) {
+            this.agentStates[agentId] = {
+                chatHistory: [],
+                conversationId: null,
+                currentModelConfig: null,
+                currentRoleConfig: null,
+                streamingContent: '',
+                requestId: null
+            };
         }
-
-        // 回退到硬编码的提示词
-        const prompts = {
-            'senior-dev': '你是一位资深的软件工程师，有超过15年的开发经验。你精通多种编程语言和框架，善于编写高质量、可维护的代码。请用专业但易懂的方式回答问题，必要时提供代码示例。',
-            'assistant': '你是一个通用的AI助手，能够帮助用户解答各种问题。请用友好、清晰的方式回答。',
-            'writer': '你是一位专业的创意写作者，擅长各种文体的写作，包括故事、文章、诗歌等。请发挥创意，提供高质量的写作内容。',
-            'analyst': '你是一位专业的数据分析师，擅长数据分析、统计和可视化。请用专业的角度分析问题，必要时提供数据支持。'
-        };
-        return prompts[this.selectedRole] || prompts['assistant'];
     },
 
     /**
-     * 设置Agent列表
+     * 获取当前agent
+     */
+    getCurrentAgent() {
+        if (!this.currentAgentId) return null;
+        return this.agents.find(a => a.id === this.currentAgentId);
+    },
+
+    /**
+     * 获取当前agent的状态
+     */
+    getCurrentAgentState() {
+        if (!this.currentAgentId || !this.agentStates[this.currentAgentId]) {
+            return null;
+        }
+        return this.agentStates[this.currentAgentId];
+    },
+
+    /**
+     * 设置agents列表
      */
     setAgents(agents) {
         this.agents = agents;
+        // 如果还没有当前agent，设置第一个为当前agent
+        if (!this.currentAgentId && agents.length > 0) {
+            this.setCurrentAgent(agents[0].id);
+        }
     },
 
     /**
-     * 获取Agent列表
+     * 获取agents列表
      */
     getAgents() {
         return this.agents;
     },
 
     /**
-     * 设置聊天列表
+     * 添加消息到当前agent的聊天历史
      */
-    setChats(chats) {
-        this.chats = chats;
+    addMessage(role, content) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.chatHistory.push({ role, content });
+        }
     },
 
     /**
-     * 获取聊天列表
+     * 获取当前agent的聊天历史
      */
-    getChats() {
-        return this.chats;
+    getChatHistory() {
+        const state = this.getCurrentAgentState();
+        return state ? [...state.chatHistory] : [];
+    },
+
+    /**
+     * 清空当前agent的聊天历史
+     */
+    clearChatHistory() {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.chatHistory = [];
+        }
+    },
+
+    /**
+     * 设置当前agent的conversation ID
+     */
+    setConversationId(id) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.conversationId = id;
+        }
+    },
+
+    /**
+     * 获取当前agent的conversation ID
+     */
+    getConversationId() {
+        const state = this.getCurrentAgentState();
+        return state ? state.conversationId : null;
+    },
+
+    /**
+     * 生成新的conversation ID
+     */
+    generateConversationId() {
+        return 'conv_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    },
+
+    /**
+     * 设置当前agent的模型配置
+     */
+    setModel(configId) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            if (!state.currentModelConfig) {
+                state.currentModelConfig = {};
+            }
+            state.currentModelConfig.config_id = configId;
+        }
+    },
+
+    /**
+     * 获取当前agent的模型配置
+     */
+    get currentModelConfig() {
+        const state = this.getCurrentAgentState();
+        return state ? state.currentModelConfig : null;
+    },
+
+    set currentModelConfig(config) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.currentModelConfig = config;
+        }
+    },
+
+    /**
+     * 设置当前agent的角色配置
+     */
+    setRole(roleId) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            if (!state.currentRoleConfig) {
+                state.currentRoleConfig = {};
+            }
+            state.currentRoleConfig.role_id = roleId;
+        }
+    },
+
+    /**
+     * 获取当前agent的角色配置
+     */
+    get currentRoleConfig() {
+        const state = this.getCurrentAgentState();
+        return state ? state.currentRoleConfig : null;
+    },
+
+    set currentRoleConfig(config) {
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.currentRoleConfig = config;
+        }
+    },
+
+    /**
+     * 获取当前agent的system prompt
+     */
+    getSystemPrompt() {
+        const roleConfig = this.currentRoleConfig;
+        if (roleConfig && roleConfig.system_prompt) {
+            return roleConfig.system_prompt;
+        }
+        // 回退到默认提示词
+        return '你是一个有帮助的AI助手。';
+    },
+
+    /**
+     * 设置请求ID（用于流式响应）
+     */
+    setRequestId(id) {
+        this.currentRequestId = id;
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.requestId = id;
+        }
+    },
+
+    /**
+     * 获取请求ID
+     */
+    getRequestId() {
+        return this.currentRequestId;
+    },
+
+    /**
+     * 清除请求ID
+     */
+    clearRequestId() {
+        this.currentRequestId = null;
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.requestId = null;
+        }
+    },
+
+    /**
+     * 添加流式内容
+     */
+    appendStreamingContent(content) {
+        this.currentStreamingContent += content;
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.streamingContent += content;
+        }
+    },
+
+    /**
+     * 获取流式内容
+     */
+    getStreamingContent() {
+        return this.currentStreamingContent;
+    },
+
+    /**
+     * 清空流式内容
+     */
+    clearStreamingContent() {
+        this.currentStreamingContent = '';
+        const state = this.getCurrentAgentState();
+        if (state) {
+            state.streamingContent = '';
+        }
     },
 
     /**
@@ -242,6 +284,17 @@ const agentState = {
      */
     getRoles() {
         return this.roles;
+    },
+
+    /**
+     * 重置所有状态
+     */
+    reset() {
+        this.currentAgentId = null;
+        this.agents = [];
+        this.agentStates = {};
+        this.currentRequestId = null;
+        this.currentStreamingContent = '';
     }
 };
 
