@@ -702,9 +702,48 @@ const AgentSettingsDialog = {
                     Notification.success(isEdit ? 'Agent 更新成功' : 'Agent 创建成功');
                 }
 
-                // 刷新 Agent 列表
-                if (window.agentHandlers && window.agentHandlers.loadAgentList) {
+                const agentId = isEdit ? this.currentAgent.id : result.data?.id;
+
+                // 如果是编辑模式，需要重新加载后端的 agent 实例以应用新配置
+                if (isEdit && agentId) {
+                    try {
+                        // 重新加载后端 agent 实例
+                        const reloadResponse = await fetch(`http://localhost:8788/api/agent/${agentId}/reload`, {
+                            method: 'POST'
+                        });
+                        const reloadResult = await reloadResponse.json();
+                        if (reloadResult.success) {
+                            console.log(`[AgentSettingsDialog] Agent ${agentId} 实例已重新加载`);
+                        }
+
+                        // 更新前端的 model-selector 和 role-selector
+                        if (window.multiAgentHandlers) {
+                            // 重新加载选项并选中新配置
+                            await window.multiAgentHandlers.loadModelOptionsForAgent(agentId);
+                            await window.multiAgentHandlers.loadRoleOptionsForAgent(agentId);
+                            console.log(`[AgentSettingsDialog] Agent ${agentId} 前端选择器已更新`);
+                        }
+                    } catch (error) {
+                        console.error('[AgentSettingsDialog] 重新加载 Agent 配置失败:', error);
+                        // 不阻止对话框关闭，但显示警告
+                        if (typeof Notification !== 'undefined') {
+                            Notification.warning('配置已保存，但重新加载失败，请刷新页面');
+                        }
+                    }
+                }
+
+                // 刷新 Agent 列表（使用新架构的方法）
+                if (window.AgentSidebar && window.AgentSidebar.reload) {
+                    await window.AgentSidebar.reload();
+                } else if (window.agentHandlers && window.agentHandlers.loadAgentList) {
+                    // 向后兼容：如果新方法不存在，使用旧方法
                     await window.agentHandlers.loadAgentList();
+                }
+
+                // 如果是创建新agent，需要重新初始化多Agent系统
+                if (!isEdit && window.multiAgentHandlers && window.multiAgentHandlers.init) {
+                    console.log('[AgentSettingsDialog] 创建了新Agent，重新初始化多Agent系统');
+                    await window.multiAgentHandlers.init();
                 }
 
                 return true; // 关闭对话框

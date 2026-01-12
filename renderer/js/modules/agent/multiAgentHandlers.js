@@ -126,26 +126,70 @@ const multiAgentHandlers = {
         });
 
         // 3. 模型选择器
-        document.addEventListener('change', (e) => {
+        document.addEventListener('change', async (e) => {
             const modelSelector = e.target.closest('.model-selector[data-agent-id]');
             if (modelSelector) {
                 const agentId = parseInt(modelSelector.dataset.agentId);
                 const configId = modelSelector.value;
+
+                // 检查是否选择了 "Please Select"
+                if (!configId) {
+                    console.log('[MultiAgentHandlers] 模型选择器：未选择有效配置');
+                    return;
+                }
+
                 agentState.setCurrentAgent(agentId);
                 agentState.setModel(configId);
-                this.loadAndApplyModelConfig(configId, agentId);
+
+                // 禁用选择器，防止重复点击
+                modelSelector.disabled = true;
+
+                try {
+                    await this.loadAndApplyModelConfig(configId, agentId);
+                    console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已更新`);
+                } catch (error) {
+                    console.error(`[MultiAgentHandlers] Agent ${agentId} 更新模型配置失败:`, error);
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('更新模型配置失败: ' + error.message);
+                    }
+                } finally {
+                    // 重新启用选择器
+                    modelSelector.disabled = false;
+                }
             }
         });
 
         // 4. 角色选择器
-        document.addEventListener('change', (e) => {
+        document.addEventListener('change', async (e) => {
             const roleSelector = e.target.closest('.role-selector[data-agent-id]');
             if (roleSelector) {
                 const agentId = parseInt(roleSelector.dataset.agentId);
                 const roleId = roleSelector.value;
+
+                // 检查是否选择了 "Please Select"
+                if (!roleId) {
+                    console.log('[MultiAgentHandlers] 角色选择器：未选择有效配置');
+                    return;
+                }
+
                 agentState.setCurrentAgent(agentId);
                 agentState.setRole(roleId);
-                this.loadAndApplyRoleConfig(roleId, agentId);
+
+                // 禁用选择器，防止重复点击
+                roleSelector.disabled = true;
+
+                try {
+                    await this.loadAndApplyRoleConfig(roleId, agentId);
+                    console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已更新`);
+                } catch (error) {
+                    console.error(`[MultiAgentHandlers] Agent ${agentId} 更新角色配置失败:`, error);
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('更新角色配置失败: ' + error.message);
+                    }
+                } finally {
+                    // 重新启用选择器
+                    roleSelector.disabled = false;
+                }
             }
         });
 

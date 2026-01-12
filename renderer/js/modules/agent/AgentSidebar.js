@@ -362,7 +362,49 @@ const AgentSidebar = {
         } catch (error) {
             console.error('[AgentSidebar] 导航到管理页面失败:', error);
         }
+    },
+
+    /**
+     * 重新加载 Agent 列表（保留新架构）
+     * 用于在更新 Agent 后刷新侧边栏
+     */
+    async reload() {
+        console.log('[AgentSidebar] 开始重新加载...');
+
+        // 1. 从API重新加载Agent列表
+        const agents = await this.loadAgentsFromAPI();
+        console.log('[AgentSidebar] 重新加载的agents:', agents);
+
+        if (agents.length === 0) {
+            console.warn('[AgentSidebar] 没有可用的Agent');
+            this.renderEmptyState();
+            return;
+        }
+
+        // 2. 保存当前展开的 agent ID
+        const currentExpandedContainer = document.querySelector('.agent-section-container[style*="display: block"]');
+        const currentAgentId = currentExpandedContainer ? parseInt(currentExpandedContainer.dataset.agentId) : null;
+
+        // 3. 重新渲染Agent列表
+        this.renderAgentList(agents);
+
+        // 4. 重新绑定事件
+        this.bindEvents();
+
+        // 5. 恢复之前展开的 agent，如果不存在则展开第一个
+        if (currentAgentId && agents.find(a => a.id === currentAgentId)) {
+            this.switchAgent(currentAgentId);
+        } else if (agents.length > 0) {
+            this.switchAgent(agents[0].id);
+        }
+
+        console.log('[AgentSidebar] 重新加载完成');
     }
 };
+
+// 导出到全局（供其他模块使用）
+if (typeof window !== 'undefined') {
+    window.AgentSidebar = AgentSidebar;
+}
 
 export default AgentSidebar;
