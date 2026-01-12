@@ -1077,6 +1077,19 @@ const agentHandlers = {
             return;
         }
 
+        // 获取当前agent
+        const currentAgent = agentState.getCurrentAgent();
+        if (!currentAgent) {
+            console.error('[AgentHandlers] 没有选中的Agent');
+            if (typeof Notification !== 'undefined') {
+                Notification.error('请先选择一个Agent');
+            }
+            return;
+        }
+
+        const agentId = currentAgent.id;
+        console.log('[AgentHandlers] 使用Agent发送消息:', currentAgent.name, 'ID:', agentId);
+
         // 禁用发送按钮
         if (sendBtn) {
             sendBtn.disabled = true;
@@ -1135,7 +1148,7 @@ const agentHandlers = {
                     <div class="message-avatar assistant-avatar">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                     </div>
-                    <span class="message-sender">AI Assistant</span>
+                    <span class="message-sender">${this.escapeHtml(currentAgent.name)}</span>
                     <span class="message-time">${timeStr}</span>
                 </div>
                 <div class="message-body">
@@ -1151,16 +1164,10 @@ const agentHandlers = {
         messagesContainer.insertAdjacentHTML('beforeend', assistantMessageHtml);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-        // 生成请求ID
+        // 生成请求ID（用于流式响应跟踪）
         const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         agentState.setRequestId(requestId);
         agentState.clearStreamingContent();
-
-        // 构建消息数组
-        const messages = [
-            { role: 'system', content: agentState.getSystemPrompt() },
-            ...agentState.getChatHistory()
-        ];
 
         // 启用发送按钮的函数
         const enableSendBtn = () => {
@@ -1170,26 +1177,40 @@ const agentHandlers = {
             }
         };
 
-        // 发起流式请求
+        // 发起流式请求 - 使用Agent专属接口
         try {
-            // 获取当前模型配置
-            const modelConfig = agentState.currentModelConfig;
-            const modelConfigId = modelConfig ? modelConfig.config_id : null;
-
-            // 确保 _streamHandlers 已初始化
-            if (!this._streamHandlers) {
-                this.initChatStreamListeners();
-            }
-
             // 准备回调函数
             const callbacks = {
-                onData: this._streamHandlers.onData,
-                onEnd: this._streamHandlers.onEnd,
-                onError: this._streamHandlers.onError
+                onData: (content) => {
+                    agentState.appendStreamingContent(content);
+                    this.updateStreamingMessage(agentState.getStreamingContent());
+                },
+                onEnd: () => {
+                    this.finalizeStreamingMessage();
+                    agentState.clearRequestId();
+                    enableSendBtn();
+                    // 流式响应完成后，重新加载聊天列表以显示新对话
+                    this.loadChatList();
+                },
+                onError: (error) => {
+                    this.showStreamError(error);
+                    agentState.clearRequestId();
+                    enableSendBtn();
+                }
             };
 
-            // 调用新的 HTTP SSE 方式
-            await agentApi.sendMessageStream(messages, requestId, modelConfigId, modelConfig, conversationId, callbacks);
+            // 调用Agent专属的流式接口
+            console.log('[AgentHandlers] 调用Agent专属接口:', `/api/agent/${agentId}/chat/stream`);
+            await agentApi.agentChatStream(
+                agentId,
+                message,
+                conversationId,
+                callbacks,
+                {
+                    use_memory: true,
+                    use_knowledge_base: true
+                }
+            );
 
             // 设置超时处理
             setTimeout(() => {
@@ -1200,15 +1221,6 @@ const agentHandlers = {
                 }
             }, 120000); // 2分钟超时
 
-            // 监听完成事件以启用按钮
-            const checkComplete = setInterval(() => {
-                if (!agentState.getRequestId()) {
-                    enableSendBtn();
-                    // 流式响应完成后，重新加载聊天列表以显示新对话
-                    this.loadChatList();
-                    clearInterval(checkComplete);
-                }
-            }, 100);
         } catch (error) {
             console.error('发送消息失败:', error);
             this.showStreamError(error.message);

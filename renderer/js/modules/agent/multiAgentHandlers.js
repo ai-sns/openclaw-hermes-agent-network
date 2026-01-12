@@ -47,12 +47,18 @@ const multiAgentHandlers = {
         // 7. 绑定所有agent的UI事件
         this.bindAllAgentEvents();
 
-        // 8. 为当前agent加载聊天列表
+        // 8. 为所有agent加载模型和角色选项
+        for (const agent of agents) {
+            await this.loadModelOptionsForAgent(agent.id);
+            await this.loadRoleOptionsForAgent(agent.id);
+        }
+
+        // 9. 为当前agent加载聊天列表
         if (agents.length > 0) {
             this.loadChatListForAgent(agents[0].id);
         }
 
-        // 9. 初始化流式监听
+        // 10. 初始化流式监听
         this.initChatStreamListeners();
 
         console.log('[MultiAgentHandlers] 多Agent系统初始化完成');
@@ -288,6 +294,18 @@ const multiAgentHandlers = {
             return;
         }
 
+        // 获取当前agent信息
+        const currentAgent = agentState.getCurrentAgent();
+        if (!currentAgent) {
+            console.error('[MultiAgentHandlers] 没有选中的Agent');
+            if (typeof Notification !== 'undefined') {
+                Notification.error('请先选择一个Agent');
+            }
+            return;
+        }
+
+        console.log('[MultiAgentHandlers] 使用Agent发送消息:', currentAgent.name, 'ID:', agentId);
+
         // 禁用发送按钮
         if (sendBtn) {
             sendBtn.disabled = true;
@@ -334,16 +352,17 @@ const multiAgentHandlers = {
         if (!conversationId) {
             conversationId = agentState.generateConversationId();
             agentState.setConversationId(conversationId);
+            console.log('[MultiAgentHandlers] 生成新对话ID:', conversationId);
         }
 
-        // 添加AI回复容器（带思考动画）
+        // 添加AI回复容器（带思考动画，显示Agent名称）
         const assistantMessageHtml = `
             <div class="message-item assistant-message streaming">
                 <div class="message-header">
                     <div class="message-avatar assistant-avatar">
                         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
                     </div>
-                    <span class="message-sender">AI Assistant</span>
+                    <span class="message-sender">${this.escapeHtml(currentAgent.name)}</span>
                     <span class="message-time">${timeStr}</span>
                 </div>
                 <div class="message-body">
@@ -364,12 +383,6 @@ const multiAgentHandlers = {
         agentState.setRequestId(requestId);
         agentState.clearStreamingContent();
 
-        // 构建消息数组
-        const messages = [
-            { role: 'system', content: agentState.getSystemPrompt() },
-            ...agentState.getChatHistory()
-        ];
-
         // 启用发送按钮的函数
         const enableSendBtn = () => {
             if (sendBtn) {
@@ -378,38 +391,49 @@ const multiAgentHandlers = {
             }
         };
 
-        // 发起流式请求
+        // 发起流式请求 - 使用Agent专属接口
         try {
-            const modelConfig = agentState.currentModelConfig;
-            const modelConfigId = modelConfig ? modelConfig.config_id : null;
-
             // 准备回调函数（绑定agentId）
             const callbacks = {
-                onData: (data) => {
-                    if (data.requestId === agentState.getRequestId()) {
-                        agentState.appendStreamingContent(data.content);
-                        this.updateStreamingMessageForAgent(agentState.getStreamingContent(), agentId);
-                    }
+                onData: (content) => {
+                    agentState.appendStreamingContent(content);
+                    this.updateStreamingMessageForAgent(agentState.getStreamingContent(), agentId);
                 },
-                onEnd: (data) => {
-                    if (data.requestId === agentState.getRequestId()) {
-                        this.finalizeStreamingMessageForAgent(agentId);
-                        agentState.clearRequestId();
-                        enableSendBtn();
-                        // 重新加载聊天列表
-                        this.loadChatListForAgent(agentId);
-                    }
+                onEnd: () => {
+                    this.finalizeStreamingMessageForAgent(agentId);
+                    agentState.clearRequestId();
+                    enableSendBtn();
+                    // 重新加载聊天列表
+                    this.loadChatListForAgent(agentId);
                 },
-                onError: (data) => {
-                    if (data.requestId === agentState.getRequestId()) {
-                        this.showStreamErrorForAgent(data.error, agentId);
-                        agentState.clearRequestId();
-                        enableSendBtn();
-                    }
+                onError: (error) => {
+                    this.showStreamErrorForAgent(error, agentId);
+                    agentState.clearRequestId();
+                    enableSendBtn();
                 }
             };
 
-            await agentApi.sendMessageStream(messages, requestId, modelConfigId, modelConfig, conversationId, callbacks);
+            // 调用Agent专属的流式接口
+            console.log('[MultiAgentHandlers] 调用Agent专属接口:', `/api/agent/${agentId}/chat/stream`);
+            await agentApi.agentChatStream(
+                agentId,
+                message,
+                conversationId,
+                callbacks,
+                {
+                    use_memory: true,
+                    use_knowledge_base: true
+                }
+            );
+
+            // 设置超时处理
+            setTimeout(() => {
+                if (agentState.getRequestId() === requestId) {
+                    this.showStreamErrorForAgent('请求超时，请重试', agentId);
+                    agentState.clearRequestId();
+                    enableSendBtn();
+                }
+            }, 120000); // 2分钟超时
 
         } catch (error) {
             console.error(`[MultiAgentHandlers] Agent ${agentId} 发送消息失败:`, error);
@@ -448,6 +472,11 @@ const multiAgentHandlers = {
                 const content = agentState.getStreamingContent();
                 streamingBody.innerHTML = this.renderMarkdown(content);
                 this.highlightCodeBlocks(streamingBody);
+
+                // 渲染思维导图（如果有）
+                if (window.MindmapPlugin) {
+                    window.MindmapPlugin.renderInMessage(streamingBody);
+                }
             }
         }
 
@@ -554,6 +583,13 @@ const multiAgentHandlers = {
         if (!modelSelector) return;
 
         try {
+            // 1. 获取agent的当前配置
+            const agentResponse = await fetch(`http://localhost:8788/api/agent/${agentId}`);
+            const agentResult = await agentResponse.json();
+            const currentAgent = agentResult.success ? agentResult.data : null;
+            const currentModelConfigId = currentAgent?.model_config_id || currentAgent?.model;
+
+            // 2. 获取所有模型配置
             const response = await fetch('http://localhost:8788/api/agent/llm-configs');
             const result = await response.json();
 
@@ -561,17 +597,28 @@ const multiAgentHandlers = {
                 const models = result.data.filter(m => m.is_active !== false);
 
                 if (models.length > 0) {
-                    let defaultModel = models.find(m => m.is_default) || models[0];
+                    // 3. 确定要选中的模型
+                    let selectedModel = null;
+                    if (currentModelConfigId) {
+                        // 如果agent有保存的配置，使用该配置
+                        selectedModel = models.find(m => m.config_id === currentModelConfigId);
+                    }
+                    // 如果没有找到或没有配置，使用默认模型
+                    if (!selectedModel) {
+                        selectedModel = models.find(m => m.is_default) || models[0];
+                    }
 
+                    // 4. 渲染选项
                     modelSelector.innerHTML = models.map(model => `
-                        <option value="${model.config_id}" ${model.is_default ? 'selected' : ''}>
+                        <option value="${model.config_id}" ${model.config_id === selectedModel.config_id ? 'selected' : ''}>
                             ${model.name}${model.provider ? ` (${model.provider})` : ''}
                         </option>
                     `).join('');
 
-                    if (defaultModel) {
-                        agentState.setModel(defaultModel.config_id);
-                        await this.loadAndApplyModelConfig(defaultModel.config_id, agentId);
+                    // 5. 加载选中模型的配置（不自动保存到数据库）
+                    if (selectedModel) {
+                        agentState.setModel(selectedModel.config_id);
+                        await this.loadAndApplyModelConfig(selectedModel.config_id, agentId, false);
                     }
                 }
             }
@@ -588,6 +635,13 @@ const multiAgentHandlers = {
         if (!roleSelector) return;
 
         try {
+            // 1. 获取agent的当前配置
+            const agentResponse = await fetch(`http://localhost:8788/api/agent/${agentId}`);
+            const agentResult = await agentResponse.json();
+            const currentAgent = agentResult.success ? agentResult.data : null;
+            const currentRoleId = currentAgent?.role_id;
+
+            // 2. 获取所有角色配置
             const response = await fetch('http://localhost:8788/api/agent/role-configs');
             const result = await response.json();
 
@@ -595,17 +649,28 @@ const multiAgentHandlers = {
                 const roles = result.data.filter(r => r.is_active !== false);
 
                 if (roles.length > 0) {
-                    let defaultRole = roles.find(r => r.is_default) || roles[0];
+                    // 3. 确定要选中的角色
+                    let selectedRole = null;
+                    if (currentRoleId) {
+                        // 如果agent有保存的配置，使用该配置
+                        selectedRole = roles.find(r => r.role_id === currentRoleId);
+                    }
+                    // 如果没有找到或没有配置，使用默认角色
+                    if (!selectedRole) {
+                        selectedRole = roles.find(r => r.is_default) || roles[0];
+                    }
 
+                    // 4. 渲染选项
                     roleSelector.innerHTML = roles.map(role => `
-                        <option value="${role.role_id}" ${role.is_default ? 'selected' : ''}>
+                        <option value="${role.role_id}" ${role.role_id === selectedRole.role_id ? 'selected' : ''}>
                             ${role.name}${role.category ? ` - ${role.category}` : ''}
                         </option>
                     `).join('');
 
-                    if (defaultRole) {
-                        agentState.setRole(defaultRole.role_id);
-                        await this.loadAndApplyRoleConfig(defaultRole.role_id, agentId);
+                    // 5. 加载选中角色的配置（不自动保存到数据库）
+                    if (selectedRole) {
+                        agentState.setRole(selectedRole.role_id);
+                        await this.loadAndApplyRoleConfig(selectedRole.role_id, agentId, false);
                     }
                 }
             }
@@ -616,8 +681,11 @@ const multiAgentHandlers = {
 
     /**
      * 加载并应用模型配置
+     * @param {string} configId - 模型配置ID
+     * @param {number} agentId - Agent ID
+     * @param {boolean} saveToDatabase - 是否保存到数据库（默认true）
      */
-    async loadAndApplyModelConfig(configId, agentId) {
+    async loadAndApplyModelConfig(configId, agentId, saveToDatabase = true) {
         try {
             const response = await fetch(`http://localhost:8788/api/agent/llm-configs/${configId}`);
             const result = await response.json();
@@ -627,6 +695,11 @@ const multiAgentHandlers = {
                 agentState.currentModelConfig = modelConfig;
                 this.populateParamTabForAgent(modelConfig, agentId);
                 console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已加载:`, modelConfig.name);
+
+                // 如果需要，更新agent配置到数据库
+                if (saveToDatabase) {
+                    await this.updateAgentModelConfig(agentId, configId);
+                }
             }
         } catch (error) {
             console.error(`[MultiAgentHandlers] Agent ${agentId} 加载模型配置失败:`, error);
@@ -635,8 +708,11 @@ const multiAgentHandlers = {
 
     /**
      * 加载并应用角色配置
+     * @param {string} roleId - 角色ID
+     * @param {number} agentId - Agent ID
+     * @param {boolean} saveToDatabase - 是否保存到数据库（默认true）
      */
-    async loadAndApplyRoleConfig(roleId, agentId) {
+    async loadAndApplyRoleConfig(roleId, agentId, saveToDatabase = true) {
         try {
             const response = await fetch(`http://localhost:8788/api/agent/role-configs/${roleId}`);
             const result = await response.json();
@@ -646,9 +722,108 @@ const multiAgentHandlers = {
                 agentState.currentRoleConfig = roleConfig;
                 this.populatePromptTabForAgent(roleConfig, agentId);
                 console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已加载:`, roleConfig.name);
+
+                // 如果需要，更新agent配置到数据库
+                if (saveToDatabase) {
+                    await this.updateAgentRoleConfig(agentId, roleId);
+                }
             }
         } catch (error) {
             console.error(`[MultiAgentHandlers] Agent ${agentId} 加载角色配置失败:`, error);
+        }
+    },
+
+    /**
+     * 更新Agent的模型配置到数据库
+     * @param {number} agentId - Agent ID
+     * @param {string} configId - 模型配置ID
+     */
+    async updateAgentModelConfig(agentId, configId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model_config_id: configId
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                // HTTP错误
+                console.error(`[MultiAgentHandlers] HTTP ${response.status}:`, result);
+                throw new Error(result.detail || `HTTP ${response.status}`);
+            }
+
+            if (result.success) {
+                console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已更新到数据库:`, configId);
+                // 重新加载agent实例以应用新配置
+                await this.reloadAgentInstance(agentId);
+            } else {
+                console.error(`[MultiAgentHandlers] 更新Agent模型配置失败:`, result.error);
+            }
+        } catch (error) {
+            console.error(`[MultiAgentHandlers] 更新Agent模型配置失败:`, error);
+            throw error;
+        }
+    },
+
+    /**
+     * 更新Agent的角色配置到数据库
+     * @param {number} agentId - Agent ID
+     * @param {string} roleId - 角色ID
+     */
+    async updateAgentRoleConfig(agentId, roleId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    role_id: roleId
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                // HTTP错误
+                console.error(`[MultiAgentHandlers] HTTP ${response.status}:`, result);
+                throw new Error(result.detail || `HTTP ${response.status}`);
+            }
+
+            if (result.success) {
+                console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已更新到数据库:`, roleId);
+                // 重新加载agent实例以应用新配置
+                await this.reloadAgentInstance(agentId);
+            } else {
+                console.error(`[MultiAgentHandlers] 更新Agent角色配置失败:`, result.error);
+            }
+        } catch (error) {
+            console.error(`[MultiAgentHandlers] 更新Agent角色配置失败:`, error);
+            throw error;
+        }
+    },
+
+    /**
+     * 重新加载Agent实例（让后端重新从数据库加载配置）
+     * @param {number} agentId - Agent ID
+     */
+    async reloadAgentInstance(agentId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/reload`, {
+                method: 'POST'
+            });
+            const result = await response.json();
+            if (result.success) {
+                console.log(`[MultiAgentHandlers] Agent ${agentId} 实例已重新加载`);
+            }
+        } catch (error) {
+            console.error(`[MultiAgentHandlers] 重新加载Agent实例失败:`, error);
         }
     },
 

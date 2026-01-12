@@ -9,23 +9,217 @@ const agentApi = {
      */
     async getAgents() {
         try {
-            if (window.api && window.api.getAgents) {
-                return await window.api.getAgents();
-            }
-            // 模拟数据
-            return {
-                success: true,
-                data: [
-                    { id: 1, name: 'Balabala', model: 'GPT-4' },
-                    { id: 2, name: 'Justin', model: 'Claude 3' },
-                    { id: 3, name: 'Peter', model: 'DeepSeek' },
-                    { id: 4, name: 'Musk (Planner)', model: 'GPT-4' },
-                    { id: 5, name: 'Mike (Critic)', model: 'GPT-3.5' }
-                ]
-            };
+            const response = await fetch('http://localhost:8788/api/agent');
+            return await response.json();
         } catch (error) {
             console.error('获取Agent列表失败:', error);
             return { success: false, data: [] };
+        }
+    },
+
+    /**
+     * 获取单个Agent详情
+     */
+    async getAgent(agentId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}`);
+            return await response.json();
+        } catch (error) {
+            console.error('获取 Agent 详情失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 获取Agent实例信息
+     */
+    async getAgentInfo(agentId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/info`);
+            return await response.json();
+        } catch (error) {
+            console.error('获取Agent实例信息失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Agent非流式问答（按ID）
+     */
+    async agentChat(agentId, message, conversationId = null, options = {}) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: message,
+                    conversation_id: conversationId,
+                    use_memory: options.use_memory !== false,
+                    use_knowledge_base: options.use_knowledge_base !== false
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Agent问答失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * Agent流式问答（按ID）
+     */
+    async agentChatStream(agentId, message, conversationId = null, callbacks = {}, options = {}) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/chat/stream`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream'
+                },
+                body: JSON.stringify({
+                    message: message,
+                    conversation_id: conversationId,
+                    use_memory: options.use_memory !== false,
+                    use_knowledge_base: options.use_knowledge_base !== false
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    if (callbacks.onEnd) {
+                        callbacks.onEnd();
+                    }
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+
+                        try {
+                            const parsed = JSON.parse(data);
+
+                            if (parsed.error) {
+                                if (callbacks.onError) {
+                                    callbacks.onError(parsed.error);
+                                }
+                                return { success: false, error: parsed.error };
+                            }
+
+                            if (parsed.done) {
+                                if (callbacks.onEnd) {
+                                    callbacks.onEnd();
+                                }
+                                return { success: true };
+                            }
+
+                            if (parsed.content) {
+                                if (callbacks.onData) {
+                                    callbacks.onData(parsed.content);
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Failed to parse SSE data:', data);
+                        }
+                    }
+                }
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Agent流式问答失败:', error);
+            if (callbacks.onError) {
+                callbacks.onError(error.message);
+            }
+            throw error;
+        }
+    },
+
+    /**
+     * Agent问答（按名称）
+     */
+    async agentChatByName(agentName, message, conversationId = null, options = {}) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/name/${encodeURIComponent(agentName)}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: message,
+                    conversation_id: conversationId,
+                    use_memory: options.use_memory !== false,
+                    use_knowledge_base: options.use_knowledge_base !== false
+                })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Agent问答失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 清除Agent记忆
+     */
+    async clearAgentMemory(agentId, conversationId = null) {
+        try {
+            const url = conversationId
+                ? `http://localhost:8788/api/agent/${agentId}/memory?conversation_id=${conversationId}`
+                : `http://localhost:8788/api/agent/${agentId}/memory`;
+
+            const response = await fetch(url, {
+                method: 'DELETE'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('清除记忆失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 获取Agent记忆
+     */
+    async getAgentMemory(agentId, conversationId = null) {
+        try {
+            const url = conversationId
+                ? `http://localhost:8788/api/agent/${agentId}/memory?conversation_id=${conversationId}`
+                : `http://localhost:8788/api/agent/${agentId}/memory`;
+
+            const response = await fetch(url);
+            return await response.json();
+        } catch (error) {
+            console.error('获取记忆失败:', error);
+            throw error;
+        }
+    },
+
+    /**
+     * 重新加载Agent
+     */
+    async reloadAgent(agentId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/reload`, {
+                method: 'POST'
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('重新加载Agent失败:', error);
+            throw error;
         }
     },
 
@@ -373,18 +567,7 @@ const agentApi = {
         }
     },
 
-    /**
-     * 获取单个 Agent 详情
-     */
-    async getAgent(agentId) {
-        try {
-            const response = await fetch(`http://localhost:8788/api/agent/${agentId}`);
-            return await response.json();
-        } catch (error) {
-            console.error('获取 Agent 详情失败:', error);
-            throw error;
-        }
-    }
+    // ==================== 以下是旧的通用Chat API（保留兼容性） ====================
 };
 
 export default agentApi;

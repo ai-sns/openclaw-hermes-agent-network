@@ -73,6 +73,55 @@ class AgentResponse(BaseModel):
     is_active: Optional[bool] = True
 
 
+class AgentUpdateConfig(BaseModel):
+    """Agent update configuration model - all fields are optional"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+    # LLM Configuration
+    model_config_id: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+    temperature: Optional[float] = None
+    max_tokens: Optional[int] = None
+
+    # Role Configuration
+    role_id: Optional[str] = None
+    system_prompt: Optional[str] = None
+
+    # A2A Protocol Fields
+    url: Optional[str] = None
+    version: Optional[str] = None
+    protocol_version: Optional[str] = None
+
+    # Capabilities
+    capabilities: Optional[Dict[str, Any]] = None
+
+    # Skills
+    skills: Optional[List[Dict[str, Any]]] = None
+
+    # Input/Output modes
+    default_input_modes: Optional[List[str]] = None
+    default_output_modes: Optional[List[str]] = None
+
+    # Security
+    security_schemes: Optional[Dict[str, Any]] = None
+
+    # Provider information
+    provider_organization: Optional[str] = None
+    provider_url: Optional[str] = None
+
+    # Documentation
+    documentation_url: Optional[str] = None
+    icon_url: Optional[str] = None
+
+    # Blockchain Wallet
+    wallet_address: Optional[str] = None
+
+    # Status
+    is_active: Optional[bool] = None
+
+
 class AgentA2ACard(BaseModel):
     """Agent A2A Card export model"""
     name: str

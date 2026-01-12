@@ -6,7 +6,7 @@ import logging
 from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 
-from .schemas import AgentConfig, AgentResponse
+from .schemas import AgentConfig, AgentResponse, AgentUpdateConfig
 from .service import AgentService
 from .dependencies import get_agent_service
 
@@ -84,7 +84,7 @@ async def create_agent(
 @router.put("/{agent_id}", response_model=dict)
 async def update_agent(
     agent_id: int,
-    config: AgentConfig,
+    config: AgentUpdateConfig,
     service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -92,13 +92,14 @@ async def update_agent(
 
     Args:
         agent_id: Agent ID
-        config: Updated agent configuration
+        config: Updated agent configuration (all fields optional)
 
     Returns:
         Success status
     """
     try:
-        agent_data = config.dict(exclude_unset=True)
+        # 只传递非None的字段
+        agent_data = config.dict(exclude_unset=True, exclude_none=True)
         service.update_agent(agent_id, **agent_data)
         return {"success": True}
     except ValueError as e:

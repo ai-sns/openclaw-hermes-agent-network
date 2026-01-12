@@ -23,9 +23,16 @@ const CodePlugin = {
     },
 
     /**
+     * 当前渲染的容器（用于多实例支持）
+     */
+    _currentContainer: null,
+
+    /**
      * 渲染插件UI
      */
     render(container) {
+        // 保存当前容器引用
+        this._currentContainer = container;
         container.innerHTML = `
             <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px; height: 100%;">
                 <!-- 代码信息栏 -->
@@ -99,9 +106,27 @@ const CodePlugin = {
      * 从聊天中提取所有代码块
      */
     extractCodes() {
-        const chatMessages = document.getElementById('chatMessages');
+        // 尝试找到聊天消息容器 - 支持单agent和多agent场景
+        let chatMessages = null;
+
+        // 方法1：查找单agent场景的容器
+        chatMessages = document.getElementById('chatMessages');
+
+        // 方法2：如果找不到，尝试查找多agent场景下当前显示的容器
         if (!chatMessages) {
-            this.showOutput('错误: 未找到聊天消息容器', 'error');
+            const agentChatMessages = document.querySelectorAll('.agent-chat-messages');
+            // 找到可见的聊天消息容器
+            for (const container of agentChatMessages) {
+                const style = window.getComputedStyle(container);
+                if (style.display !== 'none' && container.offsetParent !== null) {
+                    chatMessages = container;
+                    break;
+                }
+            }
+        }
+
+        if (!chatMessages) {
+            this.showOutput('错误: 未找到聊天消息容器。请确保在聊天页面使用此插件。', 'error');
             return;
         }
 
@@ -152,21 +177,51 @@ const CodePlugin = {
     displayCurrent() {
         const { codeBlocks, currentIndex } = this.state;
 
+        console.log('[CodePlugin] displayCurrent 调用:', {
+            codeBlocksCount: codeBlocks.length,
+            currentIndex,
+            hasContainer: !!this._currentContainer
+        });
+
         if (codeBlocks.length === 0) {
+            console.log('[CodePlugin] 没有代码块可显示');
+            return;
+        }
+
+        if (!this._currentContainer) {
+            console.error('[CodePlugin] 容器引用丢失');
             return;
         }
 
         const currentCode = codeBlocks[currentIndex];
-        const editor = document.getElementById('code-plugin-editor');
-        const info = document.getElementById('code-plugin-info');
-        const langSelect = document.getElementById('code-plugin-language');
+        console.log('[CodePlugin] 当前代码:', {
+            language: currentCode.language,
+            codeLength: currentCode.code ? currentCode.code.length : 0,
+            codePreview: currentCode.code ? currentCode.code.substring(0, 50) : 'null'
+        });
+
+        // 在容器作用域内查找元素
+        const editor = this._currentContainer.querySelector('#code-plugin-editor');
+        const info = this._currentContainer.querySelector('#code-plugin-info');
+        const langSelect = this._currentContainer.querySelector('#code-plugin-language');
+
+        console.log('[CodePlugin] 元素查找结果:', {
+            editor: !!editor,
+            info: !!info,
+            langSelect: !!langSelect
+        });
 
         if (editor) {
             editor.value = currentCode.code;
+            console.log('[CodePlugin] 代码已设置到编辑器，长度:', editor.value.length);
+        } else {
+            console.error('[CodePlugin] 未找到编辑器元素 #code-plugin-editor');
         }
 
         if (info) {
             info.textContent = `代码 ${currentIndex + 1} / ${codeBlocks.length}`;
+        } else {
+            console.error('[CodePlugin] 未找到信息元素 #code-plugin-info');
         }
 
         if (langSelect) {
@@ -181,11 +236,14 @@ const CodePlugin = {
             } else {
                 langSelect.value = 'javascript';
             }
+            console.log('[CodePlugin] 语言已设置为:', langSelect.value);
+        } else {
+            console.error('[CodePlugin] 未找到语言选择器 #code-plugin-language');
         }
 
         // 更新按钮状态
-        const prevBtn = document.getElementById('code-plugin-prev');
-        const nextBtn = document.getElementById('code-plugin-next');
+        const prevBtn = this._currentContainer.querySelector('#code-plugin-prev');
+        const nextBtn = this._currentContainer.querySelector('#code-plugin-next');
 
         if (prevBtn) {
             prevBtn.disabled = currentIndex === 0;
@@ -222,11 +280,17 @@ const CodePlugin = {
      * 运行代码
      */
     run() {
-        const editor = document.getElementById('code-plugin-editor');
-        const langSelect = document.getElementById('code-plugin-language');
-        const output = document.getElementById('code-plugin-output');
+        if (!this._currentContainer) {
+            console.error('[CodePlugin] 容器引用丢失');
+            return;
+        }
+
+        const editor = this._currentContainer.querySelector('#code-plugin-editor');
+        const langSelect = this._currentContainer.querySelector('#code-plugin-language');
+        const output = this._currentContainer.querySelector('#code-plugin-output');
 
         if (!editor || !langSelect || !output) {
+            console.error('[CodePlugin] 未找到必要的UI元素');
             return;
         }
 
@@ -328,7 +392,9 @@ const CodePlugin = {
      * 运行 HTML 代码（在 iframe 中）
      */
     runHTML(code) {
-        const output = document.getElementById('code-plugin-output');
+        if (!this._currentContainer) return;
+
+        const output = this._currentContainer.querySelector('#code-plugin-output');
         if (!output) return;
 
         // 创建 iframe 用于预览
@@ -349,7 +415,9 @@ const CodePlugin = {
      * 显示输出
      */
     showOutput(message, type = 'info') {
-        const output = document.getElementById('code-plugin-output');
+        if (!this._currentContainer) return;
+
+        const output = this._currentContainer.querySelector('#code-plugin-output');
         if (!output) return;
 
         const messageEl = document.createElement('span');
@@ -373,7 +441,9 @@ const CodePlugin = {
      * 清空编辑器
      */
     clearEditor() {
-        const editor = document.getElementById('code-plugin-editor');
+        if (!this._currentContainer) return;
+
+        const editor = this._currentContainer.querySelector('#code-plugin-editor');
         if (editor) {
             editor.value = '';
         }
@@ -387,7 +457,9 @@ const CodePlugin = {
      * 清空输出
      */
     clearOutput() {
-        const output = document.getElementById('code-plugin-output');
+        if (!this._currentContainer) return;
+
+        const output = this._currentContainer.querySelector('#code-plugin-output');
         if (output) {
             output.innerHTML = '';
         }

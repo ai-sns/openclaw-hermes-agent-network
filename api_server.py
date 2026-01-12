@@ -33,6 +33,7 @@ from backend.shared.websocket_manager import ConnectionManager
 from backend.modules.agent.router import router as agent_router
 from backend.modules.agent.llm_router import router as llm_router
 from backend.modules.agent.role_router import router as role_router
+from backend.modules.agent.chat_router import router as agent_chat_router
 from backend.modules.chat.router import router as chat_router
 from backend.modules.map.router import router as map_router
 from backend.modules.km.router import router as km_router
@@ -81,6 +82,7 @@ except Exception as e:
 # IMPORTANT: Register more specific routes BEFORE general routes to avoid path conflicts
 app.include_router(llm_router, prefix="/api/agent", tags=["Agent-LLM"])
 app.include_router(role_router, prefix="/api/agent", tags=["Agent-Role"])
+app.include_router(agent_chat_router, prefix="/api/agent", tags=["Agent-Chat"])
 app.include_router(agent_router, prefix="/api/agent", tags=["Agent"])
 app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 app.include_router(map_router, prefix="/api/map", tags=["Map"])
