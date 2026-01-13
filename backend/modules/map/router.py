@@ -7,6 +7,10 @@ from typing import Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
 
+# 导入全局WebSocket管理器
+from backend.shared.websocket_manager import ConnectionManager as GlobalConnectionManager
+from backend.shared.websocket_manager import manager as global_ws_manager
+
 from backend.shared.websocket_manager import ConnectionManager
 from .schemas import MapConfig, MapMarker, RouteRequest, RouteControl, ChatMessageMap
 from .service import MapService
@@ -257,18 +261,25 @@ async def send_map_chat_message(
         Success status
     """
     try:
+        # Log the received message
+        print(f"Received chat message: from={message.from_user}, to={message.to_user}, content={message.content}")
+        
+        # Log the number of active connections
+        active_count = global_ws_manager.get_client_count()
+        print(f"Active WebSocket connections: {active_count}")
+        
         # TODO: Save chat message to database
-        # Broadcast message via WebSocket
-        await conn_manager.broadcast({
+        # Broadcast message via WebSocket using the GLOBAL manager to reach all connected clients
+        print("About to broadcast message via global WebSocket manager")
+        await global_ws_manager.broadcast({
             "type": "map_chat_message",
-            "message": {
-                "from_user": message.from_user,
-                "to_user": message.to_user,
-                "content": message.content,
-                "location": message.location,
-                "timestamp": datetime.now().isoformat()
-            }
+            "from_user": message.from_user,
+            "to_user": message.to_user,
+            "content": message.content,
+            "location": message.location,
+            "timestamp": datetime.now().isoformat()
         })
+        print("Message broadcast successful")
         return {"success": True}
     except Exception as e:
         logger.error(f"Error sending map chat message: {e}")

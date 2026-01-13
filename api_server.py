@@ -24,10 +24,9 @@ from fastapi.staticfiles import StaticFiles
 
 # 导入配置
 from backend.config.settings import get_settings
-from backend.config.database import init_db
 
-# 导入 WebSocket 管理器
-from backend.shared.websocket_manager import ConnectionManager
+# 导入 WebSocket 管理器 - 使用全局管理器
+from backend.shared.websocket_manager import ConnectionManager, manager as ws_manager
 
 # 导入所有模块路由
 from backend.modules.agent.router import router as agent_router
@@ -48,8 +47,7 @@ logger = logging.getLogger(__name__)
 # 获取配置
 settings = get_settings()
 
-# 创建 WebSocket 管理器
-ws_manager = ConnectionManager()
+# 不再创建新的 WebSocket 管理器，而是使用从模块导入的全局管理器
 
 # 创建FastAPI应用
 app = FastAPI(

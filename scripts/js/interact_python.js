@@ -43,15 +43,24 @@ async function jsonrpcRequest(method, params = {}) {
 // WebSocket 连接
 function connectWebSocket() {
     const clientId = `client_${Date.now()}`;
+    console.log("Attempting to connect to WebSocket with clientId:", clientId);
     websocket = new WebSocket(`ws://localhost:8788/ws/${clientId}`);
 
     websocket.onopen = function() {
-        console.log("WebSocket connected");
+        console.log("WebSocket connected successfully with clientId:", clientId);
+        websocket.send(JSON.stringify({"NAME":"CJROK"}));
     };
 
     websocket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
+        console.log("Received WebSocket message from backend:", event.data);
+        try {
+            const data = JSON.parse(event.data);
+            console.log("Parsed WebSocket data:", data);
+            handleWebSocketMessage(data);
+        } catch (e) {
+            console.error("Error parsing WebSocket message:", e);
+            console.log("Raw message was:", event.data);
+        }
     };
 
     websocket.onerror = function(error) {
@@ -67,21 +76,37 @@ function connectWebSocket() {
 
 // 处理 WebSocket 消息
 function handleWebSocketMessage(data) {
+    console.log("DEBUG: handleWebSocketMessage called with data:", data);
+    alert("received message");
+    alert(JSON.stringify(data));
     switch (data.type) {
         case "chat_message":
+            console.log("Processing chat_message:", data);
             show_talk_message(data.from, data.to, data.content);
             break;
         case "status_update":
+            console.log("Processing status_update:", data);
             show_status_on_map(data.status);
             break;
         case "alert":
+            console.log("Processing alert:", data);
             showAlert(data.message, data.is_error || false);
             break;
         case "command":
+            console.log("Processing command:", data);
             handle_command(data.command, data.param_1, data.param_2);
             break;
         case "map_setting":
+            console.log("Processing map_setting:", data);
             handle_map_setting_loaded(data.setting_json);
+            break;
+        case "map_chat_message":
+            // 处理后端广播的聊天消息
+            console.log("Processing map_chat_message:", data);
+            show_talk_message(data.from_user, data.to_user, data.content);
+            break;
+        default:
+            console.log("Received unknown message type:", data.type, data);
             break;
     }
 }
