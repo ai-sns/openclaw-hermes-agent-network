@@ -13,6 +13,9 @@ from openai import AsyncOpenAI
 
 from .tool_executor import tool_executor
 from .code_executor import CodeExecutor
+from .tool_router import ToolRouter
+from .tool_converter import ToolConverter
+from backend.modules.tools.tool_executor import get_tool_executor
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,11 @@ class AgentInstance:
         self.code_executor = None
         if self.enable_code_execution:
             self.code_executor = CodeExecutor()
+
+        # 初始化工具路由器（用于新的工具调用系统）
+        self.tool_router = ToolRouter(get_tool_executor())
+        self.tools_loaded = False
+        self.db_tools = []  # 从数据库加载的工具列表（OpenAI格式）
 
         logger.info(f"Agent实例已创建: {self.name} (ID: {self.agent_id})")
 
@@ -172,6 +180,37 @@ class AgentInstance:
         else:
             self.memory.clear()
 
+    async def load_tools_from_db(self):
+        """
+        从数据库加载工具并转换为OpenAI格式
+
+        这个方法会：
+        1. 从数据库获取该Agent关联的所有工具
+        2. 将工具转换为OpenAI Function Calling格式
+        3. 存储到self.db_tools供后续使用
+        """
+        try:
+            from backend.modules.agent.service import AgentService
+
+            # 获取Agent的工具列表（包含完整的工具详情）
+            tools_data = AgentService.get_agent_tools(self.agent_id)
+
+            # 转换为OpenAI格式
+            self.db_tools = ToolConverter.convert_tools(tools_data)
+
+            self.tools_loaded = True
+            logger.info(f"Agent {self.name} (ID: {self.agent_id}) 已加载 {len(self.db_tools)} 个工具")
+
+            # 打印工具列表（调试用）
+            if self.db_tools:
+                tool_names = [t['function']['name'] for t in self.db_tools]
+                logger.info(f"已加载工具: {', '.join(tool_names)}")
+
+        except Exception as e:
+            logger.error(f"从数据库加载工具失败 (Agent {self.name}): {e}", exc_info=True)
+            self.db_tools = []
+            self.tools_loaded = True  # 标记为已加载，避免重复尝试
+
     async def _search_knowledge_base(self, query: str) -> str:
         """
         从知识库检索相关信息
@@ -212,39 +251,45 @@ class AgentInstance:
         Returns:
             工具定义列表
         """
-        if not self.tools:
-            return []
-
         tools_schema = []
-        for tool in self.tools:
-            try:
-                tool_name = tool.get('name', '')
 
-                # 尝试从tool_executor获取签名
-                signature = tool_executor.get_tool_signature(tool_name)
-                if signature:
-                    tool_def = {
-                        "type": "function",
-                        "function": signature
-                    }
-                else:
-                    # 使用配置中的定义
-                    tool_def = {
-                        "type": "function",
-                        "function": {
-                            "name": tool_name,
-                            "description": tool.get('description', ''),
-                            "parameters": tool.get('parameters', {
-                                "type": "object",
-                                "properties": {},
-                                "required": []
-                            })
+        # 1. 添加从数据库加载的工具（新系统）
+        if self.db_tools:
+            tools_schema.extend(self.db_tools)
+            logger.debug(f"已添加 {len(self.db_tools)} 个数据库工具")
+
+        # 2. 添加旧的self.tools配置（向后兼容）
+        if self.tools:
+            for tool in self.tools:
+                try:
+                    tool_name = tool.get('name', '')
+
+                    # 尝试从tool_executor获取签名
+                    signature = tool_executor.get_tool_signature(tool_name)
+                    if signature:
+                        tool_def = {
+                            "type": "function",
+                            "function": signature
                         }
-                    }
-                tools_schema.append(tool_def)
-            except Exception as e:
-                logger.error(f"准备工具schema失败: {e}")
+                    else:
+                        # 使用配置中的定义
+                        tool_def = {
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "description": tool.get('description', ''),
+                                "parameters": tool.get('parameters', {
+                                    "type": "object",
+                                    "properties": {},
+                                    "required": []
+                                })
+                            }
+                        }
+                    tools_schema.append(tool_def)
+                except Exception as e:
+                    logger.error(f"准备工具schema失败: {e}")
 
+        logger.info(f"准备了 {len(tools_schema)} 个工具用于LLM调用")
         return tools_schema
 
     async def _execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Any:
@@ -270,7 +315,15 @@ class AgentInstance:
                 result = self.code_executor.execute_shell(command)
                 return json.dumps(result, ensure_ascii=False)
 
-            # 使用tool_executor执行工具
+            # 检查是否是数据库工具（新系统）
+            # 工具名称格式: plugin_{id}, mcp_{id}_{tool}, function_{id}, skill_{id}
+            if tool_name.startswith(('plugin_', 'mcp_', 'function_', 'skill_')):
+                logger.info(f"使用ToolRouter执行数据库工具: {tool_name}")
+                result = await self.tool_router.execute_tool(tool_name, tool_args)
+                return json.dumps(result, ensure_ascii=False)
+
+            # 使用旧的tool_executor执行工具（向后兼容）
+            logger.info(f"使用旧tool_executor执行工具: {tool_name}")
             result = await asyncio.to_thread(
                 tool_executor.execute_tool,
                 tool_name,
@@ -280,7 +333,7 @@ class AgentInstance:
             return result
 
         except Exception as e:
-            logger.error(f"工具执行失败: {e}")
+            logger.error(f"工具执行失败: {e}", exc_info=True)
             return f"工具执行错误: {str(e)}"
 
     async def chat(
@@ -308,6 +361,10 @@ class AgentInstance:
             return "Error: LLM客户端未配置"
 
         try:
+            # 确保工具已从数据库加载
+            if not self.tools_loaded:
+                await self.load_tools_from_db()
+
             # 构建消息列表
             messages = []
 
@@ -369,6 +426,8 @@ class AgentInstance:
                 for tool_call in assistant_message.tool_calls:
                     tool_name = tool_call.function.name
                     tool_args = json.loads(tool_call.function.arguments)
+
+                    logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
                     tool_result = await self._execute_tool(tool_name, tool_args)
 
                     tool_messages.append({
@@ -448,6 +507,10 @@ class AgentInstance:
             return
 
         try:
+            # 确保工具已从数据库加载
+            if not self.tools_loaded:
+                await self.load_tools_from_db()
+
             # 构建消息列表（同chat方法）
             messages = []
 

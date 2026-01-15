@@ -710,6 +710,131 @@ if 'main' in dir():
                 "tool_call_result": None
             }
 
+    async def execute_mcp_tool(self, mcp_id: str, tool_name: str, arguments: dict) -> dict:
+        """
+        Execute specific MCP tool (for agent tool calling)
+
+        This is different from _test_mcp_server which tests the server.
+        This method connects to the MCP server and executes a specific tool with given arguments.
+
+        Args:
+            mcp_id: MCP server ID (e.g., "MC2026011511561554068")
+            tool_name: Tool name (e.g., "get_weather")
+            arguments: Tool arguments (e.g., {"city": "Shanghai", "unit": "celsius"})
+
+        Returns:
+            {
+                "success": bool,
+                "result": str,  # Tool output
+                "error": str    # Error message if failed
+            }
+        """
+        self.log_execution("mcp_tool", mcp_id, "started", f"Executing tool: {tool_name}")
+
+        # Check if MCP library is available
+        if not MCP_AVAILABLE:
+            return {
+                "success": False,
+                "error": "MCP library not installed. Run: pip install mcp"
+            }
+
+        # Get MCP config from database (we need access to database here)
+        # For now, we'll need to be passed the file_path from the caller
+        # TODO: Better integration with database
+        from backend.database.repositories.system_repository import SystemRepository
+        from backend.config.database import get_db_session
+
+        db = get_db_session()
+        try:
+            repo = SystemRepository(db)
+            mcp_data = repo.get_mcp(mcp_id)
+
+            if not mcp_data:
+                return {
+                    "success": False,
+                    "error": f"MCP {mcp_id} not found in database"
+                }
+
+            file_path = mcp_data.get('file_path')
+            mcp_type = mcp_data.get('mcp_type', 'stdio')
+
+            if not file_path or not os.path.exists(file_path):
+                return {
+                    "success": False,
+                    "error": f"MCP server file not found: {file_path}"
+                }
+
+        finally:
+            db.close()
+
+        try:
+            # Prepare environment with UTF-8 encoding (for Windows compatibility)
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+
+            # Determine command to start server
+            if file_path.endswith('.py'):
+                cmd = [sys.executable, file_path]
+            else:
+                cmd = [file_path]
+
+            # Set up MCP client parameters
+            server_params = StdioServerParameters(
+                command=cmd[0],
+                args=cmd[1:] if len(cmd) > 1 else [],
+                env=env
+            )
+
+            # Connect to MCP server and execute tool
+            async with AsyncExitStack() as stack:
+                # Start stdio transport
+                stdio_transport = await stack.enter_async_context(
+                    stdio_client(server_params)
+                )
+                stdio, write = stdio_transport
+
+                # Create client session
+                session = await stack.enter_async_context(
+                    ClientSession(stdio, write)
+                )
+
+                # Initialize connection
+                await session.initialize()
+
+                # Call the specific tool
+                call_result = await session.call_tool(tool_name, arguments)
+
+                # Extract text content from result
+                result_text = ""
+                for content in call_result.content:
+                    if hasattr(content, 'text'):
+                        result_text += content.text
+
+                self.log_execution("mcp_tool", mcp_id, "completed", f"Tool {tool_name} executed successfully")
+
+                return {
+                    "success": True,
+                    "result": result_text
+                }
+
+        except asyncio.TimeoutError:
+            error_msg = f"MCP tool execution timeout for {tool_name}"
+            self.log_execution("mcp_tool", mcp_id, "timeout", error_msg)
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
+        except Exception as e:
+            error_msg = f"MCP tool execution failed: {str(e)}"
+            error_trace = traceback.format_exc()
+            self.log_execution("mcp_tool", mcp_id, "error", error_msg, error_trace[:500])
+
+            return {
+                "success": False,
+                "error": error_msg
+            }
+
     async def _execute_screenshot(self, params: dict) -> dict:
         """Execute screenshot capture"""
         try:

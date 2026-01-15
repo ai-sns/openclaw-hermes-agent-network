@@ -13,6 +13,14 @@ from db.DBFactory import (
     Session,
     AgentCfg
 )
+from backend.database.repositories.agent_tools_repository import AgentToolsRepository
+from backend.database.repositories.system_repository import (
+    PluginMngRepository,
+    FunctionMngRepository,
+    McpMngRepository,
+    SkillMngRepository
+)
+from backend.config.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -234,4 +242,166 @@ class AgentService:
             agent.is_show = False
             session.commit()
         session.close()
+
+    # ==================== Agent Tools Management ====================
+
+    @staticmethod
+    def get_agent_tools(agent_id: int) -> List[Dict[str, Any]]:
+        """
+        Get all tools associated with an agent (with full details)
+
+        Args:
+            agent_id: Agent ID
+
+        Returns:
+            List of tools with details from respective tables
+        """
+        db = get_db_session()
+        try:
+            agent_tools_repo = AgentToolsRepository(db)
+
+            # Get tool associations
+            associations = agent_tools_repo.get_agent_tools(agent_id)
+
+            # Enrich with tool details
+            tools = []
+            for assoc in associations:
+                tool_type = assoc["tool_type"]
+                tool_id = assoc["tool_id"]
+
+                tool_detail = None
+
+                if tool_type == "plugin":
+                    plugin_repo = PluginMngRepository()
+                    tool_obj = plugin_repo.get_one(plugin_id=tool_id)
+                    if tool_obj:
+                        tool_detail = {c.name: getattr(tool_obj, c.name) for c in tool_obj.__table__.columns}
+                        tool_detail["tool_type"] = "plugin"
+
+                elif tool_type == "mcp":
+                    mcp_repo = McpMngRepository()
+                    tool_obj = mcp_repo.get_one(mcp_id=tool_id)
+                    if tool_obj:
+                        tool_detail = {c.name: getattr(tool_obj, c.name) for c in tool_obj.__table__.columns}
+                        tool_detail["tool_type"] = "mcp"
+
+                elif tool_type == "function":
+                    function_repo = FunctionMngRepository()
+                    tool_obj = function_repo.get_one(function_id=tool_id)
+                    if tool_obj:
+                        tool_detail = {c.name: getattr(tool_obj, c.name) for c in tool_obj.__table__.columns}
+                        tool_detail["tool_type"] = "function"
+
+                elif tool_type == "skill":
+                    skill_repo = SkillMngRepository()
+                    tool_obj = skill_repo.get_one(skill_id=tool_id)
+                    if tool_obj:
+                        tool_detail = {c.name: getattr(tool_obj, c.name) for c in tool_obj.__table__.columns}
+                        tool_detail["tool_type"] = "skill"
+
+                if tool_detail:
+                    tool_detail["enabled"] = assoc["enabled"]
+                    tool_detail["priority"] = assoc["priority"]
+                    tools.append(tool_detail)
+
+            return tools
+
+        finally:
+            db.close()
+
+    @staticmethod
+    def update_agent_tools(agent_id: int, tools: List[Dict[str, Any]]) -> None:
+        """
+        Update agent's associated tools
+
+        Args:
+            agent_id: Agent ID
+            tools: List of tool associations
+                [
+                    {"tool_type": "plugin", "tool_id": "PL...", "priority": 10},
+                    {"tool_type": "mcp", "tool_id": "MC...", "priority": 5}
+                ]
+        """
+        db = get_db_session()
+        try:
+            repo = AgentToolsRepository(db)
+
+            # Clear existing tools
+            repo.clear_agent_tools(agent_id)
+
+            # Add new tools
+            for tool in tools:
+                tool_type = tool.get("tool_type")
+                tool_id = tool.get("tool_id")
+                priority = tool.get("priority", 0)
+                enabled = tool.get("enabled", 1)
+
+                if tool_type and tool_id:
+                    repo.add_agent_tool(agent_id, tool_type, tool_id, enabled, priority)
+
+            logger.info(f"Updated tools for agent {agent_id}: {len(tools)} tools")
+
+        finally:
+            db.close()
+
+    @staticmethod
+    def get_available_tools(agent_id: int) -> Dict[str, Any]:
+        """
+        Get all available tools (for tool selection UI)
+
+        Args:
+            agent_id: Agent ID (to mark which tools are already associated)
+
+        Returns:
+            Dict with all tools grouped by type, with association status
+        """
+        db = get_db_session()
+        try:
+            agent_tools_repo = AgentToolsRepository(db)
+
+            # Get current agent tool associations
+            associations = agent_tools_repo.get_agent_tools(agent_id)
+            associated_tools = {
+                (assoc["tool_type"], assoc["tool_id"])
+                for assoc in associations
+            }
+
+            # Get all plugins
+            plugin_repo = PluginMngRepository()
+            plugins_objs = plugin_repo.get_all()
+            plugins = [plugin_repo.to_dict(p) for p in plugins_objs]
+            for plugin in plugins:
+                plugin["associated"] = ("plugin", plugin.get("plugin_id")) in associated_tools
+
+            # Get all MCPs
+            mcp_repo = McpMngRepository()
+            mcps_objs = mcp_repo.get_all()
+            mcps = [mcp_repo.to_dict(m) for m in mcps_objs]
+            for mcp in mcps:
+                mcp["associated"] = ("mcp", mcp.get("mcp_id")) in associated_tools
+
+            # Get all functions
+            function_repo = FunctionMngRepository()
+            functions_objs = function_repo.get_all()
+            functions = [function_repo.to_dict(f) for f in functions_objs]
+            for func in functions:
+                func["associated"] = ("function", func.get("function_id")) in associated_tools
+
+            # Get all skills
+            skill_repo = SkillMngRepository()
+            skills_objs = skill_repo.get_all()
+            skills = [skill_repo.to_dict(s) for s in skills_objs]
+            for skill in skills:
+                skill["associated"] = ("skill", skill.get("skill_id")) in associated_tools
+
+            return {
+                "plugins": plugins,
+                "mcps": mcps,
+                "functions": functions,
+                "skills": skills
+            }
+
+        finally:
+            db.close()
+
 

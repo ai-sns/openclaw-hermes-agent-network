@@ -130,3 +130,83 @@ async def delete_agent(
         logger.error(f"Error deleting agent: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==================== Agent Tools Management ====================
+
+@router.get("/{agent_id}/tools", response_model=dict)
+async def get_agent_tools(
+    agent_id: int,
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Get all tools associated with an agent
+
+    Args:
+        agent_id: Agent ID
+
+    Returns:
+        List of tools with full details
+    """
+    try:
+        tools = service.get_agent_tools(agent_id)
+        return {
+            "success": True,
+            "data": {
+                "agent_id": agent_id,
+                "tools": tools
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting agent tools: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{agent_id}/tools", response_model=dict)
+async def update_agent_tools(
+    agent_id: int,
+    tools: List[dict],
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Update agent's associated tools
+
+    Args:
+        agent_id: Agent ID
+        tools: List of tool associations
+            [
+                {"tool_type": "plugin", "tool_id": "PL...", "priority": 10},
+                {"tool_type": "mcp", "tool_id": "MC...", "priority": 5}
+            ]
+
+    Returns:
+        Success status
+    """
+    try:
+        service.update_agent_tools(agent_id, tools)
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating agent tools: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{agent_id}/available-tools", response_model=dict)
+async def get_available_tools(
+    agent_id: int,
+    service: AgentService = Depends(get_agent_service)
+):
+    """
+    Get all available tools (for tool selection UI)
+
+    Args:
+        agent_id: Agent ID (to mark which tools are already associated)
+
+    Returns:
+        All tools grouped by type, with association status
+    """
+    try:
+        tools = service.get_available_tools(agent_id)
+        return {"success": True, "data": tools}
+    except Exception as e:
+        logger.error(f"Error getting available tools: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
