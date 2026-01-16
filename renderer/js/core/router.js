@@ -9,6 +9,7 @@ class Router {
         this.modules = {};
         this.initialized = false;
         this.agentSidebarInitialized = false;  // Track agent sidebar state
+        this.agentPageInitialized = false;     // Track agent main page state
     }
 
     /**
@@ -161,6 +162,11 @@ class Router {
                     module.init();
                 }
                 pageElement.dataset.initialized = 'true';
+                
+                // 特殊处理：标记Agent页面为已初始化
+                if (page === 'agent') {
+                    this.agentPageInitialized = true;
+                }
             } catch (error) {
                 console.error(`Error rendering page '${page}':`, error);
                 pageElement.innerHTML = '<p style="padding: 20px; color: #999;">页面加载失败</p>';
@@ -168,6 +174,15 @@ class Router {
         } else {
             // 页面已渲染，直接显示
             pageElement.classList.remove('hidden');
+            
+            // 特殊处理：如果是Agent页面，不再次初始化
+            if (page === 'agent' && this.agentPageInitialized) {
+                console.log('[Router] Agent页面已初始化，保持状态');
+            } else if (module.init && !pageElement.dataset.initialized) {
+                // 如果模块尚未初始化，则执行初始化
+                module.init();
+                pageElement.dataset.initialized = 'true';
+            }
         }
     }
 
