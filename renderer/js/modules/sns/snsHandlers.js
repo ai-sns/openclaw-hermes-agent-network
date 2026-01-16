@@ -102,9 +102,84 @@ export default {
         const actionBar = document.querySelector('.map-action-bar');
         if (!actionBar) return;
 
+        const state1 = document.getElementById('actionBarState1');
+        const state2 = document.getElementById('actionBarState2');
+        const controlBtn = document.getElementById('controlBtn');
+        const computerBtn = document.getElementById('computerBtn');
+        const appsMenuBtn = document.getElementById('appsMenuBtn');
+        const mapMenuBtn = document.getElementById('mapMenuBtn');
+        const appsDropdown = document.getElementById('appsDropdown');
+        const mapDropdown = document.getElementById('mapDropdown');
+
+        // Toggle between state 1 and state 2
+        const switchToState2 = () => {
+            if (state1 && state2) {
+                state1.style.display = 'none';
+                state2.style.display = 'block';
+            }
+        };
+
+        const switchToState1 = () => {
+            if (state1 && state2) {
+                state1.style.display = 'flex';
+                state2.style.display = 'none';
+            }
+        };
+
+        // Control button click - switch to state 2
+        if (controlBtn) {
+            controlBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                switchToState2();
+            });
+        }
+
+        // Computer button click - switch back to state 1
+        if (computerBtn) {
+            computerBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                switchToState1();
+            });
+        }
+
+        // Apps menu dropdown toggle
+        if (appsMenuBtn && appsDropdown) {
+            appsMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isVisible = appsDropdown.style.display === 'block';
+                appsDropdown.style.display = isVisible ? 'none' : 'block';
+                if (mapDropdown) mapDropdown.style.display = 'none';
+            });
+        }
+
+        // Map menu dropdown toggle
+        if (mapMenuBtn && mapDropdown) {
+            mapMenuBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isVisible = mapDropdown.style.display === 'block';
+                mapDropdown.style.display = isVisible ? 'none' : 'block';
+                if (appsDropdown) appsDropdown.style.display = 'none';
+            });
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', () => {
+            if (appsDropdown) appsDropdown.style.display = 'none';
+            if (mapDropdown) mapDropdown.style.display = 'none';
+        });
+
+        // Toggle buttons in control mode
+        const toggleBtns = actionBar.querySelectorAll('.toggle-btn');
+        toggleBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggleBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
         // 动作按钮点击事件
         actionBar.addEventListener('click', (e) => {
-            const btn = e.target.closest('.action-btn');
+            const btn = e.target.closest('.action-btn, .dropdown-item');
             if (!btn) return;
 
             const action = btn.dataset.action;
@@ -114,6 +189,10 @@ export default {
             const allBtns = actionBar.querySelectorAll('.action-btn');
             allBtns.forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
+
+            // Close dropdowns after selection
+            if (appsDropdown) appsDropdown.style.display = 'none';
+            if (mapDropdown) mapDropdown.style.display = 'none';
 
             // 处理不同的动作
             console.log('SNS Action:', action);
