@@ -691,6 +691,7 @@ IMPORTANT Tool Usage Guidelines:
                             # 保存用户消息作为对话标题
                             messages_to_save.append(AIChatMessages(
                                 conversation_id=conversation_id,
+                                agent_id=self.agent_id,  # 添加agent_id
                                 flag=0,  # 0=send
                                 title=message[:50] if len(message) > 50 else message,
                                 content=message,
@@ -705,6 +706,7 @@ IMPORTANT Tool Usage Guidelines:
                             # 保存普通用户消息
                             messages_to_save.append(AIChatMessages(
                                 conversation_id=conversation_id,
+                                agent_id=self.agent_id,  # 添加agent_id
                                 flag=0,  # 0=send
                                 content=message,
                                 owner_name="User",
@@ -718,6 +720,7 @@ IMPORTANT Tool Usage Guidelines:
                         # 保存AI回复
                         messages_to_save.append(AIChatMessages(
                             conversation_id=conversation_id,
+                            agent_id=self.agent_id,  # 添加agent_id
                             flag=1,  # 1=receive
                             content=full_reply,
                             owner_name="User",

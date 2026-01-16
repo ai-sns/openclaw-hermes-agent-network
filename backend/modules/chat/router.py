@@ -114,6 +114,7 @@ async def get_chat_history(
 @router.get("/conversations", response_model=dict)
 async def get_conversations(
     limit: int = 50,
+    agent_id: Optional[int] = None,
     service: ChatService = Depends(get_chat_service)
 ):
     """
@@ -121,12 +122,13 @@ async def get_conversations(
 
     Args:
         limit: Maximum number of conversations to return
+        agent_id: Filter by agent ID (optional)
 
     Returns:
         List of conversations
     """
     try:
-        conversations = service.get_conversations(limit)
+        conversations = service.get_conversations(limit, agent_id)
         return {"success": True, "data": conversations}
     except Exception as e:
         logger.error(f"Error getting conversations: {e}")

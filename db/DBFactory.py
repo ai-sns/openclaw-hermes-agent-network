@@ -41,6 +41,7 @@ class AIChatMessages(Base):
     __tablename__ = 'ai_chat_messages'
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(String(50), doc="对话id")
+    agent_id = Column(Integer, default=None, doc="Agent ID (多Agent支持)")
     flag = Column(Integer, doc="0为发送，1为接收")
     title = Column(Text, default=None, doc="标题，缺省使用第一条信息字段")
     content = Column(Text, doc="消息内容")
@@ -108,19 +109,22 @@ def query_AIChatMessages_All_previous(last_record_id=None, count=20,**kwargs):
     session.close()
     return records
 
-def query_AIChatMessages_All(label: bool = False, **kwargs):
+def query_AIChatMessages_All(label: bool = False, limit: int = None, **kwargs):
     session = Session()
     # 添加label不为None的条件
     if label:
-        records = session.query(AIChatMessages).filter(AIChatMessages.label.isnot(None)).filter_by(
+        query = session.query(AIChatMessages).filter(AIChatMessages.label.isnot(None)).filter_by(
             **kwargs).order_by(desc(AIChatMessages.stick_time),
-                               desc(AIChatMessages.create_time)).limit(
-            20).all()
+                               desc(AIChatMessages.create_time))
     else:
-        records = session.query(AIChatMessages).filter_by(**kwargs).order_by(desc(AIChatMessages.stick_time),
-                                                                             desc(AIChatMessages.create_time)).limit(
-            20).all()
+        query = session.query(AIChatMessages).filter_by(**kwargs).order_by(desc(AIChatMessages.stick_time),
+                                                                             desc(AIChatMessages.create_time))
 
+    # 应用limit（如果提供）
+    if limit is not None:
+        query = query.limit(limit)
+
+    records = query.all()
     session.close()
     return records
 

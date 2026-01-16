@@ -165,6 +165,7 @@ class ChatService:
     ) -> List[Dict[str, Any]]:
         """Get chat history"""
         messages = query_AIChatMessages(
+            limit=None,  # 获取所有消息
             agent_id=agent_id,
             conversation_id=conversation_id
         )
@@ -179,19 +180,24 @@ class ChatService:
         return result
 
     @staticmethod
-    def get_conversations(limit: int = 50) -> List[Dict[str, Any]]:
+    def get_conversations(limit: int = 50, agent_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get conversation list (ordered by last message time)
 
         Args:
             limit: Maximum number of conversations to return
+            agent_id: Filter by agent ID (optional)
 
         Returns:
             List of conversations with title and last message time
         """
         try:
             # Query all first messages (is_first=True) to get conversations
-            conversations = query_AIChatMessages(is_first=True, is_delete=False)
+            query_params = {'is_first': True, 'is_delete': False}
+            if agent_id is not None:
+                query_params['agent_id'] = agent_id
+            # 使用 _All 版本获取所有记录（已通过别名导入为query_AIChatMessages），传递limit参数
+            conversations = query_AIChatMessages(limit=limit, **query_params)
 
             # Group by conversation_id and get latest timestamp
             conversation_dict = {}
@@ -200,6 +206,7 @@ class ChatService:
                 if conv_id not in conversation_dict:
                     conversation_dict[conv_id] = {
                         "conversation_id": conv_id,
+                        "agent_id": getattr(msg, 'agent_id', None),  # 添加agent_id字段
                         "title": msg.title or msg.content[:50],
                         "last_message_time": msg.create_time,
                         "first_message": msg.content[:100]
@@ -232,6 +239,7 @@ class ChatService:
         """
         try:
             messages = query_AIChatMessages(
+                limit=None,  # 获取所有消息
                 conversation_id=conversation_id,
                 is_delete=False
             )

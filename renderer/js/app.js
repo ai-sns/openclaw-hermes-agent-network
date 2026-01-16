@@ -402,7 +402,7 @@ const App = {
         }
     },
 
-    renderSidebar(page) {
+    async renderSidebar(page) {
         const sidebar = document.getElementById('secondarySidebar');
         if (!sidebar) return;
 
@@ -416,7 +416,13 @@ const App = {
                 sidebarContent = PageRenderers.renderSNSSidebar();
                 break;
             case 'agent':
-                sidebarContent = PageRenderers.renderAgentSidebar();
+                // 使用 AgentSidebar.render() 而不是旧的 PageRenderers
+                // 因为需要动态加载agent列表
+                if (window.AgentSidebar && typeof window.AgentSidebar.render === 'function') {
+                    sidebarContent = window.AgentSidebar.render();
+                } else {
+                    sidebarContent = PageRenderers.renderAgentSidebar();
+                }
                 break;
             case 'km':
                 sidebarContent = PageRenderers.renderKMSidebar();
@@ -433,11 +439,11 @@ const App = {
 
         sidebar.innerHTML = sidebarContent;
 
-        // 绑定侧边栏事件（根据页面不同）
-        this.bindSidebarEvents(page);
+        // 绑定侧边栏事件（根据页面不同） - 等待异步完成
+        await this.bindSidebarEvents(page);
     },
 
-    bindSidebarEvents(page) {
+    async bindSidebarEvents(page) {
         switch (page) {
             case 'home':
                 this.bindHomeSidebarEvents();
@@ -446,7 +452,7 @@ const App = {
                 this.bindSNSSidebarEvents();
                 break;
             case 'agent':
-                this.bindAgentSidebarEvents();
+                await this.bindAgentSidebarEvents();
                 break;
             case 'km':
                 this.bindKMSidebarEvents();
@@ -487,8 +493,17 @@ const App = {
         });
     },
 
-    bindAgentSidebarEvents() {
-        // Agent 页面侧边栏事件
+    async bindAgentSidebarEvents() {
+        // Agent 页面侧边栏事件 - 重新初始化AgentSidebar
+        console.log('[App] 初始化Agent侧边栏...');
+
+        // 重新加载agent列表（修复：切换页面后agent列表消失的问题）
+        if (window.AgentSidebar && typeof window.AgentSidebar.init === 'function') {
+            await window.AgentSidebar.init();
+        } else {
+            console.error('[App] AgentSidebar未找到或init方法不存在');
+        }
+
         document.querySelectorAll('.chat-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 const tabName = tab.dataset.tab;

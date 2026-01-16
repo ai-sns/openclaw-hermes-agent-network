@@ -10,6 +10,7 @@ class AIChatMessages(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     conversation_id = Column(String(50), doc="Conversation ID")
+    agent_id = Column(Integer, default=None, doc="Agent ID (for multi-agent support)")
     flag = Column(Integer, doc="0=send, 1=receive")
     title = Column(Text, default=None, doc="Title")
     content = Column(Text, doc="Message content")

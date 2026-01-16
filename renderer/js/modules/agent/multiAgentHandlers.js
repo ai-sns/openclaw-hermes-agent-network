@@ -263,25 +263,36 @@ const multiAgentHandlers = {
      * 为特定agent加载聊天列表
      */
     async loadChatListForAgent(agentId) {
+        console.log(`[MultiAgentHandlers] 开始加载Agent ${agentId} 的chat list`);
+
         const chatList = document.getElementById(`chatList-${agentId}`);
-        if (!chatList) return;
+        if (!chatList) {
+            console.warn(`[MultiAgentHandlers] 找不到元素 chatList-${agentId}，可能DOM还未准备好`);
+            return;
+        }
 
         try {
             // 尝试从API获取conversations，带agent_id参数
             // 如果后端支持按agent筛选，会返回过滤后的结果
             // 如果不支持，我们在客户端进行过滤
+            console.log(`[MultiAgentHandlers] 调用API: http://localhost:8788/api/chat/conversations?limit=50&agent_id=${agentId}`);
             const response = await fetch(`http://localhost:8788/api/chat/conversations?limit=50&agent_id=${agentId}`);
             const result = await response.json();
             let conversations = result.data || [];
+            console.log(`[MultiAgentHandlers] API返回了 ${conversations.length} 条对话`);
 
             // 客户端过滤：只显示属于当前agent的对话
             // 如果conversation有agent_id字段，则过滤；否则显示所有（向后兼容）
             if (conversations.length > 0 && conversations[0].agent_id !== undefined) {
-                conversations = conversations.filter(conv => conv.agent_id === agentId);
+                conversations = conversations.filter(conv => conv.agent_id == agentId);
+                console.log(`[MultiAgentHandlers] 过滤后剩余 ${conversations.length} 条对话`);
             }
 
             const treeChildren = chatList.querySelector('.tree-children');
-            if (!treeChildren) return;
+            if (!treeChildren) {
+                console.warn(`[MultiAgentHandlers] 找不到 .tree-children 元素在 chatList-${agentId} 中`);
+                return;
+            }
 
             if (conversations.length === 0) {
                 treeChildren.innerHTML = '<div class="empty-state">暂无对话</div>';

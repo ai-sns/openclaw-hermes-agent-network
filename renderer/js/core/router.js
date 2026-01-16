@@ -8,6 +8,7 @@ class Router {
         this.currentPage = null;
         this.modules = {};
         this.initialized = false;
+        this.agentSidebarInitialized = false;  // Track agent sidebar state
     }
 
     /**
@@ -28,7 +29,7 @@ class Router {
      * 导航到指定页面
      * @param {string} page - 页面名称
      */
-    navigateTo(page) {
+    async navigateTo(page) {
         if (this.currentPage === page) {
             console.log(`Already on page '${page}'`);
             return;
@@ -66,8 +67,8 @@ class Router {
             item.classList.toggle('active', item.dataset.page === page);
         });
 
-        // 渲染侧边栏
-        this.renderSidebar(page);
+        // 渲染侧边栏（等待异步完成）
+        await this.renderSidebar(page);
 
         // 渲染或显示主内容区
         this.renderOrShowMainContent(page);
@@ -82,7 +83,7 @@ class Router {
      * 渲染侧边栏
      * @param {string} page - 页面名称
      */
-    renderSidebar(page) {
+    async renderSidebar(page) {
         const sidebar = document.getElementById('secondarySidebar');
         if (!sidebar) return;
 
@@ -90,8 +91,40 @@ class Router {
         if (!module) return;
 
         try {
-            const sidebarContent = module.renderSidebar();
-            sidebar.innerHTML = sidebarContent;
+            // 特殊处理：只有agent页面需要保持状态，其他页面都重新渲染
+            if (page === 'agent') {
+                // 使用类变量跟踪初始化状态，而不是检查DOM
+                if (!this.agentSidebarInitialized) {
+                    const sidebarContent = module.renderSidebar();
+                    sidebar.innerHTML = sidebarContent;
+
+                    if (window.AgentSidebar && typeof window.AgentSidebar.init === 'function') {
+                        console.log('[Router] 初始化Agent侧边栏...');
+                        await window.AgentSidebar.init();
+                        this.agentSidebarInitialized = true;  // 标记为已初始化
+                    }
+                } else {
+                    console.log('[Router] Agent侧边栏已初始化，保持状态');
+                    // 不需要重新渲染，但需要恢复显示
+                    // 如果sidebar内容被其他页面覆盖了，需要从AgentSidebar恢复
+                    if (!sidebar.querySelector('#agentList')) {
+                        // sidebar被其他页面覆盖了，需要重新渲染但不重新初始化
+                        const sidebarContent = module.renderSidebar();
+                        sidebar.innerHTML = sidebarContent;
+                        // 重新初始化，但保持状态
+                        if (window.AgentSidebar && typeof window.AgentSidebar.reload === 'function') {
+                            await window.AgentSidebar.reload();
+                        } else if (window.AgentSidebar && typeof window.AgentSidebar.init === 'function') {
+                            // 如果没有reload方法，使用init但会保持之前选中的agent
+                            await window.AgentSidebar.init();
+                        }
+                    }
+                }
+            } else {
+                // 其他页面：直接渲染侧边栏
+                const sidebarContent = module.renderSidebar();
+                sidebar.innerHTML = sidebarContent;
+            }
         } catch (error) {
             console.error(`Error rendering sidebar for '${page}':`, error);
             sidebar.innerHTML = '<p style="padding: 20px; color: #999;">侧边栏加载失败</p>';

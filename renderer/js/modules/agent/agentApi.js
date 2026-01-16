@@ -258,9 +258,13 @@ const agentApi = {
     /**
      * 获取对话列表
      */
-    async getConversations(limit = 50) {
+    async getConversations(limit = 50, agentId = null) {
         try {
-            const response = await fetch(`http://localhost:8788/api/chat/conversations?limit=${limit}`);
+            let url = `http://localhost:8788/api/chat/conversations?limit=${limit}`;
+            if (agentId !== null) {
+                url += `&agent_id=${agentId}`;
+            }
+            const response = await fetch(url);
             const result = await response.json();
             return result;
         } catch (error) {

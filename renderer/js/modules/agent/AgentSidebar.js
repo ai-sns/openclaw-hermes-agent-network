@@ -37,9 +37,22 @@ const AgentSidebar = {
         // 3. 绑定事件
         this.bindEvents();
 
-        // 4. 默认展开第一个agent
+        // 4. 恢复之前选择的agent，或默认展开第一个agent
         if (agents.length > 0) {
-            this.switchAgent(agents[0].id);
+            // 检查是否有保存的currentAgentId
+            const savedAgentId = window.agentState?.currentAgentId;
+            const agentToSelect = savedAgentId && agents.find(a => a.id === savedAgentId)
+                ? savedAgentId
+                : agents[0].id;
+
+            console.log('[AgentSidebar] 选择Agent:', agentToSelect, savedAgentId ? '(恢复之前的选择)' : '(默认第一个)');
+
+            // 确保agentState设置了currentAgentId
+            if (window.agentState) {
+                window.agentState.setCurrentAgent(agentToSelect);
+            }
+
+            this.switchAgent(agentToSelect);
         }
 
         console.log('[AgentSidebar] 初始化完成');
@@ -258,6 +271,12 @@ const AgentSidebar = {
     switchAgent(agentId) {
         console.log('[AgentSidebar] 切换到Agent:', agentId);
 
+        // 0. 更新agentState
+        if (window.agentState) {
+            window.agentState.setCurrentAgent(agentId);
+            console.log('[AgentSidebar] 已更新agentState.currentAgentId为:', agentId);
+        }
+
         // 1. 折叠所有agent-section-container
         document.querySelectorAll('.agent-section-container').forEach(container => {
             container.style.display = 'none';
@@ -291,7 +310,18 @@ const AgentSidebar = {
             activeItem.classList.add('active');
         }
 
-        // 6. 触发全局事件（供其他模块监听）
+        // 6. 直接加载chat list（避免依赖事件系统）
+        // 添加小延迟确保DOM已经渲染完成
+        setTimeout(() => {
+            if (window.multiAgentHandlers && typeof window.multiAgentHandlers.loadChatListForAgent === 'function') {
+                console.log('[AgentSidebar] 直接加载chat list for agent:', agentId);
+                window.multiAgentHandlers.loadChatListForAgent(agentId);
+            } else {
+                console.error('[AgentSidebar] multiAgentHandlers.loadChatListForAgent 不可用');
+            }
+        }, 100);  // 100ms延迟确保DOM准备好
+
+        // 7. 触发全局事件（供其他模块监听）
         window.dispatchEvent(new CustomEvent('agent-switched', {
             detail: { agentId }
         }));
@@ -381,9 +411,12 @@ const AgentSidebar = {
             return;
         }
 
-        // 2. 保存当前展开的 agent ID
-        const currentExpandedContainer = document.querySelector('.agent-section-container[style*="display: block"]');
-        const currentAgentId = currentExpandedContainer ? parseInt(currentExpandedContainer.dataset.agentId) : null;
+        // 2. 保存当前选中的 agent ID (优先使用 agentState 中保存的)
+        const currentAgentId = window.agentState?.currentAgentId ||
+            (() => {
+                const currentExpandedContainer = document.querySelector('.agent-section-container[style*="display: block"]');
+                return currentExpandedContainer ? parseInt(currentExpandedContainer.dataset.agentId) : null;
+            })();
 
         // 3. 重新渲染Agent列表
         this.renderAgentList(agents);
@@ -393,8 +426,10 @@ const AgentSidebar = {
 
         // 5. 恢复之前展开的 agent，如果不存在则展开第一个
         if (currentAgentId && agents.find(a => a.id === currentAgentId)) {
+            console.log('[AgentSidebar] 恢复之前选中的agent:', currentAgentId);
             this.switchAgent(currentAgentId);
         } else if (agents.length > 0) {
+            console.log('[AgentSidebar] 选择第一个agent');
             this.switchAgent(agents[0].id);
         }
 
