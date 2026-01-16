@@ -1,0 +1,357 @@
+/* Agent Tools Configuration Dialog */
+/* 使用主题系统的CSS变量 */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.agent-tools-dialog {
+    background: var(--bg-content);
+    border-radius: 12px;
+    box-shadow: var(--shadow-xl);
+    width: 90%;
+    max-width: 800px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dialog Header */
+.agent-tools-dialog .dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.agent-tools-dialog .dialog-header h2 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.agent-tools-dialog .dialog-close-btn {
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    color: var(--text-tertiary);
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.agent-tools-dialog .dialog-close-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+/* Dialog Body */
+.agent-tools-dialog .dialog-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 20px 24px;
+    background: var(--bg-content);
+}
+
+/* Tools Tabs */
+.agent-tools-dialog .tools-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0;
+    background: var(--bg-content);
+}
+
+.agent-tools-dialog .tools-tabs .tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    bottom: -1px;
+}
+
+.agent-tools-dialog .tools-tabs .tab-btn svg {
+    opacity: 0.7;
+}
+
+.agent-tools-dialog .tools-tabs .tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.agent-tools-dialog .tools-tabs .tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.agent-tools-dialog .tools-tabs .tab-btn.active svg {
+    opacity: 1;
+}
+
+/* Tools List Container */
+.tools-list-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Search Box */
+.tools-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.tools-search svg {
+    color: var(--text-tertiary);
+    flex-shrink: 0;
+}
+
+.tools-search input {
+    flex: 1;
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.tools-search input::placeholder {
+    color: var(--text-muted);
+}
+
+/* Tools List */
+.tools-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tools-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.tools-list::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+}
+
+.tools-list::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.tools-list::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Tool Item */
+.tool-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.tool-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--color-primary);
+}
+
+.tool-item.selected {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
+}
+
+.tool-checkbox {
+    flex-shrink: 0;
+}
+
+.tool-checkbox input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+.tool-icon {
+    flex-shrink: 0;
+    font-size: 24px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-content);
+    border-radius: 6px;
+}
+
+.tool-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.tool-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.tool-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Empty State */
+.empty-state {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 14px;
+}
+
+.loading {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-tertiary);
+    font-size: 14px;
+}
+
+/* Selected Tools Summary */
+.selected-tools-summary {
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.selected-tools-summary .summary-text {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.selected-tools-summary strong {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+/* Dialog Footer */
+.agent-tools-dialog .dialog-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+}
+
+.agent-tools-dialog .btn-secondary,
+.agent-tools-dialog .btn-primary {
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.agent-tools-dialog .btn-secondary {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.agent-tools-dialog .btn-secondary:hover {
+    background: var(--bg-hover);
+}
+
+.agent-tools-dialog .btn-primary {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+}
+
+.agent-tools-dialog .btn-primary:hover {
+    background: var(--color-primary-hover);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .agent-tools-dialog {
+        width: 95%;
+        max-height: 90vh;
+    }
+
+    .agent-tools-dialog .dialog-header,
+    .agent-tools-dialog .dialog-body,
+    .agent-tools-dialog .dialog-footer {
+        padding: 16px;
+    }
+
+    .tools-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .tools-tabs .tab-btn {
+        white-space: nowrap;
+    }
+}

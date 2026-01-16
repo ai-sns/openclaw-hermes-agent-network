@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from .schemas import AgentConfig, AgentResponse, AgentUpdateConfig
 from .service import AgentService
 from .dependencies import get_agent_service
+from .agent_manager import AgentManager
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,7 @@ async def get_agent_tools(
 @router.post("/{agent_id}/tools", response_model=dict)
 async def update_agent_tools(
     agent_id: int,
-    tools: List[dict],
+    request_body: dict,
     service: AgentService = Depends(get_agent_service)
 ):
     """
@@ -172,17 +173,24 @@ async def update_agent_tools(
 
     Args:
         agent_id: Agent ID
-        tools: List of tool associations
+        request_body: {"tools": [...]} where tools is a list of:
             [
-                {"tool_type": "plugin", "tool_id": "PL...", "priority": 10},
-                {"tool_type": "mcp", "tool_id": "MC...", "priority": 5}
+                {"tool_type": "plugin", "tool_id": "PL...", "enabled": true, "priority": 10},
+                {"tool_type": "mcp", "tool_id": "MC...", "enabled": true, "priority": 5}
             ]
 
     Returns:
         Success status
     """
     try:
+        tools = request_body.get("tools", [])
         service.update_agent_tools(agent_id, tools)
+
+        # 重新加载Agent实例以应用新的工具配置
+        agent_manager = AgentManager()
+        agent_manager.reload_agent(agent_id)
+        logger.info(f"Agent {agent_id} 工具配置已更新并重新加载")
+
         return {"success": True}
     except Exception as e:
         logger.error(f"Error updating agent tools: {e}")

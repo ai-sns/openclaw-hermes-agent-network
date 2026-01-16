@@ -612,7 +612,43 @@ const agentApi = {
         }
     },
 
+    /**
+     * 获取Agent已配置的工具
+     */
+    async getAgentTools(agentId) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/tools`);
+            return await response.json();
+        } catch (error) {
+            console.error('获取Agent工具配置失败:', error);
+            return [];
+        }
+    },
+
+    /**
+     * 更新Agent的工具配置
+     */
+    async updateAgentTools(agentId, tools) {
+        try {
+            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/tools`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ tools })
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('更新Agent工具配置失败:', error);
+            throw error;
+        }
+    },
+
     // ==================== 以下是旧的通用Chat API（保留兼容性） ====================
 };
 
+// 导出为ES6模块
 export default agentApi;
+
+// 同时导出到window对象供非模块脚本使用
+window.agentApi = agentApi;
