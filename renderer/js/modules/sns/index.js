@@ -28,8 +28,10 @@ export default {
     /**
      * 初始化模块
      */
-    init() {
+    async init() {
         snsHandlers.init();
+        // Initialize sidebar charts and contacts
+        await SNSSidebar.init();
     },
 
     /**

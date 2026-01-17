@@ -18,6 +18,7 @@ db/db.sqlite-shm
 db/db.sqlite-wal
 log.txt
 static/*
+uploads/
 
 # Distribution / packaging
 .Python

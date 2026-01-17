@@ -2373,14 +2373,15 @@
 }
 
 .contact-section {
-    margin-top: 12px;
+    margin-top: 0;
 }
 
 .contact-header {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-muted);
-    margin-bottom: 8px;
+    margin-bottom: 6px;
+    margin-top: 0;
 }
 
 .contact-tree {
@@ -3208,6 +3209,8 @@
 .sidebar-section {
     padding: 16px;
     border-bottom: 1px solid var(--border-light);
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-section:last-child {

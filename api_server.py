@@ -48,6 +48,7 @@ km_router = None
 system_router = None
 plugins_router = None
 wallet_router = None
+sns_router = None
 
 try:
     from backend.modules.agent.router import router as agent_router
@@ -87,6 +88,11 @@ try:
 except Exception as e:
     logger.warning(f"⚠ Wallet module not available: {e}")
 
+try:
+    from backend.modules.sns.router import router as sns_router
+except Exception as e:
+    logger.warning(f"⚠ SNS module not available: {e}")
+
 # 获取配置
 settings = get_settings()
 
@@ -116,6 +122,12 @@ try:
         app.mount("/resource", StaticFiles(directory="resource"), name="resource")
     if os.path.exists("scripts"):
         app.mount("/scripts", StaticFiles(directory="scripts"), name="scripts")
+
+    # Create uploads directory if not exists
+    uploads_dir = Path("uploads")
+    uploads_dir.mkdir(exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+    logger.info("✓ Uploads directory mounted")
 except Exception as e:
     logger.warning(f"Failed to mount static files: {e}")
 
@@ -166,6 +178,10 @@ if plugins_router:
 if wallet_router:
     app.include_router(wallet_router, prefix="/api/wallet", tags=["Blockchain Wallet"])
     logger.info("✓ Wallet Module registered")
+
+if sns_router:
+    app.include_router(sns_router, prefix="/api/sns", tags=["SNS"])
+    logger.info("✓ SNS Module registered")
 
 # 健康检查端点（保持向后兼容）
 @app.get("/health")
@@ -486,14 +502,34 @@ async def startup_event():
     logger.info("  - Plugins Module")
     logger.info("  - Tools Module")
     logger.info("  - Wallet Module")
+    logger.info("  - SNS Module")
     logger.info("="*60)
+
+    # Start XMPP client
+    if sns_router:
+        try:
+            from backend.modules.sns.xmpp_client import XMPPClientManager
+            xmpp_manager = XMPPClientManager.get_instance()
+            await xmpp_manager.start()
+            logger.info("✓ XMPP Client started")
+        except Exception as e:
+            logger.warning(f"⚠ Failed to start XMPP client: {e}")
 
 # 关闭事件
 @app.on_event("shutdown")
 async def shutdown_event():
     """应用关闭时执行"""
     logger.info("AI-SNS API Server shutting down...")
-    # 清理资源（如有需要）
+
+    # Stop XMPP client
+    if sns_router:
+        try:
+            from backend.modules.sns.xmpp_client import XMPPClientManager
+            xmpp_manager = XMPPClientManager.get_instance()
+            await xmpp_manager.stop()
+            logger.info("✓ XMPP Client stopped")
+        except Exception as e:
+            logger.warning(f"⚠ Failed to stop XMPP client: {e}")
 
 # 主函数
 def main():
