@@ -121,7 +121,7 @@ function createWindow() {
     });
 }
 
-function createMapWindow() {
+async function createMapWindow() {
     mapWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -139,8 +139,36 @@ function createMapWindow() {
         show: false
     });
 
-    // 加载地图页面
-    mapWindow.loadURL('http://localhost:8788/scripts/map.html');
+    // 获取地图配置并加载相应的地图页面
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/sns/map-config`);
+        const result = await response.json();
+
+        let mapUrl = `${API_BASE_URL}/scripts/map.html`; // 默认百度地图
+
+        console.log('Map config API response:', JSON.stringify(result, null, 2));
+
+        if (result.success && result.data) {
+            const mapType = String(result.data.map_type).trim();
+            console.log('Map type value:', mapType, 'Type:', typeof mapType);
+
+            if (mapType === '0') {
+                mapUrl = `${API_BASE_URL}/scripts/googlemap3d.html`;
+                console.log('Loading Google Map');
+            } else {
+                console.log('Loading Baidu Map (default)');
+            }
+        } else {
+            console.log('API call failed or no data, using default Baidu map');
+        }
+
+        console.log('Final map URL:', mapUrl);
+        mapWindow.loadURL(mapUrl);
+    } catch (error) {
+        console.error('Failed to fetch map config:', error);
+        // 出错时使用默认地图
+        mapWindow.loadURL(`${API_BASE_URL}/scripts/map.html`);
+    }
 
     // 窗口准备好后显示
     mapWindow.once('ready-to-show', () => {
@@ -181,7 +209,7 @@ function createTray() {
         {
             label: '地图',
             click: () => {
-                createMapWindow();
+                createMapWindow().catch(err => console.error('Error creating map window:', err));
             }
         },
         { type: 'separator' },
@@ -241,7 +269,7 @@ ipcMain.on('set-title', (event, title) => {
 
 // 地图窗口控制 IPC
 ipcMain.on('open-map-window', () => {
-    createMapWindow();
+    createMapWindow().catch(err => console.error('Error creating map window:', err));
 });
 
 ipcMain.on('close-map-window', () => {

@@ -8,7 +8,7 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from backend.config.database import get_db
+from backend.config.database import get_db_sync_depends
 from .schemas import (
     PluginCreate, PluginUpdate, PluginResponse,
     MCPCreate, MCPUpdate, MCPResponse,
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def get_tools_service(db: Session = Depends(get_db)) -> ToolsService:
+def get_tools_service(db: Session = Depends(get_db_sync_depends)) -> ToolsService:
     """Dependency to get tools service with database session"""
     return ToolsService(db)
 

@@ -256,5 +256,79 @@ export default {
                 error: error.message
             };
         }
+    },
+
+    /**
+     * 与AI Agent对话
+     */
+    async chatWithAI(agentIdentifier, message, mode = 'ai') {
+        try {
+            const response = await fetch('http://localhost:8788/api/sns/ai-chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    agent_identifier: agentIdentifier,
+                    message: message,
+                    mode: mode
+                })
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('AI对话失败:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    },
+
+    /**
+     * 启动AI社交引擎
+     */
+    async startEngine() {
+        try {
+            const response = await fetch('http://localhost:8788/api/sns/start-engine', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('启动AI社交引擎失败:', error);
+            return {
+                success: false,
+                message: error.message
+            };
+        }
+    },
+
+    /**
+     * 停止AI社交引擎
+     */
+    async stopEngine() {
+        try {
+            const response = await fetch('http://localhost:8788/api/sns/stop-engine', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('停止AI社交引擎失败:', error);
+            return {
+                success: false,
+                message: error.message
+            };
+        }
     }
 };

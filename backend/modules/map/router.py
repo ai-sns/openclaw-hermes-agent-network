@@ -6,6 +6,7 @@ import logging
 from typing import Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from sqlalchemy.orm import Session
 
 # 导入全局WebSocket管理器
 from backend.shared.websocket_manager import ConnectionManager as GlobalConnectionManager
@@ -16,6 +17,7 @@ from .schemas import MapConfig, MapMarker, RouteRequest, RouteControl, ChatMessa
 from .service import MapService
 from .websocket import manager, handle_websocket_message
 from .dependencies import get_map_service, get_connection_manager
+from backend.config.database import get_db_sync
 
 logger = logging.getLogger(__name__)
 
@@ -327,4 +329,39 @@ async def websocket_endpoint(
         conn_manager.disconnect(client_id)
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
-        conn_manager.disconnect(client_id)
+
+
+# ==================== Trades ====================
+
+@router.get("/trades")
+async def get_trades(db: Session = Depends(get_db_sync)):
+    """Get all trades from map_trade table"""
+    from backend.database.models.map import MapTrade
+
+    try:
+        trades = db.query(MapTrade).filter(
+            MapTrade.is_delete == False
+        ).order_by(MapTrade.create_time.desc()).all()
+
+        return [
+            {
+                "id": trade.id,
+                "trade_id": trade.trade_id,
+                "trade_type": trade.trade_type,
+                "title": trade.title,
+                "detail": trade.detail,
+                "link": trade.link,
+                "trade_with_name": trade.trade_with_name,
+                "trade_with_account": trade.trade_with_account,
+                "trade_with_company": trade.trade_with_company,
+                "pay": trade.pay,
+                "pay_method": trade.pay_method,
+                "status": trade.status,
+                "create_time": trade.create_time.isoformat() if trade.create_time else None
+            }
+            for trade in trades
+        ]
+    except Exception as e:
+        logger.error(f"Error getting trades: {e}")
+        return []
+

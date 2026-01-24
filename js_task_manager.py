@@ -1,5 +1,5 @@
 from util import generate_random_id
-from db.DBFactory import add_map_activity,query_map_activity_previous,query_AiChatCfg_map_setting,query_AIChatMessages_All,query_AIChatMessages_All_previous
+from db.DBFactory import add_map_activity,query_map_activity_previous,query_AiChatCfg_map_setting,query_AIChatMessages_All_previous
 import json
 # from MessageBoxEarth import MessageBox
 class JsTaskManager:
@@ -71,7 +71,7 @@ class JsTaskManager:
     def load_map_setting(self):
         record_dict = query_AiChatCfg_map_setting()
         coord_str = record_dict["current_position"]
-        
+
         # 检查坐标字符串是数组格式还是对象格式
         if coord_str.startswith('[') and coord_str.endswith(']'):
             # 数组格式: [116.31633245364759,39.83663838626669]
@@ -94,7 +94,7 @@ class JsTaskManager:
                 "lng": lng,
                 "lat": lat
             }
-            
+
         current_position_str = json.dumps(coord_dict)
         record_dict["current_position"] = current_position_str
 

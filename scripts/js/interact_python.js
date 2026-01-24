@@ -77,8 +77,8 @@ function connectWebSocket() {
 // 处理 WebSocket 消息
 function handleWebSocketMessage(data) {
     console.log("DEBUG: handleWebSocketMessage called with data:", data);
-    alert("received message");
-    alert(JSON.stringify(data));
+    console.log("received message");
+    console.log(JSON.stringify(data));
     switch (data.type) {
         case "chat_message":
             console.log("Processing chat_message:", data);
@@ -147,6 +147,10 @@ var handle_command = function (command, param_1, param_2) {
             hiddenMarkers[param_1] = marker;
         } else {
             div = document.getElementById(param_1);
+            if (!div) {
+                console.warn(`Element with ID ${param_1} not found on map`);
+                return;
+            }
             hiddenPoints[param_1] = div;
         }
         talk_to_it(param_1, param_2)
@@ -156,6 +160,10 @@ var handle_command = function (command, param_1, param_2) {
             hiddenMarkers[param_1] = marker;
         } else {
             div = document.getElementById(param_1);
+            if (!div) {
+                console.warn(`Element with ID ${param_1} not found on map`);
+                return;
+            }
             hiddenPoints[param_1] = div;
         }
         start_talk_to_it(param_1, param_2)
@@ -203,7 +211,7 @@ var handle_command = function (command, param_1, param_2) {
 async function loadMapSetting() {
     const result = await jsonrpcRequest("get_map_settings");
 
-    
+
     if (result && result.success) {
         // 将配置转换为原格式
         const data = result.data;

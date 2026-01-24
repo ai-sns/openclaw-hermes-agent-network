@@ -1,8 +1,7 @@
-# from MessageBoxEarth import MessageBox
 import json
 from db.DBFactory import query_single_map_task,update_map_task
 from i18n import lt
-from typing import List, Dict, Any, Optional
+from typing import  Dict, Any, Optional
 from util import generate_random_id
 
 from PyQt6.QtCore import QEventLoop, Qt

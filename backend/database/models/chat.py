@@ -171,6 +171,7 @@ class AiChatCfg(Base):
     event_after_move = Column(String(200), doc="Event after move")
     event_before_use_tool = Column(String(200), doc="Event before use tool")
     event_after_use_tool = Column(String(200), doc="Event after use tool")
+    agent_id = Column(Integer, doc="Associated agent ID")
 
 
 class HumanChatCfg(Base):

@@ -120,6 +120,11 @@ class APIClient {
             const callbacks = this.wsCallbacks.get('*');
             callbacks.forEach(callback => callback(message));
         }
+
+        // Dispatch custom window event for WebSocket messages
+        window.dispatchEvent(new CustomEvent('websocket-message', {
+            detail: message
+        }));
     }
 
     handleReconnect(clientId) {

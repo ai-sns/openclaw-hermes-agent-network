@@ -1605,7 +1605,7 @@ const PageControllers = {
         });
     },
 
-    loadBaiduMap() {
+    async loadBaiduMap() {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) {
             console.error('地图容器未找到');
@@ -1627,9 +1627,34 @@ const PageControllers = {
             return;
         }
 
+        // 获取地图配置
+        let mapUrl = 'http://localhost:8788/scripts/map.html'; // 默认百度地图
+        try {
+            const response = await fetch('http://localhost:8788/api/sns/map-config');
+            const result = await response.json();
+
+            console.log('Map config API response:', result);
+
+            if (result.success && result.data) {
+                const mapType = String(result.data.map_type).trim();
+                console.log('Map type:', mapType);
+
+                if (mapType === '0') {
+                    mapUrl = 'http://localhost:8788/scripts/googlemap3d.html';
+                    console.log('Loading Google Map');
+                } else {
+                    console.log('Loading Baidu Map');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch map config:', error);
+        }
+
+        console.log('Final map URL:', mapUrl);
+
         // 创建 iframe 加载地图页面
         const iframe = document.createElement('iframe');
-        iframe.src = 'http://localhost:8788/scripts/map.html';
+        iframe.src = mapUrl;
         iframe.style.width = '100%';
         iframe.style.height = '100%';
         iframe.style.border = 'none';

@@ -16,6 +16,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.get("/list", response_model=dict)
+async def get_agent_list(service: AgentService = Depends(get_agent_service)):
+    """
+    Get simplified agent list (id and name only)
+
+    Returns:
+        List of agents with id and name
+    """
+    try:
+        agents = service.get_all_agents()
+        # Return simplified list with only id and name
+        agent_list = [{"id": agent["id"], "name": agent["name"]} for agent in agents]
+        return {"success": True, "data": agent_list}
+    except Exception as e:
+        logger.error(f"Error getting agent list: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("", response_model=dict)
 async def get_agents(service: AgentService = Depends(get_agent_service)):
     """
