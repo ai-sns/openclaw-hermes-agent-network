@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 from backend.database.models.chat import AiChatCfg
 from backend.modules.sns.map_task_manager import MapTaskManager
 from backend.modules.sns.js_task_manager import JsTaskManager
+from backend.modules.sns.ui_adapter import UIAdapter
+from backend.modules.sns.xmpp_client import XMPPClientManager
 from backend.modules.agent.agent_manager import agent_manager
+from backend.shared.websocket_manager import manager as websocket_manager
 
 # *********
 import os
@@ -67,6 +70,10 @@ class AISocialEngine:
         self.task_runner = None
         self.taskmng_js = JsTaskManager(self)
         self.taskmng = MapTaskManager(self)
+        self.ui_adapter = UIAdapter(self)
+
+        # Initialize XMPP client manager
+        self.xmpp_manager = XMPPClientManager.get_instance()
 
         # Load configuration from database
         self.config = self.db.query(AiChatCfg).filter(
@@ -76,11 +83,11 @@ class AISocialEngine:
         # Initialize ai_chat_cfg from database - get first record from aichat_cfg table
         self.ai_chat_cfg = self.config
 
-        # Initialize aichatcfg_record for backend compatibility
-        # self.aichatcfg_record = self.config
+
 
         self.aichatcfg_record = AiChatCfgManager()
         self.aichatcfg_record.connect(self.handle_aichatcfg_property_updated)
+        # self.ui_adapter.update_resource_display()  # 移到 load_all_user_data() 之后调用
 
         # *******************************************
         self.human_take_over = False
@@ -229,7 +236,7 @@ class AISocialEngine:
             logger.info("Starting AI Social Engine...")
 
             self.started_flag = True
-            # self.map_task_status = "started"
+            self.map_task_status = ""  # Reset to empty string to allow start_task() to execute
 
             # Initialize ability list
             self.ability_list = [
@@ -604,6 +611,29 @@ on_agent_return_instruction
 
         print("write_task_plan_to_pane")
 
+    async def _send_to_frontend(self, tab_type, content, section=None):
+        """
+        发送内容到前端指定的页签
+
+        Args:
+            tab_type: 页签类型 ('think' 或 'process')
+            content: 要发送的内容
+            section: 可选的部分标识 ('ongoing' 或 'history')
+        """
+        try:
+            message = {
+                "type": "sns_update",
+                "tab": tab_type,
+                "content": content
+            }
+            if section:
+                message["section"] = section
+            # 广播到所有连接的客户端
+            await websocket_manager.broadcast(message)
+            logger.info(f"Sent {tab_type} update to frontend (section: {section})")
+        except Exception as e:
+            logger.error(f"Failed to send to frontend: {e}")
+
     def write_thinking_process_to_pane(self, title, content):
         # 假设 self.thinking_edit 是 QTextEdit 的实例
         self.thinking_step_index += 1
@@ -612,6 +642,9 @@ on_agent_return_instruction
         new_content = f"\n🔶【{self.thinking_step_index}】{title}\n"
         new_content += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         new_content += f"{content}\n"
+
+        # 发送到前端 Think 页签
+        asyncio.create_task(self._send_to_frontend('think', new_content))
 
         # self.thinking_edit.append(new_content)
 
@@ -622,6 +655,10 @@ on_agent_return_instruction
 
         # 合并内容并更新plan_edit
         combined_content = f"{ongoing_process}\n{task_process_history}"
+
+        # 发送到前端 Process 页签
+        asyncio.create_task(self._send_to_frontend('process', combined_content))
+
         # self.plan_edit.setPlainText(combined_content)
         print("write_task_process_to_pane")
 
@@ -647,6 +684,10 @@ on_agent_return_instruction
 
         # 合并内容并更新plan_edit
         combined_content = f"{ongoing_process}\n{task_process_history}"
+
+        # 发送到前端 Process 页签的 On Going 部分
+        asyncio.create_task(self._send_to_frontend('process', ongoing_process, section='ongoing'))
+
         # self.plan_edit.setPlainText(combined_content)
         print("write_on_going_process_to_pane")
 
@@ -1082,7 +1123,7 @@ __current_process__
     def handle_event_receive_msg_result(self, content):
         self.command_status = ""
         from_str = self.current_talk_people["account"]
-        self.handle_receiveMessage(content, from_str)
+        asyncio.create_task(self.handle_receiveMessage(content, from_str))
 
     def handle_event_before_send_msg(self, tool_name, content, conversation_type):
         self.command_status = "handle_event_before_send_msg"
@@ -1368,11 +1409,11 @@ __current_process__
         if action == "Use skills":
             print(f"执行技能：{param_1}")
 
-            # self.message_handler.send_command_to_map(action, param_1, param_2)
+            self.ui_adapter.send_command_to_map(action, param_1, param_2)
         else:
             print(f"执行行动：{action}")
 
-            # self.message_handler.send_command_to_map(action, param_1, param_2)
+            self.ui_adapter.send_command_to_map(action, param_1, param_2)
 
     def handle_event_before_decistion(self, tool_name, ask_content):
         self.command_status = "handle_event_before_decistion"
@@ -3662,6 +3703,9 @@ talk_to_a_people
         print("self.aichatcfg_record", self.aichatcfg_record.current_position)
         print("self.aichatcfg_recordprofile", self.aichatcfg_record.sign)
 
+        # 在加载完所有数据后更新资源显示
+        self.ui_adapter.update_resource_display()
+
     def _parse_position_data(self, position_data):
         """
         解析位置数据，支持以下格式：
@@ -3718,73 +3762,302 @@ talk_to_a_people
         self.move_point = 100 * (self.life_point / 100) * (self.energy_point / 100)
 
 
-    def handle_receiveMessage(self, content, from_str):
-        # self.map_mode有两种模式，一种是发送给进入服务场景的比如3d的aigccenter 这种是map_application模式，一种是发送到地图的org
-        return "handling"
+    async def receiveMessage(self, event):
+        """
+        接收并处理XMPP消息
 
-        if self.map_mode != 'org':
-            browser_page = self.messageBrowser.page()
-            browser_page.runJavaScript(f"send_talk_message('{from_str.split('/')[0]}',{self.ai_chat_cfg.account},'{content}')")
-        else:
-            self.message_handler.send_talk_message(from_str.split('/')[0], self.ai_chat_cfg.account, content)
-            account = from_str.split('/')[0]
-            if not (account in self.talk_history):
-                self.talk_history[account] = []
-            self.talk_history[account].append("Friend:" + content)
-            self.current_talk_history.append("Friend:" + content)
+        Args:
+            event: XMPP消息事件，包含'body'和'from'字段
+        """
+        if event is None:
+            logger.warning("Received None event in receiveMessage")
+            return
 
-            if (tool_list_str := self.check_tool_for_buy(content)):  # buyer check
-                self.command_status = "ask_agent_to_pick_a_tool_to_buy"
-                self.ask_agent_to_pick_a_tool_to_buy(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_inquiry(content)):  # seller check
-                self.tool_trade_order(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_order(content)):  # buyer check
-                self.tool_trade_bargain_for_buyer(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_buyer_bargain(content)):  # seller check
-                self.tool_trade_bargain_for_seller(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_seller_bargain(content)):  # buyer check
-                self.tool_trade_bargain_for_buyer(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_order_confirm(content)):  # seller check
-                self.tool_trade_send_tool(tool_list_str)
-            elif (tool_list_str := self.check_tool_for_receive(content)):  # buyer check
-                self.tool_trade_receive_tool(tool_list_str)
-            elif (pay_received_str := self.check_pay_in_received(content)):  # buyer check
-                self.handle_pay_received(pay_received_str)
-            elif (good_received_str := self.check_good_in_received(content)):  # buyer check
-                self.handle_good_received(good_received_str)
-            else:
-                if (buy_flag := self.check_buy_in_received(content)):  # buyer check
-                    self.talk_type = "sell"
-                self.taskmng.process_task(event="conversation_message_received", talk_history_str=json.dumps(self.current_talk_history, ensure_ascii=False))
+        try:
+            # 提取消息内容和发送者
+            content = event.get('body', '')
+            from_str = str(event.get('from', ''))
 
-        self.current_received_msg = content
-
-        if self.human_take_over == False:
-            pass
-
-
-    def sendMessage(self, content, by_click=False, to_jid=None, to_name=None, back_ground=False):
-       return "handling"
-        if not to_jid:
-            if self.current_talk_people:
-                current_talk_people = self.current_talk_people
-                to_jid = current_talk_people["account"]
-                to_name = current_talk_people["nick_name"]
-            else:
+            if not content or not from_str:
+                logger.warning(f"Invalid message event: content={content}, from={from_str}")
                 return
 
-        if content:
-            browser_page = self.messageBrowser.page()
-            if by_click:
-                add_AIChatMessages(self.conversation_id, 0, "", content, self.ai_chat_cfg.name, self.ai_chat_cfg.account, to_name, to_jid, False)
-            self.con.send_message(to_jid, content)
-            if not back_ground:
-                # app应用类型，比如在3d环境如aigc中的人物交互
+            logger.info(f"Received message from {from_str}: {content[:50]}...")
 
-                if self.map_mode != 'org':
-                    browser_page.runJavaScript(f"send_talk_message('{self.ai_chat_cfg.account}','{to_jid}','{content}')")
+            # 检查是否配置了接收消息事件处理工具
+            if self.ai_chat_cfg.event_receive_msg and self.ai_chat_cfg.event_receive_msg != "N/A":
+                tool_name = self.ai_chat_cfg.event_receive_msg
+                logger.info(f"Using event_receive_msg tool: {tool_name}")
+                self.handle_event_receive_msg(tool_name, content, from_str)
+                return
+
+            # 默认消息处理流程
+            await self.handle_receiveMessage(content, from_str)
+
+        except KeyError as e:
+            logger.error(f"Missing required field in message event: {e}")
+        except Exception as e:
+            logger.error(f"Error in receiveMessage: {e}", exc_info=True)
+
+    async def handle_receiveMessage(self, content, from_str):
+        """
+        处理接收到的XMPP消息内容
+
+        Args:
+            content: 消息内容
+            from_str: 发送者JID
+        """
+        try:
+            logger.info(f"Processing message from {from_str}, content length: {len(content)}")
+
+            # 检查map_mode，只在org模式下处理
+            if self.map_mode != 'org':
+                logger.debug(f"Skipping message processing, map_mode is '{self.map_mode}' (not 'org')")
+                return
+
+            # 提取账户信息
+            account = from_str.split('/')[0]
+            logger.debug(f"Extracted account: {account}")
+
+            # 发送聊天消息到UI
+            try:
+                self.ui_adapter.send_talk_message(account, self.ai_chat_cfg.account, content)
+            except Exception as e:
+                logger.error(f"Failed to send talk message to UI: {e}")
+
+            # 管理聊天历史
+            if account not in self.talk_history:
+                self.talk_history[account] = []
+                logger.debug(f"Created new talk history for account: {account}")
+
+            self.talk_history[account].append("Friend:" + content)
+            self.current_talk_history.append("Friend:" + content)
+            logger.debug(f"Updated talk history for {account}, total messages: {len(self.talk_history[account])}")
+
+            # 消息类型路由 - 使用walrus operator进行条件检查
+            message_handled = False
+
+            if (tool_list_str := self.check_tool_for_buy(content)):
+                logger.info(f"Detected tool buy request from {account}")
+                self.command_status = "ask_agent_to_pick_a_tool_to_buy"
+                await self.ask_agent_to_pick_a_tool_to_buy(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_inquiry(content)):
+                logger.info(f"Detected tool inquiry from {account}")
+                self.tool_trade_order(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_order(content)):
+                logger.info(f"Detected tool order from {account}")
+                self.tool_trade_bargain_for_buyer(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_buyer_bargain(content)):
+                logger.info(f"Detected buyer bargain from {account}")
+                self.tool_trade_bargain_for_seller(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_seller_bargain(content)):
+                logger.info(f"Detected seller bargain from {account}")
+                self.tool_trade_bargain_for_buyer(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_order_confirm(content)):
+                logger.info(f"Detected order confirmation from {account}")
+                self.tool_trade_send_tool(tool_list_str)
+                message_handled = True
+
+            elif (tool_list_str := self.check_tool_for_receive(content)):
+                logger.info(f"Detected tool receive from {account}")
+                self.tool_trade_receive_tool(tool_list_str)
+                message_handled = True
+
+            elif (pay_received_str := self.check_pay_in_received(content)):
+                logger.info(f"Detected payment received from {account}")
+                self.handle_pay_received(pay_received_str)
+                message_handled = True
+
+            elif (good_received_str := self.check_good_in_received(content)):
+                logger.info(f"Detected goods received from {account}")
+                self.handle_good_received(good_received_str)
+                message_handled = True
+
+            else:
+                # 检查是否为购买请求
+                if (buy_flag := self.check_buy_in_received(content)):
+                    logger.info(f"Detected buy inquiry from {account}")
+                    self.talk_type = "sell"
                 else:
-                    self.message_handler.send_talk_message(self.ai_chat_cfg.account, to_jid, content)
+                    logger.debug(f"Processing as general conversation message from {account}")
+
+                # 处理一般对话消息
+                self.taskmng.process_task(
+                    event="conversation_message_received",
+                    talk_history_str=json.dumps(self.current_talk_history, ensure_ascii=False)
+                )
+                message_handled = True
+
+            # 保存当前接收的消息
+            self.current_received_msg = content
+
+            # 检查人工接管标志
+            if not self.human_take_over:
+                logger.debug("Human takeover is disabled, continuing automated processing")
+            else:
+                logger.info("Human takeover is enabled")
+
+            logger.info(f"Message processing completed for {account}, handled: {message_handled}")
+
+        except Exception as e:
+            logger.error(f"Error in handle_receiveMessage: {e}", exc_info=True)
+            # 即使出错也要保存消息内容
+            try:
+                self.current_received_msg = content
+            except:
+                pass
+
+
+    def send_xmpp_message(self, to_jid: str, content: str) -> bool:
+        """
+        通过XMPPClientManager发送XMPP消息
+
+        Args:
+            to_jid: 接收者JID
+            content: 消息内容
+
+        Returns:
+            bool: 发送成功返回True，失败返回False
+        """
+        try:
+            client = self.xmpp_manager.get_client()
+            if not client or not client.is_client_connected():
+                logger.error("XMPP client not connected")
+                return False
+
+            client.send_message_to_jid(to_jid, content)
+            logger.debug(f"XMPP message sent to {to_jid}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to send XMPP message to {to_jid}: {e}")
+            return False
+
+    def sendMessage(self, content, by_click=False, to_jid=None, to_name=None, back_ground=False):
+        """
+        发送XMPP消息
+
+        Args:
+            content: 消息内容
+            by_click: 是否通过点击触发，默认False
+            to_jid: 接收者JID，默认None（从current_talk_people获取）
+            to_name: 接收者名称，默认None（从current_talk_people获取）
+            back_ground: 是否后台发送，默认False
+
+        Returns:
+            bool: 发送成功返回True，失败返回False
+        """
+        try:
+            # 验证消息内容
+            if not content:
+                logger.warning("Cannot send empty message")
+                return False
+
+            # 解析接收者信息
+            recipient = self._resolve_recipient(to_jid, to_name)
+            if not recipient:
+                return False
+
+            to_jid = recipient['jid']
+            to_name = recipient['name']
+
+            logger.info(f"Sending message to {to_jid}: {content[:50]}...")
+
+            # 保存到数据库（如果是通过点击触发）
+            if by_click:
+                self._save_message_to_database(content, to_jid, to_name)
+
+            # 发送XMPP消息
+            if not self.send_xmpp_message(to_jid, content):
+                logger.error(f"Failed to send XMPP message to {to_jid}")
+                return False
+
+            # 更新UI（如果不是后台发送）
+            if not back_ground:
+                self._update_ui_with_sent_message(to_jid, content)
+
+            logger.info(f"Message sent successfully to {to_jid}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error in sendMessage: {e}", exc_info=True)
+            return False
+
+    def _resolve_recipient(self, to_jid=None, to_name=None):
+        """
+        解析接收者信息
+
+        Args:
+            to_jid: 接收者JID
+            to_name: 接收者名称
+
+        Returns:
+            dict: 包含jid和name的字典，失败返回None
+        """
+        if to_jid:
+            return {'jid': to_jid, 'name': to_name}
+
+        if self.current_talk_people:
+            current_talk_people = self.current_talk_people
+            jid = current_talk_people.get("account")
+            name = current_talk_people.get("nick_name")
+            logger.debug(f"Resolved recipient from current_talk_people: {jid}")
+            return {'jid': jid, 'name': name}
+
+        logger.warning("No recipient specified and no current_talk_people available")
+        return None
+
+    def _save_message_to_database(self, content, to_jid, to_name):
+        """
+        保存消息到数据库
+
+        Args:
+            content: 消息内容
+            to_jid: 接收者JID
+            to_name: 接收者名称
+        """
+        try:
+            add_AIChatMessages(
+                self.conversation_id,
+                0,
+                "",
+                content,
+                self.ai_chat_cfg.name,
+                self.ai_chat_cfg.account,
+                to_name,
+                to_jid,
+                False
+            )
+            logger.debug(f"Message saved to database for conversation {self.conversation_id}")
+        except Exception as e:
+            logger.error(f"Failed to save message to database: {e}")
+
+    def _update_ui_with_sent_message(self, to_jid, content):
+        """
+        更新UI显示发送的消息
+
+        Args:
+            to_jid: 接收者JID
+            content: 消息内容
+        """
+        if self.map_mode != 'org':
+            logger.debug(f"Skipping UI update, map_mode is '{self.map_mode}' (not 'org')")
+            return
+
+        try:
+            self.ui_adapter.send_talk_message(self.ai_chat_cfg.account, to_jid, content)
+            logger.debug(f"UI updated with sent message to {to_jid}")
+        except Exception as e:
+            logger.error(f"Failed to update UI with sent message: {e}")
 
 class AiChatCfgManager:
     """

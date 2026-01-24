@@ -50,6 +50,19 @@ class XMPPClient(slixmpp.ClientXMPP):
 
             logger.info(f"Received message from {from_jid}: {body}")
 
+            # Forward to AI Social Engine
+            try:
+                from backend.modules.sns.service_async import _social_engine_instance
+                if _social_engine_instance:
+                    event = {
+                        'body': body,
+                        'from': from_jid
+                    }
+                    await _social_engine_instance.receiveMessage(event)
+                    logger.info(f"Message forwarded to AI Social Engine")
+            except Exception as e:
+                logger.error(f"Error forwarding message to AI Social Engine: {e}")
+
             # Save to database
             try:
                 config = self.db.query(AiChatCfg).filter(
@@ -81,7 +94,7 @@ class XMPPClient(slixmpp.ClientXMPP):
                         friend.last_message_time = datetime.now()
                         self.db.commit()
 
-                    # Broadcast message to WebSocket clients
+                    # Broadcast message to chatWindow (Electron)
                     await self.broadcast_new_message({
                         'type': 'new_message',
                         'data': {
@@ -91,6 +104,15 @@ class XMPPClient(slixmpp.ClientXMPP):
                             'flag': 1,
                             'create_time': message.create_time.isoformat() if message.create_time else None
                         }
+                    })
+
+                    # Also broadcast to map (map_chat_message format)
+                    await self.broadcast_new_message({
+                        'type': 'map_chat_message',
+                        'from_user': from_jid,
+                        'to_user': config.account,
+                        'content': body,
+                        'timestamp': message.create_time.isoformat() if message.create_time else None
                     })
             except Exception as e:
                 logger.error(f"Error saving message to database: {e}")

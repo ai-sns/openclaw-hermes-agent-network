@@ -202,6 +202,40 @@ async def health_check():
         "architecture": "modular"
     }
 
+# WebSocket 端点 - 通用端点（自动生成client_id）
+@app.websocket("/ws")
+async def websocket_general_endpoint(websocket: WebSocket):
+    """
+    通用 WebSocket 连接端点（自动生成client_id）
+    """
+    import uuid
+    client_id = str(uuid.uuid4())
+    await ws_manager.connect(websocket, client_id)
+    logger.info(f"WebSocket client {client_id} connected (auto-generated)")
+
+    try:
+        while True:
+            # 接收消息
+            data = await websocket.receive_json()
+            logger.info(f"Received from {client_id}: {data}")
+
+            # 处理消息类型
+            msg_type = data.get('type', '')
+
+            if msg_type == 'ping':
+                # 响应 ping
+                await ws_manager.send_message({
+                    'type': 'pong',
+                    'timestamp': data.get('timestamp')
+                }, client_id)
+
+    except WebSocketDisconnect:
+        ws_manager.disconnect(client_id)
+        logger.info(f"WebSocket client {client_id} disconnected")
+    except Exception as e:
+        logger.error(f"WebSocket error for client {client_id}: {e}")
+        ws_manager.disconnect(client_id)
+
 # WebSocket 端点
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):

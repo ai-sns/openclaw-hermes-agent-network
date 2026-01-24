@@ -2501,3 +2501,16 @@ ValueError: could not convert string to float: '-'
 C:\Program Files (x86)\Windows Kits\10\bin\10.0.19041.0\x64\inspect.exe
 vscodetestv6.py vscodetestv7.py vscodetestv8.py vscodetestv9.py vscodetestv10.py
 # "C:\Users\IDD\AppData\Local\Programs\Microsoft VS Code\Code.exe"  --remote-debugging-port=9222 --remote-allow-origins=*
+
+前端在Electron及Renderer，后端在api_server.py及backend目录下,数据库使用db/db.sqlite
+优化一下backend/modules/sns/ai_social_engine_adapter.py，我希望：
+1.write_thinking_process_to_pane函数可以把内容写到前端electron的sns栏目的主界面右侧面板的Think页签中
+2.write_task_process_to_pane函数可以把内容写到前端electron的sns栏目的主界面右侧面板的Process页签中
+
+
+前端在Electron及Renderer，后端在api_server.py及backend目录下,数据库使用db/db.sqlite
+优化一下backend/modules/sns/ui_adapter.py里面的send_command_to_map，我希望：调用该函数之后，前端electron可以接收到它发送的消息，然后根据接收到的消息数据调用地图上的scripts/js/interact_python.js里面的var handle_command = function (command, param_1, param_2) 这个函数
+
+前端在Electron及Renderer，后端在api_server.py及backend目录下,数据库使用db/db.sqlite
+1.优化backend/modules/sns/ui_adapter.py，参考send_command_to_map函数的做法，把如下3个函数给完善一下，同样和前端scripts/js/interact_python.js里面的相应功能连接起来。
+2.优化backend/modules/sns/ai_social_engine_adapter.py，参考backend/modules/sns/xmpp_client.py，把receiveMessage,handle_receiveMessage及sendMessage重构一下,backend/modules/sns/xmpp_client.py里面接收到消息得传一份给receiveMessage

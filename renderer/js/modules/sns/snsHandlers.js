@@ -25,6 +25,7 @@ export default {
         this.initConfigButtons();
         this.initSNSActionBar();
         this.initMapReloadListener();
+        this.initSNSUpdateListener();
     },
 
     /**
@@ -33,6 +34,11 @@ export default {
     destroy() {
         // 清理事件监听器
         this.cleanupMapListeners();
+
+        // 移除 SNS 更新监听器
+        if (this.snsUpdateListener) {
+            window.removeEventListener('websocket-message', this.snsUpdateListener);
+        }
     },
 
     /**
@@ -736,5 +742,227 @@ export default {
                 document.body.removeChild(toast);
             }, 300);
         }, 3000);
+    },
+
+    /**
+     * 初始化SNS更新监听器（使用全局 WebSocket 事件）
+     */
+    initSNSUpdateListener() {
+        // 监听全局 WebSocket 消息事件
+        this.snsUpdateListener = (event) => {
+            const message = event.detail;
+            if (message.type === 'sns_update') {
+                console.log('SNS update received:', message);
+                this.handleSNSUpdate(message);
+            }
+        };
+
+        window.addEventListener('websocket-message', this.snsUpdateListener);
+        console.log('SNS update listener initialized');
+    },
+
+    /**
+     * 处理SNS更新消息
+     */
+    handleSNSUpdate(data) {
+        console.log('Handling SNS update:', data);
+        const { tab, content, section } = data;
+
+        if (tab === 'think') {
+            console.log('Updating Think tab with content:', content);
+            this.updateThinkTab(content);
+        } else if (tab === 'process') {
+            console.log('Updating Process tab with content:', content, 'section:', section);
+            this.updateProcessTab(content, section);
+        } else if (tab === 'resource') {
+            console.log('Updating Resource tab with content:', content);
+            this.updateResourceTab(content);
+        }
+    },
+
+    /**
+     * 更新Think页签内容
+     */
+    updateThinkTab(content) {
+        console.log('updateThinkTab called with content:', content);
+        // 找到Think页签的内容区域
+        const thinkPane = document.querySelector('.tab-pane[data-tab="think"]');
+        console.log('Think pane found:', thinkPane);
+        if (!thinkPane) return;
+
+        // 找到Thinking Log部分
+        let thinkingLogSection = thinkPane.querySelector('.status-section:nth-child(2) .status-rows');
+        console.log('Thinking log section found:', thinkingLogSection);
+        if (!thinkingLogSection) return;
+
+        // 创建新的内容元素
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'thinking-log-entry';
+        contentDiv.style.cssText = `
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            padding: 8px;
+            background: rgba(26, 115, 232, 0.05);
+            border-left: 3px solid #1a73e8;
+            margin-bottom: 8px;
+            border-radius: 4px;
+        `;
+        contentDiv.textContent = content;
+
+        // 如果是第一条内容，清除"N/A"
+        if (thinkingLogSection.querySelector('.na')) {
+            thinkingLogSection.innerHTML = '';
+        }
+
+        // 添加新内容
+        thinkingLogSection.appendChild(contentDiv);
+
+        // 滚动到底部
+        thinkingLogSection.scrollTop = thinkingLogSection.scrollHeight;
+        thinkingLogSection.scrollTop = thinkingLogSection.scrollHeight;
+    },
+
+    /**
+     * 更新Process页签内容
+     */
+    updateProcessTab(content, section = null) {
+        console.log('updateProcessTab called with content:', content, 'section:', section);
+        // 找到Process页签的内容区域
+        const processPane = document.querySelector('.tab-pane[data-tab="process"]');
+        console.log('Process pane found:', processPane);
+        if (!processPane) return;
+
+        // 如果指定了 section，只更新特定部分
+        if (section === 'ongoing') {
+            this.updateOnGoingSection(processPane, content);
+            return;
+        } else if (section === 'history') {
+            this.updateHistorySection(processPane, content);
+            return;
+        }
+
+        // 否则，解析内容并更新两个部分
+        const lines = content.split('\n');
+        let onGoingContent = '';
+        let processHistoryContent = '';
+        let currentSection = '';
+
+        for (const line of lines) {
+            if (line.includes('⏳ On Going')) {
+                currentSection = 'ongoing';
+                continue;
+            } else if (line.includes('📜 Process history')) {
+                currentSection = 'history';
+                continue;
+            }
+
+            if (currentSection === 'ongoing') {
+                onGoingContent += line + '\n';
+            } else if (currentSection === 'history') {
+                processHistoryContent += line + '\n';
+            }
+        }
+
+        if (onGoingContent.trim()) {
+            this.updateOnGoingSection(processPane, onGoingContent.trim());
+        }
+
+        if (processHistoryContent.trim()) {
+            this.updateHistorySection(processPane, processHistoryContent.trim());
+        }
+    },
+
+    /**
+     * 更新 On Going 部分
+     */
+    updateOnGoingSection(processPane, content) {
+        const onGoingSection = processPane.querySelector('.status-section:nth-child(3) .status-rows');
+        if (!onGoingSection) {
+            console.warn('On Going section not found');
+            return;
+        }
+
+        if (onGoingSection.querySelector('.na')) {
+            onGoingSection.innerHTML = '';
+        }
+
+        const onGoingDiv = document.createElement('div');
+        onGoingDiv.style.cssText = `
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        `;
+        onGoingDiv.textContent = content;
+        onGoingSection.innerHTML = '';
+        onGoingSection.appendChild(onGoingDiv);
+        console.log('On Going section updated');
+    },
+
+    /**
+     * 更新 Process History 部分
+     */
+    updateHistorySection(processPane, content) {
+        const historySection = processPane.querySelector('.status-section:nth-child(4) .status-rows');
+        if (!historySection) {
+            console.warn('History section not found');
+            return;
+        }
+
+        if (historySection.querySelector('.na')) {
+            historySection.innerHTML = '';
+        }
+
+        const historyDiv = document.createElement('div');
+        historyDiv.style.cssText = `
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        `;
+        historyDiv.textContent = content;
+        historySection.innerHTML = '';
+        historySection.appendChild(historyDiv);
+        console.log('History section updated');
+    },
+
+    /**
+     * 更新 Resource 页签内容
+     */
+    updateResourceTab(content) {
+        console.log('updateResourceTab called with content:', content);
+        // 找到Resource页签的内容区域
+        const resourcePane = document.querySelector('.tab-pane[data-tab="resource"]');
+        console.log('Resource pane found:', resourcePane);
+        if (!resourcePane) return;
+
+        // 找到第一个 status-section（Resource Overview）
+        const resourceSection = resourcePane.querySelector('.status-section:nth-child(1) .status-rows');
+        console.log('Resource section found:', resourceSection);
+        if (!resourceSection) return;
+
+        // 清除 N/A 标记
+        if (resourceSection.querySelector('.na')) {
+            resourceSection.innerHTML = '';
+        }
+
+        // 创建内容元素
+        const contentDiv = document.createElement('div');
+        contentDiv.style.cssText = `
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            max-height: 600px;
+            overflow-y: auto;
+        `;
+        contentDiv.textContent = content;
+
+        // 更新内容
+        resourceSection.innerHTML = '';
+        resourceSection.appendChild(contentDiv);
+        console.log('Resource tab updated successfully');
     }
 };
