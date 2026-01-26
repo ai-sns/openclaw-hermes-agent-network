@@ -111,6 +111,53 @@ function handleWebSocketMessage(data) {
     }
 }
 
+// 监听来自父窗口的 postMessage (Electron renderer)
+window.addEventListener('message', function(event) {
+    // 验证消息来源 - Electron 窗口可能来自 file:// 或其他协议
+    // 允许来自 Electron (file://, app://) 或本地服务器的消息
+    const allowedOrigins = [
+        'file://',
+        'http://localhost:8788',
+        'http://127.0.0.1:8788'
+    ];
+
+    const isAllowedOrigin = allowedOrigins.some(origin =>
+        event.origin === origin || event.origin.startsWith('file://')
+    );
+
+    if (!isAllowedOrigin && event.origin !== 'null') {
+        console.warn('Received message from unexpected origin:', event.origin);
+        return;
+    }
+
+    console.log('Received postMessage from parent window (Electron):', event.data);
+    console.log('Message origin:', event.origin);
+
+    // 处理不同类型的消息
+    if (event.data.type === 'init') {
+        console.log('Initialization message received:', event.data.data);
+
+        // 发送 "received" 确认消息回父窗口
+        const response = {
+            type: 'received',
+            data: {
+                message: 'Message received successfully',
+                originalType: event.data.type,
+                timestamp: Date.now()
+            }
+        };
+
+        // 对于 Electron，使用 '*' 作为 targetOrigin，因为 file:// 协议的限制
+        try {
+            event.source.postMessage(response, '*');
+            console.log('Sent "received" confirmation back to parent window (Electron)');
+        } catch (error) {
+            console.error('Error sending message back to parent:', error);
+        }
+    }
+    // 可以在这里添加处理其他类型消息的逻辑
+});
+
 document.addEventListener("DOMContentLoaded", function () {
     // 连接 WebSocket
     connectWebSocket();

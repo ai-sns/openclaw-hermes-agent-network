@@ -547,6 +547,9 @@ export default {
                 console.log('收到地图页面消息:', data);
 
                 switch (data.type) {
+                    case 'received':
+                        console.log('地图页面已确认收到消息:', data.data);
+                        break;
                     case 'locationUpdate':
                         this.handleLocationUpdate(data.data);
                         break;
