@@ -61,7 +61,14 @@ export default {
      * 销毁模块
      */
     destroy() {
+        console.log('[Web Module] Destroying...');
         WebPage.closeBrowserView();
         webHandlers.destroy();
+        
+        // Clean up sidebar state
+        const sidebarContainer = document.getElementById('secondarySidebar');
+        if (sidebarContainer) {
+            sidebarContainer.innerHTML = '';
+        }
     }
 };

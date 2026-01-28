@@ -9,6 +9,7 @@ __pycache__/
 db/*.backup_*
 
 .claude/
+.qoder/
 data/
 .idea/
 alembic/versions/*.py

@@ -76,8 +76,8 @@ const webHandlers = {
             this.webSidebar.llmExpanded = !this.webSidebar.toolExpanded;
         }
 
-        // Re-render sidebar
-        const sidebar = document.getElementById('secondarySidebar');
+        // Re-render sidebar - only update the web module's sidebar container
+        const sidebar = document.getElementById('sidebar-web');
         if (sidebar) {
             sidebar.innerHTML = this.webSidebar.render();
         }
@@ -202,7 +202,7 @@ const webHandlers = {
                         });
 
                         await this.webSidebar.loadData();
-                        const sidebar = document.getElementById('secondarySidebar');
+                        const sidebar = document.getElementById('sidebar-web');
                         if (sidebar) {
                             sidebar.innerHTML = this.webSidebar.render();
                         }
