@@ -400,6 +400,46 @@ class SNSService:
             logger.error(f"Error getting social roles: {e}")
             return []
 
+    async def get_social_role_by_id(self, role_id: int):
+        """Get a specific social role by ID"""
+        try:
+            stmt = select(Prompt).where(Prompt.id == role_id)
+            result = await self.db.execute(stmt)
+            prompt = result.scalar_one_or_none()
+            return prompt
+        except Exception as e:
+            logger.error(f"Error getting social role by ID: {e}")
+            return None
+
+    async def update_social_role(self, role_id: int, data: dict):
+        """Update a social role"""
+        try:
+            stmt = select(Prompt).where(Prompt.id == role_id)
+            result = await self.db.execute(stmt)
+            prompt = result.scalar_one_or_none()
+
+            if not prompt:
+                return {"success": False, "message": "Social role not found"}
+
+            # Update fields
+            if "title" in data:
+                prompt.title = data["title"]
+            if "content" in data:
+                prompt.content = data["content"]
+            if "question" in data:
+                prompt.question = data["question"]
+            if "tags" in data:
+                prompt.tags = data["tags"]
+
+            await self.db.commit()
+            await self.db.refresh(prompt)
+
+            return {"success": True, "message": "Social role updated successfully", "data": prompt}
+        except Exception as e:
+            await self.db.rollback()
+            logger.error(f"Error updating social role: {e}")
+            return {"success": False, "message": str(e)}
+
     async def get_user_info(self):
         """Get user information from aichat_cfg"""
         try:

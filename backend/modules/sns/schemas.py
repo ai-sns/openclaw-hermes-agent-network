@@ -101,7 +101,15 @@ class SocialRoleItem(BaseModel):
     id: int
     title: str
     content: str
+    question: Optional[str] = None
     tags: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class SocialRoleUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    question: Optional[str] = None
+    tags: Optional[str] = None

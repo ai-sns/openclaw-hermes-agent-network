@@ -16,7 +16,8 @@ from backend.modules.sns.schemas import (
     AIChatConfigUpdateRequest,
     Avatar3DItem,
     ProfessionItem,
-    SocialRoleItem
+    SocialRoleItem,
+    SocialRoleUpdateRequest
 )
 
 router = APIRouter()
@@ -184,6 +185,30 @@ async def get_social_roles(db: AsyncSession = Depends(get_db)):
     """Get social roles (prompts with SNS tag)"""
     service = SNSService(db)
     return await service.get_social_roles()
+
+
+@router.get("/social-roles/{role_id}", response_model=SocialRoleItem)
+async def get_social_role(role_id: int, db: AsyncSession = Depends(get_db)):
+    """Get a specific social role by ID"""
+    service = SNSService(db)
+    role = await service.get_social_role_by_id(role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Social role not found")
+    return role
+
+
+@router.put("/social-roles/{role_id}")
+async def update_social_role(
+    role_id: int,
+    request: SocialRoleUpdateRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a social role"""
+    service = SNSService(db)
+    result = await service.update_social_role(role_id, request.dict(exclude_unset=True))
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    return result
 
 
 @router.get("/user-info")
