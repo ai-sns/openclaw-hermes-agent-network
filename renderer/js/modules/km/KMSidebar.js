@@ -642,11 +642,17 @@ const KMSidebar = {
                 if (kbData) {
                     const created = await window.KMManagementDialog.createKB(kbData);
                     if (created) {
+                        // Refresh management interface
                         const kbsAll = await this.fetchAllKnowledgeBasesForManage();
                         const list = document.getElementById('kmManageList');
                         if (list) {
                             list.innerHTML = this.renderKMManageItems(kbsAll);
                         }
+                        
+                        // Refresh sidebar to show new KB immediately
+                        await this.reload();
+                        // Switch to the newly created KB
+                        this.switchKb(created.id);
                     }
                 }
             }

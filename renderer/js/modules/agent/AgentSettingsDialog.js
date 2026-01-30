@@ -740,6 +740,17 @@ const AgentSettingsDialog = {
                     await window.agentHandlers.loadAgentList();
                 }
 
+                // 如果是创建新agent，需要刷新管理界面
+                if (!isEdit) {
+                    console.log('[AgentSettingsDialog] 刷新管理界面以显示新创建的Agent');
+                    // 检查是否有打开的管理界面
+                    const agentManageList = document.getElementById('agentManageList');
+                    if (agentManageList && window.AgentSidebar && window.AgentSidebar.fetchAllAgentsForManage) {
+                        const agents = await window.AgentSidebar.fetchAllAgentsForManage();
+                        agentManageList.innerHTML = window.AgentSidebar.renderAgentManageItems(agents);
+                    }
+                }
+
                 // 如果是创建新agent，需要重新初始化多Agent系统
                 if (!isEdit && window.multiAgentHandlers && window.multiAgentHandlers.init) {
                     console.log('[AgentSettingsDialog] 创建了新Agent，重新初始化多Agent系统');

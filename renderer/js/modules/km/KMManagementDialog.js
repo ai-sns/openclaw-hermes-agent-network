@@ -69,7 +69,7 @@ const KMManagementDialog = {
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 100002;
+            z-index: 1000000;
             display: flex;
             align-items: center;
             justify-content: center;

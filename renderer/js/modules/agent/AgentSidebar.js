@@ -605,6 +605,18 @@ const AgentSidebar = {
     },
 
     async showAddAgentDialog() {
+        // Use AgentSettingsDialog for comprehensive agent creation
+        if (typeof AgentSettingsDialog !== 'undefined') {
+            console.log('[AgentSidebar] Using AgentSettingsDialog for agent creation');
+            await AgentSettingsDialog.show(null); // null indicates creating a new agent
+        } else {
+            console.error('[AgentSidebar] AgentSettingsDialog not available, falling back to simple dialog');
+            // Fallback to simple dialog if AgentSettingsDialog is not available
+            await this.showSimpleAddAgentDialog();
+        }
+    },
+
+    async showSimpleAddAgentDialog() {
         const dialogHTML = `
             <div class="web-manage-dialog-overlay" id="agentAddDialog">
                 <div class="web-edit-dialog">

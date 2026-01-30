@@ -1115,7 +1115,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: 1000001;
 }
 
 .modal {
@@ -7272,7 +7272,7 @@ body.theme-dark .form-select:focus {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
+    z-index: 1000001;
 }
 
 .modal-dialog {
