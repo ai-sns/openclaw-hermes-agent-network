@@ -166,6 +166,7 @@ class AISocialEngine(
         异步初始化方法
         用于在创建实例后进行额外的异步初始化
         """
+        logger.info("[Step-01],Init AISocialEngine...")
         logger.info("Async initializing AISocialEngine...")
         # 这里可以添加需要在 async 上下文中执行的初始化代码
         # 目前大部分初始化已经在 __init__ 中完成
@@ -238,7 +239,9 @@ class AISocialEngine(
         This is the backend-compatible version of the start() method
         """
         try:
+            logger.info("[Step-02],Start AISocialEngine...")
             logger.info("Starting AI Social Engine...")
+
 
             self.started_flag = True
             self.map_task_status = ""  # Reset to empty string to allow start_task() to execute
@@ -328,6 +331,7 @@ class AISocialEngine(
         This runs in the background when the engine is started
         """
         try:
+            logger.info("[Step-03],Start run_task_loop...")
             while self.started_flag:
                 # Process tasks here
                 # This is where you would implement the actual AI social engine logic
@@ -354,8 +358,10 @@ class AISocialEngine(
         }
 
     def start_task(self):
+        logger.info("[Step-04],Start Start_task...")
         self.started_flag = True
         if self.map_task_status == "":
+            print("[Info]:","map_task_status is blank")
             self.map_task_status = "started"
             # icon_path = "images/pause.png"  # 启动时更改为暂停图标
             # self.startButton.setText(QtCore.QCoreApplication.translate("MessageWidget", lt("Pause", "暂停"), None))
@@ -402,8 +408,8 @@ class AISocialEngine(
                 }
             ]
             self.taskmng.process_task(action="process_activity")
-
         elif self.map_task_status == "started":
+            print("[Info]:", "map_task_status is started")
             self.map_task_status = "paused"
             icon_path = "images/startcircle.png"  # 暂停时更改为启动图标
             # self.startButton.setText(QtCore.QCoreApplication.translate("MessageWidget", lt("Resume", "继续"), None))
@@ -412,6 +418,7 @@ class AISocialEngine(
             # self.humantakeoverCheckBox.setVisible(False)
             # self.show_status_on_map("standby")
         elif self.map_task_status == "paused":
+            print("[Info]:", "map_task_status is paused")
             self.map_task_status = "started"  # 从暂停状态继续
             icon_path = "images/pause.png"  # 继续时更改为暂停图标
             # self.startButton.setText(QtCore.QCoreApplication.translate("MessageWidget", lt("Pause", "暂停"), None))

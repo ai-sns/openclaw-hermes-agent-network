@@ -4,7 +4,8 @@ from db.DBFactory import query_single_map_task,update_map_task
 from i18n import lt
 from typing import  Dict, Any, Optional
 from util import generate_random_id
-
+import logging
+logger = logging.getLogger(__name__)
 
 class MapTaskManager:
     def __init__(self,parent):
@@ -432,9 +433,8 @@ class MapTaskManager:
 
 
     def process_task(self,**kwargs):
+        logger.info("[Step-05],Start process_task...")
         self.pause_and_wait_for_resume()
-
-
         self.kwargs = kwargs
         action_requested = kwargs.get("action", "")
         event = kwargs.get("event", "")
@@ -898,7 +898,7 @@ class MapTaskManager:
 
 
     def pause_and_wait_for_resume(self):
-        return True
+        pass
 
 
 
