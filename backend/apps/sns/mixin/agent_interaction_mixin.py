@@ -15,6 +15,54 @@ logger = logging.getLogger(__name__)
 
 class AgentInteractionMixin:
 
+    def get_agent_adapter(self) -> AgentAdapter:
+        agent_adapter = getattr(self, "agent_adapter", None)
+        if agent_adapter is None:
+            agent_adapter = AgentAdapter()
+            setattr(self, "agent_adapter", agent_adapter)
+        return agent_adapter
+
+    def get_agent_for_current_chat(self, *, command_status: Optional[str] = None):
+        agent_adapter = self.get_agent_adapter()
+
+        if hasattr(self.ai_chat_cfg, 'agent_id') and self.ai_chat_cfg.agent_id:
+            agent = agent_adapter.get_agent_for_ai_chat_cfg(self.ai_chat_cfg, command_status=command_status)
+            if not agent:
+                logger.error(f"Failed to load agent with ID: {self.ai_chat_cfg.agent_id}")
+                return None
+            self.agent = agent
+            return agent
+
+        logger.warning("No agent_id configured in ai_chat_cfg")
+        return None
+
+    async def chat_with_agent(
+        self,
+        message: str,
+        *,
+        conversation_suffix: str,
+        use_tools: bool,
+        use_memory: bool = False,
+        use_knowledge_base: bool = False,
+        command_status: Optional[str] = None,
+        agent=None,
+    ) -> str:
+        agent_adapter = self.get_agent_adapter()
+        if agent is None:
+            agent = self.get_agent_for_current_chat(command_status=command_status)
+        if agent is None:
+            raise RuntimeError("agent not configured for current user")
+
+        reply = await agent_adapter.chat(
+            agent=agent,
+            message=message,
+            conversation_id=agent_adapter.build_conversation_id(prefix="sns", suffix=conversation_suffix),
+            use_tools=use_tools,
+            use_memory=use_memory,
+            use_knowledge_base=use_knowledge_base,
+        )
+        return reply
+
     # a.请求agent指示
     async def ask_agent_and_get_instruction(self, question, system_role_prompt, type_flag="command"):
         if self.stopping_ai_process_flag:
@@ -42,18 +90,10 @@ ask_agent_and_get_instruction
 
         self.write_thinking_process_to_pane(title_str, content_str)
 
-        agent_adapter = getattr(self, "agent_adapter", None)
-        if agent_adapter is None:
-            agent_adapter = AgentAdapter()
-            setattr(self, "agent_adapter", agent_adapter)
+        agent_adapter = self.get_agent_adapter()
 
-        if hasattr(self.ai_chat_cfg, 'agent_id') and self.ai_chat_cfg.agent_id:
-            self.agent = agent_adapter.get_agent_for_ai_chat_cfg(self.ai_chat_cfg, command_status=command_status)
-            if not self.agent:
-                logger.error(f"Failed to load agent with ID: {self.ai_chat_cfg.agent_id}")
-                return
-        else:
-            logger.warning("No agent_id configured in ai_chat_cfg")
+        self.agent = self.get_agent_for_current_chat(command_status=command_status)
+        if not self.agent:
             return
 
         agent = self.agent

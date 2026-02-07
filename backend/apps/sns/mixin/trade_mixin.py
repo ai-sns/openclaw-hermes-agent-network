@@ -5,9 +5,6 @@ from backend.apps.sns.js_task_manager import JsTaskManager
 from backend.apps.sns.xmpp_client import XMPPClientManager
 from backend.modules.agent.agent_manager import agent_manager
 from backend.shared.websocket_manager import manager as websocket_manager
-from backend.apps.sns.adapter.agent_adapter import AgentAdapter
-from backend.database.repositories.system_repository import PluginMngRepository, FunctionMngRepository, McpMngRepository, SkillMngRepository
-from backend.modules.agent.tool_converter import ToolConverter
 
 # *********
 import os
@@ -43,6 +40,20 @@ import random
 logger = logging.getLogger(__name__)
 
 class TradeMixin:
+
+    def _parse_trade_payment(self, price_str: str):
+        trade_id = ""
+        trade_price = "0"
+
+        if price_str and "__AISNS_INT_SEPARATOR__" in price_str:
+            price_str = price_str.strip()
+            parts = price_str.split("__AISNS_INT_SEPARATOR__", 1)
+            trade_id = (parts[0] or "").strip()
+            trade_price = (parts[1] or "0").strip()
+        else:
+            trade_price = (price_str or "0").strip()
+
+        return trade_id, trade_price
 
     def get_guidance(self):
         user_list_stra = """
@@ -364,42 +375,51 @@ class TradeMixin:
             print(f"Tool trade sell error: {str(e)}")
 
     def handle_pay_received(self, price_str) -> None:
-        good_str = ""
-        trade_id = ""
         talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
-        if "__AISNS_INT_SEPARATOR__" in price_str:
-            price_str = price_str.strip()
-            trade_id = price_str.split("__AISNS_INT_SEPARATOR__")[0]
-            trade_price = price_str.split("__AISNS_INT_SEPARATOR__")[1]
+        trade_id, trade_price = self._parse_trade_payment(price_str)
 
-        self.current_trade_price = float(trade_price)
+        try:
+            self.current_trade_price = float(trade_price or 0)
+        except Exception:
+            self.current_trade_price = 0
 
         try:
             record = query_AiChatCfg_map()
             profession = record.profession
             handle_after_trade = record.handle_after_trade
             handle_content = record.handle_content
-            if profession == "doctor":
-                good_str = handle_content
-            elif profession == "driver":
-                good_str = handle_content
 
-            if profession == "seller":
-                good_str = handle_content
+            if profession in {"doctor", "driver", "seller"}:
+                self.handle_send_goods(handle_content, trade_id)
+                return
+
+            if handle_after_trade == "发送消息":
+                self.handle_send_goods(handle_content, trade_id)
+                return
+
+            tool_name = handle_content
+            what_to_do = "## 聊天记录 \n" + talk_history_str
+            tool_task = self.run_configured_tool_text_generation_sync(
+                tool_name,
+                what_to_do,
+                conversation_suffix="trade_delivery",
+            )
+
+            if isinstance(tool_task, asyncio.Task):
+                def _on_tool_done(t: asyncio.Task):
+                    try:
+                        result_text = t.result()
+                    except Exception as e:
+                        logger.error(f"ask agent to run tool before send goods failed: {e}", exc_info=True)
+                        result_text = f"工具执行失败: {str(e)}"
+                    try:
+                        self.handle_send_goods(result_text, trade_id)
+                    except Exception as e:
+                        logger.error(f"handle_send_goods failed after tool execution: {e}", exc_info=True)
+
+                tool_task.add_done_callback(_on_tool_done)
             else:
-                if handle_after_trade == "发送消息":
-                    good_str = handle_content
-                else:
-                    tool_name = handle_content
-                    what_to_do = "## 聊天记录 \n" + talk_history_str
-                    print("run tool:", handle_content)
-                    print("talk_history_str for run tool", talk_history_str)
-                    self.command_status = "run_tool_before_send_good"
-                    good_str = self.ask_agent_to_run_a_tool_sync(tool_name, what_to_do,trade_id)
-                    return
-
-            self.handle_send_goods(good_str, trade_id)
-
+                self.handle_send_goods(tool_task, trade_id)
 
         except Exception as e:
             print(f"Tool trade sell error: {str(e)}")
@@ -444,177 +464,6 @@ class TradeMixin:
             update_map_trade(trade_id, detail=goods_detail)
         except Exception as e:
             print(f"Tool trade sell error: {str(e)}")
-
-    def ask_agent_to_run_a_tool_sync(self,tool_name, what_to_do,trade_id):
-        try:
-            asyncio.create_task(self._ask_agent_to_run_a_tool_and_send_goods(tool_name, what_to_do, trade_id))
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(self._ask_agent_to_run_a_tool_and_send_goods(tool_name, what_to_do, trade_id))
-            finally:
-                loop.close()
-        return ""
-
-    async def _ask_agent_to_run_a_tool_and_send_goods(self, tool_name: str, what_to_do: str, trade_id: str):
-        try:
-            result_text = await self._ask_agent_to_use_configured_tool(tool_name, what_to_do)
-        except Exception as e:
-            logger.error(f"ask agent to run tool before send goods failed: {e}", exc_info=True)
-            result_text = f"工具执行失败: {str(e)}"
-
-        try:
-            self.handle_send_goods(result_text, trade_id)
-        except Exception as e:
-            logger.error(f"handle_send_goods failed after tool execution: {e}", exc_info=True)
-
-    async def _ask_agent_to_use_configured_tool(self, tool_name: str, what_to_do: str) -> str:
-        if not tool_name:
-            raise ValueError("tool_name is empty")
-
-        parts = tool_name.split(":")
-        if len(parts) < 2:
-            raise ValueError(f"invalid tool_name format: {tool_name}")
-
-        tool_type = (parts[0] or "").strip().lower()
-        tool_id = (parts[1] or "").strip()
-        mcp_tool_name = (parts[2] or "").strip() if len(parts) >= 3 else ""
-
-        if not tool_type or not tool_id:
-            raise ValueError(f"invalid tool_name format: {tool_name}")
-
-        if tool_type == "mcp" and not mcp_tool_name:
-            raise ValueError(f"invalid mcp tool_name format (expected mcp:mcp_id:tool_name): {tool_name}")
-
-        if tool_type not in {"plugin", "function", "skill", "mcp"}:
-            raise ValueError(f"unsupported tool type for trade delivery: {tool_type}")
-
-        # Build a single-tool OpenAI schema, then temporarily restrict agent tools to ONLY this tool.
-        tool_def = self._load_tool_def_for_agent(tool_type, tool_id, mcp_tool_name=mcp_tool_name)
-        if tool_def is None:
-            if tool_type == "mcp":
-                raise ValueError(f"tool not found: {tool_type}:{tool_id}:{mcp_tool_name}")
-            raise ValueError(f"tool not found: {tool_type}:{tool_id}")
-
-        agent_adapter = AgentAdapter()
-        agent = agent_adapter.get_agent_for_ai_chat_cfg(self.ai_chat_cfg)
-        if agent is None:
-            raise RuntimeError("agent not configured for current user")
-
-        original_db_tools = getattr(agent, "db_tools", None)
-        original_tools = getattr(agent, "tools", None)
-        original_tools_loaded = getattr(agent, "tools_loaded", None)
-
-        try:
-            agent.db_tools = [tool_def]
-            agent.tools = []
-            agent.tools_loaded = True
-
-            prompt = (
-                "你现在只能使用我提供给你的这一个工具来完成发货内容的生成。\n"
-                "你可以选择调用该工具，也可以选择不调用。\n"
-                "无论是否调用工具，都必须输出最终用于发货的文本内容，不要输出多余解释。\n\n"
-                f"上下文如下：\n{what_to_do}"
-            )
-
-            reply = await agent_adapter.chat(
-                agent=agent,
-                message=prompt,
-                conversation_id=agent_adapter.build_conversation_id(prefix="sns", suffix="trade_delivery"),
-                use_tools=True,
-                use_memory=False,
-                use_knowledge_base=False,
-            )
-
-            reply = (reply or "").strip()
-            if reply:
-                return reply
-            return "（未生成发货内容）"
-        finally:
-            agent.db_tools = original_db_tools
-            agent.tools = original_tools
-            agent.tools_loaded = original_tools_loaded
-
-    def _load_tool_def_for_agent(self, tool_type: str, tool_id: str, *, mcp_tool_name: str = "") -> Optional[dict]:
-        try:
-            if tool_type == "plugin":
-                repo = PluginMngRepository()
-                obj = repo.get_one(plugin_id=tool_id)
-                if not obj:
-                    return None
-                tool_dict = {
-                    "tool_type": "plugin",
-                    "plugin_id": getattr(obj, "plugin_id", tool_id),
-                    "name": getattr(obj, "name", ""),
-                    "description": getattr(obj, "description", ""),
-                    "instruction": getattr(obj, "instruction", ""),
-                    "parameter": getattr(obj, "parameter", "{}"),
-                }
-                return ToolConverter.plugin_to_openai(tool_dict)
-
-            if tool_type == "function":
-                repo = FunctionMngRepository()
-                obj = repo.get_one(function_id=tool_id)
-                if not obj:
-                    return None
-                tool_dict = {
-                    "tool_type": "function",
-                    "function_id": getattr(obj, "function_id", tool_id),
-                    "name": getattr(obj, "name", ""),
-                    "description": getattr(obj, "description", ""),
-                    "instruction": getattr(obj, "instruction", ""),
-                    "parameter": getattr(obj, "parameter", "{}"),
-                }
-                return ToolConverter.function_to_openai(tool_dict)
-
-            if tool_type == "skill":
-                repo = SkillMngRepository()
-                obj = repo.get_one(skill_id=tool_id)
-                if not obj:
-                    return None
-                tool_dict = {
-                    "tool_type": "skill",
-                    "skill_id": getattr(obj, "skill_id", tool_id),
-                    "name": getattr(obj, "name", ""),
-                    "description": getattr(obj, "description", ""),
-                    "instruction": getattr(obj, "instruction", ""),
-                    "parameter": getattr(obj, "parameter", "{}"),
-                }
-                return ToolConverter.skill_to_openai(tool_dict)
-
-            if tool_type == "mcp":
-                if not mcp_tool_name:
-                    return None
-
-                repo = McpMngRepository()
-                obj = repo.get_one(mcp_id=tool_id)
-                if not obj:
-                    return None
-
-                mcp_dict = {
-                    "tool_type": "mcp",
-                    "mcp_id": getattr(obj, "mcp_id", tool_id),
-                    "name": getattr(obj, "name", ""),
-                    "description": getattr(obj, "description", ""),
-                }
-
-                # We don't have per-tool schema stored in DB today, so provide a permissive schema.
-                tool_dict = {
-                    "name": mcp_tool_name,
-                    "description": f"Execute MCP tool '{mcp_tool_name}'",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {},
-                    },
-                }
-
-                return ToolConverter.mcp_to_openai(mcp_dict, tool_dict)
-
-        except Exception as e:
-            logger.error(f"load tool def failed: {tool_type}:{tool_id}: {e}", exc_info=True)
-            return None
-
-        return None
 
     def add_money(self, count):
         money = float(self.aichatcfg_record.money or 0) + count

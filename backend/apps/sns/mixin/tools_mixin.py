@@ -6,6 +6,9 @@ from backend.apps.sns.xmpp_client import XMPPClientManager
 from backend.modules.agent.agent_manager import agent_manager
 from backend.shared.websocket_manager import manager as websocket_manager
 
+from backend.database.repositories.system_repository import PluginMngRepository, FunctionMngRepository, McpMngRepository, SkillMngRepository
+from backend.modules.agent.tool_converter import ToolConverter
+
 # *********
 import os
 import math
@@ -137,6 +140,51 @@ class ToolsMixin:
             print(f"Error calling service: {e}")
             return None
 
+    def run_configured_tool_text_generation_sync(
+        self,
+        tool_name: str,
+        what_to_do: str,
+        *,
+        conversation_suffix: str = "configured_tool",
+    ):
+        try:
+            return asyncio.create_task(
+                self.generate_text_with_configured_tool(
+                    tool_name,
+                    what_to_do,
+                    conversation_suffix=conversation_suffix,
+                )
+            )
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            try:
+                return loop.run_until_complete(
+                    self.generate_text_with_configured_tool(
+                        tool_name,
+                        what_to_do,
+                        conversation_suffix=conversation_suffix,
+                    )
+                )
+            finally:
+                loop.close()
+
+    def ask_agent_to_run_a_tool_sync(self, tool_name: str, what_to_do: str):
+        return self.run_configured_tool_text_generation_sync(
+            tool_name,
+            what_to_do,
+            conversation_suffix="configured_tool",
+        )
+
+    async def _ask_agent_to_use_configured_tool(self, tool_name: str, what_to_do: str) -> str:
+        return await self.generate_text_with_configured_tool(
+            tool_name,
+            what_to_do,
+            conversation_suffix="configured_tool",
+        )
+
+    def _load_tool_def_for_agent(self, tool_type: str, tool_id: str, *, mcp_tool_name: str = "") -> Optional[dict]:
+        return self.load_openai_tool_def_for_agent(tool_type, tool_id, mcp_tool_name=mcp_tool_name)
+
     def handle_service_called_result(self, response_text):
         action_result = response_text
         self.action_result = action_result
@@ -145,3 +193,156 @@ class ToolsMixin:
         self.show_alert_on_map(action_result)
         ask_content = ""
         asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content))
+
+    async def generate_text_with_configured_tool(
+        self,
+        tool_name: str,
+        what_to_do: str,
+        *,
+        conversation_suffix: str = "configured_tool",
+    ) -> str:
+        if not tool_name:
+            raise ValueError("tool_name is empty")
+
+        parts = tool_name.split(":")
+        if len(parts) < 2:
+            raise ValueError(f"invalid tool_name format: {tool_name}")
+
+        tool_type = (parts[0] or "").strip().lower()
+        tool_id = (parts[1] or "").strip()
+        mcp_tool_name = (parts[2] or "").strip() if len(parts) >= 3 else ""
+
+        if not tool_type or not tool_id:
+            raise ValueError(f"invalid tool_name format: {tool_name}")
+
+        if tool_type == "mcp" and not mcp_tool_name:
+            raise ValueError(f"invalid mcp tool_name format (expected mcp:mcp_id:tool_name): {tool_name}")
+
+        if tool_type not in {"plugin", "function", "skill", "mcp"}:
+            raise ValueError(f"unsupported tool type: {tool_type}")
+
+        tool_def = self.load_openai_tool_def_for_agent(tool_type, tool_id, mcp_tool_name=mcp_tool_name)
+        if tool_def is None:
+            if tool_type == "mcp":
+                raise ValueError(f"tool not found: {tool_type}:{tool_id}:{mcp_tool_name}")
+            raise ValueError(f"tool not found: {tool_type}:{tool_id}")
+
+        agent = None
+        if hasattr(self, "get_agent_for_current_chat"):
+            agent = self.get_agent_for_current_chat()
+        if agent is None:
+            raise RuntimeError("agent not configured for current user")
+
+        original_db_tools = getattr(agent, "db_tools", None)
+        original_tools = getattr(agent, "tools", None)
+        original_tools_loaded = getattr(agent, "tools_loaded", None)
+
+        try:
+            agent.db_tools = [tool_def]
+            agent.tools = []
+            agent.tools_loaded = True
+
+            prompt = (
+                "你现在只能使用我提供给你的这一个工具来完成内容生成。\n"
+                "你可以选择调用该工具，也可以选择不调用。\n"
+                "无论是否调用工具，都必须输出最终文本内容，不要输出多余解释。\n\n"
+                f"上下文如下：\n{what_to_do}"
+            )
+
+            reply = await self.chat_with_agent(
+                prompt,
+                conversation_suffix=conversation_suffix,
+                use_tools=True,
+                use_memory=False,
+                use_knowledge_base=False,
+                agent=agent,
+            )
+
+            reply = (reply or "").strip()
+            if reply:
+                return reply
+            return "（未生成内容）"
+        finally:
+            agent.db_tools = original_db_tools
+            agent.tools = original_tools
+            agent.tools_loaded = original_tools_loaded
+
+    def load_openai_tool_def_for_agent(self, tool_type: str, tool_id: str, *, mcp_tool_name: str = "") -> Optional[dict]:
+        try:
+            if tool_type == "plugin":
+                repo = PluginMngRepository()
+                obj = repo.get_one(plugin_id=tool_id)
+                if not obj:
+                    return None
+                tool_dict = {
+                    "tool_type": "plugin",
+                    "plugin_id": getattr(obj, "plugin_id", tool_id),
+                    "name": getattr(obj, "name", ""),
+                    "description": getattr(obj, "description", ""),
+                    "instruction": getattr(obj, "instruction", ""),
+                    "parameter": getattr(obj, "parameter", "{}"),
+                }
+                return ToolConverter.plugin_to_openai(tool_dict)
+
+            if tool_type == "function":
+                repo = FunctionMngRepository()
+                obj = repo.get_one(function_id=tool_id)
+                if not obj:
+                    return None
+                tool_dict = {
+                    "tool_type": "function",
+                    "function_id": getattr(obj, "function_id", tool_id),
+                    "name": getattr(obj, "name", ""),
+                    "description": getattr(obj, "description", ""),
+                    "instruction": getattr(obj, "instruction", ""),
+                    "parameter": getattr(obj, "parameter", "{}"),
+                }
+                return ToolConverter.function_to_openai(tool_dict)
+
+            if tool_type == "skill":
+                repo = SkillMngRepository()
+                obj = repo.get_one(skill_id=tool_id)
+                if not obj:
+                    return None
+                tool_dict = {
+                    "tool_type": "skill",
+                    "skill_id": getattr(obj, "skill_id", tool_id),
+                    "name": getattr(obj, "name", ""),
+                    "description": getattr(obj, "description", ""),
+                    "instruction": getattr(obj, "instruction", ""),
+                    "parameter": getattr(obj, "parameter", "{}"),
+                }
+                return ToolConverter.skill_to_openai(tool_dict)
+
+            if tool_type == "mcp":
+                if not mcp_tool_name:
+                    return None
+
+                repo = McpMngRepository()
+                obj = repo.get_one(mcp_id=tool_id)
+                if not obj:
+                    return None
+
+                mcp_dict = {
+                    "tool_type": "mcp",
+                    "mcp_id": getattr(obj, "mcp_id", tool_id),
+                    "name": getattr(obj, "name", ""),
+                    "description": getattr(obj, "description", ""),
+                }
+
+                tool_dict = {
+                    "name": mcp_tool_name,
+                    "description": f"Execute MCP tool '{mcp_tool_name}'",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                    },
+                }
+
+                return ToolConverter.mcp_to_openai(mcp_dict, tool_dict)
+
+        except Exception as e:
+            logger.error(f"load tool def failed: {tool_type}:{tool_id}: {e}", exc_info=True)
+            return None
+
+        return None
