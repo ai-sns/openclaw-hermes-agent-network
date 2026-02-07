@@ -330,10 +330,33 @@ class ToolsMixin:
                     "description": getattr(obj, "description", ""),
                 }
 
+                tool_schema = None
+                parameter = getattr(obj, "parameter", None)
+                if parameter:
+                    try:
+                        param_data = json.loads(parameter) if isinstance(parameter, str) else parameter
+                        if isinstance(param_data, dict):
+                            tools_list = param_data.get("tools")
+                            if isinstance(tools_list, list):
+                                for t in tools_list:
+                                    if not isinstance(t, dict):
+                                        continue
+                                    if (t.get("name") or "").strip() == mcp_tool_name:
+                                        tool_schema = t
+                                        break
+                    except Exception as parse_error:
+                        logger.warning(f"解析MCP parameter失败: {parse_error}")
+
+                input_schema = None
+                if isinstance(tool_schema, dict):
+                    input_schema = tool_schema.get("inputSchema") or tool_schema.get("parameters")
+
                 tool_dict = {
                     "name": mcp_tool_name,
-                    "description": f"Execute MCP tool '{mcp_tool_name}'",
-                    "inputSchema": {
+                    "description": (tool_schema or {}).get("description") if isinstance(tool_schema, dict) else f"Execute MCP tool '{mcp_tool_name}'",
+                    "inputSchema": input_schema
+                    if isinstance(input_schema, dict)
+                    else {
                         "type": "object",
                         "properties": {},
                     },
