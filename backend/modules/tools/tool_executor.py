@@ -10,6 +10,7 @@ import logging
 import subprocess
 import asyncio
 import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -524,15 +525,8 @@ if 'main' in dir():
     async def _execute_javascript_file(self, file_path: str, params: dict) -> dict:
         """Execute JavaScript file using Node.js"""
         try:
-            # Check if node is available
-            which_process = await asyncio.create_subprocess_exec(
-                'which', 'node',
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-            await which_process.wait()
-
-            if which_process.returncode != 0:
+            # Check if node is available (cross-platform)
+            if not shutil.which('node'):
                 raise Exception("Node.js not found. Please install Node.js to execute JavaScript files.")
 
             # Prepare environment with UTF-8 encoding (for Windows compatibility)

@@ -7,6 +7,9 @@ const AgentToolsDialog = {
     // 存储当前所有选中的工具（跨标签页）
     currentSelections: new Set(),
 
+    // DocSkills selections (skill_key)
+    docSkillSelections: new Set(),
+
     /**
      * 打开对话框
      */
@@ -15,6 +18,7 @@ const AgentToolsDialog = {
 
         // 重置选择状态
         this.currentSelections.clear();
+        this.docSkillSelections.clear();
 
         // 移除已存在的对话框
         const existingDialog = document.getElementById('agentToolsDialog');
@@ -76,6 +80,14 @@ const AgentToolsDialog = {
                                 </svg>
                                 Computer Use
                             </button>
+
+                            <button class="tab-btn" data-tab="doc-skill">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M19 2H8c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 18H9V4h9v16z"/>
+                                    <path d="M7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h2V6z"/>
+                                </svg>
+                                Doc Skill
+                            </button>
                         </div>
 
                         <!-- 工具列表容器 -->
@@ -115,9 +127,10 @@ const AgentToolsDialog = {
     async loadData(agentId) {
         try {
             // 并行加载当前配置和可用工具
-            const [agentToolsResponse, allTools] = await Promise.all([
+            const [agentToolsResponse, allTools, agentDocSkillsResponse] = await Promise.all([
                 agentApi.getAgentTools(agentId),
-                this.loadAllTools()
+                this.loadAllTools(),
+                fetch(`http://127.0.0.1:8788/api/skills/agent/${agentId}/skills`).then(r => r.json())
             ]);
 
             // 提取实际的工具数组
@@ -135,6 +148,15 @@ const AgentToolsDialog = {
                 console.log('[AgentToolsDialog] Added to selections:', key);
             });
 
+            // 初始化 doc skills selections
+            this.docSkillSelections.clear();
+            const enabledSkillKeys = agentDocSkillsResponse?.data;
+            if (Array.isArray(enabledSkillKeys)) {
+                enabledSkillKeys.forEach(k => {
+                    if (k) this.docSkillSelections.add(String(k));
+                });
+            }
+
             console.log('[AgentToolsDialog] Initialized selections:', Array.from(this.currentSelections));
 
             // 保存数据到对话框
@@ -147,6 +169,8 @@ const AgentToolsDialog = {
             dialog.dataset.agentId = agentId;
             dialog.dataset.agentTools = JSON.stringify(agentTools);
             dialog.dataset.allTools = JSON.stringify(allTools);
+
+            dialog.dataset.agentDocSkills = JSON.stringify(Array.from(this.docSkillSelections));
 
             // 显示当前选中的插件
             this.renderTools('plugin', allTools.plugins || []);
@@ -161,18 +185,22 @@ const AgentToolsDialog = {
      */
     async loadAllTools() {
         try {
-            const [plugins, mcps, functions, skills] = await Promise.all([
+            const [plugins, mcps, functions, skills, docSkillsPayload] = await Promise.all([
                 fetch('http://localhost:8788/api/tools/plugins').then(r => r.json()),
                 fetch('http://localhost:8788/api/tools/mcp').then(r => r.json()),
                 fetch('http://localhost:8788/api/tools/functions').then(r => r.json()),
-                fetch('http://localhost:8788/api/tools/skills').then(r => r.json())
+                fetch('http://localhost:8788/api/tools/skills').then(r => r.json()),
+                fetch('http://127.0.0.1:8788/api/skills/list').then(r => r.json())
             ]);
+
+            const docSkills = docSkillsPayload?.data || [];
 
             return {
                 plugins: plugins || [],
                 mcps: mcps || [],
                 functions: functions || [],
-                skills: skills || []
+                skills: skills || [],
+                docSkills: docSkills
             };
         } catch (error) {
             console.error('[AgentToolsDialog] Failed to load all tools:', error);
@@ -180,7 +208,8 @@ const AgentToolsDialog = {
                 plugins: [],
                 mcps: [],
                 functions: [],
-                skills: []
+                skills: [],
+                docSkills: []
             };
         }
     },
@@ -201,15 +230,19 @@ const AgentToolsDialog = {
 
         // 创建工具项
         const toolsHTML = tools.map(tool => {
-            const toolId = tool.plugin_id || tool.mcp_id || tool.function_id || tool.skill_id;
+            const toolId = toolType === 'doc-skill'
+                ? (tool.skill_key || tool.skillKey || tool.name)
+                : (tool.plugin_id || tool.mcp_id || tool.function_id || tool.skill_id);
             const selectionKey = `${toolType}:${toolId}`;
-            const isSelected = this.currentSelections.has(selectionKey);
+            const isSelected = toolType === 'doc-skill'
+                ? this.docSkillSelections.has(String(toolId))
+                : this.currentSelections.has(selectionKey);
 
             console.log(`[AgentToolsDialog] Tool ${tool.name}: id=${toolId}, key=${selectionKey}, selected=${isSelected}`);
 
             const icon = this.getToolIcon(toolType);
-            const name = tool.name || 'Unnamed Tool';
-            const description = tool.description || tool.instruction || 'No description';
+            const name = tool.name || tool.skill_key || 'Unnamed Tool';
+            const description = tool.description || tool.instruction || (tool.eligible === false ? `Missing: ${(tool.missing || []).join(', ')}` : 'No description');
 
             return `
                 <div class="tool-item ${isSelected ? 'selected' : ''}" data-tool-id="${toolId}" data-tool-type="${toolType}">
@@ -240,7 +273,8 @@ const AgentToolsDialog = {
             plugin: '🔌',
             mcp: '🔗',
             function: '⚡',
-            skill: '🖥️'
+            skill: '🖥️',
+            'doc-skill': '📄'
         };
         return icons[toolType] || '🔧';
     },
@@ -323,7 +357,8 @@ const AgentToolsDialog = {
             plugin: allTools.plugins || [],
             mcp: allTools.mcps || [],
             function: allTools.functions || [],
-            skill: allTools.skills || []
+            skill: allTools.skills || [],
+            'doc-skill': allTools.docSkills || []
         };
 
         this.renderTools(tab, toolsMap[tab]);
@@ -365,11 +400,19 @@ const AgentToolsDialog = {
         const toolType = checkbox.dataset.toolType;
         const selectionKey = `${toolType}:${toolId}`;
 
-        // 更新currentSelections
-        if (checkbox.checked) {
-            this.currentSelections.add(selectionKey);
+        if (toolType === 'doc-skill') {
+            if (checkbox.checked) {
+                this.docSkillSelections.add(String(toolId));
+            } else {
+                this.docSkillSelections.delete(String(toolId));
+            }
         } else {
-            this.currentSelections.delete(selectionKey);
+            // 更新currentSelections
+            if (checkbox.checked) {
+                this.currentSelections.add(selectionKey);
+            } else {
+                this.currentSelections.delete(selectionKey);
+            }
         }
 
         console.log('[AgentToolsDialog] Selection changed:', selectionKey, checkbox.checked);
@@ -385,7 +428,7 @@ const AgentToolsDialog = {
     updateSelectedCount() {
         const countEl = document.getElementById('selectedCount');
         if (countEl) {
-            countEl.textContent = this.currentSelections.size;
+            countEl.textContent = (this.currentSelections.size + this.docSkillSelections.size);
         }
     },
 
@@ -409,6 +452,13 @@ const AgentToolsDialog = {
 
             // 调用API保存
             const result = await agentApi.updateAgentTools(agentId, tools);
+
+            // 保存 Doc Skills
+            await fetch(`http://127.0.0.1:8788/api/skills/agent/${agentId}/skills`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ skill_keys: Array.from(this.docSkillSelections) })
+            });
 
             console.log('[AgentToolsDialog] Save result:', result);
 

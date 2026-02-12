@@ -43,6 +43,9 @@ logger = logging.getLogger(__name__)
 # Tools module (必须加载)
 from backend.modules.tools.router import router as tools_router
 
+# DocSkill module (OpenClaw-style skills)
+from backend.modules.skills_registry.router import router as skills_registry_router
+
 # 其他模块（可选加载）
 agent_router = None
 llm_router = None
@@ -149,6 +152,10 @@ except Exception as e:
 # 优先注册 Tools 模块（必须可用）
 app.include_router(tools_router, prefix="/api/tools", tags=["Tools"])
 logger.info("✓ Tools Module registered")
+
+# 注册 DocSkills 模块
+app.include_router(skills_registry_router, prefix="/api/skills", tags=["Skills"])
+logger.info("✓ Skills Registry Module registered")
 
 # 注册其他模块（如果可用）
 if llm_router:

@@ -56,6 +56,17 @@ class AgentCfg(Base):
     create_time = Column(DateTime, default=datetime.now, doc="Create time")
 
 
+class AgentDocSkill(Base):
+    __tablename__ = 'agent_doc_skills'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    agent_id = Column(Integer, nullable=False)
+    skill_key = Column(String(200), nullable=False)
+    enabled = Column(Boolean, default=True)
+    priority = Column(Integer, default=0)
+    create_time = Column(DateTime, default=datetime.now)
+
+
 class AgentTask(Base):
     """Single agent task model."""
     __tablename__ = 'agent_task'

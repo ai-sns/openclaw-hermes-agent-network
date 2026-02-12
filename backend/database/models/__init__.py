@@ -1,5 +1,5 @@
 """Database models package."""
-from .agent import AgentCfg, AgentTask, AgentTaskMulti, MutiAgentCfg
+from .agent import AgentCfg, AgentDocSkill, AgentTask, AgentTaskMulti, MutiAgentCfg
 from .chat import AIChatMessages, AIFriend, AIChatInform, AiChatCfg, HumanChatCfg
 from .km import KMCfg, KMData, NoteMng
 from .map import (
@@ -15,7 +15,7 @@ from .system import (
 
 __all__ = [
     # Agent models
-    'AgentCfg', 'AgentTask', 'AgentTaskMulti', 'MutiAgentCfg',
+    'AgentCfg', 'AgentDocSkill', 'AgentTask', 'AgentTaskMulti', 'MutiAgentCfg',
 
     # Chat models
     'AIChatMessages', 'AIFriend', 'AIChatInform', 'AiChatCfg', 'HumanChatCfg',

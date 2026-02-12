@@ -7,6 +7,7 @@ import ToolsEditDialog from './ToolsEditDialog.js';
 const toolsHandlers = {
     currentCategory: 'tools-plugin',
     apiBaseUrl: 'http://127.0.0.1:8788/api/tools',
+    skillsApiBaseUrl: 'http://127.0.0.1:8788/api/skills',
     editDialog: null,
 
     // 分页状态
@@ -30,6 +31,55 @@ const toolsHandlers = {
         this.loadCategoryContent(this.currentCategory);
     },
 
+    showConfirmDialog({ title, message, confirmText = '确定', cancelText = '取消' }) {
+        return new Promise((resolve) => {
+            const dialogId = 'confirmDialog_' + Math.random().toString(16).slice(2);
+            const html = `
+                <div class="modal-overlay" id="${dialogId}">
+                    <div class="modal-dialog" style="max-width: 520px;">
+                        <div class="modal-header">
+                            <h2>${title || '确认操作'}</h2>
+                            <button class="modal-close doc-skill-modal__close" data-confirm-close="1">
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                    <line x1="18" y1="6" x2="6" y2="18"/>
+                                    <line x1="6" y1="6" x2="18" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="color: var(--text-primary); font-size: 14px; line-height: 1.7;">
+                            ${message || ''}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-confirm-cancel="1">${cancelText}</button>
+                            <button type="button" class="btn btn-primary" data-confirm-ok="1">${confirmText}</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.insertAdjacentHTML('beforeend', html);
+            const el = document.getElementById(dialogId);
+            if (!el) {
+                resolve(false);
+                return;
+            }
+
+            const cleanup = (val) => {
+                try { el.remove(); } catch (e) {}
+                resolve(val);
+            };
+
+            el.addEventListener('click', (e) => {
+                const t = e.target;
+                if (!t) return;
+                if (t.id === dialogId) return cleanup(false);
+                if (t.closest('[data-confirm-close]')) return cleanup(false);
+                if (t.closest('[data-confirm-cancel]')) return cleanup(false);
+                if (t.closest('[data-confirm-ok]')) return cleanup(true);
+            });
+        });
+    },
+
     async loadConfig() {
         try {
             // 从API获取系统配置
@@ -42,6 +92,86 @@ const toolsHandlers = {
             }
         } catch (error) {
             console.log('Failed to load config, using default page size:', this.pageSize);
+        }
+    },
+
+    showDocSkillRunDialog(skillKey) {
+        const html = `
+            <div class="modal-overlay" id="docSkillRunDialog">
+                <div class="modal-dialog test-result-dialog" style="max-width: 760px; max-height: 85vh; overflow: auto;">
+                    <div class="modal-header">
+                        <h2>Run Doc Skill - ${skillKey}</h2>
+                        <button class="modal-close doc-skill-modal__close" onclick="document.getElementById('docSkillRunDialog').remove()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="margin-bottom: 10px; color: var(--text-secondary); font-size: 13px;">
+                            输入参数（JSON），将作为请求体传给 /api/skills/${skillKey}/run。
+                        </div>
+                        <textarea id="docSkillRunParamsEditor" style="width: 100%; min-height: 240px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.4; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px;"></textarea>
+                    </div>
+                    <div class="modal-footer" style="display:flex; justify-content:flex-end; gap: 8px; padding: 12px 16px;">
+                        <button type="button" class="btn btn-primary" id="docSkillRunBtn">运行</button>
+                        <button type="button" class="btn" onclick="document.getElementById('docSkillRunDialog').remove()">取消</button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        const editor = document.getElementById('docSkillRunParamsEditor');
+        if (editor) {
+            editor.value = "{}";
+        }
+
+        const runBtn = document.getElementById('docSkillRunBtn');
+        if (runBtn) {
+            runBtn.addEventListener('click', async () => {
+                const editor = document.getElementById('docSkillRunParamsEditor');
+                const raw = editor ? editor.value : '';
+
+                let params = {};
+                try {
+                    params = raw && raw.trim() ? JSON.parse(raw) : {};
+                } catch (e) {
+                    this.showMessage('参数 JSON 解析失败: ' + e.message, 'error');
+                    return;
+                }
+                if (params === null || typeof params !== 'object' || Array.isArray(params)) {
+                    this.showMessage('参数必须是 JSON Object（例如 {}）', 'error');
+                    return;
+                }
+
+                runBtn.disabled = true;
+                const originalText = runBtn.textContent;
+                runBtn.textContent = '运行中...';
+
+                try {
+                    const response = await fetch(`${this.skillsApiBaseUrl}/${encodeURIComponent(skillKey)}/run`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(params)
+                    });
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(text || `HTTP error! status: ${response.status}`);
+                    }
+                    const result = await response.json();
+                    document.getElementById('docSkillRunDialog')?.remove();
+                    this.showTestResult(result.result || result);
+                } catch (e) {
+                    console.error('Run doc-skill error:', e);
+                    this.showMessage('运行失败: ' + e.message, 'error');
+                } finally {
+                    runBtn.disabled = false;
+                    runBtn.textContent = originalText;
+                }
+            });
         }
     },
 
@@ -126,6 +256,9 @@ const toolsHandlers = {
                 case 'computer-use':
                     endpoint = '/skills';
                     break;
+                case 'doc-skill':
+                    endpoint = '/list';
+                    break;
                 default:
                     pluginGrid.innerHTML = '<div class="empty-state">未知分类</div>';
                     return;
@@ -133,11 +266,13 @@ const toolsHandlers = {
 
             // 从API加载数据（只在首次加载时获取）
             if (offset === 0 || this.currentData.length === 0) {
-                const response = await fetch(`${this.apiBaseUrl}${endpoint}`);
+                const baseUrl = category === 'doc-skill' ? this.skillsApiBaseUrl : this.apiBaseUrl;
+                const response = await fetch(`${baseUrl}${endpoint}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                this.currentData = await response.json();
+                const payload = await response.json();
+                this.currentData = category === 'doc-skill' ? (payload?.data || []) : payload;
             }
 
             console.log(`Loaded ${this.currentData.length} total items for ${category}`);
@@ -202,24 +337,63 @@ const toolsHandlers = {
     },
 
     renderToolCard(tool, category) {
-        const id = tool.plugin_id || tool.mcp_id || tool.function_id || tool.skill_id || '';
+        const id = tool.plugin_id || tool.mcp_id || tool.function_id || tool.skill_id || tool.skill_key || '';
         const name = tool.name || 'Unnamed Tool';
         const description = tool.description || 'No description available';
         const type = this.getCategoryDisplayName(category);
 
-        const statusLabel = tool.confirm_needed ? 'Confirm Required' : 'Active';
-        const statusClass = tool.confirm_needed ? 'author-official--confirm' : 'author-official--active';
+        const statusLabel = category === 'doc-skill'
+            ? (tool.eligible ? 'Eligible' : 'Missing')
+            : (tool.confirm_needed ? 'Confirm Required' : 'Active');
+        const statusClass = category === 'doc-skill'
+            ? (tool.eligible ? 'author-official--active' : 'author-official--confirm')
+            : (tool.confirm_needed ? 'author-official--confirm' : 'author-official--active');
 
         const categoryIconMap = {
             'tools-plugin': 'extension',
             'mcp': 'dns',
             'function': 'functions',
-            'computer-use': 'desktop_windows'
+            'computer-use': 'desktop_windows',
+            'doc-skill': 'school'
         };
         const iconName = categoryIconMap[category] || 'construction';
 
         const instructionLabel = tool.instruction || name;
-        const filePath = tool.file_path || '';
+        const filePath = tool.file_path || tool.location || '';
+
+        const actionsHTML = category === 'doc-skill'
+            ? `
+                <div class="plugin-actions tools-card-ref__actions">
+                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="运行">
+                        <span class="material-icons-round">play_arrow</span>
+                        Run
+                    </button>
+                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="编辑 SKILL.md">
+                        <span class="material-icons-round">edit</span>
+                        Edit
+                    </button>
+                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="删除（仅 workspace skills/）">
+                        <span class="material-icons-round">delete</span>
+                        Delete
+                    </button>
+                </div>
+            `
+            : `
+                <div class="plugin-actions tools-card-ref__actions">
+                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="测试运行">
+                        <span class="material-icons-round">play_arrow</span>
+                        Test
+                    </button>
+                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="编辑">
+                        <span class="material-icons-round">edit</span>
+                        Edit
+                    </button>
+                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="删除">
+                        <span class="material-icons-round">delete</span>
+                        Delete
+                    </button>
+                </div>
+            `;
 
         return `
             <div class="plugin-card tool-card tools-card-ref" data-id="${id}" data-category="${category}">
@@ -255,20 +429,7 @@ const toolsHandlers = {
                         ` : ''}
                     </div>
                 ` : ''}
-                <div class="plugin-actions tools-card-ref__actions">
-                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="测试运行">
-                        <span class="material-icons-round">play_arrow</span>
-                        Test
-                    </button>
-                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="编辑">
-                        <span class="material-icons-round">edit</span>
-                        Edit
-                    </button>
-                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="删除">
-                        <span class="material-icons-round">delete</span>
-                        Delete
-                    </button>
-                </div>
+                ${actionsHTML}
             </div>
         `;
     },
@@ -328,6 +489,11 @@ const toolsHandlers = {
     },
 
     async testTool(id, category, btn) {
+        if (category === 'doc-skill') {
+            this.showDocSkillRunDialog(id);
+            return;
+        }
+
         // 显示运行中状态
         const originalText = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-small"></span> 运行中...';
@@ -348,9 +514,13 @@ const toolsHandlers = {
                 case 'computer-use':
                     endpoint = `/skills/${id}/execute`;
                     break;
+                case 'doc-skill':
+                    endpoint = `/${id}/run`;
+                    break;
             }
 
-            const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
+            const baseUrl = category === 'doc-skill' ? this.skillsApiBaseUrl : this.apiBaseUrl;
+            const response = await fetch(`${baseUrl}${endpoint}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -407,6 +577,17 @@ const toolsHandlers = {
 
     async editTool(id, category) {
         try {
+            if (category === 'doc-skill') {
+                const response = await fetch(`${this.skillsApiBaseUrl}/read?skill_key=${encodeURIComponent(id)}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch SKILL.md');
+                }
+                const payload = await response.json();
+                const markdown = payload?.data?.markdown || '';
+                this.showDocSkillMarkdown(id, markdown);
+                return;
+            }
+
             // 获取工具数据
             let endpoint = '';
             switch(category) {
@@ -444,6 +625,32 @@ const toolsHandlers = {
     },
 
     async deleteTool(id, category) {
+        if (category === 'doc-skill') {
+            const ok = await this.showConfirmDialog({
+                title: '删除 Doc Skill',
+                message: '确定要删除这个 Doc Skill 吗？（仅支持删除 workspace 下 skills/ 目录中的技能）',
+                confirmText: '删除',
+                cancelText: '取消'
+            });
+            if (!ok) return;
+
+            try {
+                const response = await fetch(`${this.skillsApiBaseUrl}/delete?skill_key=${encodeURIComponent(id)}`, {
+                    method: 'DELETE'
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || `删除失败: ${response.status}`);
+                }
+                this.showMessage('删除成功', 'success');
+                await this.loadCategoryContent(category);
+            } catch (error) {
+                console.error('Delete doc-skill error:', error);
+                this.showMessage('删除失败: ' + error.message, 'error');
+            }
+            return;
+        }
+
         if (!confirm('确定要删除这个工具吗？')) return;
 
         try {
@@ -480,6 +687,10 @@ const toolsHandlers = {
     },
 
     showAddDialog(category) {
+        if (category === 'doc-skill') {
+            this.showMessage('Doc Skills 暂不支持在界面新建/导入（后续会加导入/刷新）', 'info');
+            return;
+        }
         this.editDialog.show(category, null, () => {
             this.loadCategoryContent(category);
         });
@@ -490,9 +701,71 @@ const toolsHandlers = {
             'tools-plugin': 'Plugin',
             'mcp': 'MCP',
             'function': 'Function',
-            'computer-use': 'Computer Use'
+            'computer-use': 'Computer Use',
+            'doc-skill': 'Doc Skill'
         };
         return names[category] || category;
+    },
+
+    showDocSkillMarkdown(skillKey, markdown) {
+        const html = `
+            <div class="modal-overlay" id="docSkillMarkdownDialog">
+                <div class="modal-dialog test-result-dialog" style="max-width: 900px; max-height: 90vh; overflow: auto;">
+                    <div class="modal-header">
+                        <h2>SKILL.md - ${skillKey}</h2>
+                        <button class="modal-close doc-skill-modal__close" onclick="document.getElementById('docSkillMarkdownDialog').remove()">
+                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <textarea id="docSkillMarkdownEditor" style="width: 100%; min-height: 60vh; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.4; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;"></textarea>
+                    </div>
+                    <div class="modal-footer" style="display:flex; justify-content:flex-end; gap: 8px; padding: 12px 16px;">
+                        <button type="button" class="btn btn-primary" id="docSkillSaveBtn">保存</button>
+                        <button type="button" class="btn" onclick="document.getElementById('docSkillMarkdownDialog').remove()">关闭</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', html);
+
+        const editor = document.getElementById('docSkillMarkdownEditor');
+        if (editor) {
+            editor.value = markdown || '';
+        }
+
+        const saveBtn = document.getElementById('docSkillSaveBtn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const editor = document.getElementById('docSkillMarkdownEditor');
+                const newMd = editor ? editor.value : '';
+                saveBtn.disabled = true;
+                const originalText = saveBtn.textContent;
+                saveBtn.textContent = '保存中...';
+                try {
+                    const resp = await fetch(`${this.skillsApiBaseUrl}/edit`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ skill_key: skillKey, markdown: newMd })
+                    });
+                    if (!resp.ok) {
+                        const text = await resp.text();
+                        throw new Error(text || `保存失败: ${resp.status}`);
+                    }
+                    this.showMessage('保存成功', 'success');
+                    await this.loadCategoryContent('doc-skill');
+                } catch (e) {
+                    console.error('Save doc-skill error:', e);
+                    this.showMessage('保存失败: ' + e.message, 'error');
+                } finally {
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
+                }
+            });
+        }
     },
 
     getToolIcon(category) {

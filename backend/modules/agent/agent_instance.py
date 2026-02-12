@@ -115,6 +115,8 @@ class AgentInstance:
         """获取系统提示词"""
         base_prompt = self.role_config.get('system_prompt', 'You are a helpful AI assistant.')
 
+        prompt = base_prompt
+
         # 如果Agent有工具，添加工具使用指导
         if self.db_tools or self.tools:
             tool_guidance = """
@@ -122,13 +124,23 @@ class AgentInstance:
 IMPORTANT Tool Usage Guidelines:
 - You have access to tools that can perform actions (screenshots, calculations, weather queries, etc.)
 - When a user requests an action that matches an available tool, ALWAYS call the tool first
-- DO NOT say "I cannot" or "I don't have the ability" if a matching tool exists
+- DO NOT say \"I cannot\" or \"I don't have the ability\" if a matching tool exists
 - Wait for tool results before providing your final answer
 - Base your response on the actual tool execution results, not assumptions"""
 
-            return base_prompt + tool_guidance
+            prompt += tool_guidance
 
-        return base_prompt
+        # Inject DocSkill list (agent-filtered)
+        try:
+            from backend.modules.skills_registry.service import get_docskills_service
+
+            skills_prompt = get_docskills_service().build_prompt_for_agent(self.agent_id)
+            if skills_prompt:
+                prompt += skills_prompt
+        except Exception:
+            pass
+
+        return prompt
 
     def get_model_name(self) -> str:
         """获取模型名称"""
@@ -316,6 +328,46 @@ IMPORTANT Tool Usage Guidelines:
                 except Exception as e:
                     logger.error(f"准备工具schema失败: {e}")
 
+        # 3. Ensure read_skill is available when DocSkills are enabled (safe SKILL.md reader)
+        try:
+            signature = tool_executor.get_tool_signature('read_skill')
+            if signature:
+                existing_names = {
+                    (t.get('function') or {}).get('name')
+                    for t in tools_schema
+                    if isinstance(t, dict)
+                }
+                if signature.get('name') not in existing_names:
+                    tools_schema.append({"type": "function", "function": signature})
+        except Exception:
+            pass
+
+        # 4. Ensure run_doc_skill is available (DocSkill runner)
+        try:
+            existing_names = {
+                (t.get('function') or {}).get('name')
+                for t in tools_schema
+                if isinstance(t, dict)
+            }
+            if 'run_doc_skill' not in existing_names:
+                tools_schema.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_doc_skill",
+                        "description": "Run a DocSkill by skill_key using its declared runner, returning structured execution result.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "skill_key": {"type": "string", "description": "DocSkill skill_key"},
+                                "params": {"type": "object", "description": "Optional params passed to the runner", "additionalProperties": True},
+                            },
+                            "required": ["skill_key"],
+                        },
+                    },
+                })
+        except Exception:
+            pass
+
         logger.info(f"准备了 {len(tools_schema)} 个工具用于LLM调用")
         return tools_schema
 
@@ -331,6 +383,41 @@ IMPORTANT Tool Usage Guidelines:
             工具执行结果
         """
         try:
+            if tool_name in ('run_doc_skill', 'read_skill'):
+                try:
+                    from backend.modules.skills_registry.service import get_docskills_service
+
+                    requested_key = str((tool_args or {}).get('skill_key') or '').strip()
+                    if requested_key:
+                        enabled_keys = get_docskills_service().get_agent_skill_keys(self.agent_id)
+                        if requested_key not in set(enabled_keys or []):
+                            if tool_name == 'run_doc_skill':
+                                return json.dumps(
+                                    {"success": False, "error": f"DocSkill not enabled for agent: {requested_key}"},
+                                    ensure_ascii=False,
+                                )
+                            return f"Error: DocSkill not enabled for agent: {requested_key}"
+                except Exception:
+                    # Fail open for unexpected errors to avoid breaking non-docskill usage.
+                    pass
+
+            if tool_name == 'run_doc_skill':
+                try:
+                    from backend.modules.skills_registry.service import get_docskills_service
+
+                    skill_key = str((tool_args or {}).get('skill_key') or '').strip()
+                    params = (tool_args or {}).get('params')
+                    if not isinstance(params, dict):
+                        params = {}
+                    if not skill_key:
+                        return json.dumps({"success": False, "error": "skill_key is required"}, ensure_ascii=False)
+
+                    res = await get_docskills_service().run_skill(skill_key, params)
+                    return json.dumps(res, ensure_ascii=False)
+                except Exception as e:
+                    logger.error(f"run_doc_skill failed: {e}", exc_info=True)
+                    return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
             # 检查是否是代码执行请求
             if tool_name == 'execute_python_code' and self.code_executor:
                 code = tool_args.get('code', '')
@@ -459,55 +546,62 @@ IMPORTANT Tool Usage Guidelines:
             assistant_message = response.choices[0].message
 
             # 处理工具调用
+            reply = assistant_message.content or ""
             if use_tools and assistant_message.tool_calls:
-                # 收集工具调用结果
-                tool_messages = []
-                for tool_call in assistant_message.tool_calls:
-                    tool_name = tool_call.function.name
-                    tool_args = json.loads(tool_call.function.arguments)
+                # allow multi-round tool chaining (e.g. read_skill -> run_doc_skill)
+                max_rounds = 5
+                current_assistant_message = assistant_message
 
-                    logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
-                    tool_result = await self._execute_tool(tool_name, tool_args)
+                for _ in range(max_rounds):
+                    if not (use_tools and current_assistant_message.tool_calls):
+                        break
 
-                    # 格式化工具结果，使其对LLM更友好
-                    formatted_result = self._format_tool_result(tool_result)
+                    tool_messages = []
+                    tool_calls_payload = []
+                    for tc in current_assistant_message.tool_calls:
+                        tool_name = tc.function.name
+                        tool_args = json.loads(tc.function.arguments)
 
-                    tool_messages.append({
-                        'role': 'tool',
-                        'tool_call_id': tool_call.id,
-                        'name': tool_name,
-                        'content': formatted_result
-                    })
+                        logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
+                        tool_result = await self._execute_tool(tool_name, tool_args)
 
-                # 添加assistant消息和工具消息，再次调用LLM
-                # 清空第一次的文本内容，避免否定性回复影响上下文
-                messages.append({
-                    'role': 'assistant',
-                    'content': None,
-                    'tool_calls': [
-                        {
+                        formatted_result = self._format_tool_result(tool_result)
+                        tool_messages.append({
+                            'role': 'tool',
+                            'tool_call_id': tc.id,
+                            'name': tool_name,
+                            'content': formatted_result
+                        })
+                        tool_calls_payload.append({
                             'id': tc.id,
                             'type': 'function',
                             'function': {
                                 'name': tc.function.name,
                                 'arguments': tc.function.arguments
                             }
-                        } for tc in assistant_message.tool_calls
-                    ]
-                })
-                messages.extend(tool_messages)
+                        })
 
-                # 再次调用LLM获取最终回复
-                response = await self.client.chat.completions.create(
-                    model=self.get_model_name(),
-                    messages=messages,
-                    temperature=self.get_temperature(),
-                    max_tokens=self.get_max_tokens()
-                )
+                    messages.append({
+                        'role': 'assistant',
+                        'content': None,
+                        'tool_calls': tool_calls_payload
+                    })
+                    messages.extend(tool_messages)
 
-                reply = response.choices[0].message.content or ""
-            else:
-                reply = assistant_message.content or ""
+                    tools_schema = self._prepare_tools_schema() if use_tools else []
+                    kwargs2 = {
+                        'model': self.get_model_name(),
+                        'messages': messages,
+                        'temperature': self.get_temperature(),
+                        'max_tokens': self.get_max_tokens()
+                    }
+                    if use_tools and tools_schema:
+                        kwargs2['tools'] = tools_schema
+                        kwargs2['tool_choice'] = 'auto'
+
+                    response2 = await self.client.chat.completions.create(**kwargs2)
+                    current_assistant_message = response2.choices[0].message
+                    reply = current_assistant_message.content or ""
 
             # 保存到memory
             if use_memory:
@@ -637,7 +731,7 @@ IMPORTANT Tool Usage Guidelines:
                         idx = tc_delta.index
                         if idx not in tool_calls_accumulator:
                             tool_calls_accumulator[idx] = {
-                                'id': tc_delta.id or '',
+                                'id': tc_delta.id or f'tc_{idx}',
                                 'type': 'function',
                                 'function': {'name': '', 'arguments': ''}
                             }
@@ -649,56 +743,81 @@ IMPORTANT Tool Usage Guidelines:
                             if tc_delta.function.arguments:
                                 tool_calls_accumulator[idx]['function']['arguments'] += tc_delta.function.arguments
 
-            # 如果有工具调用，执行工具并获取最终回复
+            # 如果有工具调用，执行工具并获取最终回复（允许多轮工具链）
             if use_tools and tool_calls_accumulator:
-                logger.info(f"检测到 {len(tool_calls_accumulator)} 个工具调用")
+                max_rounds = 5
+                round_idx = 0
+                pending_tool_calls = tool_calls_accumulator
 
-                # 执行工具
-                tool_messages = []
-                for tc_data in tool_calls_accumulator.values():
-                    tool_name = tc_data['function']['name']
-                    tool_args = json.loads(tc_data['function']['arguments'])
+                while use_tools and pending_tool_calls and round_idx < max_rounds:
+                    logger.info(f"检测到 {len(pending_tool_calls)} 个工具调用")
 
-                    logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
-                    tool_result = await self._execute_tool(tool_name, tool_args)
-                    logger.info(f"[AgentInstance] 工具执行结果: {tool_result[:500] if len(str(tool_result)) > 500 else tool_result}")
+                    tool_messages = []
+                    for tc_data in pending_tool_calls.values():
+                        tool_name = tc_data['function']['name']
+                        tool_args = json.loads(tc_data['function']['arguments'])
 
-                    # 格式化工具结果，使其对LLM更友好
-                    formatted_result = self._format_tool_result(tool_result)
+                        logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
+                        tool_result = await self._execute_tool(tool_name, tool_args)
+                        logger.info(f"[AgentInstance] 工具执行结果: {tool_result[:500] if len(str(tool_result)) > 500 else tool_result}")
 
-                    tool_messages.append({
-                        'role': 'tool',
-                        'tool_call_id': tc_data['id'],
-                        'name': tool_name,
-                        'content': formatted_result
+                        formatted_result = self._format_tool_result(tool_result)
+                        tool_messages.append({
+                            'role': 'tool',
+                            'tool_call_id': tc_data['id'],
+                            'name': tool_name,
+                            'content': formatted_result
+                        })
+
+                    messages.append({
+                        'role': 'assistant',
+                        'content': None,
+                        'tool_calls': list(pending_tool_calls.values())
                     })
+                    messages.extend(tool_messages)
 
-                # 添加assistant消息和工具消息
-                # 注意：如果第一次LLM生成了否定性内容（如"我没有能力..."），
-                # 这会影响第二次调用的上下文。为了避免这个问题，在有工具调用时，
-                # 我们清空第一次的文本内容，只保留工具调用和工具结果。
-                messages.append({
-                    'role': 'assistant',
-                    'content': None,  # 清空第一次的文本内容，避免否定性回复影响上下文
-                    'tool_calls': list(tool_calls_accumulator.values())
-                })
-                messages.extend(tool_messages)
+                    # ask model again, still allowing tools
+                    kwargs_final = {
+                        'model': self.get_model_name(),
+                        'messages': messages,
+                        'temperature': self.get_temperature(),
+                        'max_tokens': self.get_max_tokens(),
+                        'stream': True
+                    }
+                    if use_tools and tools:
+                        kwargs_final['tools'] = tools
+                        kwargs_final['tool_choice'] = 'auto'
 
-                # 再次调用LLM获取最终回复（流式）
-                final_stream = await self.client.chat.completions.create(
-                    model=self.get_model_name(),
-                    messages=messages,
-                    temperature=self.get_temperature(),
-                    max_tokens=self.get_max_tokens(),
-                    stream=True
-                )
+                    final_stream = await self.client.chat.completions.create(**kwargs_final)
 
-                full_reply = ""
-                async for chunk in final_stream:
-                    if chunk.choices and chunk.choices[0].delta.content:
-                        content = chunk.choices[0].delta.content
-                        full_reply += content
-                        yield content
+                    full_reply = ""
+                    pending_tool_calls = {}
+                    async for chunk in final_stream:
+                        if not chunk.choices:
+                            continue
+                        delta = chunk.choices[0].delta
+                        if delta.content:
+                            content = delta.content
+                            full_reply += content
+                            yield content
+                        if use_tools and delta.tool_calls:
+                            for tc_delta in delta.tool_calls:
+                                idx = tc_delta.index
+                                if idx not in pending_tool_calls:
+                                    pending_tool_calls[idx] = {
+                                        'id': tc_delta.id or f'tc_{round_idx}_{idx}',
+                                        'type': 'function',
+                                        'function': {'name': '', 'arguments': ''}
+                                    }
+                                if tc_delta.id:
+                                    pending_tool_calls[idx]['id'] = tc_delta.id
+                                if tc_delta.function:
+                                    if tc_delta.function.name:
+                                        pending_tool_calls[idx]['function']['name'] = tc_delta.function.name
+                                    if tc_delta.function.arguments:
+                                        pending_tool_calls[idx]['function']['arguments'] += tc_delta.function.arguments
+
+                    round_idx += 1
 
             # 保存到memory
             if use_memory:

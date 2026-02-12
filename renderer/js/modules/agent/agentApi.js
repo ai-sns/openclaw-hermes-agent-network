@@ -670,7 +670,7 @@ const agentApi = {
             return await response.json();
         } catch (error) {
             console.error('获取Agent工具失败:', error);
-            return { success: false, data: { tools: [] } };
+            return { success: false, data: { agent_id: agentId, tools: [] } };
         }
     },
 
@@ -682,7 +682,7 @@ const agentApi = {
             const response = await fetch(`http://localhost:8788/api/agent/${agentId}/tools`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(tools)
+                body: JSON.stringify({ tools })
             });
             return await response.json();
         } catch (error) {
@@ -701,38 +701,6 @@ const agentApi = {
         } catch (error) {
             console.error('获取可用工具失败:', error);
             return { success: false, data: {} };
-        }
-    },
-
-    /**
-     * 获取Agent已配置的工具
-     */
-    async getAgentTools(agentId) {
-        try {
-            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/tools`);
-            return await response.json();
-        } catch (error) {
-            console.error('获取Agent工具配置失败:', error);
-            return [];
-        }
-    },
-
-    /**
-     * 更新Agent的工具配置
-     */
-    async updateAgentTools(agentId, tools) {
-        try {
-            const response = await fetch(`http://localhost:8788/api/agent/${agentId}/tools`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ tools })
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('更新Agent工具配置失败:', error);
-            throw error;
         }
     },
 

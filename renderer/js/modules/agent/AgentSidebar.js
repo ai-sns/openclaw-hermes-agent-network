@@ -104,17 +104,17 @@ const AgentSidebar = {
             <div class="agent-item" data-agent-id="${agent.id}">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!-- 头部 -->
-  <rect x="3" y="6" width="18" height="14" rx="2" stroke="#5f6368" stroke-width="2"/>
+  <rect x="3" y="6" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
   <!-- 天线 -->
-  <line x1="12" y1="6" x2="12" y2="3" stroke="#5f6368" stroke-width="2"/>
-  <circle cx="12" cy="2" r="1.5" fill="#5f6368"/>
+  <line x1="12" y1="6" x2="12" y2="3" stroke="currentColor" stroke-width="2"/>
+  <circle cx="12" cy="2" r="1.5" fill="currentColor"/>
   <!-- 眼睛 -->
-  <circle cx="8.5" cy="11.5" r="1.5" fill="#5f6368"/>
-  <circle cx="15.5" cy="11.5" r="1.5" fill="#5f6368"/>
-  <!-- 嘴巴 (修改部分) -->
-  <!-- 原来是直线 M9 16H15，现在改为弧线 -->
-  <path d="M9 15 Q12 18 15 15" stroke="#5f6368" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="8.5" cy="11.5" r="1.5" fill="currentColor"/>
+  <circle cx="15.5" cy="11.5" r="1.5" fill="currentColor"/>
+  <!-- 嘴巴 -->
+  <path d="M9 15 Q12 18 15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 </svg>
+
                 <span>${agent.name || 'Unnamed Agent'}</span>
             </div>
 
