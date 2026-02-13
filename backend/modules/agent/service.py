@@ -46,6 +46,7 @@ class AgentService:
                 "id": agent.id,
                 "name": agent.name,
                 "description": extra_data.get('description', ''),
+                "agent_type": extra_data.get('agent_type', 'local'),
                 "model": getattr(agent, 'defaultmodel', 'gpt-4'),
                 "model_config_id": extra_data.get('model_config_id', ''),
                 "role_id": extra_data.get('role_id', ''),
@@ -69,6 +70,7 @@ class AgentService:
         # 将新字段打包到 memo 中
         extra_data = {
             'description': kwargs.get('description', ''),
+            'agent_type': kwargs.get('agent_type', 'local'),
             'model_config_id': kwargs.get('model_config_id', ''),
             'role_id': kwargs.get('role_id', ''),
             'url': kwargs.get('url', ''),
@@ -169,6 +171,7 @@ class AgentService:
             "id": agent.id,
             "name": agent.name,
             "description": extra_data.get('description', ''),
+            "agent_type": extra_data.get('agent_type', 'local'),
             "model": getattr(agent, 'defaultmodel', 'gpt-4'),
             "model_config_id": extra_data.get('model_config_id', ''),
             "role_id": extra_data.get('role_id', ''),
@@ -220,7 +223,7 @@ class AgentService:
             agent.is_show = kwargs['is_active']
 
         # 更新 memo 中的额外字段
-        for key in ['description', 'url', 'version', 'protocol_version', 'capabilities',
+        for key in ['description', 'agent_type', 'url', 'version', 'protocol_version', 'capabilities',
                     'skills', 'default_input_modes', 'default_output_modes', 'security_schemes',
                     'provider_organization', 'provider_url', 'documentation_url',
                     'icon_url', 'wallet_address', 'model_config_id', 'role_id']:

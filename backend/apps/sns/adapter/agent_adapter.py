@@ -4,9 +4,14 @@ This file is intended as the customization point for how SNS talks to the Agent 
 """
 
 import logging
-from typing import Optional, Callable, Dict, Any
+import json
+from typing import Optional, Callable, Dict, Any, Tuple
+
+import httpx
 
 from backend.modules.agent.agent_manager import agent_manager
+from backend.database.base import get_session
+from backend.database.models.agent import AgentCfg
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +76,144 @@ class AgentAdapter:
         if str(agent_identifier).isdigit():
             return agent_manager.get_agent_by_id(int(agent_identifier))
         return agent_manager.get_agent_by_name(str(agent_identifier))
+
+    def _is_remote_agent_type(self, agent_type: str) -> bool:
+        t = str(agent_type or '').strip().lower()
+        return t in {'remote', 'remoteagent', 'remote_agent', 'remote agent', 'remote-agent'}
+
+    def _normalize_a2a_rpc_url(self, url: str) -> str:
+        u = str(url or '').strip()
+        if not u:
+            return ''
+        if u.endswith('/rpc'):
+            return u
+        if u.endswith('/'):
+            return u + 'rpc'
+        return u + '/rpc'
+
+    def _load_agent_type_and_url(self, agent_identifier: str) -> Tuple[str, str]:
+        identifier = str(agent_identifier or '').strip()
+        if not identifier:
+            return 'local', ''
+
+        db = get_session()
+        try:
+            row = None
+            if identifier.isdigit():
+                row = db.query(AgentCfg).filter(
+                    AgentCfg.id == int(identifier),
+                    AgentCfg.is_delete == False,
+                ).first()
+            else:
+                row = db.query(AgentCfg).filter(
+                    AgentCfg.name == identifier,
+                    AgentCfg.is_delete == False,
+                ).first()
+
+            if not row:
+                return 'local', ''
+
+            extra_data = {}
+            try:
+                if row.memo:
+                    extra_data = json.loads(row.memo)
+            except Exception:
+                extra_data = {}
+
+            return str(extra_data.get('agent_type') or 'local'), str(extra_data.get('url') or '')
+        finally:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    def _extract_text_from_a2a_message(self, message_obj: dict) -> str:
+        if not isinstance(message_obj, dict):
+            return ''
+        parts = message_obj.get('parts')
+        if not isinstance(parts, list):
+            return ''
+        texts = []
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+
+            t = part.get('text')
+            if isinstance(t, str) and t:
+                texts.append(t)
+                continue
+
+            data = part.get('data')
+            if not isinstance(data, dict):
+                continue
+            choices = data.get('choices')
+            if not isinstance(choices, list) or not choices:
+                continue
+            choice0 = choices[0]
+            if not isinstance(choice0, dict):
+                continue
+
+            msg = choice0.get('message')
+            if isinstance(msg, dict):
+                c = msg.get('content')
+                if isinstance(c, str) and c:
+                    texts.append(c)
+                    continue
+
+            delta = choice0.get('delta')
+            if isinstance(delta, dict):
+                c = delta.get('content')
+                if isinstance(c, str) and c:
+                    texts.append(c)
+                    continue
+
+        return ''.join(texts)
+
+    async def _remote_send_message(self, *, rpc_url: str, text: str, context_id: str) -> str:
+        rpc_url = self._normalize_a2a_rpc_url(rpc_url)
+        if not rpc_url:
+            return 'Error: A2A Endpoint URL is empty'
+
+        payload = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'SendMessage',
+            'params': {
+                'stream': False,
+                'message': {
+                    'contextId': context_id,
+                    'parts': [{'text': text}]
+                }
+            }
+        }
+
+        timeout = httpx.Timeout(60.0, read=60.0)
+        try:
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                resp = await client.post(
+                    rpc_url,
+                    json=payload,
+                    headers={'Content-Type': 'application/json'},
+                )
+        except httpx.TimeoutException:
+            return 'Error: Remote agent timeout'
+        except httpx.HTTPError as e:
+            return f'Error: Remote agent network error: {str(e)}'
+
+        if resp.status_code >= 400:
+            return f'Error: Remote agent error: HTTP {resp.status_code}: {resp.text[:500]}'
+
+        try:
+            data = resp.json()
+        except Exception:
+            return f'Error: Remote agent returned non-JSON response: {resp.text[:500]}'
+
+        if isinstance(data, dict) and data.get('error'):
+            return f"Error: Remote agent RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}"
+
+        result = data.get('result') if isinstance(data, dict) else None
+        message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+        return self._extract_text_from_a2a_message(message_obj or {})
 
     def get_agent_identifier_for_command_status(self, *, command_status: str, ai_chat_cfg=None) -> Optional[str]:
         resolver = self._command_status_agent_resolvers.get(command_status)
@@ -168,6 +311,24 @@ class AgentAdapter:
         use_memory: bool = False,
         use_knowledge_base: bool = False,
     ):
+        agent_type, rpc_url = self._load_agent_type_and_url(str(getattr(agent, 'agent_id', '') or ''))
+        if self._is_remote_agent_type(agent_type):
+            system_prompt = ''
+            try:
+                rc = getattr(agent, 'role_config', None)
+                if isinstance(rc, dict):
+                    system_prompt = str(rc.get('system_prompt') or '').strip()
+            except Exception:
+                system_prompt = ''
+
+            send_text = message
+            if system_prompt:
+                send_text = system_prompt + "\n\n" + message
+            return await self._remote_send_message(
+                rpc_url=rpc_url,
+                text=send_text,
+                context_id=conversation_id or 'sns',
+            )
         kwargs = {
             "message": message,
             "conversation_id": conversation_id,

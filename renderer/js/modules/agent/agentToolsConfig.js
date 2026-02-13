@@ -15,6 +15,18 @@ document.addEventListener('click', function(e) {
         const agentId = configBtn.dataset.agentId;
         console.log('[AgentToolsConfig] Opening tools dialog for agent:', agentId);
 
+        const page = document.getElementById(`page-agent-${agentId}`);
+        const agentType = (page && page.dataset && page.dataset.agentType) ? String(page.dataset.agentType).toLowerCase() : '';
+        if (agentType === 'remote') {
+            const msg = 'This feature is not available for Remote agents.';
+            if (typeof Notification !== 'undefined' && Notification.error) {
+                Notification.error(msg);
+            } else {
+                alert(msg);
+            }
+            return;
+        }
+
         // 打开工具配置对话框
         if (window.AgentToolsDialog) {
             window.AgentToolsDialog.open(agentId);

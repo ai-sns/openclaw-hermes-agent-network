@@ -12,6 +12,9 @@ class AgentConfig(BaseModel):
     name: str
     description: Optional[str] = ""
 
+    # Agent type
+    agent_type: Optional[str] = "local"  # local|remote
+
     # LLM Configuration
     model_config_id: Optional[str] = None  # Reference to LLM config
     model: Optional[str] = "gpt-4"
@@ -65,6 +68,7 @@ class AgentResponse(BaseModel):
     id: int
     name: str
     description: Optional[str] = ""
+    agent_type: Optional[str] = "local"
     model: Optional[str] = "gpt-4"
     model_config_id: Optional[str] = None
     role_id: Optional[str] = None
@@ -77,6 +81,9 @@ class AgentUpdateConfig(BaseModel):
     """Agent update configuration model - all fields are optional"""
     name: Optional[str] = None
     description: Optional[str] = None
+
+    # Agent type
+    agent_type: Optional[str] = None
 
     # LLM Configuration
     model_config_id: Optional[str] = None

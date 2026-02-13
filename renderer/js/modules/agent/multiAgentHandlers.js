@@ -64,6 +64,21 @@ const multiAgentHandlers = {
         console.log('[MultiAgentHandlers] 多Agent系统初始化完成');
     },
 
+    forceActivateSettingsTabForAgent(agentId, targetTab) {
+        if (!agentId || !targetTab) return;
+
+        const tabs = document.querySelectorAll(`.settings-tab[data-agent-id="${agentId}"]`);
+        const panes = document.querySelectorAll(`#settingsTabContent-${agentId} .tab-pane`);
+
+        tabs.forEach(t => t.classList.remove('active'));
+        panes.forEach(p => p.classList.remove('active'));
+
+        const tab = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="${targetTab}"]`);
+        const pane = document.querySelector(`#settingsTabContent-${agentId} .tab-pane[data-tab="${targetTab}"]`);
+        if (tab) tab.classList.add('active');
+        if (pane) pane.classList.add('active');
+    },
+
     async downloadAndOpenAttachment(conversationId, attachmentId, filename) {
         try {
             if (window.electronAPI && typeof window.electronAPI.downloadAndOpen === 'function') {
@@ -81,6 +96,179 @@ const multiAgentHandlers = {
             if (typeof Notification !== 'undefined' && Notification.error) {
                 Notification.error(`打开附件失败: ${e && e.message ? e.message : String(e)}`);
             }
+        }
+    },
+
+    normalizeA2ARpcUrl(url) {
+        const u = String(url || '').trim();
+        if (!u) return '';
+
+        const normalized = u.endsWith('/') ? u.slice(0, -1) : u;
+        if (normalized.endsWith('/rpc')) {
+            return normalized;
+        }
+
+        return normalized + '/rpc';
+    },
+
+    isRemoteAgentType(agentType) {
+        const t = String(agentType || 'local').toLowerCase();
+        return t === 'remote' || t === 'remote agent' || t === 'remote_agent';
+    },
+
+    isRemoteAgentById(agentId) {
+        const page = document.getElementById(`page-agent-${agentId}`);
+        if (page && page.dataset && page.dataset.agentType) {
+            return String(page.dataset.agentType).toLowerCase() === 'remote';
+        }
+
+        try {
+            const agents = (agentState && typeof agentState.getAgents === 'function') ? agentState.getAgents() : [];
+            const a = (agents || []).find(x => String(x.id) === String(agentId));
+            return this.isRemoteAgentType(a && a.agent_type);
+        } catch (e) {
+            return false;
+        }
+    },
+
+    notifyRemoteAgentFeatureUnavailable(message) {
+        const msg = message || 'This feature is not available for Remote agents.';
+        if (typeof Notification !== 'undefined' && Notification.error) {
+            Notification.error(msg);
+        } else {
+            alert(msg);
+        }
+    },
+
+    extractTextFromA2AResponse(rpcResponse) {
+        if (!rpcResponse) {
+            throw new Error('A2A 响应为空');
+        }
+
+        if (rpcResponse.error) {
+            const msg = rpcResponse.error.message || JSON.stringify(rpcResponse.error);
+            throw new Error(msg);
+        }
+
+        const result = rpcResponse.result;
+        if (!result) {
+            throw new Error('A2A 响应缺少 result');
+        }
+
+        const message = result?.status?.message;
+
+        if (typeof message === 'string') {
+            return message;
+        }
+
+        const parts = message?.parts;
+        if (Array.isArray(parts) && parts.length > 0) {
+            const texts = parts
+                .filter(p => p && p.type === 'text' && typeof p.text === 'string')
+                .map(p => p.text);
+            if (texts.length > 0) {
+                return texts.join('');
+            }
+        }
+
+        const history = result?.history;
+        if (Array.isArray(history) && history.length > 0) {
+            const last = history[history.length - 1];
+            const lastParts = last?.parts;
+            if (Array.isArray(lastParts) && lastParts.length > 0) {
+                const texts = lastParts
+                    .filter(p => p && p.type === 'text' && typeof p.text === 'string')
+                    .map(p => p.text);
+                if (texts.length > 0) {
+                    return texts.join('');
+                }
+            }
+        }
+
+        return JSON.stringify(result);
+    },
+
+    applyRemoteUiDisableForAgent(agentId, isRemote) {
+        const page = document.getElementById(`page-agent-${agentId}`);
+        if (page) {
+            page.dataset.agentType = isRemote ? 'remote' : 'local';
+        }
+
+        const modelSelector = document.getElementById(`modelSelector-${agentId}`);
+        if (modelSelector) {
+            modelSelector.disabled = !!isRemote;
+        }
+
+        const roleSelector = document.getElementById(`roleSelector-${agentId}`);
+        if (roleSelector) {
+            roleSelector.disabled = !!isRemote;
+        }
+
+        const configToolsBtn = document.querySelector(`.config-tools-btn[data-agent-id="${agentId}"]`);
+        if (configToolsBtn) {
+            configToolsBtn.disabled = false;
+            if (isRemote) {
+                configToolsBtn.style.opacity = '0.6';
+                configToolsBtn.style.cursor = 'not-allowed';
+                configToolsBtn.setAttribute('aria-disabled', 'true');
+            } else {
+                configToolsBtn.style.opacity = '';
+                configToolsBtn.style.cursor = '';
+                configToolsBtn.removeAttribute('aria-disabled');
+            }
+        }
+
+        document.querySelectorAll(`button.toolbar-icon-btn[data-agent-id="${agentId}"]`).forEach(btn => {
+            const title = (btn.getAttribute('title') || '').trim();
+            if (title === '配置知识库' || title === '附件') {
+                btn.disabled = false;
+                if (isRemote) {
+                    btn.style.opacity = '0.6';
+                    btn.style.cursor = 'not-allowed';
+                    btn.setAttribute('aria-disabled', 'true');
+                } else {
+                    btn.style.opacity = '';
+                    btn.style.cursor = '';
+                    btn.removeAttribute('aria-disabled');
+                }
+            }
+        });
+
+        document.querySelectorAll(`.settings-tab[data-agent-id="${agentId}"]`).forEach(tab => {
+            const t = (tab.dataset.tab || '').toLowerCase();
+            if (t === 'param' || t === 'prompt' || t === 'file') {
+                tab.disabled = !!isRemote;
+            }
+        });
+
+        const tabContent = document.getElementById(`settingsTabContent-${agentId}`);
+        if (tabContent) {
+            tabContent.querySelectorAll(`.tab-pane`).forEach(pane => {
+                const t = (pane.dataset.tab || '').toLowerCase();
+                if (t === 'param' || t === 'prompt' || t === 'file') {
+                    if (isRemote) {
+                        pane.style.opacity = '0.6';
+
+                        pane.querySelectorAll('input, textarea, select').forEach(el => {
+                            el.disabled = true;
+                        });
+
+                        pane.querySelectorAll('button').forEach(el => {
+                            if (el.classList && el.classList.contains('file-upload-btn')) {
+                                el.disabled = false;
+                            } else {
+                                el.disabled = true;
+                            }
+                        });
+                    } else {
+                        pane.style.opacity = '';
+
+                        pane.querySelectorAll('input, textarea, select, button').forEach(el => {
+                            el.disabled = false;
+                        });
+                    }
+                }
+            });
         }
     },
 
@@ -606,6 +794,12 @@ const multiAgentHandlers = {
             const attachBtn = e.target.closest('.toolbar-icon-btn[title="附件"][data-agent-id]');
             if (attachBtn) {
                 const agentId = parseInt(attachBtn.dataset.agentId);
+                if (this.isRemoteAgentById(agentId)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.notifyRemoteAgentFeatureUnavailable('Attachments are not available for Remote agents.');
+                    return;
+                }
                 this.openAttachmentPicker(agentId);
             }
         });
@@ -614,6 +808,12 @@ const multiAgentHandlers = {
             const uploadBtn = e.target.closest('.file-upload-btn[data-agent-id]');
             if (uploadBtn) {
                 const agentId = parseInt(uploadBtn.dataset.agentId);
+                if (this.isRemoteAgentById(agentId)) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.notifyRemoteAgentFeatureUnavailable('Attachments are not available for Remote agents.');
+                    return;
+                }
                 this.openAttachmentPicker(agentId);
             }
         });
@@ -676,6 +876,10 @@ const multiAgentHandlers = {
     },
 
     openAttachmentPicker(agentId) {
+        if (this.isRemoteAgentById(agentId)) {
+            this.notifyRemoteAgentFeatureUnavailable('Attachments are not available for Remote agents.');
+            return;
+        }
         const input = document.createElement('input');
         input.type = 'file';
         input.multiple = true;
@@ -975,6 +1179,9 @@ const multiAgentHandlers = {
             return;
         }
 
+        const agentType = String(currentAgent.agent_type || 'local').toLowerCase();
+        const isRemoteAgent = this.isRemoteAgentType(agentType);
+
         console.log('[MultiAgentHandlers] 使用Agent发送消息:', currentAgent.name, 'ID:', agentId);
 
         // 禁用发送按钮
@@ -1072,6 +1279,16 @@ const multiAgentHandlers = {
 
         // 发起流式请求 - 使用Agent专属接口
         try {
+            if (isRemoteAgent) {
+                if (!currentAgent.url) {
+                    throw new Error('Remote agent 未配置 A2A 端点 URL');
+                }
+
+                if (attachments && attachments.length > 0) {
+                    throw new Error('Remote agent 暂不支持附件');
+                }
+            }
+
             // 准备回调函数（绑定agentId）
             const callbacks = {
                 onData: (content) => {
@@ -1303,6 +1520,15 @@ const multiAgentHandlers = {
             const agentResponse = await fetch(`http://localhost:8788/api/agent/${agentId}`);
             const agentResult = await agentResponse.json();
             const currentAgent = agentResult.success ? agentResult.data : null;
+            const agentType = String(currentAgent?.agent_type || 'local').toLowerCase();
+            if (this.isRemoteAgentType(agentType)) {
+                this.applyRemoteUiDisableForAgent(agentId, true);
+                modelSelector.innerHTML = '<option value="">Remote agent</option>';
+                modelSelector.disabled = true;
+                return;
+            }
+
+            this.applyRemoteUiDisableForAgent(agentId, false);
             const currentModelConfigId = currentAgent?.model_config_id || currentAgent?.model;
 
             // 2. 获取所有模型配置
@@ -1371,6 +1597,15 @@ const multiAgentHandlers = {
             const agentResponse = await fetch(`http://localhost:8788/api/agent/${agentId}`);
             const agentResult = await agentResponse.json();
             const currentAgent = agentResult.success ? agentResult.data : null;
+            const agentType = String(currentAgent?.agent_type || 'local').toLowerCase();
+            if (this.isRemoteAgentType(agentType)) {
+                this.applyRemoteUiDisableForAgent(agentId, true);
+                roleSelector.innerHTML = '<option value="">Remote agent</option>';
+                roleSelector.disabled = true;
+                return;
+            }
+
+            this.applyRemoteUiDisableForAgent(agentId, false);
             const currentRoleId = currentAgent?.role_id;
 
             // 2. 获取所有角色配置
@@ -1936,14 +2171,8 @@ const multiAgentHandlers = {
 
         // 移除页签按钮
         const tabButton = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="plugin-${pluginId}"]`);
+        const wasActive = !!(tabButton && tabButton.classList.contains('active'));
         if (tabButton) {
-            // 如果当前页签是激活状态，切换到 Param 页签
-            if (tabButton.classList.contains('active')) {
-                const paramTab = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="param"]`);
-                if (paramTab) {
-                    paramTab.click();
-                }
-            }
             tabButton.remove();
         }
 
@@ -1951,6 +2180,18 @@ const multiAgentHandlers = {
         const tabPane = document.querySelector(`#settingsTabContent-${agentId} .tab-pane[data-tab="plugin-${pluginId}"]`);
         if (tabPane) {
             tabPane.remove();
+        }
+
+        if (wasActive) {
+            const paramTab = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="param"]`);
+            if (paramTab) {
+                this.forceActivateSettingsTabForAgent(agentId, 'param');
+            } else {
+                const anyTab = document.querySelector(`#settingsTabs-${agentId} .settings-tab`);
+                if (anyTab && anyTab.dataset && anyTab.dataset.tab) {
+                    this.forceActivateSettingsTabForAgent(agentId, anyTab.dataset.tab);
+                }
+            }
         }
 
         if (typeof Notification !== 'undefined') {

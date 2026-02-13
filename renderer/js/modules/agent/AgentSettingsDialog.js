@@ -83,6 +83,7 @@ const AgentSettingsDialog = {
         const data = agent || {
             name: '',
             description: '',
+            agent_type: 'local',
             model_config_id: '',
             role_id: '',
             url: '',
@@ -101,6 +102,10 @@ const AgentSettingsDialog = {
             default_input_modes: ['text'],
             default_output_modes: ['text']
         };
+
+        const isEdit = agent !== null;
+        const agentType = (data.agent_type || 'local').toLowerCase();
+        const agentTypeLocked = isEdit && agentType === 'remote';
 
         return `
             <div class="agent-settings-form" id="${this.formId}">
@@ -124,6 +129,14 @@ const AgentSettingsDialog = {
                     </div>
 
                     <div class="form-group">
+                        <label>Agent Type *</label>
+                        <select class="form-input" id="agentType" ${agentTypeLocked ? 'disabled' : ''}>
+                            <option value="local" ${agentType === 'local' ? 'selected' : ''}>Local agent</option>
+                            <option value="remote" ${agentType === 'remote' ? 'selected' : ''}>Remote agent</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group agent-local-only">
                         <label>LLM 模型 *</label>
                         <select class="form-input" id="agentModelConfig">
                             <option value="">请选择模型...</option>
@@ -135,7 +148,7 @@ const AgentSettingsDialog = {
                         </select>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group agent-local-only">
                         <label>角色配置 *</label>
                         <select class="form-input" id="agentRoleConfig">
                             <option value="">请选择角色...</option>
@@ -156,83 +169,85 @@ const AgentSettingsDialog = {
                         <small class="form-hint">Agent 的 A2A 协议访问地址</small>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 1;">
-                            <label>Agent 版本</label>
-                            <input type="text" class="form-input" id="agentVersion" value="${this.escapeHtml(data.version)}" placeholder="1.0.0">
+                    <div class="agent-local-only">
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 1;">
+                                <label>Agent 版本</label>
+                                <input type="text" class="form-input" id="agentVersion" value="${this.escapeHtml(data.version)}" placeholder="1.0.0">
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>协议版本</label>
+                                <input type="text" class="form-input" id="agentProtocolVersion" value="${this.escapeHtml(data.protocol_version)}" placeholder="0.3">
+                            </div>
                         </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label>协议版本</label>
-                            <input type="text" class="form-input" id="agentProtocolVersion" value="${this.escapeHtml(data.protocol_version)}" placeholder="0.3">
+
+                        <div class="form-group">
+                            <label>能力 (Capabilities)</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="capStreaming" ${data.capabilities?.streaming ? 'checked' : ''}>
+                                    <span>流式响应 (Streaming)</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="capPushNotifications" ${data.capabilities?.pushNotifications ? 'checked' : ''}>
+                                    <span>推送通知 (Push Notifications)</span>
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="capStateHistory" ${data.capabilities?.stateTransitionHistory ? 'checked' : ''}>
+                                    <span>状态转换历史 (State Transition History)</span>
+                                </label>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-group">
-                        <label>能力 (Capabilities)</label>
-                        <div class="checkbox-group">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="capStreaming" ${data.capabilities?.streaming ? 'checked' : ''}>
-                                <span>流式响应 (Streaming)</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="capPushNotifications" ${data.capabilities?.pushNotifications ? 'checked' : ''}>
-                                <span>推送通知 (Push Notifications)</span>
-                            </label>
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="capStateHistory" ${data.capabilities?.stateTransitionHistory ? 'checked' : ''}>
-                                <span>状态转换历史 (State Transition History)</span>
-                            </label>
+                        <div class="form-row">
+                            <div class="form-group" style="flex: 1;">
+                                <label>输入模式</label>
+                                <select class="form-input" id="agentInputModes" multiple size="3">
+                                    <option value="text" ${data.default_input_modes?.includes('text') ? 'selected' : ''}>文本 (text)</option>
+                                    <option value="image" ${data.default_input_modes?.includes('image') ? 'selected' : ''}>图像 (image)</option>
+                                    <option value="audio" ${data.default_input_modes?.includes('audio') ? 'selected' : ''}>音频 (audio)</option>
+                                    <option value="video" ${data.default_input_modes?.includes('video') ? 'selected' : ''}>视频 (video)</option>
+                                    <option value="file" ${data.default_input_modes?.includes('file') ? 'selected' : ''}>文件 (file)</option>
+                                </select>
+                                <small class="form-hint">按住 Ctrl 多选</small>
+                            </div>
+                            <div class="form-group" style="flex: 1;">
+                                <label>输出模式</label>
+                                <select class="form-input" id="agentOutputModes" multiple size="3">
+                                    <option value="text" ${data.default_output_modes?.includes('text') ? 'selected' : ''}>文本 (text)</option>
+                                    <option value="image" ${data.default_output_modes?.includes('image') ? 'selected' : ''}>图像 (image)</option>
+                                    <option value="audio" ${data.default_output_modes?.includes('audio') ? 'selected' : ''}>音频 (audio)</option>
+                                    <option value="video" ${data.default_output_modes?.includes('video') ? 'selected' : ''}>视频 (video)</option>
+                                    <option value="file" ${data.default_output_modes?.includes('file') ? 'selected' : ''}>文件 (file)</option>
+                                </select>
+                                <small class="form-hint">按住 Ctrl 多选</small>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="form-row">
-                        <div class="form-group" style="flex: 1;">
-                            <label>输入模式</label>
-                            <select class="form-input" id="agentInputModes" multiple size="3">
-                                <option value="text" ${data.default_input_modes?.includes('text') ? 'selected' : ''}>文本 (text)</option>
-                                <option value="image" ${data.default_input_modes?.includes('image') ? 'selected' : ''}>图像 (image)</option>
-                                <option value="audio" ${data.default_input_modes?.includes('audio') ? 'selected' : ''}>音频 (audio)</option>
-                                <option value="video" ${data.default_input_modes?.includes('video') ? 'selected' : ''}>视频 (video)</option>
-                                <option value="file" ${data.default_input_modes?.includes('file') ? 'selected' : ''}>文件 (file)</option>
-                            </select>
-                            <small class="form-hint">按住 Ctrl 多选</small>
+                        <div class="form-group">
+                            <label>提供者组织</label>
+                            <input type="text" class="form-input" id="agentProviderOrg" value="${this.escapeHtml(data.provider_organization)}" placeholder="AI-SNS Platform">
                         </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label>输出模式</label>
-                            <select class="form-input" id="agentOutputModes" multiple size="3">
-                                <option value="text" ${data.default_output_modes?.includes('text') ? 'selected' : ''}>文本 (text)</option>
-                                <option value="image" ${data.default_output_modes?.includes('image') ? 'selected' : ''}>图像 (image)</option>
-                                <option value="audio" ${data.default_output_modes?.includes('audio') ? 'selected' : ''}>音频 (audio)</option>
-                                <option value="video" ${data.default_output_modes?.includes('video') ? 'selected' : ''}>视频 (video)</option>
-                                <option value="file" ${data.default_output_modes?.includes('file') ? 'selected' : ''}>文件 (file)</option>
-                            </select>
-                            <small class="form-hint">按住 Ctrl 多选</small>
+
+                        <div class="form-group">
+                            <label>提供者 URL</label>
+                            <input type="text" class="form-input" id="agentProviderUrl" value="${this.escapeHtml(data.provider_url)}" placeholder="https://ai-sns.com">
                         </div>
-                    </div>
 
-                    <div class="form-group">
-                        <label>提供者组织</label>
-                        <input type="text" class="form-input" id="agentProviderOrg" value="${this.escapeHtml(data.provider_organization)}" placeholder="AI-SNS Platform">
-                    </div>
+                        <div class="form-group">
+                            <label>文档 URL</label>
+                            <input type="text" class="form-input" id="agentDocUrl" value="${this.escapeHtml(data.documentation_url || '')}" placeholder="https://docs.ai-sns.com">
+                        </div>
 
-                    <div class="form-group">
-                        <label>提供者 URL</label>
-                        <input type="text" class="form-input" id="agentProviderUrl" value="${this.escapeHtml(data.provider_url)}" placeholder="https://ai-sns.com">
-                    </div>
-
-                    <div class="form-group">
-                        <label>文档 URL</label>
-                        <input type="text" class="form-input" id="agentDocUrl" value="${this.escapeHtml(data.documentation_url || '')}" placeholder="https://docs.ai-sns.com">
-                    </div>
-
-                    <div class="form-group">
-                        <label>图标 URL</label>
-                        <input type="text" class="form-input" id="agentIconUrl" value="${this.escapeHtml(data.icon_url || '')}" placeholder="https://ai-sns.com/icon.png">
+                        <div class="form-group">
+                            <label>图标 URL</label>
+                            <input type="text" class="form-input" id="agentIconUrl" value="${this.escapeHtml(data.icon_url || '')}" placeholder="https://ai-sns.com/icon.png">
+                        </div>
                     </div>
                 </div>
 
                 <!-- 区块链钱包页签 -->
-                <div class="settings-tab-pane" id="${walletTabId}" data-tab="wallet">
+                <div class="settings-tab-pane agent-local-only" id="${walletTabId}" data-tab="wallet">
                     <div class="form-group">
                         <label>钱包地址</label>
                         <div class="input-with-buttons">
@@ -310,6 +325,44 @@ const AgentSettingsDialog = {
 
         // 钱包按钮事件（同样方式处理）
         this.bindWalletButtons();
+
+        const agentTypeEl = form.querySelector('#agentType');
+        if (agentTypeEl) {
+            if (this._agentTypeChangeHandler) {
+                agentTypeEl.removeEventListener('change', this._agentTypeChangeHandler);
+            }
+            this._agentTypeChangeHandler = () => this.applyAgentTypeVisibility();
+            agentTypeEl.addEventListener('change', this._agentTypeChangeHandler);
+        }
+
+        this.applyAgentTypeVisibility();
+    },
+
+    applyAgentTypeVisibility() {
+        const form = document.getElementById(this.formId);
+        if (!form) return;
+
+        const agentTypeEl = form.querySelector('#agentType');
+        const agentType = (agentTypeEl ? agentTypeEl.value : 'local').toLowerCase();
+        const isRemote = agentType === 'remote';
+
+        form.querySelectorAll('.agent-local-only').forEach(el => {
+            el.style.display = isRemote ? 'none' : '';
+        });
+
+        // Hide wallet tab button in remote mode
+        const walletTabBtn = form.querySelector('.settings-tab-btn[data-tab="wallet"]');
+        if (walletTabBtn) {
+            walletTabBtn.style.display = isRemote ? 'none' : '';
+        }
+
+        // If current tab is wallet while remote, switch back to basic
+        if (isRemote) {
+            const activeBtn = form.querySelector('.settings-tab-btn.active');
+            if (activeBtn && activeBtn.dataset.tab === 'wallet') {
+                this.switchTab('basic');
+            }
+        }
     },
 
     /**
@@ -343,60 +396,6 @@ const AgentSettingsDialog = {
         }
         
         console.log('Wallet button events bound successfully');
-    },
-
-    /**
-     * 设置标签页事件监听器
-     */
-    setupTabEventListeners() {
-        console.log('Setting up tab event listeners');
-        
-        // 使用事件委托绑定到文档，确保能够捕获到动态生成的元素
-        if (this.tabEventHandler) {
-            document.removeEventListener('click', this.tabEventHandler);
-        }
-        
-        this.tabEventHandler = (e) => {
-            // 检查点击的是否是标签按钮
-            const tabBtn = e.target.closest('.settings-tab-btn');
-            if (tabBtn) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                // 获取当前按钮所在的表单容器
-                const form = tabBtn.closest('.agent-settings-form');
-                if (!form) return;
-                
-                const tab = tabBtn.dataset.tab;
-                console.log('Tab clicked:', tab);
-                
-                this.switchTabWithContext(tab, form, tabBtn);
-            }
-            
-            // 检查是否点击了钱包按钮
-            if (e.target.id === 'createWalletBtn') {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const form = e.target.closest('.agent-settings-form');
-                if (form) {
-                    this.createWallet();
-                }
-            }
-            
-            if (e.target.id === 'importWalletBtn') {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const form = e.target.closest('.agent-settings-form');
-                if (form) {
-                    this.importWallet();
-                }
-            }
-        };
-        
-        document.addEventListener('click', this.tabEventHandler);
-        console.log('Tab event listeners set up');
     },
 
     /**
@@ -614,8 +613,10 @@ const AgentSettingsDialog = {
             // 收集基本信息
             const name = document.getElementById('agentName').value.trim();
             const description = document.getElementById('agentDescription').value.trim();
-            const modelConfigId = document.getElementById('agentModelConfig').value;
-            const roleId = document.getElementById('agentRoleConfig').value;
+            const agentType = (document.getElementById('agentType')?.value || 'local').toLowerCase();
+            const isRemote = agentType === 'remote';
+            const modelConfigId = document.getElementById('agentModelConfig')?.value;
+            const roleId = document.getElementById('agentRoleConfig')?.value;
 
             // 验证必填字段
             if (!name) {
@@ -625,61 +626,75 @@ const AgentSettingsDialog = {
                 return false;
             }
 
-            if (!modelConfigId) {
-                if (typeof Notification !== 'undefined') {
-                    Notification.error('请选择 LLM 模型');
-                }
-                return false;
-            }
-
-            if (!roleId) {
-                if (typeof Notification !== 'undefined') {
-                    Notification.error('请选择角色配置');
-                }
-                return false;
-            }
-
             // 收集 A2A 协议字段
             const url = document.getElementById('agentUrl').value.trim();
-            const version = document.getElementById('agentVersion').value.trim();
-            const protocolVersion = document.getElementById('agentProtocolVersion').value.trim();
 
-            const capabilities = {
-                streaming: document.getElementById('capStreaming').checked,
-                pushNotifications: document.getElementById('capPushNotifications').checked,
-                stateTransitionHistory: document.getElementById('capStateHistory').checked
+            if (!url) {
+                if (typeof Notification !== 'undefined') {
+                    Notification.error('请输入 A2A 端点 URL');
+                }
+                return false;
+            }
+
+            if (!isRemote) {
+                if (!modelConfigId) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('请选择 LLM 模型');
+                    }
+                    return false;
+                }
+
+                if (!roleId) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('请选择角色配置');
+                    }
+                    return false;
+                }
+            }
+
+            const version = isRemote ? undefined : document.getElementById('agentVersion')?.value?.trim();
+            const protocolVersion = isRemote ? undefined : document.getElementById('agentProtocolVersion')?.value?.trim();
+
+            const capabilities = isRemote ? undefined : {
+                streaming: document.getElementById('capStreaming')?.checked,
+                pushNotifications: document.getElementById('capPushNotifications')?.checked,
+                stateTransitionHistory: document.getElementById('capStateHistory')?.checked
             };
 
-            const inputModes = Array.from(document.getElementById('agentInputModes').selectedOptions).map(opt => opt.value);
-            const outputModes = Array.from(document.getElementById('agentOutputModes').selectedOptions).map(opt => opt.value);
+            const inputModes = isRemote ? undefined : Array.from(document.getElementById('agentInputModes')?.selectedOptions || []).map(opt => opt.value);
+            const outputModes = isRemote ? undefined : Array.from(document.getElementById('agentOutputModes')?.selectedOptions || []).map(opt => opt.value);
 
-            const providerOrg = document.getElementById('agentProviderOrg').value.trim();
-            const providerUrl = document.getElementById('agentProviderUrl').value.trim();
-            const docUrl = document.getElementById('agentDocUrl').value.trim();
-            const iconUrl = document.getElementById('agentIconUrl').value.trim();
+            const providerOrg = isRemote ? undefined : document.getElementById('agentProviderOrg')?.value?.trim();
+            const providerUrl = isRemote ? undefined : document.getElementById('agentProviderUrl')?.value?.trim();
+            const docUrl = isRemote ? undefined : document.getElementById('agentDocUrl')?.value?.trim();
+            const iconUrl = isRemote ? undefined : document.getElementById('agentIconUrl')?.value?.trim();
 
             // 收集钱包地址
-            const walletAddress = document.getElementById('agentWalletAddress').value.trim();
+            const walletAddress = isRemote ? undefined : document.getElementById('agentWalletAddress')?.value?.trim();
 
             // 构建请求数据
             const data = {
                 name,
                 description,
-                model_config_id: modelConfigId,
-                role_id: roleId,
+                agent_type: agentType,
                 url,
-                version,
-                protocol_version: protocolVersion,
-                capabilities,
-                default_input_modes: inputModes,
-                default_output_modes: outputModes,
-                provider_organization: providerOrg,
-                provider_url: providerUrl,
-                documentation_url: docUrl,
-                icon_url: iconUrl,
-                wallet_address: walletAddress,
                 is_active: true
             };
+
+            if (!isRemote) {
+                data.model_config_id = modelConfigId;
+                data.role_id = roleId;
+                data.version = version;
+                data.protocol_version = protocolVersion;
+                data.capabilities = capabilities;
+                data.default_input_modes = inputModes;
+                data.default_output_modes = outputModes;
+                data.provider_organization = providerOrg;
+                data.provider_url = providerUrl;
+                data.documentation_url = docUrl;
+                data.icon_url = iconUrl;
+                data.wallet_address = walletAddress;
+            }
 
             // 发送请求
             const isEdit = this.currentAgent !== null;

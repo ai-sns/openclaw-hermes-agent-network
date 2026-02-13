@@ -35,8 +35,11 @@ const AgentPage = {
      * 创建单个Agent的page HTML
      */
     createAgentPageHTML(agent, isActive = false) {
+        const rawAgentType = String(agent.agent_type || 'local').toLowerCase();
+        const isRemote = rawAgentType === 'remote' || rawAgentType === 'remote agent' || rawAgentType === 'remote_agent';
+        const agentType = isRemote ? 'remote' : 'local';
         return `
-            <div id="page-agent-${agent.id}" class="agent-page-layout" data-agent-id="${agent.id}" style="display: ${isActive ? 'flex' : 'none'}">
+            <div id="page-agent-${agent.id}" class="agent-page-layout" data-agent-id="${agent.id}" data-agent-type="${agentType}" style="display: ${isActive ? 'flex' : 'none'}">
                 <!-- 聊天主区域 -->
                 <div class="agent-chat-area">
                     <!-- 顶部工具栏 -->
@@ -73,7 +76,7 @@ const AgentPage = {
 
 
 
-                            <select class="model-selector" id="modelSelector-${agent.id}" data-agent-id="${agent.id}">
+                            <select class="model-selector" id="modelSelector-${agent.id}" data-agent-id="${agent.id}" ${isRemote ? 'disabled' : ''}>
                             </select>
                         </div>
 
@@ -81,7 +84,7 @@ const AgentPage = {
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="#5f6368">
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                             </svg>
-                            <select class="role-selector" id="roleSelector-${agent.id}" data-agent-id="${agent.id}">
+                            <select class="role-selector" id="roleSelector-${agent.id}" data-agent-id="${agent.id}" ${isRemote ? 'disabled' : ''}>
                                 <option value="senior-dev">资深的程序员</option>
                                 <option value="assistant">通用助手</option>
                                 <option value="writer">创意写作</option>
@@ -176,7 +179,7 @@ const AgentPage = {
                     <!-- 页签内容区域 -->
                     <div class="settings-tab-content" id="settingsTabContent-${agent.id}">
                         <!-- Param 页签内容 -->
-                        <div class="tab-pane active" data-tab="param">
+                        <div class="tab-pane active" data-tab="param" ${isRemote ? 'style="opacity:0.6;"' : ''}>
                             <div class="settings-section">
                                 <div class="settings-section-title">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
@@ -230,7 +233,7 @@ const AgentPage = {
                         </div>
 
                         <!-- Prompt 页签内容 -->
-                        <div class="tab-pane" data-tab="prompt">
+                        <div class="tab-pane" data-tab="prompt" ${isRemote ? 'style="opacity:0.6;"' : ''}>
                             <div class="settings-section">
                                 <div class="settings-section-title">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
@@ -268,7 +271,7 @@ const AgentPage = {
                         </div>
 
                         <!-- File 页签内容 -->
-                        <div class="tab-pane" data-tab="file">
+                        <div class="tab-pane" data-tab="file" ${isRemote ? 'style="opacity:0.6;"' : ''}>
                             <div class="settings-section">
                                 <div class="settings-section-title">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8">
@@ -297,13 +300,13 @@ const AgentPage = {
 
                     <!-- 底部页签按钮 -->
                     <div class="settings-tabs" id="settingsTabs-${agent.id}">
-                        <button class="settings-tab active" data-tab="param" data-agent-id="${agent.id}">
+                        <button class="settings-tab active" data-tab="param" data-agent-id="${agent.id}" ${isRemote ? 'disabled' : ''}>
                             <span>Param</span>
                         </button>
-                        <button class="settings-tab" data-tab="prompt" data-agent-id="${agent.id}">
+                        <button class="settings-tab" data-tab="prompt" data-agent-id="${agent.id}" ${isRemote ? 'disabled' : ''}>
                             <span>Prompt</span>
                         </button>
-                        <button class="settings-tab" data-tab="file" data-agent-id="${agent.id}">
+                        <button class="settings-tab" data-tab="file" data-agent-id="${agent.id}" ${isRemote ? 'disabled' : ''}>
                             <span>File</span>
                         </button>
                     </div>
