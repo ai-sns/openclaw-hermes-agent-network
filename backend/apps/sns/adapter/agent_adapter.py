@@ -5,6 +5,7 @@ This file is intended as the customization point for how SNS talks to the Agent 
 
 import logging
 import json
+import time
 from typing import Optional, Callable, Dict, Any, Tuple
 
 import httpx
@@ -73,9 +74,43 @@ class AgentAdapter:
     def get_agent_by_identifier(self, agent_identifier: str):
         if not agent_identifier:
             return None
+
         if str(agent_identifier).isdigit():
             return agent_manager.get_agent_by_id(int(agent_identifier))
         return agent_manager.get_agent_by_name(str(agent_identifier))
+
+    def _extract_delta_text_from_a2a_event(self, event_obj: dict) -> str:
+        if not isinstance(event_obj, dict):
+            return ''
+        result = event_obj.get('result')
+        if not isinstance(result, dict):
+            return ''
+        message_obj = result.get('message')
+        if not isinstance(message_obj, dict):
+            return ''
+        parts = message_obj.get('parts')
+        if not isinstance(parts, list):
+            return ''
+
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            data = part.get('data')
+            if not isinstance(data, dict):
+                continue
+            choices = data.get('choices')
+            if not isinstance(choices, list) or not choices:
+                continue
+            choice0 = choices[0]
+            if not isinstance(choice0, dict):
+                continue
+            delta = choice0.get('delta')
+            if not isinstance(delta, dict):
+                continue
+            c = delta.get('content')
+            if isinstance(c, str) and c:
+                return c
+        return ''
 
     def _is_remote_agent_type(self, agent_type: str) -> bool:
         t = str(agent_type or '').strip().lower()
@@ -169,6 +204,132 @@ class AgentAdapter:
 
         return ''.join(texts)
 
+    def _extract_finish_reason_from_a2a_event(self, event_obj: dict) -> Optional[str]:
+        if not isinstance(event_obj, dict):
+            return None
+        result = event_obj.get('result')
+        if not isinstance(result, dict):
+            return None
+        message_obj = result.get('message')
+        if not isinstance(message_obj, dict):
+            return None
+        parts = message_obj.get('parts')
+        if not isinstance(parts, list):
+            return None
+
+        for part in parts:
+            if not isinstance(part, dict):
+                continue
+            data = part.get('data')
+            if not isinstance(data, dict):
+                continue
+            choices = data.get('choices')
+            if not isinstance(choices, list) or not choices:
+                continue
+            choice0 = choices[0]
+            if not isinstance(choice0, dict):
+                continue
+            fr = choice0.get('finish_reason')
+            if fr is None:
+                continue
+            return str(fr)
+        return None
+
+    async def _remote_collect_stream_text(self, *, rpc_url: str, text: str, context_id: str) -> str:
+        rpc_url = self._normalize_a2a_rpc_url(rpc_url)
+        if not rpc_url:
+            return ''
+
+        payload = {
+            'jsonrpc': '2.0',
+            'id': 1,
+            'method': 'SendMessage',
+            'params': {
+                'stream': True,
+                'message': {
+                    'contextId': context_id,
+                    'parts': [{'text': text}]
+                }
+            }
+        }
+
+        timeout = httpx.Timeout(60.0, read=30.0)
+        out_parts = []
+        seen_content = False
+        last_content_ts = time.monotonic()
+        idle_timeout_after_content_seconds = 5.0
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+                async with client.stream(
+                    'POST',
+                    rpc_url,
+                    json=payload,
+                    headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream'}
+                ) as resp:
+                    if resp.status_code >= 400:
+                        return ''
+
+                    content_type = str(resp.headers.get('content-type') or '').lower()
+                    if 'text/event-stream' not in content_type:
+                        body = await resp.aread()
+                        text_body = ''
+                        try:
+                            text_body = body.decode('utf-8', errors='ignore')
+                        except Exception:
+                            text_body = str(body)
+
+                        try:
+                            data = json.loads(text_body) if text_body else {}
+                        except Exception:
+                            data = {}
+                        result = data.get('result') if isinstance(data, dict) else None
+                        message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+                        return self._extract_text_from_a2a_message(message_obj or {})
+
+                    async for line in resp.aiter_lines():
+                        now = time.monotonic()
+                        if seen_content and (now - last_content_ts) > idle_timeout_after_content_seconds:
+                            break
+                        if not line:
+                            continue
+                        s = line.strip()
+                        if not s:
+                            continue
+                        if s.startswith('data:'):
+                            s = s[5:].strip()
+                        if s == '[DONE]':
+                            break
+                        try:
+                            evt = json.loads(s)
+                        except Exception:
+                            continue
+
+                        if isinstance(evt, dict) and evt.get('error'):
+                            return ''
+
+                        delta = self._extract_delta_text_from_a2a_event(evt)
+                        if delta:
+                            out_parts.append(delta)
+                            seen_content = True
+                            last_content_ts = time.monotonic()
+                        else:
+                            result = evt.get('result') if isinstance(evt, dict) else None
+                            message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+                            chunk_text = self._extract_text_from_a2a_message(message_obj or {})
+                            if chunk_text:
+                                out_parts.append(chunk_text)
+                                seen_content = True
+                                last_content_ts = time.monotonic()
+
+                        fr = self._extract_finish_reason_from_a2a_event(evt)
+                        if fr:
+                            break
+        except Exception:
+            return ''
+
+        return ''.join(out_parts)
+
     async def _remote_send_message(self, *, rpc_url: str, text: str, context_id: str) -> str:
         rpc_url = self._normalize_a2a_rpc_url(rpc_url)
         if not rpc_url:
@@ -203,12 +364,51 @@ class AgentAdapter:
         if resp.status_code >= 400:
             return f'Error: Remote agent error: HTTP {resp.status_code}: {resp.text[:500]}'
 
+        content_type = str(resp.headers.get('content-type') or '').lower()
+        if 'text/event-stream' in content_type:
+            out_parts = []
+            for line in (resp.text or '').splitlines():
+                s = line.strip()
+                if not s:
+                    continue
+                if s.startswith('data:'):
+                    s = s[5:].strip()
+                if s == '[DONE]':
+                    break
+                try:
+                    evt = json.loads(s)
+                except Exception:
+                    continue
+
+                delta = self._extract_delta_text_from_a2a_event(evt)
+                if delta:
+                    out_parts.append(delta)
+                else:
+                    result = evt.get('result') if isinstance(evt, dict) else None
+                    message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+                    chunk_text = self._extract_text_from_a2a_message(message_obj or {})
+                    if chunk_text:
+                        out_parts.append(chunk_text)
+                fr = self._extract_finish_reason_from_a2a_event(evt)
+                if fr:
+                    break
+            joined = ''.join(out_parts)
+            if joined:
+                return joined
+
         try:
             data = resp.json()
         except Exception:
             return f'Error: Remote agent returned non-JSON response: {resp.text[:500]}'
 
         if isinstance(data, dict) and data.get('error'):
+            fallback = await self._remote_collect_stream_text(
+                rpc_url=rpc_url,
+                text=text,
+                context_id=context_id,
+            )
+            if fallback:
+                return fallback
             return f"Error: Remote agent RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}"
 
         result = data.get('result') if isinstance(data, dict) else None

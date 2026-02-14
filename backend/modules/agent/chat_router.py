@@ -189,6 +189,116 @@ def _extract_finish_reason_from_a2a_event(event_obj: dict) -> Optional[str]:
     return None
 
 
+async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_id: str) -> str:
+    rpc_url = _normalize_a2a_rpc_url(rpc_url)
+    if not rpc_url:
+        return ''
+
+    payload = {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'SendMessage',
+        'params': {
+            'stream': True,
+            'message': {
+                'contextId': context_id,
+                'parts': [{'text': text}]
+            }
+        }
+    }
+
+    timeout = httpx.Timeout(60.0, read=30.0)
+    out_parts: List[str] = []
+    seen_content = False
+    last_content_ts = time.monotonic()
+    idle_timeout_after_content_seconds = 5.0
+
+    async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
+        try:
+            async with client.stream(
+                'POST',
+                rpc_url,
+                json=payload,
+                headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream'}
+            ) as resp:
+                if resp.status_code >= 400:
+                    return ''
+
+                content_type = str(resp.headers.get('content-type') or '').lower()
+                if 'text/event-stream' not in content_type:
+                    body = await resp.aread()
+                    text_body = ''
+                    try:
+                        text_body = body.decode('utf-8', errors='ignore')
+                    except Exception:
+                        text_body = str(body)
+
+                    try:
+                        data = json.loads(text_body) if text_body else {}
+                    except Exception:
+                        data = {}
+
+                    result = data.get('result') if isinstance(data, dict) else None
+                    message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+                    return _extract_text_from_a2a_message(message_obj or {})
+
+                async for line in resp.aiter_lines():
+                    now = time.monotonic()
+                    if seen_content and (now - last_content_ts) > idle_timeout_after_content_seconds:
+                        break
+
+                    if not line:
+                        continue
+                    s = line.strip()
+                    if not s:
+                        continue
+                    if s.startswith('data:'):
+                        s = s[5:].strip()
+                    if s == '[DONE]':
+                        break
+
+                    try:
+                        evt = json.loads(s)
+                    except Exception:
+                        continue
+
+                    if isinstance(evt, dict) and evt.get('error'):
+                        return ''
+
+                    delta = _extract_delta_text_from_a2a_event(evt)
+                    if delta:
+                        out_parts.append(delta)
+                        seen_content = True
+                        last_content_ts = time.monotonic()
+                    else:
+                        result = evt.get('result') if isinstance(evt, dict) else None
+                        msg = (result or {}).get('message') if isinstance(result, dict) else None
+                        parts = (msg or {}).get('parts') if isinstance(msg, dict) else None
+                        if isinstance(parts, list):
+                            for p in parts:
+                                if isinstance(p, dict):
+                                    t = p.get('text')
+                                    if isinstance(t, str) and t:
+                                        out_parts.append(t)
+                                        seen_content = True
+                                        last_content_ts = time.monotonic()
+                                        break
+
+                        full_text = _extract_text_from_a2a_message(msg or {})
+                        if isinstance(full_text, str) and full_text:
+                            out_parts.append(full_text)
+                            seen_content = True
+                            last_content_ts = time.monotonic()
+
+                    finish_reason = _extract_finish_reason_from_a2a_event(evt)
+                    if finish_reason:
+                        break
+        except Exception:
+            return ''
+
+    return ''.join(out_parts)
+
+
 async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str, stream: bool) -> str:
     payload = {
         'jsonrpc': '2.0',
@@ -212,6 +322,39 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
             resp = await client.post(rpc_url, json=payload, headers={'Content-Type': 'application/json'})
             if resp.status_code >= 400:
                 raise HTTPException(status_code=502, detail=f'Remote agent error: HTTP {resp.status_code}: {resp.text[:500]}')
+
+            content_type = str(resp.headers.get('content-type') or '').lower()
+            if 'text/event-stream' in content_type:
+                sse_text = resp.text or ''
+                out_parts: List[str] = []
+                for line in sse_text.splitlines():
+                    s = line.strip()
+                    if not s:
+                        continue
+                    if s.startswith('data:'):
+                        s = s[5:].strip()
+                    if s == '[DONE]':
+                        break
+                    try:
+                        evt = json.loads(s)
+                    except Exception:
+                        continue
+                    delta = _extract_delta_text_from_a2a_event(evt)
+                    if delta:
+                        out_parts.append(delta)
+                        continue
+                    result = evt.get('result') if isinstance(evt, dict) else None
+                    msg = (result or {}).get('message') if isinstance(result, dict) else None
+                    full_text = _extract_text_from_a2a_message(msg or {})
+                    if isinstance(full_text, str) and full_text:
+                        out_parts.append(full_text)
+                    finish_reason = _extract_finish_reason_from_a2a_event(evt)
+                    if finish_reason:
+                        break
+
+                joined = ''.join(out_parts)
+                if joined:
+                    return joined
             try:
                 data = resp.json()
             except Exception:
@@ -222,6 +365,14 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
         raise HTTPException(status_code=502, detail=f'Remote agent network error: {str(e)}')
 
     if isinstance(data, dict) and data.get('error'):
+        if not stream:
+            fallback = await _remote_agent_collect_stream_text(
+                rpc_url=rpc_url,
+                text=text,
+                context_id=context_id,
+            )
+            if fallback:
+                return fallback
         raise HTTPException(status_code=502, detail=f"Remote agent RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}")
 
     result = (data or {}).get('result') if isinstance(data, dict) else None
@@ -257,6 +408,7 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                 json=payload,
                 headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream'}
             ) as resp:
+                content_type = str(resp.headers.get('content-type') or '').lower()
                 if resp.status_code >= 400:
                     body = await resp.aread()
                     text_body = ''
@@ -265,6 +417,57 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                     except Exception:
                         text_body = str(body)
                     yield f"data: {json.dumps({'error': f'Remote agent error: HTTP {resp.status_code}: {text_body[:500]}'})}\n\n"
+                    return
+
+                if 'text/event-stream' not in content_type:
+                    body = await resp.aread()
+                    text_body = ''
+                    try:
+                        text_body = body.decode('utf-8', errors='ignore')
+                    except Exception:
+                        text_body = str(body)
+
+                    try:
+                        data = json.loads(text_body) if text_body else {}
+                    except Exception:
+                        data = {}
+
+                    if isinstance(data, dict) and data.get('error'):
+                        try:
+                            reply = await _remote_agent_send_message(
+                                rpc_url=rpc_url,
+                                text=text,
+                                context_id=context_id,
+                                stream=False,
+                            )
+                            if reply:
+                                yield f"data: {json.dumps({'content': reply})}\n\n"
+                                return
+                        except Exception:
+                            pass
+                        yield f"data: {json.dumps({'error': json.dumps(data.get('error'), ensure_ascii=False)})}\n\n"
+                        return
+
+                    result = data.get('result') if isinstance(data, dict) else None
+                    message_obj = (result or {}).get('message') if isinstance(result, dict) else None
+                    reply = _extract_text_from_a2a_message(message_obj or {})
+                    if reply:
+                        yield f"data: {json.dumps({'content': reply})}\n\n"
+                        return
+
+                    try:
+                        reply = await _remote_agent_send_message(
+                            rpc_url=rpc_url,
+                            text=text,
+                            context_id=context_id,
+                            stream=False,
+                        )
+                        if reply:
+                            yield f"data: {json.dumps({'content': reply})}\n\n"
+                            return
+                    except Exception:
+                        pass
+                    yield f"data: {json.dumps({'error': f'Remote agent returned non-SSE response: {text_body[:500]}'})}\n\n"
                     return
 
                 # Some implementations keep the SSE connection open even after completion.
@@ -295,6 +498,22 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                             continue
 
                         if isinstance(evt, dict) and evt.get('error'):
+                            if not seen_content:
+                                try:
+                                    reply = await _remote_agent_send_message(
+                                        rpc_url=rpc_url,
+                                        text=text,
+                                        context_id=context_id,
+                                        stream=False,
+                                    )
+                                    if reply:
+                                        seen_content = True
+                                        last_content_ts = time.monotonic()
+                                        yield f"data: {json.dumps({'content': reply})}\n\n"
+                                        break
+                                except Exception:
+                                    pass
+
                             yield f"data: {json.dumps({'error': json.dumps(evt.get('error'), ensure_ascii=False)})}\n\n"
                             continue
 
@@ -317,6 +536,15 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                                             last_content_ts = time.monotonic()
                                             yield f"data: {json.dumps({'content': t})}\n\n"
                                             break
+
+                        if not delta:
+                            result = evt.get('result') if isinstance(evt, dict) else None
+                            msg = (result or {}).get('message') if isinstance(result, dict) else None
+                            full_text = _extract_text_from_a2a_message(msg or {})
+                            if isinstance(full_text, str) and full_text:
+                                seen_content = True
+                                last_content_ts = time.monotonic()
+                                yield f"data: {json.dumps({'content': full_text})}\n\n"
 
                         finish_reason = _extract_finish_reason_from_a2a_event(evt)
                         if finish_reason:
