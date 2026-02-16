@@ -44,7 +44,7 @@
       "resource/**/*",
       "images/**/*",
       "*.py",
-      "config.yaml",
+      "config.json",
       "requirements.txt"
     ],
     "extraResources": [
@@ -58,7 +58,7 @@
           "km/**/*",
           "resource/**/*",
           "images/**/*",
-          "config.yaml",
+          "config.json",
           "requirements.txt"
         ]
       }

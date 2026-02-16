@@ -2603,7 +2603,8 @@ class SystemCfg(Base):
     showinfo = Column(Boolean, default=True, doc="显示通知")
     showinfoicon = Column(Boolean, default=True, doc="通知区域显示图标")
     infosound = Column(Boolean, default=True, doc="通知时播放声音")
-
+    agent_server = Column(Text, doc="agent server url")
+    ai_sns_server = Column(Text, doc="ai-sns server url")
     is_delete = Column(Boolean, default=False, doc="软删除")
     create_time = Column(DateTime, default=datetime.now, doc="创建时间")
 

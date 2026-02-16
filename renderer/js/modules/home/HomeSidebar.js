@@ -24,7 +24,7 @@ const HomeSidebar = {
                                 <line x1="34" y1="34" x2="38" y2="38" stroke="#1a73e8" stroke-width="2"/>
                             </svg>
                         </div>
-                        <span class="setting-btn-text">Initialization</span>
+                        <span class="setting-btn-text">Configuration</span>
                     </button>
                     <button class="setting-btn" data-action="help">
                         <div class="setting-btn-icon">

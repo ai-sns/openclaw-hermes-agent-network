@@ -507,7 +507,7 @@ const App = {
                 const action = btn.dataset.action;
                 switch (action) {
                     case 'initialization':
-                        PageControllers.showInitializationModal();
+                        PageControllers.showConfigurationModal();
                         break;
                     case 'help':
                         PageControllers.showHelpModal();

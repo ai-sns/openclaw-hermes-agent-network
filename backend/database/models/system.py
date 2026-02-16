@@ -19,6 +19,8 @@ class SystemCfg(Base):
     showinfo = Column(Boolean, default=True, doc="Show notifications")
     showinfoicon = Column(Boolean, default=True, doc="Show notification icon")
     infosound = Column(Boolean, default=True, doc="Notification sound")
+    agent_server = Column(Text, doc="agent server url")
+    ai_sns_server = Column(Text, doc="ai-sns server url")
     is_delete = Column(Boolean, default=False, doc="Soft delete")
     create_time = Column(DateTime, default=datetime.now, doc="Create time")
 

@@ -11,6 +11,8 @@ class SystemConfig(BaseModel):
     theme: Optional[str] = "dark"
     language: Optional[str] = "zh"
     minirunontray: Optional[bool] = True
+    agent_server: Optional[str] = None
+    ai_sns_server: Optional[str] = None
 
 
 class WebMngReorderItem(BaseModel):

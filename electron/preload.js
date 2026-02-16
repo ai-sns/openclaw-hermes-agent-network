@@ -18,6 +18,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
 
+    // 读取/写入工作目录下的 config.json
+
+    readConfigJson: () => ipcRenderer.invoke('read-config-json'),
+
+    writeConfigJson: (patch) => ipcRenderer.invoke('write-config-json', patch),
+
+
+
     // 文件对话框
 
     showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),

@@ -387,6 +387,7 @@
     text-overflow: ellipsis;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
 }
 
@@ -504,6 +505,25 @@
     font-size: 13px;
     line-height: 1.4;
     word-wrap: break-word;
+    user-select: text;
+    -webkit-user-select: text;
+    cursor: text;
+}
+
+.message-content .chat-link {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+    word-break: break-all;
+}
+
+.chat-message.sent .message-content .chat-link {
+    color: #dbeafe;
+}
+
+.chat-message.received .message-content .chat-link {
+    color: var(--color-primary, #1a73e8);
 }
 
 .chat-message.sent .message-content {

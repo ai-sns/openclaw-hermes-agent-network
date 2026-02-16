@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 import httpx
 from PIL import Image
 
-from db.DBFactory import query_SystemCfg, update_SystemCfg
+from db.DBFactory import query_SystemCfg, update_SystemCfg, Session, SystemCfg as DBSystemCfg
 from backend.config.settings import get_settings
 from backend.database.repositories import WebMngRepository, SystemInitRepository, AiChatCfgRepository
 from backend.database.models.system import WebMng
@@ -31,13 +31,15 @@ class SystemService:
     @staticmethod
     def get_system_config() -> Dict[str, Any]:
         """Get system configuration"""
-        config = query_SystemCfg()
+        config = query_SystemCfg(is_delete=False)
         settings = get_settings()
 
         return {
             "theme": getattr(config, 'theme', 'dark'),
             "language": getattr(config, 'language', 'zh'),
             "minirunontray": getattr(config, 'minirunontray', True),
+            "agent_server": getattr(config, 'agent_server', None),
+            "ai_sns_server": getattr(config, 'ai_sns_server', None),
             "tools": {
                 "page_size": settings.tools.page_size
             }
@@ -46,7 +48,35 @@ class SystemService:
     @staticmethod
     def update_system_config(**kwargs) -> None:
         """Update system configuration"""
-        update_SystemCfg(**kwargs)
+        allowed_keys = {
+            "autorun",
+            "showtaskbar",
+            "updateinfo",
+            "minirunontray",
+            "closebuttontype",
+            "style",
+            "showinfo",
+            "showinfoicon",
+            "infosound",
+            "agent_server",
+            "ai_sns_server",
+        }
+
+        payload = {k: v for k, v in kwargs.items() if k in allowed_keys}
+        if not payload:
+            return
+
+        record = query_SystemCfg(is_delete=False)
+        if record:
+            update_SystemCfg(record.id, **payload)
+            return
+
+        session = Session()
+        try:
+            session.add(DBSystemCfg(**payload, is_delete=False, create_time=datetime.now()))
+            session.commit()
+        finally:
+            session.close()
 
     def get_web_mng(self) -> List[Dict[str, Any]]:
         """Get all web management items"""

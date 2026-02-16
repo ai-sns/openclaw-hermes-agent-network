@@ -32,6 +32,22 @@ class SNSService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _normalize_attachment_content(filename: str, content: bytes) -> bytes:
+        """Normalize text attachments to UTF-8 with BOM to avoid Chinese mojibake."""
+        suffix = Path(filename or "").suffix.lower()
+        if suffix != '.txt':
+            return content
+
+        for encoding in ('utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'big5'):
+            try:
+                text = content.decode(encoding)
+                return text.encode('utf-8-sig')
+            except UnicodeDecodeError:
+                continue
+
+        return content.decode('utf-8', errors='replace').encode('utf-8-sig')
+
     def get_user_stats(self) -> dict:
         """Get user statistics from aichat_cfg table"""
         try:
@@ -210,6 +226,7 @@ class SNSService:
 
             # Read and save file content temporarily
             content = await file.read()
+            content = self._normalize_attachment_content(file.filename, content)
             with open(temp_path, "wb") as f:
                 f.write(content)
 

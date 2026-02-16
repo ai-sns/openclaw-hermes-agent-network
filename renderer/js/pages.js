@@ -126,7 +126,7 @@ const PageRenderers = {
                                 <line x1="34" y1="34" x2="38" y2="38" stroke="#1a73e8" stroke-width="2"/>
                             </svg>
                         </div>
-                        <span class="setting-btn-text">Initialization</span>
+                        <span class="setting-btn-text">Configuration</span>
                     </button>
                     <button class="setting-btn" data-action="help">
                         <div class="setting-btn-icon">
@@ -1373,6 +1373,145 @@ const PageControllers = {
             confirmText: '保存',
             onConfirm: () => {
                 Notification.success('设置已保存');
+            }
+        });
+    },
+
+    async showConfigurationModal() {
+        const openUrlInDefaultBrowser = (url) => {
+            const u = String(url || '').trim();
+            if (!u) {
+                return;
+            }
+            if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                window.electronAPI.openUrl(u);
+            } else {
+                window.open(u, '_blank');
+            }
+        };
+
+        const loadConfigIntoModal = async (modal) => {
+            try {
+                const localPromise = (window.electronAPI && typeof window.electronAPI.readConfigJson === 'function')
+                    ? window.electronAPI.readConfigJson()
+                    : Promise.resolve({ success: true, data: {} });
+
+                const remotePromise = (window.api && typeof window.api.get === 'function')
+                    ? window.api.get('/api/system/config')
+                    : Promise.resolve(null);
+
+                const [localRes, remoteRes] = await Promise.allSettled([localPromise, remotePromise]);
+
+                const localCfg = (localRes.status === 'fulfilled' && localRes.value && localRes.value.success)
+                    ? (localRes.value.data || {})
+                    : {};
+
+                const remoteData = (remoteRes.status === 'fulfilled') ? remoteRes.value : null;
+                const remoteCfg = (remoteData && remoteData.data) ? remoteData.data : (remoteData || {});
+
+                const agentValue = (localCfg.agent_server && String(localCfg.agent_server).trim())
+                    ? String(localCfg.agent_server)
+                    : (remoteCfg.agent_server || '');
+
+                const snsValue = (localCfg.ai_sns_server && String(localCfg.ai_sns_server).trim())
+                    ? String(localCfg.ai_sns_server)
+                    : (remoteCfg.ai_sns_server || '');
+
+                const agentInput = modal.element?.querySelector('#homeCfgAgentServer');
+                const snsInput = modal.element?.querySelector('#homeCfgAiSnsServer');
+                if (agentInput) {
+                    agentInput.value = agentValue;
+                }
+                if (snsInput) {
+                    snsInput.value = snsValue;
+                }
+            } catch (e) {
+                if (typeof Notification !== 'undefined' && Notification.error) {
+                    Notification.error(e.message || '加载配置失败');
+                }
+            }
+        };
+
+        Modal.show({
+            title: 'Configuration',
+            content: `
+                <div class="settings-modal">
+                    <div class="setting-group">
+                        <label>Agent Server <a href="#" id="homeCfgAgentHelp" style="font-size:12px;">help</a></label>
+                        <input type="text" class="setting-input" id="homeCfgAgentServer" value="" placeholder="http://..." />
+                    </div>
+                    <div class="setting-group">
+                        <label>AI-SNS Server <a href="#" id="homeCfgAiSnsHelp" style="font-size:12px;">help</a></label>
+                        <input type="text" class="setting-input" id="homeCfgAiSnsServer" value="" placeholder="http://..." />
+                    </div>
+                </div>
+            `,
+            confirmText: '保存',
+            cancelText: '取消',
+            showCancel: true,
+            width: '720px',
+            onOpen: async (modal) => {
+                const agentHelp = modal.element?.querySelector('#homeCfgAgentHelp');
+                if (agentHelp) {
+                    agentHelp.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openUrlInDefaultBrowser('https://www.ai-sns.org');
+                    });
+                }
+                const snsHelp = modal.element?.querySelector('#homeCfgAiSnsHelp');
+                if (snsHelp) {
+                    snsHelp.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openUrlInDefaultBrowser('https://www.ai-sns.org');
+                    });
+                }
+                await loadConfigIntoModal(modal);
+            },
+            onConfirm: async (modal) => {
+                try {
+                    if (!window.electronAPI || typeof window.electronAPI.writeConfigJson !== 'function') {
+                        throw new Error('electronAPI.writeConfigJson not available');
+                    }
+                    const agent_server = (modal.element?.querySelector('#homeCfgAgentServer')?.value || '').trim();
+                    const ai_sns_server = (modal.element?.querySelector('#homeCfgAiSnsServer')?.value || '').trim();
+
+                    const localRes = await window.electronAPI.writeConfigJson({ agent_server, ai_sns_server });
+                    if (!localRes || !localRes.success) {
+                        if (typeof Notification !== 'undefined' && Notification.error) {
+                            Notification.error(localRes?.error || '本地保存失败');
+                        }
+                        return false;
+                    }
+
+                    let remoteOk = true;
+                    if (window.api && typeof window.api.put === 'function') {
+                        try {
+                            const remoteRes = await window.api.put('/api/system/config', { agent_server, ai_sns_server });
+                            remoteOk = !!(remoteRes && remoteRes.success);
+                        } catch (e) {
+                            remoteOk = false;
+                        }
+                    }
+
+                    if (typeof Notification !== 'undefined') {
+                        if (remoteOk && Notification.success) {
+                            Notification.success('配置已保存');
+                        } else if (!remoteOk && Notification.warning) {
+                            Notification.warning('已保存到本地 config.json，但写入数据库失败');
+                        } else if (!remoteOk && Notification.success) {
+                            Notification.success('已保存到本地 config.json');
+                        }
+                    }
+
+                    return true;
+                } catch (e) {
+                    if (typeof Notification !== 'undefined' && Notification.error) {
+                        Notification.error(e.message || '保存失败');
+                    }
+                    return false;
+                }
             }
         });
     },

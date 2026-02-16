@@ -459,7 +459,6 @@ class AISocialEngine(
 
             action_result = self.move_ahead(self.aichatcfg_record.current_position, target_position, place)
 
-
         elif "沟通" in action_str:
             self.communicate_with_a_people(action_str, instruction)
             return
@@ -502,7 +501,6 @@ class AISocialEngine(
 
             target_position = position
             action_result = self.set_taxi_order(self.aichatcfg_record.current_position, target_position, place)
-
 
         elif "远程医疗" in action_str:
             action_result = self.call_a_doctor()

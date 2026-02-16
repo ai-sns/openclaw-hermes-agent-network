@@ -87,7 +87,7 @@ function getServiceForUser() {
             lat: 39.74441,
             category: 'game',
             type: 'web',
-            address: 'weibo.com'
+            address: 'https://cdn-factory.marketjs.com/en/epic-city-driver/index.html'
         },
         {
             name: 'aigc中心',
@@ -97,7 +97,7 @@ function getServiceForUser() {
             lat: 39.96070173087282,
             category: 'shopping',
             type: 'web',
-            address: 'https://www.babylonjs.com/Demos/WCafe/;http://www.ai-sns.org/aigccenter.html'
+            address: 'http://www.ai-sns.org/aigccenter.html'
         },
         {
             name: '商店',
@@ -107,7 +107,7 @@ function getServiceForUser() {
             lat: 40.04931576869293,
             category: 'shopping',
             type: 'web',
-            address: 'https://cdn-factory.marketjs.com/en/epic-city-driver/index.html'
+            address: 'https://www.babylonjs.com/Demos/WCafe/'
         },
         {
             name: '办公室',

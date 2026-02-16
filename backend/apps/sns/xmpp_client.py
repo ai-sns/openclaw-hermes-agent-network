@@ -227,6 +227,8 @@ class XMPPClient(slixmpp.ClientXMPP):
             # Get file info
             file_size = os.path.getsize(file_path)
             content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+            if os.path.splitext(filename)[1].lower() == '.txt':
+                content_type = 'text/plain; charset=utf-8'
 
             # Upload file using XEP-0363
             with open(file_path, 'rb') as file_handle:

@@ -706,6 +706,98 @@ ipcMain.handle('get-app-path', () => {
 
 
 
+ipcMain.handle('read-config-json', async () => {
+
+    try {
+
+        const configPath = path.join(process.cwd(), 'config.json');
+
+        try {
+
+            const raw = await fsp.readFile(configPath, 'utf-8');
+
+            const parsed = JSON.parse(raw);
+
+            return { success: true, data: (parsed && typeof parsed === 'object') ? parsed : {} };
+
+        } catch (e) {
+
+            if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) {
+
+                return { success: true, data: {} };
+
+            }
+
+            throw e;
+
+        }
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
+
+
+ipcMain.handle('write-config-json', async (event, patch) => {
+
+    try {
+
+        const configPath = path.join(process.cwd(), 'config.json');
+
+        const allowedKeys = new Set(['agent_server', 'ai_sns_server']);
+
+        const input = (patch && typeof patch === 'object') ? patch : {};
+
+        const filtered = {};
+
+        for (const [k, v] of Object.entries(input)) {
+
+            if (!allowedKeys.has(k)) continue;
+
+            filtered[k] = (v === undefined || v === null) ? '' : String(v);
+
+        }
+
+        let existing = {};
+
+        try {
+
+            const raw = await fsp.readFile(configPath, 'utf-8');
+
+            const parsed = JSON.parse(raw);
+
+            existing = (parsed && typeof parsed === 'object') ? parsed : {};
+
+        } catch (e) {
+
+            if (!(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR'))) {
+
+                throw e;
+
+            }
+
+        }
+
+        const next = { ...existing, ...filtered };
+
+        await fsp.writeFile(configPath, JSON.stringify(next, null, 2), 'utf-8');
+
+        return { success: true };
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
+
+
 ipcMain.handle('show-open-dialog', async (event, options) => {
 
     const result = await dialog.showOpenDialog(mainWindow, options);

@@ -33,6 +33,24 @@ class SNSService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    @staticmethod
+    def _normalize_attachment_content(filename: str, content: bytes) -> bytes:
+        """Normalize text attachments to UTF-8 to avoid mojibake on receiver side."""
+        suffix = Path(filename or "").suffix.lower()
+        if suffix != '.txt':
+            return content
+
+        # Try common encodings for Chinese text files, then store as UTF-8.
+        for encoding in ('utf-8-sig', 'utf-8', 'gb18030', 'gbk', 'big5'):
+            try:
+                text = content.decode(encoding)
+                return text.encode('utf-8-sig')
+            except UnicodeDecodeError:
+                continue
+
+        # Fallback to loss-tolerant decode/encode to keep file readable as much as possible.
+        return content.decode('utf-8', errors='replace').encode('utf-8-sig')
+
     async def get_user_stats(self) -> dict:
         """异步获取用户统计"""
         try:
@@ -201,6 +219,7 @@ class SNSService:
             temp_path = UPLOAD_DIR / temp_filename
 
             content = await file.read()
+            content = self._normalize_attachment_content(file.filename, content)
             with open(temp_path, "wb") as f:
                 f.write(content)
 

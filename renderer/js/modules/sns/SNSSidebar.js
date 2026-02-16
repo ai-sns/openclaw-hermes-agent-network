@@ -36,6 +36,55 @@ export default {
     currentTab: 'chat',
     contactSearchQuery: '',
     tradeSearchQuery: '',
+    _chatLinkListenerBound: false,
+
+    escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    renderMessageContent(content) {
+        const escaped = this.escapeHtml(content);
+        const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+            return `<a href="${url}" class="chat-link" data-external-url="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        });
+
+        return withLinks.replace(/\n/g, '<br>');
+    },
+
+    createChatMessageHTML(message) {
+        return `
+            <div class="chat-message ${message.flag === 0 ? 'sent' : 'received'}">
+                <div class="message-content">${this.renderMessageContent(message.content)}</div>
+                <div class="message-time">${new Date(message.create_time).toLocaleTimeString()}</div>
+            </div>
+        `;
+    },
+
+    bindChatLinkOpenHandler() {
+        if (this._chatLinkListenerBound) return;
+
+        document.addEventListener('click', (event) => {
+            const link = event.target.closest('.chat-link[data-external-url]');
+            if (!link) return;
+
+            event.preventDefault();
+            const url = link.dataset.externalUrl || link.getAttribute('href');
+            if (!url) return;
+
+            if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                window.electronAPI.openUrl(url);
+            } else {
+                window.open(url, '_blank', 'noopener,noreferrer');
+            }
+        });
+
+        this._chatLinkListenerBound = true;
+    },
 
     getRadarTheme() {
         const styles = getComputedStyle(document.body);
@@ -297,7 +346,7 @@ export default {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `chat-message ${flag === 0 ? 'sent' : 'received'}`;
                 messageDiv.innerHTML = `
-                    <div class="message-content">${content}</div>
+                    <div class="message-content">${this.renderMessageContent(content)}</div>
                     <div class="message-time">${new Date(create_time).toLocaleTimeString()}</div>
                 `;
                 chatMessages.appendChild(messageDiv);
@@ -646,6 +695,8 @@ export default {
      * 附加事件监听器
      */
     attachEventListeners() {
+        this.bindChatLinkOpenHandler();
+
         // Contact click
         this.attachContactListeners();
 
@@ -832,12 +883,7 @@ export default {
         const chatMessages = document.getElementById('chatMessages');
         if (!chatMessages) return;
 
-        chatMessages.innerHTML = messages.map(msg => `
-            <div class="chat-message ${msg.flag === 0 ? 'sent' : 'received'}">
-                <div class="message-content">${msg.content}</div>
-                <div class="message-time">${new Date(msg.create_time).toLocaleTimeString()}</div>
-            </div>
-        `).join('');
+        chatMessages.innerHTML = messages.map(msg => this.createChatMessageHTML(msg)).join('');
 
         chatMessages.scrollTop = chatMessages.scrollHeight;
     },
