@@ -93,7 +93,12 @@ class Modal {
         this.element.addEventListener('click', async (e) => {
             const action = e.target.dataset.action;
 
-            if (action === 'close' || action === 'cancel') {
+            if (action === 'close') {
+                this.close();
+                return;
+            }
+
+            if (action === 'cancel') {
                 if (this.onCancel) {
                     try {
                         const result = await this.onCancel(this);

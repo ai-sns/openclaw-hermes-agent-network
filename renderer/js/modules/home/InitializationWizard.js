@@ -337,11 +337,14 @@ const InitializationWizard = {
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>SNS主页</label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input class="form-input" id="initSnsUrl" type="text" value="${this.escapeHtml(this.state.sns_url || '')}" style="flex:1;" />
-                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;">注册地址</a>
+                <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
+                    <div class="form-group" style="flex:1;min-width:0;">
+                        <label>SNS主页</label>
+                        <input class="form-input" id="initSnsUrl" type="text" value="${this.escapeHtml(this.state.sns_url || '')}" />
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+                        <label style="white-space:nowrap;">If you don't have account:</label>
+                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">注册地址</a>
                     </div>
                 </div>
 
@@ -398,11 +401,14 @@ const InitializationWizard = {
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label>地图 ID *</label>
-                    <div style="display:flex;align-items:center;gap:10px;">
-                        <input class="form-input" id="initMapId" type="text" value="${this.escapeHtml(mapIdValue)}" ${mapIdReadOnly ? 'readonly' : ''} style="flex:1;" />
-                        <a href="#" id="initMapRegisterLink" style="font-size:12px;white-space:nowrap;">注册地址</a>
+                <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
+                    <div class="form-group" style="flex:1;min-width:0;">
+                        <label>地图 ID *</label>
+                        <input class="form-input" id="initMapId" type="text" value="${this.escapeHtml(mapIdValue)}" ${mapIdReadOnly ? 'readonly' : ''} />
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
+                        <label style="white-space:nowrap;">If you don't have account:</label>
+                        <a href="#" id="initMapRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">注册地址</a>
                     </div>
                 </div>
 
@@ -468,6 +474,26 @@ const InitializationWizard = {
     bindStepEvents() {
         if (!this.modal || !this.modal.element) {
             return;
+        }
+
+        const closeBtn = this.modal.element.querySelector('[data-action="close"]');
+        if (closeBtn && !closeBtn.dataset.initWizardBound) {
+            closeBtn.dataset.initWizardBound = '1';
+            closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this.cleanupCaptchaObjectUrl();
+
+                if (window.electronAPI && typeof window.electronAPI.quitApp === 'function') {
+                    window.electronAPI.quitApp();
+                    return;
+                }
+                if (window.electronAPI && typeof window.electronAPI.windowClose === 'function') {
+                    window.electronAPI.windowClose();
+                    return;
+                }
+                window.close();
+            }, true);
         }
 
         const root = this.modal.element.querySelector('#initWizard');

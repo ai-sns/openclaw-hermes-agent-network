@@ -342,10 +342,11 @@ class SystemInitWizardService:
 
     async def test_xmpp(self, account: str, account_password: str) -> Dict[str, Any]:
         account = (account or "").strip()
-        account_password = (account_password or "").strip()
+        account_password_raw = account_password or ""
+        account_password = account_password_raw
         if not account:
             return {"success": False, "message": "XMPP账号 不能为空"}
-        if not account_password:
+        if not (account_password or "").strip():
             return {"success": False, "message": "XMPP密码 不能为空"}
         if "@" not in account:
             return {"success": False, "message": "XMPP账号 格式不正确"}
@@ -355,7 +356,9 @@ class SystemInitWizardService:
         except Exception as e:
             return {"success": False, "message": f"slixmpp 未安装或不可用: {str(e)}"}
 
-        domain_part = account.split("@", 1)[1]
+        account_no_resource = account.split("/", 1)[0]
+
+        domain_part = account_no_resource.split("@", 1)[1]
         domain_part = domain_part.split("/", 1)[0]
 
         host = domain_part
@@ -366,8 +369,23 @@ class SystemInitWizardService:
                 host = maybe_host
                 port_override = int(maybe_port)
 
+        jid = account_no_resource
+        if port_override is not None:
+            # Keep socket host/port override, but JID must not contain ":port"
+            local_part = jid.split("@", 1)[0]
+            jid = f"{local_part}@{host}"
+
         if not host:
             return {"success": False, "message": "XMPP账号 格式不正确"}
+
+        logger.info(
+            "[InitWizard][XMPP Test] Prepared credentials | raw_account=%s | sanitized_jid=%s | host=%s | port_override=%s | password=%s",
+            account,
+            jid,
+            host,
+            port_override if port_override is not None else "default:5222",
+            account_password,
+        )
 
         loop = asyncio.get_running_loop()
 
@@ -376,12 +394,18 @@ class SystemInitWizardService:
                 super().__init__(jid, password)
                 self._done_future = done_future
                 self._connected_target: Optional[str] = None
+                self._fail_task: Optional[asyncio.Task] = None
+
+                # Align with SNS module: prefer simple SASL (PLAIN) over TLS
+                # to avoid servers rejecting SCRAM variants.
+                self.auth_mechanisms = {"PLAIN"}
 
                 self.add_event_handler("session_start", self._on_session_start)
                 self.add_event_handler("failed_auth", self._on_failed_auth)
                 self.add_event_handler("connection_failed", self._on_connection_failed)
                 self.add_event_handler("socket_error", self._on_socket_error)
                 self.add_event_handler("disconnected", self._on_disconnected)
+                self.add_event_handler("stream_features", self._on_stream_features)
 
                 self.register_plugin('xep_0030')
                 self.register_plugin('xep_0199')
@@ -400,12 +424,33 @@ class SystemInitWizardService:
                 msg = "XMPP 登录成功"
                 if self._connected_target:
                     msg = f"{msg}({self._connected_target})"
+                logger.info(
+                    "[InitWizard][XMPP Test] session_start | boundjid=%s | requested_jid=%s",
+                    self.boundjid,
+                    self.requested_jid,
+                )
+                if self._fail_task:
+                    self._fail_task.cancel()
                 await self._resolve({"success": True, "message": msg})
                 self.disconnect(wait=False)
 
             async def _on_failed_auth(self, _event):
-                await self._resolve({"success": False, "message": "XMPP 认证失败(账号或密码错误)"})
-                self.disconnect(wait=False)
+                logger.warning(
+                    "[InitWizard][XMPP Test] failed_auth | requested_jid=%s",
+                    getattr(self, "requested_jid", None),
+                )
+                # Do not immediately abort; allow a short window for a second mechanism to succeed (as seen in SNS client)
+                if self._fail_task:
+                    self._fail_task.cancel()
+                async def _delayed_fail():
+                    try:
+                        await asyncio.sleep(3)
+                        if not self._done_future.done():
+                            await self._resolve({"success": False, "message": "XMPP 认证失败(账号或密码错误)"})
+                            self.disconnect(wait=False)
+                    except asyncio.CancelledError:
+                        return
+                self._fail_task = asyncio.create_task(_delayed_fail())
 
             async def _on_connection_failed(self, event):
                 detail = (str(event) or "").strip()
@@ -432,107 +477,53 @@ class SystemInitWizardService:
                         msg = f"{msg}({self._connected_target})"
                     self._done_future.set_result({"success": False, "message": msg})
 
-        def _get_srv_targets() -> List[Tuple[str, int, bool]]:
-            targets: List[Tuple[str, int, bool]] = []
-            try:
-                import dns.resolver  # type: ignore
-            except Exception:
-                return targets
-
-            try:
-                resolver = dns.resolver.Resolver()
-                resolver.lifetime = 2.5
-                resolver.timeout = 2.5
-            except Exception:
-                return targets
-
-            def _query(name: str, direct_tls: bool) -> None:
+            async def _on_stream_features(self, _event):
                 try:
-                    answers = resolver.resolve(name, "SRV")
-                    for r in answers:
-                        try:
-                            t = str(getattr(r, "target", "") or "").rstrip('.')
-                            p = int(getattr(r, "port", 0) or 0)
-                            if t and p:
-                                targets.append((t, p, direct_tls))
-                        except Exception:
-                            continue
+                    mechs = getattr(self.auth, "mechanisms", None)
+                    logger.info(
+                        "[InitWizard][XMPP Test] stream_features | advertised_mechs=%s | auth_mechanisms=%s",
+                        mechs,
+                        getattr(self, "auth_mechanisms", None),
+                    )
                 except Exception:
-                    return
+                    pass
 
-            _query(f"_xmpp-client._tcp.{host}", False)
-            _query(f"_xmpps-client._tcp.{host}", True)
-            return targets
+        fut: asyncio.Future = loop.create_future()
+        xmpp = _TestXMPPClient(jid, account_password, fut)
 
-        async def _attempt(target_host: str, target_port: int, direct_tls: bool, use_srv: bool) -> Dict[str, Any]:
-            fut: asyncio.Future = loop.create_future()
-            xmpp = _TestXMPPClient(account, account_password, fut)
-            xmpp._connected_target = f"{target_host}:{target_port}"
-
-            if direct_tls:
-                xmpp.use_ssl = True
-                xmpp.use_tls = False
+        try:
+            if port_override is not None:
+                xmpp._connected_target = f"{host}:{port_override}"
+                xmpp.connect(address=(host, port_override))
             else:
-                xmpp.use_ssl = False
-                xmpp.use_tls = True
-
+                xmpp._connected_target = f"{host}:5222"
+                xmpp.connect()
+        except Exception as e:
             try:
-                if use_srv:
-                    connected = bool(xmpp.connect())
-                else:
-                    connected = bool(xmpp.connect(address=(target_host, target_port), use_ssl=direct_tls))
-            except Exception as e:
-                return {"success": False, "message": f"无法连接 XMPP 服务器({xmpp._connected_target}): {str(e)}"}
+                xmpp.disconnect(wait=False)
+            except Exception:
+                pass
+            return {"success": False, "message": f"无法连接 XMPP 服务器: {str(e)}"}
 
-            if not connected:
-                return {"success": False, "message": f"无法连接 XMPP 服务器({xmpp._connected_target})"}
-
-            asyncio.create_task(xmpp.process(forever=False))
+        try:
             try:
                 result = await asyncio.wait_for(fut, timeout=12.0)
             except asyncio.TimeoutError:
-                try:
-                    xmpp.disconnect(wait=False)
-                except Exception:
-                    pass
-                return {"success": False, "message": f"XMPP 登录超时(12s)({xmpp._connected_target})"}
+                result = {"success": False, "message": f"XMPP 登录超时(12s)({xmpp._connected_target})"}
+        finally:
+            try:
+                xmpp.disconnect(wait=False)
+            except Exception:
+                pass
+            # Give slixmpp a moment to clean up
+            try:
+                await asyncio.wait_for(xmpp.disconnected, timeout=3.0)
+            except (asyncio.TimeoutError, Exception):
+                pass
 
-            if isinstance(result, dict) and "success" in result:
-                return result
-            return {"success": False, "message": f"XMPP 测试失败({xmpp._connected_target})"}
-
-        try:
-            candidates: List[Tuple[str, int, bool, bool]] = []
-
-            if port_override:
-                candidates.append((host, port_override, port_override == 5223, False))
-            else:
-                srv_targets = _get_srv_targets()
-                if srv_targets:
-                    candidates.append((host, 0, False, True))
-                for (h, p, tls) in srv_targets[:4]:
-                    candidates.append((h, p, tls, False))
-                candidates.append((host, 5222, False, False))
-                candidates.append((host, 5223, True, False))
-
-            errors: List[str] = []
-            for (h, p, tls, use_srv) in candidates:
-                if use_srv:
-                    res = await _attempt(h, p or 5222, False, True)
-                else:
-                    res = await _attempt(h, p, tls, False)
-                if res.get("success") is True:
-                    return res
-                msg = (res.get("message") or "").strip()
-                if msg:
-                    errors.append(msg)
-
-            brief = " ; ".join(errors[:2]).strip()
-            if brief:
-                return {"success": False, "message": brief}
-            return {"success": False, "message": "无法连接 XMPP 服务器"}
-        except Exception as e:
-            return {"success": False, "message": f"XMPP 测试异常: {str(e)}"}
+        if isinstance(result, dict) and "success" in result:
+            return result
+        return {"success": False, "message": "XMPP 测试失败"}
 
     async def test_map(self, map_type: str, map_api_key: str, map_id: str) -> Dict[str, Any]:
         map_type = (map_type or "").strip() or "Google"

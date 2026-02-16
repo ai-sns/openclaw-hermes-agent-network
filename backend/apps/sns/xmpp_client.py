@@ -306,20 +306,18 @@ class XMPPClientManager:
             # Connect and process in background task
             logger.info(f"Connecting XMPP client: {config.account}")
 
-            # Connect (non-blocking)
-            if self._client.connect():
-                # Create background task for processing
-                loop.create_task(self._run_client())
-                logger.info("XMPP client connected successfully")
-            else:
-                logger.error("Failed to connect XMPP client")
+            # Connect (non-blocking, connect() returns None)
+            self._client.connect()
+            # Create background task for processing
+            loop.create_task(self._run_client())
+            logger.info("XMPP client connect initiated")
         except Exception as e:
             logger.error(f"Error starting XMPP client: {e}")
 
     async def _run_client(self):
         """Run XMPP client processing loop"""
         try:
-            await self._client.process(forever=False)
+            await self._client.disconnected
         except Exception as e:
             logger.error(f"Error in XMPP client processing: {e}")
 
