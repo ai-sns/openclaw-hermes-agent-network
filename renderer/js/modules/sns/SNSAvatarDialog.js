@@ -7,6 +7,7 @@ export class SNSAvatarDialog {
         this.dialog = null;
         this.selectedAvatar3D = null;
         this.uploadedAvatar = null;
+        this.uploadedAvatarMeta = null;
         this.existingConfig = null;
         this.existingAvatar3DName = null;
         this.existingAgentId = null;
@@ -55,6 +56,8 @@ export class SNSAvatarDialog {
                     <div class="modal-tabs">
                         <button class="modal-tab active" data-tab="avatar">Avatar Settings</button>
                         <button class="modal-tab" data-tab="userinfo">Profile Info</button>
+                        <button class="modal-tab" data-tab="xmpp">XMPP</button>
+                        <button class="modal-tab" data-tab="security">Security</button>
                     </div>
                     <div class="modal-body">
                         <!-- Avatar Config Tab -->
@@ -102,8 +105,8 @@ export class SNSAvatarDialog {
                                             <input type="text" id="userNickname" class="form-control" placeholder="Enter a nickname">
                                         </div>
                                         <div class="form-group">
-                                            <label for="userSign">Signature</label>
-                                            <input type="text" id="userSign" class="form-control" placeholder="Enter a signature">
+                                            <label for="userSign">Profile</label>
+                                            <input type="text" id="userSign" class="form-control" placeholder="Enter a profile">
                                         </div>
                                         <div class="form-group">
                                             <label for="userSnsUrl">SNS URL</label>
@@ -114,6 +117,43 @@ export class SNSAvatarDialog {
                                             <select id="userAgentId" class="form-control">
                                                 <option value="">Select an agent</option>
                                             </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="xmppTab" style="display: none;">
+                            <div class="avatar-config-container">
+                                <div class="avatar-section">
+                                    <h4>XMPP</h4>
+                                    <div class="user-info-form">
+                                        <div class="form-group">
+                                            <label for="xmppAccount">Account</label>
+                                            <input type="text" id="xmppAccount" class="form-control" placeholder="Enter the XMPP account">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="xmppPassword">Password</label>
+                                            <input type="password" id="xmppPassword" class="form-control" placeholder="Enter the XMPP password">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-content" id="securityTab" style="display: none;">
+                            <div class="avatar-config-container">
+                                <div class="avatar-section">
+                                    <h4>Security</h4>
+                                    <div class="user-info-form">
+                                        <div class="avatar-nationid" id="securityNationIdText">Nation ID: -</div>
+                                        <div class="form-group" style="margin-top: 10px;">
+                                            <label for="newNationPassword">New Nation Password</label>
+                                            <input type="password" id="newNationPassword" class="form-control" placeholder="Enter the new nation password">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="retypeNationPassword">Retype New Nation Password</label>
+                                            <input type="password" id="retypeNationPassword" class="form-control" placeholder="Retype the new nation password">
                                         </div>
                                     </div>
                                 </div>
@@ -176,6 +216,10 @@ export class SNSAvatarDialog {
             if (!config || typeof config !== 'object') return;
 
             this.existingConfig = config;
+
+            const xmppAccountEl = this._q('#xmppAccount');
+            if (xmppAccountEl) xmppAccountEl.value = config.account || '';
+
             if (config.avatar) {
                 this.setAvatarPreview(config.avatar);
             }
@@ -325,8 +369,33 @@ export class SNSAvatarDialog {
         try {
             const errors = [];
             let didChange = false;
+            let didChangeSubmit = false;
             let nicknameChanged = false;
             let nicknameValue = '';
+
+            let avatarMapToSubmit = this.uploadedAvatarMeta && this.uploadedAvatarMeta.avatar_map
+                ? String(this.uploadedAvatarMeta.avatar_map)
+                : '';
+
+            const newNationPasswordEl = this._q('#newNationPassword');
+            const retypeNationPasswordEl = this._q('#retypeNationPassword');
+            const newNationPassword = newNationPasswordEl ? String(newNationPasswordEl.value || '').trim() : '';
+            const retypeNationPassword = retypeNationPasswordEl ? String(retypeNationPasswordEl.value || '').trim() : '';
+            if (newNationPassword) {
+                didChange = true;
+            }
+
+            const xmppAccountEl = this._q('#xmppAccount');
+            const xmppPasswordEl = this._q('#xmppPassword');
+            const xmppAccount = xmppAccountEl ? String(xmppAccountEl.value || '').trim() : '';
+            const xmppPassword = xmppPasswordEl ? String(xmppPasswordEl.value || '').trim() : '';
+            const xmppUpdates = {};
+            const prevXmppAccount = this.existingConfig && this.existingConfig.account ? String(this.existingConfig.account || '') : '';
+            if (xmppAccount && xmppAccount !== prevXmppAccount) xmppUpdates.account = xmppAccount;
+            if (xmppPassword) xmppUpdates.password = xmppPassword;
+            if (Object.keys(xmppUpdates).length > 0) {
+                didChange = true;
+            }
 
             // 1) Avatar settings (upload avatar / select 3D avatar)
             const configUpdates = {};
@@ -335,17 +404,23 @@ export class SNSAvatarDialog {
                 const formData = new FormData();
                 formData.append('file', this.uploadedAvatar);
 
-                const uploadResponse = await fetch(this.resolve('/api/sns/config/upload-avatar'), {
+                const uploadResponse = await fetch(this.resolve('/api/sns/avatar-dialog/upload-avatar'), {
                     method: 'POST',
                     body: formData
                 });
 
                 const uploadResult = await uploadResponse.json();
-                if (uploadResult && uploadResult.success) {
+                const uploadData = uploadResult && uploadResult.data ? uploadResult.data : null;
+                if (uploadResult && uploadResult.success && uploadData) {
                     didChange = true;
+                    didChangeSubmit = true;
                     try {
-                        if (uploadResult.avatar_data) {
-                            this.setAvatarPreview(uploadResult.avatar_data);
+                        this.uploadedAvatarMeta = uploadData;
+                        if (uploadData.avatar_data) {
+                            this.setAvatarPreview(uploadData.avatar_data);
+                        }
+                        if (uploadData.avatar_map) {
+                            avatarMapToSubmit = String(uploadData.avatar_map);
                         }
                     } catch (e) {
                     }
@@ -366,18 +441,8 @@ export class SNSAvatarDialog {
 
             if (Object.keys(configUpdates).length > 0) {
                 didChange = true;
-                const response = await fetch(this.resolve('/api/sns/config'), {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(configUpdates)
-                });
-
-                const result = await response.json();
-                if (!result || !result.success) {
-                    errors.push('Avatar settings save failed' + (result && result.message ? (': ' + result.message) : '.'));
-                }
+                didChangeSubmit = true;
+                // avatar3d will be submitted in one request below
             }
 
             // 2) Profile info (nickname / signature / sns_url / agent)
@@ -403,34 +468,125 @@ export class SNSAvatarDialog {
 
             if (Object.keys(userInfoUpdates).length > 0) {
                 didChange = true;
-                const response = await fetch(this.resolve('/api/sns/user-info'), {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(userInfoUpdates)
-                });
-
-                const result = await response.json();
-                if (!result || !result.success) {
-                    errors.push('Profile info save failed' + (result && result.message ? (': ' + result.message) : '.'));
-                } else {
-                    if ('nickname' in userInfoUpdates) {
-                        nicknameChanged = true;
-                        nicknameValue = nickname;
-                    }
-                    this.existingUserInfo = {
-                        nickname,
-                        sign,
-                        sns_url: snsUrl,
-                        agent_id: userInfoUpdates.agent_id === undefined ? (previous.agent_id ?? null) : userInfoUpdates.agent_id
-                    };
-                }
+                didChangeSubmit = true;
+                // user info will be submitted in one request below
             }
 
             if (!didChange) {
                 alert('No changes to save.');
                 return;
+            }
+
+            if (errors.length > 0) {
+                alert('Save failed: ' + errors.join('\n'));
+                return;
+            }
+
+            if (newNationPassword) {
+                if (!retypeNationPassword) {
+                    errors.push('Please retype the new nation password.');
+                } else if (newNationPassword !== retypeNationPassword) {
+                    errors.push('The two nation password entries do not match.');
+                }
+            }
+
+            if (errors.length > 0) {
+                alert('Save failed: ' + errors.join('\n'));
+                return;
+            }
+
+            if (newNationPassword) {
+                const passResp = await fetch(this.resolve('/api/sns/change-nationpassword'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        new_password: newNationPassword
+                    })
+                });
+                const passResult = await passResp.json();
+                if (!passResult || !passResult.success) {
+                    errors.push('Nation password update failed' + (passResult && passResult.message ? (': ' + passResult.message) : '.'));
+                } else {
+                    if (newNationPasswordEl) newNationPasswordEl.value = '';
+                    if (retypeNationPasswordEl) retypeNationPasswordEl.value = '';
+                }
+            }
+
+            if (Object.keys(xmppUpdates).length > 0) {
+                const xmppResp = await fetch(this.resolve('/api/sns/config'), {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(xmppUpdates)
+                });
+                const xmppResult = await xmppResp.json();
+                if (!xmppResult || !xmppResult.success) {
+                    errors.push('XMPP update failed' + (xmppResult && xmppResult.message ? (': ' + xmppResult.message) : '.'));
+                } else {
+                    if (xmppUpdates.account) {
+                        this.existingConfig = {
+                            ...(this.existingConfig || {}),
+                            account: xmppUpdates.account
+                        };
+                    }
+                    if (xmppPasswordEl) xmppPasswordEl.value = '';
+                }
+            }
+
+            if (errors.length > 0) {
+                alert('Save failed: ' + errors.join('\n'));
+                return;
+            }
+
+            if (!didChangeSubmit) {
+                alert('Saved successfully.');
+                this.dialog.remove();
+                return;
+            }
+
+            const avatar3dValue = this.selectedAvatar3D
+                ? (() => {
+                    const name = String(this.selectedAvatar3D.name || '');
+                    return name.toLowerCase().endsWith('.glb') ? name : `${name}.glb`;
+                })()
+                : (this.existingConfig && this.existingConfig.avatar3d ? String(this.existingConfig.avatar3d) : '');
+
+            const submitPayload = {
+                avatar_map: avatarMapToSubmit,
+                avatar3d: avatar3dValue,
+                nickname,
+                profile: sign,
+                sns_url: snsUrl
+            };
+
+            const submitResp = await fetch(this.resolve('/api/sns/avatar-dialog/submit'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(submitPayload)
+            });
+            const submitResult = await submitResp.json();
+            if (!submitResult || !submitResult.success) {
+                errors.push('Submit failed' + (submitResult && submitResult.message ? (': ' + submitResult.message) : '.'));
+            } else {
+                if ((this.existingUserInfo && (this.existingUserInfo.nickname || '')) !== nickname) {
+                    nicknameChanged = true;
+                    nicknameValue = nickname;
+                }
+                this.existingUserInfo = {
+                    nickname,
+                    sign,
+                    sns_url: snsUrl,
+                    agent_id: this.existingUserInfo ? this.existingUserInfo.agent_id : null
+                };
+                this.existingConfig = {
+                    ...(this.existingConfig || {}),
+                    avatar3d: avatar3dValue
+                };
             }
 
             if (errors.length > 0) {
@@ -474,6 +630,9 @@ export class SNSAvatarDialog {
                     }
                 }
                 if (nationIdTextEl) nationIdTextEl.textContent = `Nation ID: ${nationid || '-'}`;
+
+                const securityNationIdTextEl = this._q('#securityNationIdText');
+                if (securityNationIdTextEl) securityNationIdTextEl.textContent = `Nation ID: ${nationid || '-'}`;
 
                 const nicknameEl = this._q('#userNickname');
                 const signEl = this._q('#userSign');

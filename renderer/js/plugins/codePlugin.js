@@ -9,9 +9,9 @@ const CodePlugin = {
      */
     info: {
         id: 'code',
-        name: '代码执行插件',
+        name: 'Code Execution Plugin',
         version: '1.0.0',
-        description: '从聊天中提取代码块，提供编辑和运行功能'
+        description: 'Extract code blocks from chat, with editing and execution'
     },
 
     /**
@@ -35,10 +35,10 @@ const CodePlugin = {
         this._currentContainer = container;
         container.innerHTML = `
             <div style="padding: 12px; display: flex; flex-direction: column; gap: 12px; height: 100%;">
-                <!-- 代码信息栏 -->
+                <!-- Code info bar -->
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px; background: var(--bg-secondary, #f5f5f5); border-radius: 4px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 10px; color: var(--text-secondary, #666);" id="code-plugin-info">未提取代码</span>
+                        <span style="font-size: 10px; color: var(--text-secondary, #666);" id="code-plugin-info">No code extracted</span>
                         <select id="code-plugin-language" style="font-size: 10px; padding: 2px 4px; border: 1px solid var(--border-light, #ddd); border-radius: 3px; background: var(--bg-content, #fff); color: var(--text-primary, #333);">
                             <option value="javascript">JavaScript</option>
                             <option value="python">Python</option>
@@ -49,57 +49,57 @@ const CodePlugin = {
                         <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="vertical-align: middle; margin-right: 4px;">
                             <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
                         </svg>
-                        提取代码
+                        Extract code
                     </button>
                 </div>
 
-                <!-- 代码编辑器 -->
+                <!-- Code editor -->
                 <textarea
                     id="code-plugin-editor"
-                    placeholder="点击'提取代码'按钮从聊天中获取代码，或直接在此编写代码..."
+                    placeholder="Click 'Extract code' to get code from chat, or write code here..."
                     style="flex: 1; min-height: 200px; padding: 12px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; line-height: 1.5; border: 1px solid var(--border-light, #ddd); border-radius: 4px; background: var(--bg-content, #fff); color: var(--text-primary, #333); resize: vertical;"
                 ></textarea>
 
-                <!-- 控制按钮组 -->
+                <!-- Control buttons -->
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <button class="preset-use-btn" style="flex: 1; min-width: 80px;" onclick="CodePlugin.run()">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: middle; margin-right: 4px;">
                             <path d="M8 5v14l11-7z"/>
                         </svg>
-                        运行
+                        Run
                     </button>
                     <button class="preset-use-btn" style="flex: 1; min-width: 80px;" onclick="CodePlugin.clearEditor()">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: middle; margin-right: 4px;">
                             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                         </svg>
-                        清空
+                        Clear
                     </button>
                     <button class="preset-use-btn" style="flex: 0.5; min-width: 60px;" onclick="CodePlugin.navigate('prev')" id="code-plugin-prev">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: middle;">
                             <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
                         </svg>
-                        上一个
+                        Previous
                     </button>
                     <button class="preset-use-btn" style="flex: 0.5; min-width: 60px;" onclick="CodePlugin.navigate('next')" id="code-plugin-next">
-                        下一个
+                        Next
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" style="vertical-align: middle;">
                             <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
                         </svg>
                     </button>
                 </div>
 
-                <!-- 输出区域 -->
+                <!-- Output area -->
                 <div style="border-top: 1px solid var(--border-light, #ddd); padding-top: 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <span style="font-size: 11px; font-weight: bold; color: var(--text-primary, #333);">输出结果：</span>
-                        <button class="preset-use-btn" style="padding: 2px 6px; font-size: 10px;" onclick="CodePlugin.clearOutput()">清空输出</button>
+                        <span style="font-size: 11px; font-weight: bold; color: var(--text-primary, #333);">Output:</span>
+                        <button class="preset-use-btn" style="padding: 2px 6px; font-size: 10px;" onclick="CodePlugin.clearOutput()">Clear output</button>
                     </div>
                     <div id="code-plugin-output" style="min-height: 80px; max-height: 200px; overflow-y: auto; padding: 8px; background: var(--bg-secondary, #f5f5f5); border: 1px solid var(--border-light, #ddd); border-radius: 4px; font-family: 'Consolas', 'Monaco', monospace; font-size: 11px; line-height: 1.4; color: var(--text-primary, #333); white-space: pre-wrap;"></div>
                 </div>
             </div>
         `;
 
-        console.log('[CodePlugin] 插件UI已渲染');
+        console.log('[CodePlugin] Plugin UI rendered');
     },
 
     /**
@@ -126,7 +126,7 @@ const CodePlugin = {
         }
 
         if (!chatMessages) {
-            this.showOutput('错误: 未找到聊天消息容器。请确保在聊天页面使用此插件。', 'error');
+            this.showOutput('Error: chat message container not found. Please use this plugin on the chat page.', 'error');
             return;
         }
 
@@ -150,9 +150,9 @@ const CodePlugin = {
         });
 
         if (extractedCodes.length === 0) {
-            this.showOutput('未在聊天中找到代码块（mindmap 除外）', 'info');
+            this.showOutput('No code blocks found in chat (excluding mindmap)', 'info');
             if (typeof Notification !== 'undefined') {
-                Notification.info('未找到可提取的代码');
+                Notification.info('No code found to extract');
             }
             return;
         }
@@ -165,10 +165,10 @@ const CodePlugin = {
         this.displayCurrent();
 
         if (typeof Notification !== 'undefined') {
-            Notification.success(`已提取 ${extractedCodes.length} 个代码块`);
+            Notification.success(`Extracted ${extractedCodes.length} code blocks`);
         }
 
-        console.log('[CodePlugin] 提取了', extractedCodes.length, '个代码块');
+        console.log('[CodePlugin] Extracted', extractedCodes.length, 'code blocks');
     },
 
     /**
@@ -177,24 +177,24 @@ const CodePlugin = {
     displayCurrent() {
         const { codeBlocks, currentIndex } = this.state;
 
-        console.log('[CodePlugin] displayCurrent 调用:', {
+        console.log('[CodePlugin] displayCurrent called:', {
             codeBlocksCount: codeBlocks.length,
             currentIndex,
             hasContainer: !!this._currentContainer
         });
 
         if (codeBlocks.length === 0) {
-            console.log('[CodePlugin] 没有代码块可显示');
+            console.log('[CodePlugin] No code blocks to display');
             return;
         }
 
         if (!this._currentContainer) {
-            console.error('[CodePlugin] 容器引用丢失');
+            console.error('[CodePlugin] Container reference lost');
             return;
         }
 
         const currentCode = codeBlocks[currentIndex];
-        console.log('[CodePlugin] 当前代码:', {
+        console.log('[CodePlugin] Current code:', {
             language: currentCode.language,
             codeLength: currentCode.code ? currentCode.code.length : 0,
             codePreview: currentCode.code ? currentCode.code.substring(0, 50) : 'null'
@@ -205,7 +205,7 @@ const CodePlugin = {
         const info = this._currentContainer.querySelector('#code-plugin-info');
         const langSelect = this._currentContainer.querySelector('#code-plugin-language');
 
-        console.log('[CodePlugin] 元素查找结果:', {
+        console.log('[CodePlugin] Element query results:', {
             editor: !!editor,
             info: !!info,
             langSelect: !!langSelect
@@ -213,15 +213,15 @@ const CodePlugin = {
 
         if (editor) {
             editor.value = currentCode.code;
-            console.log('[CodePlugin] 代码已设置到编辑器，长度:', editor.value.length);
+            console.log('[CodePlugin] Code set to editor, length:', editor.value.length);
         } else {
-            console.error('[CodePlugin] 未找到编辑器元素 #code-plugin-editor');
+            console.error('[CodePlugin] Editor element not found: #code-plugin-editor');
         }
 
         if (info) {
-            info.textContent = `代码 ${currentIndex + 1} / ${codeBlocks.length}`;
+            info.textContent = `Code ${currentIndex + 1} / ${codeBlocks.length}`;
         } else {
-            console.error('[CodePlugin] 未找到信息元素 #code-plugin-info');
+            console.error('[CodePlugin] Info element not found: #code-plugin-info');
         }
 
         if (langSelect) {
@@ -236,9 +236,9 @@ const CodePlugin = {
             } else {
                 langSelect.value = 'javascript';
             }
-            console.log('[CodePlugin] 语言已设置为:', langSelect.value);
+            console.log('[CodePlugin] Language set to:', langSelect.value);
         } else {
-            console.error('[CodePlugin] 未找到语言选择器 #code-plugin-language');
+            console.error('[CodePlugin] Language selector not found: #code-plugin-language');
         }
 
         // Update button state
@@ -263,7 +263,7 @@ const CodePlugin = {
         const { codeBlocks, currentIndex } = this.state;
 
         if (codeBlocks.length === 0) {
-            this.showOutput('请先提取代码', 'info');
+            this.showOutput('Please extract code first', 'info');
             return;
         }
 
@@ -281,7 +281,7 @@ const CodePlugin = {
      */
     run() {
         if (!this._currentContainer) {
-            console.error('[CodePlugin] 容器引用丢失');
+            console.error('[CodePlugin] Container reference lost');
             return;
         }
 
@@ -290,7 +290,7 @@ const CodePlugin = {
         const output = this._currentContainer.querySelector('#code-plugin-output');
 
         if (!editor || !langSelect || !output) {
-            console.error('[CodePlugin] 未找到必要的UI元素');
+            console.error('[CodePlugin] Required UI elements not found');
             return;
         }
 
@@ -298,24 +298,24 @@ const CodePlugin = {
         const language = langSelect.value;
 
         if (!code) {
-            this.showOutput('请输入代码', 'error');
+            this.showOutput('Please enter code', 'error');
             return;
         }
 
         // Clear previous output
         output.innerHTML = '';
-        this.showOutput(`[运行 ${language.toUpperCase()} 代码...]\n`, 'info');
+        this.showOutput(`[Running ${language.toUpperCase()} code...]\n`, 'info');
 
         try {
             if (language === 'javascript') {
                 this.runJavaScript(code);
             } else if (language === 'python') {
-                this.showOutput('\nPython 执行需要后端支持，当前仅支持 JavaScript 和 HTML', 'error');
+                this.showOutput('\nPython execution requires backend support. Currently only JavaScript and HTML are supported.', 'error');
             } else if (language === 'html') {
                 this.runHTML(code);
             }
         } catch (error) {
-            this.showOutput(`\n错误: ${error.message}\n${error.stack}`, 'error');
+            this.showOutput(`\nError: ${error.message}\n${error.stack}`, 'error');
         }
     },
 
@@ -370,11 +370,11 @@ const CodePlugin = {
 
             // Show return value
             if (result !== undefined) {
-                this.showOutput(`\n\n[返回值]: ${typeof result === 'object' ? JSON.stringify(result, null, 2) : result}`, 'success');
+                this.showOutput(`\n\n[Return value]: ${typeof result === 'object' ? JSON.stringify(result, null, 2) : result}`, 'success');
             }
 
             if (logs.length === 0 && result === undefined) {
-                this.showOutput('\n[代码执行完成，无输出]', 'success');
+                this.showOutput('\n[Execution completed with no output]', 'success');
             }
 
         } catch (error) {
@@ -383,7 +383,7 @@ const CodePlugin = {
             console.error = originalError;
             console.warn = originalWarn;
 
-            this.showOutput(`\n执行错误: ${error.message}`, 'error');
+            this.showOutput(`\nExecution error: ${error.message}`, 'error');
             throw error;
         }
     },
@@ -401,7 +401,7 @@ const CodePlugin = {
         const iframe = document.createElement('iframe');
         iframe.style.cssText = 'width: 100%; height: 300px; border: 1px solid var(--border-light, #ddd); border-radius: 4px; background: white;';
 
-        output.innerHTML = '[HTML 预览]\n';
+        output.innerHTML = '[HTML Preview]\n';
         output.appendChild(iframe);
 
         // Write HTML content
@@ -449,7 +449,7 @@ const CodePlugin = {
         }
 
         if (typeof Notification !== 'undefined') {
-            Notification.success('编辑器已清空');
+            Notification.success('Editor cleared');
         }
     },
 

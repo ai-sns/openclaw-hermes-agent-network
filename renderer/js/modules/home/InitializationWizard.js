@@ -69,10 +69,10 @@ const InitializationWizard = {
 
         if (Number(this.state.status) === 1) {
             Modal.show({
-                title: '初始化设置',
+                title: 'Initialization Setup',
                 content: this.renderReadonlySummary(),
                 showCancel: false,
-                confirmText: '关闭',
+                confirmText: 'Close',
                 width: '820px'
             });
             return;
@@ -81,7 +81,7 @@ const InitializationWizard = {
         this.step = 0;
 
         Modal.show({
-            title: '初始化设置',
+            title: 'Initialization Setup',
             content: this.renderStep(),
             showCancel: true,
             cancelText: 'Cancel',
@@ -129,7 +129,7 @@ const InitializationWizard = {
                 const captchaCode = (this.state.captcha_code || '').trim();
                 if (!this.captcha.id || !captchaCode) {
                     if (typeof Notification !== 'undefined') {
-                        Notification.error('请输入验证码');
+                        Notification.error('Please enter the captcha code');
                     }
                     return false;
                 }
@@ -144,19 +144,19 @@ const InitializationWizard = {
                     const res = await window.api.post('/api/system/init-wizard/submit', payload);
                     if (res && res.success) {
                         if (typeof Notification !== 'undefined') {
-                            Notification.success('配置成功');
+                            Notification.success('Configuration saved');
                         }
                         this.cleanupCaptchaObjectUrl();
                         return true;
                     }
 
                     if (typeof Notification !== 'undefined') {
-                        Notification.error(res?.message || res?.detail || '提交失败');
+                        Notification.error(res?.message || res?.detail || 'Submit failed');
                     }
                     return false;
                 } catch (e) {
                     if (typeof Notification !== 'undefined') {
-                        Notification.error(e.message || '提交失败');
+                        Notification.error(e.message || 'Submit failed');
                     }
                     return false;
                 }
@@ -212,12 +212,12 @@ const InitializationWizard = {
                         ${avatarUrl ? `<img src="${avatarUrl}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;display:block;margin:0 auto;"/>` : ''}
                     </div>
                     <div style="flex:1;">
-                        <h4 style="margin:0 0 8px 0;">已完成初始化</h4>
+                        <h4 style="margin:0 0 8px 0;">Initialization complete</h4>
                         <div style="opacity:0.9;">
-                            <div><strong>昵称:</strong> ${this.escapeHtml(this.state.name || '')}</div>
-                            <div><strong>账号:</strong> ${this.escapeHtml(this.state.account || '')}</div>
-                            <div><strong>地图:</strong> ${this.escapeHtml(this.state.map || '')}</div>
-                            <div><strong>3D头像:</strong> ${this.escapeHtml(this.state.avatar3d || '')}</div>
+                            <div><strong>Nickname:</strong> ${this.escapeHtml(this.state.name || '')}</div>
+                            <div><strong>Account:</strong> ${this.escapeHtml(this.state.account || '')}</div>
+                            <div><strong>Map:</strong> ${this.escapeHtml(this.state.map || '')}</div>
+                            <div><strong>3D Avatar:</strong> ${this.escapeHtml(this.state.avatar3d || '')}</div>
                         </div>
                     </div>
                 </div>
@@ -227,11 +227,11 @@ const InitializationWizard = {
 
     renderStep() {
         const steps = [
-            { key: 'basic', title: '基本配置' },
-            { key: 'llm', title: '大模型配置' },
+            { key: 'basic', title: 'Basic' },
+            { key: 'llm', title: 'LLM' },
             { key: 'xmpp', title: 'XMPP' },
             { key: 'map', title: 'Map' },
-            { key: 'submit', title: '验证并提交' }
+            { key: 'submit', title: 'Verify & Submit' }
         ];
 
         return `
@@ -263,30 +263,30 @@ const InitializationWizard = {
                         <img id="initAvatarPreview" src="${avatarUrl}" style="width:70px;height:70px;border-radius:50%;object-fit:cover;border:1px solid rgba(255,255,255,0.2);display:block;margin:0 auto;" />
                         <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;align-items:center;">
                             <input id="initAvatarFile" type="file" accept="image/*" style="display:none;" />
-                            <button class="btn btn-secondary" id="initAvatarSelectBtn" type="button" style="width:88px;display:block;margin:0 auto;">选择图片</button>
+                            <button class="btn btn-secondary" id="initAvatarSelectBtn" type="button" style="width:92px;display:block;margin:0 auto;">Upload</button>
                             <div id="initAvatarFileName" style="font-size:11px;opacity:0.75;max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
                         </div>
                     </div>
 
                     <div style="flex:1;">
                         <div class="form-group">
-                            <label>昵称 *</label>
+                            <label>Nickname *</label>
                             <input class="form-input" id="initName" type="text" value="${this.escapeHtml(this.state.name || '')}" />
                         </div>
 
                         <div class="form-row" style="display:flex;gap:12px;">
                             <div class="form-group" style="flex:1;">
-                                <label>密码 *</label>
+                                <label>Password *</label>
                                 <input class="form-input" id="initPassword" type="password" value="${this.escapeHtml(this.state.password || '')}" />
                             </div>
                             <div class="form-group" style="flex:1;">
-                                <label>确认密码 *</label>
+                                <label>Confirm password *</label>
                                 <input class="form-input" id="initConfirmPassword" type="password" value="${this.escapeHtml(this.state.confirm_password || '')}" />
                             </div>
                         </div>
 
                         <div class="form-group">
-                            <label>简介 *</label>
+                            <label>Bio *</label>
                             <textarea class="form-input" id="initProfile" rows="3">${this.escapeHtml(this.state.profile || '')}</textarea>
                         </div>
                     </div>
@@ -329,7 +329,7 @@ const InitializationWizard = {
                 </div>
 
                 <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestLlmBtn" type="button">测试</button>
+                    <button class="btn btn-secondary" id="initTestLlmBtn" type="button">Test</button>
                 </div>
             </div>
         `;
@@ -340,23 +340,23 @@ const InitializationWizard = {
             <div class="init-step init-step-xmpp">
                 <div class="form-row" style="display:flex;gap:12px;">
                     <div class="form-group" style="flex:1;">
-                        <label>XMPP账号 *</label>
+                        <label>XMPP Account *</label>
                         <input class="form-input" id="initAccount" type="text" value="${this.escapeHtml(this.state.account || '')}" />
                     </div>
                     <div class="form-group" style="flex:1;">
-                        <label>XMPP密码 *</label>
+                        <label>XMPP Password *</label>
                         <input class="form-input" id="initAccountPassword" type="password" value="${this.escapeHtml(this.state.account_password || '')}" />
                     </div>
                 </div>
 
                 <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
                     <div class="form-group" style="flex:1;min-width:0;">
-                        <label>SNS主页</label>
+                        <label>SNS Homepage</label>
                         <input class="form-input" id="initSnsUrl" type="text" value="${this.escapeHtml(this.state.sns_url || '')}" />
                     </div>
                     <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
                         <label style="white-space:nowrap;">If you don't have account:</label>
-                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">注册地址</a>
+                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Registration link</a>
                     </div>
                 </div>
 
@@ -365,7 +365,7 @@ const InitializationWizard = {
                 </div>
 
                 <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestXmppBtn" type="button">测试</button>
+                    <button class="btn btn-secondary" id="initTestXmppBtn" type="button">Test</button>
                 </div>
             </div>
         `;
@@ -388,7 +388,7 @@ const InitializationWizard = {
         return `
             <div class="init-step init-step-map">
                 <div class="form-group">
-                    <label>请选择您的3D头像 *</label>
+                    <label>Please choose your 3D avatar *</label>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <button class="btn btn-secondary" id="avatar3dPrevBtn" type="button" style="padding:6px 10px;">◀</button>
                         <div id="avatar3dGrid" style="display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:6px 2px;flex:1;min-width:0;">
@@ -401,26 +401,26 @@ const InitializationWizard = {
 
                 <div class="form-row" style="display:flex;gap:12px;">
                     <div class="form-group" style="flex:1;">
-                        <label>地图类型 *</label>
+                        <label>Map Type *</label>
                         <select class="form-input" id="initMapType">
                             <option value="Google" ${this.state.map === 'Google' ? 'selected' : ''}>Google</option>
                             <option value="Baidu" ${this.state.map === 'Baidu' ? 'selected' : ''}>Baidu</option>
                         </select>
                     </div>
                     <div class="form-group" style="flex:1;">
-                        <label>地图 API Key *</label>
+                        <label>Map API Key *</label>
                         <input class="form-input" id="initMapApiKey" type="text" value="${this.escapeHtml(this.state.map_api_key || '')}" />
                     </div>
                 </div>
 
                 <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
                     <div class="form-group" style="flex:1;min-width:0;">
-                        <label>地图 ID *</label>
+                        <label>Map ID *</label>
                         <input class="form-input" id="initMapId" type="text" value="${this.escapeHtml(mapIdValue)}" ${mapIdReadOnly ? 'readonly' : ''} />
                     </div>
                     <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
                         <label style="white-space:nowrap;">If you don't have account:</label>
-                        <a href="#" id="initMapRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">注册地址</a>
+                        <a href="#" id="initMapRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Registration link</a>
                     </div>
                 </div>
 
@@ -429,7 +429,7 @@ const InitializationWizard = {
                 </div>
 
                 <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestMapBtn" type="button">测试</button>
+                    <button class="btn btn-secondary" id="initTestMapBtn" type="button">Test</button>
                 </div>
             </div>
         `;
@@ -439,16 +439,16 @@ const InitializationWizard = {
         return `
             <div class="init-step init-step-captcha">
                 <div class="form-group">
-                    <label>请输入验证码 *</label>
+                    <label>Please enter the captcha code *</label>
                     <div style="display:flex;gap:12px;align-items:center;">
                         <input class="form-input" id="initCaptchaCode" type="text" value="${this.escapeHtml(this.state.captcha_code || '')}" style="flex:1;" />
                         <img id="initCaptchaImg" style="width:140px;height:56px;border:1px solid rgba(255,255,255,0.2);border-radius:6px;object-fit:contain;" />
-                        <button class="btn btn-secondary" id="initCaptchaRefresh" type="button">刷新</button>
+                        <button class="btn btn-secondary" id="initCaptchaRefresh" type="button">Refresh</button>
                     </div>
                 </div>
 
                 <div style="opacity:0.8;font-size:12px;">
-                    提交将通过本地后端代理访问 ai-sns.org 完成验证码校验与注册。
+                    Submission will go through the local backend proxy to access ai-sns.org for captcha verification and registration.
                 </div>
             </div>
         `;
@@ -466,7 +466,7 @@ const InitializationWizard = {
 
         const title = this.modal.element.querySelector('.modal-title');
         if (title) {
-            title.textContent = '初始化设置';
+            title.textContent = 'Initialization Setup';
         }
 
         const cancelBtn = this.modal.element.querySelector('[data-action="cancel"]');
@@ -532,12 +532,12 @@ const InitializationWizard = {
                         api_key: this.state.api_key
                     });
                     if (res && res.success) {
-                        this.setInlineTestResult('success', res.message || '测试通过');
+                        this.setInlineTestResult('success', res.message || 'Test passed');
                     } else {
-                        this.setInlineTestResult('error', res?.message || res?.detail || '测试失败');
+                        this.setInlineTestResult('error', res?.message || res?.detail || 'Test failed');
                     }
                 } catch (e) {
-                    this.setInlineTestResult('error', e.message || '测试失败');
+                    this.setInlineTestResult('error', e.message || 'Test failed');
                 }
             });
         }
@@ -565,12 +565,12 @@ const InitializationWizard = {
                         account_password: this.state.account_password
                     });
                     if (res && res.success) {
-                        this.setInlineTestResult('success', res.message || '测试通过');
+                        this.setInlineTestResult('success', res.message || 'Test passed');
                     } else {
-                        this.setInlineTestResult('error', res?.message || res?.detail || '测试失败');
+                        this.setInlineTestResult('error', res?.message || res?.detail || 'Test failed');
                     }
                 } catch (e) {
-                    this.setInlineTestResult('error', e.message || '测试失败');
+                    this.setInlineTestResult('error', e.message || 'Test failed');
                 }
             });
         }
@@ -596,12 +596,12 @@ const InitializationWizard = {
                         map_id: this.state.map_id
                     });
                     if (res && res.success) {
-                        this.setInlineTestResult('success', res.message || '测试通过');
+                        this.setInlineTestResult('success', res.message || 'Test passed');
                     } else {
-                        this.setInlineTestResult('error', res?.message || res?.detail || '测试失败');
+                        this.setInlineTestResult('error', res?.message || res?.detail || 'Test failed');
                     }
                 } catch (e) {
-                    this.setInlineTestResult('error', e.message || '测试失败');
+                    this.setInlineTestResult('error', e.message || 'Test failed');
                 }
             });
         }
@@ -661,11 +661,11 @@ const InitializationWizard = {
                     }
 
                     if (typeof Notification !== 'undefined') {
-                        Notification.success('头像已更新');
+                        Notification.success('Avatar updated');
                     }
                 } catch (e) {
                     if (typeof Notification !== 'undefined') {
-                        Notification.error(e.message || '头像上传失败');
+                        Notification.error(e.message || 'Avatar upload failed');
                     }
                 } finally {
                     fileInput.value = '';
@@ -805,21 +805,21 @@ const InitializationWizard = {
         if (this.step === 0) {
             if (!this.state.name || !this.state.avatar || !this.state.password || !this.state.confirm_password || !this.state.profile) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('除了社交主页，其他字段都是必填的。');
+                    Notification.error('All fields are required except the SNS homepage.');
                 }
                 return false;
             }
 
             if (this.state.password !== this.state.confirm_password) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('密码和确认密码不匹配。');
+                    Notification.error('Password and confirm password do not match.');
                 }
                 return false;
             }
 
             if (!this.isPasswordValid(this.state.password)) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('密码必须包含大小写字母、数字和特殊字符，并且至少8位。');
+                    Notification.error('Password must include uppercase, lowercase, digits, and special characters, and be at least 8 characters long.');
                 }
                 return false;
             }
@@ -828,7 +828,7 @@ const InitializationWizard = {
         if (this.step === 1) {
             if (!this.state.llm || !this.state.llm_server || !this.state.api_key) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('请完成大模型配置。');
+                    Notification.error('Please complete the LLM configuration.');
                 }
                 return false;
             }
@@ -837,7 +837,7 @@ const InitializationWizard = {
         if (this.step === 2) {
             if (!this.state.account || !this.state.account_password) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('请完成 XMPP 配置。');
+                    Notification.error('Please complete the XMPP configuration.');
                 }
                 return false;
             }
@@ -846,7 +846,7 @@ const InitializationWizard = {
         if (this.step === 3) {
             if (!this.state.avatar3d || !this.state.map || !this.state.map_api_key || !this.state.map_id) {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('Map 配置为必填。');
+                    Notification.error('Map configuration is required.');
                 }
                 return false;
             }

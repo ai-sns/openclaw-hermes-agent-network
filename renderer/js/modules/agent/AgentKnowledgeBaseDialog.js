@@ -30,7 +30,7 @@ const AgentKnowledgeBaseDialog = {
             <div class="modal-overlay" id="agentKnowledgeBaseDialog">
                 <div class="agent-kb-dialog">
                     <div class="dialog-header">
-                        <h2>配置知识库</h2>
+                        <h2>Configure Knowledge Base</h2>
                         <button class="dialog-close-btn" id="closeAgentKbDialog">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -43,15 +43,15 @@ const AgentKnowledgeBaseDialog = {
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                 <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                             </svg>
-                            <input type="text" id="kbSearchInput" placeholder="搜索知识库...">
+                            <input type="text" id="kbSearchInput" placeholder="Search knowledge bases...">
                         </div>
 
                         <div class="kb-list" id="kbList">
-                            <div class="loading">加载中...</div>
+                            <div class="loading">Loading...</div>
                         </div>
 
                         <div class="selected-kb-summary">
-                            <span class="summary-text">已选择 <strong id="selectedKbCount">0</strong> 个知识库</span>
+                            <span class="summary-text">Selected <strong id="selectedKbCount">0</strong> knowledge bases</span>
                         </div>
                     </div>
 
@@ -89,7 +89,7 @@ const AgentKnowledgeBaseDialog = {
             this.renderKbList(visibleKbs);
         } catch (error) {
             console.error('[AgentKnowledgeBaseDialog] Failed to load data:', error);
-            this.showError('加载数据失败');
+            this.showError('Failed to load data');
         }
     },
 
@@ -98,7 +98,7 @@ const AgentKnowledgeBaseDialog = {
         if (!listContainer) return;
 
         if (!kbs || kbs.length === 0) {
-            listContainer.innerHTML = '<div class="empty-state">暂无可用知识库</div>';
+            listContainer.innerHTML = '<div class="empty-state">No knowledge bases available</div>';
             this.updateSelectedCount();
             return;
         }
@@ -109,10 +109,10 @@ const AgentKnowledgeBaseDialog = {
             const name = kb.name || 'Unnamed KB';
             const memo = kb.memo || '';
             const typeLabel = String(kb.kmtype) === '0'
-                ? '文件'
+                ? 'File'
                 : String(kb.kmtype) === '2'
-                    ? '键值对'
-                    : '笔记';
+                    ? 'Key-Value'
+                    : 'Note';
 
             return `
                 <div class="kb-item ${isSelected ? 'selected' : ''}" data-km-id="${this.escapeHtml(kmId)}">
@@ -219,14 +219,14 @@ const AgentKnowledgeBaseDialog = {
 
             const result = await resp.json();
             if (!result || !result.success) {
-                throw new Error(result && result.detail ? result.detail : '保存失败');
+                throw new Error(result && result.detail ? result.detail : 'Save failed');
             }
 
-            this.showSuccess('知识库配置已保存');
+            this.showSuccess('Knowledge base configuration saved');
             setTimeout(() => this.close(), 800);
         } catch (error) {
             console.error('[AgentKnowledgeBaseDialog] Save failed:', error);
-            this.showError('保存失败：' + (error && error.message ? error.message : String(error)));
+            this.showError('Save failed: ' + (error && error.message ? error.message : String(error)));
         }
     },
 

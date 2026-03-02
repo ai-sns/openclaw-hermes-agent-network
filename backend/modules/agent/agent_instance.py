@@ -87,7 +87,7 @@ class AgentInstance:
         self.tools_loaded = False
         self.db_tools = []  # Tools loaded from DB (OpenAI format)
 
-        logger.info(f"Agent实例已创建: {self.name} (ID: {self.agent_id})")
+        logger.info(f"Agent instance created: {self.name} (ID: {self.agent_id})")
 
     def _init_llm_client(self):
         """Initialize the LLM client."""
@@ -96,7 +96,7 @@ class AgentInstance:
             api_key = self.llm_config.get('api_key', '')
 
             if not api_key:
-                logger.warning(f"Agent {self.name} 没有配置API key")
+                logger.warning(f"Agent {self.name} has no API key configured")
                 self.client = None
                 return
 
@@ -106,9 +106,9 @@ class AgentInstance:
                 base_url=api_endpoint
             )
 
-            logger.info(f"LLM客户端已初始化: {api_endpoint}")
+            logger.info(f"LLM client initialized: {api_endpoint}")
         except Exception as e:
-            logger.error(f"初始化LLM客户端失败: {e}")
+            logger.error(f"Failed to initialize LLM client: {e}")
             self.client = None
 
     def get_system_prompt(self) -> str:
@@ -226,15 +226,15 @@ IMPORTANT Tool Usage Guidelines:
             self.db_tools = ToolConverter.convert_tools(tools_data)
 
             self.tools_loaded = True
-            logger.info(f"Agent {self.name} (ID: {self.agent_id}) 已加载 {len(self.db_tools)} 个工具")
+            logger.info(f"Agent {self.name} (ID: {self.agent_id}) loaded {len(self.db_tools)} tools")
 
             # Print tool list (for debugging)
             if self.db_tools:
                 tool_names = [t['function']['name'] for t in self.db_tools]
-                logger.info(f"已加载工具: {', '.join(tool_names)}")
+                logger.info(f"Loaded tools: {', '.join(tool_names)}")
 
         except Exception as e:
-            logger.error(f"从数据库加载工具失败 (Agent {self.name}): {e}", exc_info=True)
+            logger.error(f"Failed to load tools from database (Agent {self.name}): {e}", exc_info=True)
             self.db_tools = []
             self.tools_loaded = True  # Mark as loaded to avoid repeated attempts
 
@@ -273,14 +273,14 @@ IMPORTANT Tool Usage Guidelines:
                             chunks.append(content)
 
                     if chunks:
-                        kb_results.append(f"[来自知识库 {kb_name}]\n" + "\n---\n".join(chunks))
+                        kb_results.append(f"[From knowledge base {kb_name}]\n" + "\n---\n".join(chunks))
 
                 except Exception as e:
-                    logger.error(f"检索知识库 {km_id} 失败: {e}")
+                    logger.error(f"Failed to search knowledge base {km_id}: {e}")
 
             return "\n\n".join(kb_results) if kb_results else ""
         except Exception as e:
-            logger.error(f"知识库检索失败: {e}")
+            logger.error(f"Knowledge base search failed: {e}")
             return ""
 
     def _prepare_tools_schema(self) -> List[Dict[str, Any]]:
@@ -295,7 +295,7 @@ IMPORTANT Tool Usage Guidelines:
         # 1. Add tools loaded from database (new system)
         if self.db_tools:
             tools_schema.extend(self.db_tools)
-            logger.debug(f"已添加 {len(self.db_tools)} 个数据库工具")
+            logger.debug(f"Added {len(self.db_tools)} database tools")
 
         # 2. Add legacy self.tools config (backward compatible)
         if self.tools:
@@ -326,7 +326,7 @@ IMPORTANT Tool Usage Guidelines:
                         }
                     tools_schema.append(tool_def)
                 except Exception as e:
-                    logger.error(f"准备工具schema失败: {e}")
+                    logger.error(f"Failed to prepare tool schema: {e}")
 
         # 3. Ensure read_skill is available when DocSkills are enabled (safe SKILL.md reader)
         try:
@@ -368,7 +368,7 @@ IMPORTANT Tool Usage Guidelines:
         except Exception:
             pass
 
-        logger.info(f"准备了 {len(tools_schema)} 个工具用于LLM调用")
+        logger.info(f"Prepared {len(tools_schema)} tools for LLM tool calling")
         return tools_schema
 
     async def _execute_tool(self, tool_name: str, tool_args: Dict[str, Any]) -> Any:
@@ -432,12 +432,12 @@ IMPORTANT Tool Usage Guidelines:
             # Check whether this is a DB tool (new system)
             # Tool name format: plugin_{id}, mcp_{id}_{tool}, function_{id}, skill_{id}
             if tool_name.startswith(('plugin_', 'mcp_', 'function_', 'skill_')):
-                logger.info(f"使用ToolRouter执行数据库工具: {tool_name}")
+                logger.info(f"Executing database tool via ToolRouter: {tool_name}")
                 result = await self.tool_router.execute_tool(tool_name, tool_args)
                 return json.dumps(result, ensure_ascii=False)
 
             # Execute tool using legacy tool_executor (backward compatible)
-            logger.info(f"使用旧tool_executor执行工具: {tool_name}")
+            logger.info(f"Executing tool via legacy tool_executor: {tool_name}")
             result = await asyncio.to_thread(
                 tool_executor.execute_tool,
                 tool_name,
@@ -447,8 +447,8 @@ IMPORTANT Tool Usage Guidelines:
             return result
 
         except Exception as e:
-            logger.error(f"工具执行失败: {e}", exc_info=True)
-            return f"工具执行错误: {str(e)}"
+            logger.error(f"Tool execution failed: {e}", exc_info=True)
+            return f"Tool execution error: {str(e)}"
 
     async def chat(
         self,
@@ -476,7 +476,7 @@ IMPORTANT Tool Usage Guidelines:
             Agent reply
         """
         if not self.client:
-            return "Error: LLM客户端未配置"
+            return "Error: LLM client is not configured"
 
         try:
             # Ensure tools are loaded from the database
@@ -493,7 +493,7 @@ IMPORTANT Tool Usage Guidelines:
             if use_knowledge_base and self.knowledge_bases:
                 kb_context = await self._search_knowledge_base(message)
                 if kb_context:
-                    system_prompt += f"\n\n以下是相关的知识库信息：\n{kb_context}"
+                    system_prompt += f"\n\nRelated knowledge base information:\n{kb_context}"
 
             messages.append({
                 'role': 'system',
@@ -513,7 +513,7 @@ IMPORTANT Tool Usage Guidelines:
 
             user_text = message
             if attachments_text:
-                user_text += f"\n\n附件内容：\n{attachments_text}"
+                user_text += f"\n\nAttachment content:\n{attachments_text}"
 
             if image_data_urls and self.get_model_name().lower().startswith('gpt-4o'):
                 content_parts = [{'type': 'text', 'text': user_text}]
@@ -563,7 +563,7 @@ IMPORTANT Tool Usage Guidelines:
                         tool_name = tc.function.name
                         tool_args = json.loads(tc.function.arguments)
 
-                        logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
+                        logger.info(f"[AgentInstance] Tool call: {tool_name}, args: {tool_args}")
                         tool_result = await self._execute_tool(tool_name, tool_args)
 
                         formatted_result = self._format_tool_result(tool_result)
@@ -612,7 +612,7 @@ IMPORTANT Tool Usage Guidelines:
             return reply
 
         except Exception as e:
-            logger.error(f"Agent问答失败: {e}", exc_info=True)
+            logger.error(f"Agent chat failed: {e}", exc_info=True)
             return f"Error: {str(e)}"
 
     async def chat_stream(
@@ -641,9 +641,9 @@ IMPORTANT Tool Usage Guidelines:
         """
         if not self.client:
             error_msg = (
-                f"Agent '{self.name}' 的LLM客户端未配置。"
-                f"请在前端Agent聊天界面的顶部工具栏中选择一个有效的模型配置。"
-                f"如果没有可选的模型，请先在'模型管理'页面添加模型配置。"
+                f"Agent '{self.name}' has no LLM client configured."
+                f"Please select a valid model configuration in the top toolbar of the Agent chat page."
+                f"If no models are available, add a model configuration in the 'Model Management' page first."
             )
             logger.error(error_msg)
             yield f"Error: {error_msg}"
@@ -664,7 +664,7 @@ IMPORTANT Tool Usage Guidelines:
             if use_knowledge_base and self.knowledge_bases:
                 kb_context = await self._search_knowledge_base(message)
                 if kb_context:
-                    system_prompt += f"\n\n以下是相关的知识库信息：\n{kb_context}"
+                    system_prompt += f"\n\nRelated knowledge base information:\n{kb_context}"
 
             messages.append({
                 'role': 'system',
@@ -683,7 +683,7 @@ IMPORTANT Tool Usage Guidelines:
 
             user_text = message
             if attachments_text:
-                user_text += f"\n\n附件内容：\n{attachments_text}"
+                user_text += f"\n\nAttachment content:\n{attachments_text}"
 
             if image_data_urls and self.get_model_name().lower().startswith('gpt-4o'):
                 content_parts = [{'type': 'text', 'text': user_text}]
@@ -752,16 +752,16 @@ IMPORTANT Tool Usage Guidelines:
                 pending_tool_calls = tool_calls_accumulator
 
                 while use_tools and pending_tool_calls and round_idx < max_rounds:
-                    logger.info(f"检测到 {len(pending_tool_calls)} 个工具调用")
+                    logger.info(f"Detected {len(pending_tool_calls)} tool calls")
 
                     tool_messages = []
                     for tc_data in pending_tool_calls.values():
                         tool_name = tc_data['function']['name']
                         tool_args = json.loads(tc_data['function']['arguments'])
 
-                        logger.info(f"[AgentInstance] 调用工具: {tool_name}, 参数: {tool_args}")
+                        logger.info(f"[AgentInstance] Tool call: {tool_name}, args: {tool_args}")
                         tool_result = await self._execute_tool(tool_name, tool_args)
-                        logger.info(f"[AgentInstance] 工具执行结果: {tool_result[:500] if len(str(tool_result)) > 500 else tool_result}")
+                        logger.info(f"[AgentInstance] Tool result: {tool_result[:500] if len(str(tool_result)) > 500 else tool_result}")
 
                         formatted_result = self._format_tool_result(tool_result)
                         tool_messages.append({
@@ -892,19 +892,19 @@ IMPORTANT Tool Usage Guidelines:
                         # Batch save
                         session.add_all(messages_to_save)
                         session.commit()
-                        logger.info(f"已保存对话记录到数据库: conversation_id={conversation_id}, count={len(messages_to_save)}")
+                        logger.info(f"Saved conversation messages to database: conversation_id={conversation_id}, count={len(messages_to_save)}")
 
                     except Exception as save_error:
                         session.rollback()
-                        logger.error(f"保存对话记录到数据库失败: {save_error}", exc_info=True)
+                        logger.error(f"Failed to save conversation messages to database: {save_error}", exc_info=True)
                     finally:
                         session.close()
 
                 except Exception as e:
-                    logger.error(f"数据库连接失败: {e}", exc_info=True)
+                    logger.error(f"Database connection failed: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"Agent流式问答失败: {e}", exc_info=True)
+            logger.error(f"Agent streaming chat failed: {e}", exc_info=True)
             yield f"Error: {str(e)}"
 
     def _format_tool_result(self, tool_result: Any) -> str:
@@ -939,14 +939,14 @@ IMPORTANT Tool Usage Guidelines:
             status = result_dict.get('status') or result_dict.get('success')
             if status:
                 if status == 'success' or status is True:
-                    formatted_parts.append("✓ 执行成功")
+                    formatted_parts.append("✓ Succeeded")
                 else:
-                    formatted_parts.append(f"✗ 执行失败: {result_dict.get('error', '未知错误')}")
+                    formatted_parts.append(f"✗ Failed: {result_dict.get('error', 'Unknown error')}")
 
             # 2. Main message
             message = result_dict.get('message')
             if message:
-                formatted_parts.append(f"消息: {message}")
+                formatted_parts.append(f"Message: {message}")
 
             # 3. Result data
             result_data = result_dict.get('result')
@@ -955,13 +955,13 @@ IMPORTANT Tool Usage Guidelines:
                     # Extract stdout (if present)
                     stdout = result_data.get('stdout', '')
                     if stdout:
-                        formatted_parts.append(f"输出:\n{stdout.strip()}")
+                        formatted_parts.append(f"Output:\n{stdout.strip()}")
 
                     stderr = result_data.get('stderr', '')
                     if stderr:
-                        formatted_parts.append(f"错误输出:\n{stderr.strip()}")
+                        formatted_parts.append(f"Error output:\n{stderr.strip()}")
                 else:
-                    formatted_parts.append(f"结果: {result_data}")
+                    formatted_parts.append(f"Result: {result_data}")
 
             # 4. Skill/plugin-specific action data
             action = result_dict.get('action')
@@ -972,24 +972,24 @@ IMPORTANT Tool Usage Guidelines:
                 if action.get('performed') == 'screenshot_capture':
                     filepath = action.get('filepath', '')
                     size = action.get('size', '')
-                    action_parts.append(f"已截图: {filepath}")
+                    action_parts.append(f"Screenshot saved: {filepath}")
                     if size:
-                        action_parts.append(f"尺寸: {size}")
+                        action_parts.append(f"Size: {size}")
 
                 # Mouse click
                 elif action.get('performed') == 'mouse_click':
                     coords = action.get('coordinates', '')
                     button = action.get('button', '')
-                    action_parts.append(f"已点击 {button} 按钮于 {coords}")
+                    action_parts.append(f"Clicked {button} button at {coords}")
 
                 # Keyboard input
                 elif action.get('performed') == 'keyboard_input':
                     text_len = action.get('text_length', 0)
-                    action_parts.append(f"已输入 {text_len} 个字符")
+                    action_parts.append(f"Typed {text_len} characters")
 
                 # Generic action output
                 elif action.get('stdout'):
-                    action_parts.append(f"执行输出:\n{action.get('stdout', '').strip()}")
+                    action_parts.append(f"Execution output:\n{action.get('stdout', '').strip()}")
 
                 if action_parts:
                     formatted_parts.extend(action_parts)
@@ -999,12 +999,12 @@ IMPORTANT Tool Usage Guidelines:
             if output and isinstance(output, dict):
                 stdout = output.get('stdout', '')
                 if stdout:
-                    formatted_parts.append(f"执行输出:\n{stdout.strip()}")
+                    formatted_parts.append(f"Execution output:\n{stdout.strip()}")
 
             # 6. Timestamp
             timestamp = result_dict.get('timestamp')
             if timestamp:
-                formatted_parts.append(f"时间: {timestamp}")
+                formatted_parts.append(f"Time: {timestamp}")
 
             # If we have formatted parts, return them
             if formatted_parts:
@@ -1014,7 +1014,7 @@ IMPORTANT Tool Usage Guidelines:
             return json.dumps(result_dict, ensure_ascii=False, indent=2)
 
         except Exception as e:
-            logger.error(f"格式化工具结果失败: {e}")
+            logger.error(f"Failed to format tool result: {e}")
             # Fallback: return stringified raw result
             return str(tool_result)
 

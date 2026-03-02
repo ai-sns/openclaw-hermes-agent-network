@@ -1,13 +1,13 @@
 /**
  * Agent Settings Dialog Styles
- * Agent 配置对话框样式
+ * Agent configuration dialog styles
  */
 
 .agent-settings-form {
     padding: 0;
 }
 
-/* 页签导航 */
+/* Tab navigation */
 .settings-tabs {
     display: flex;
     gap: 4px;
@@ -36,7 +36,7 @@
     font-weight: 500;
 }
 
-/* 页签内容 */
+/* Tab content */
 .settings-tab-pane {
     display: none;
 }
@@ -45,7 +45,7 @@
     display: block;
 }
 
-/* 表单样式 */
+/* Form styles */
 .form-group {
     margin-bottom: 16px;
 }
@@ -144,13 +144,13 @@ body.theme-dark .dialog-section h4 {
     color: var(--text-secondary, #666);
 }
 
-/* 表单行 */
+/* Form row */
 .form-row {
     display: flex;
     gap: 12px;
 }
 
-/* 复选框组 */
+/* Checkbox group */
 .checkbox-group {
     display: flex;
     flex-direction: column;
@@ -170,7 +170,7 @@ body.theme-dark .dialog-section h4 {
     cursor: pointer;
 }
 
-/* 带按钮的输入框 */
+/* Input with buttons */
 .input-with-buttons {
     display: flex;
     gap: 8px;
@@ -199,7 +199,7 @@ body.theme-dark .dialog-section h4 {
     color: var(--primary-color, #1a73e8);
 }
 
-/* 钱包信息卡片 */
+/* Wallet info card */
 .wallet-info {
     margin-top: 16px;
 }
@@ -242,7 +242,7 @@ body.theme-dark .dialog-section h4 {
     font-family: monospace;
 }
 
-/* 警告框 */
+/* Warning box */
 .warning-box {
     margin-top: 12px;
     padding: 12px;
@@ -254,7 +254,7 @@ body.theme-dark .dialog-section h4 {
     line-height: 1.5;
 }
 
-/* 响应式 */
+/* Responsive */
 @media (max-width: 768px) {
     .form-row {
         flex-direction: column;

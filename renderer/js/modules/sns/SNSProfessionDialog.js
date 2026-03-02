@@ -745,6 +745,15 @@ export class SNSProfessionDialog {
                     this.currentMoney = newMoney;
                 }
 
+                try {
+                    window.dispatchEvent(new CustomEvent('sns-user-info-updated', {
+                        detail: {
+                            profession: professionToSave
+                        }
+                    }));
+                } catch (e) {
+                }
+
                 this.showInlineMessage('Profession saved successfully.' + (deducted > 0 ? ` Setup fee deducted: ${deducted}.` : ''), 'success');
                 this.autoCloseTimer = setTimeout(() => {
                     if (this._isDialogAlive()) {

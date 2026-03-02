@@ -54,7 +54,7 @@ const AgentToolsDialog = {
             <div class="modal-overlay" id="agentToolsDialog">
                 <div class="agent-tools-dialog">
                     <div class="dialog-header">
-                        <h2>配置Agent工具</h2>
+                        <h2>Configure Agent Tools</h2>
                         <button class="dialog-close-btn" id="closeAgentToolsDialog">
                             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -63,7 +63,7 @@ const AgentToolsDialog = {
                     </div>
 
                     <div class="dialog-body">
-                        <!-- 工具分类标签页 -->
+                        <!-- Tool category tabs -->
                         <div class="tools-tabs">
                             <button class="tab-btn active" data-tab="plugin">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
@@ -99,25 +99,25 @@ const AgentToolsDialog = {
                             </button>
                         </div>
 
-                        <!-- 工具列表容器 -->
+                        <!-- Tool list container -->
                         <div class="tools-list-container">
-                            <!-- 搜索框 -->
+                            <!-- Search box -->
                             <div class="tools-search">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                                     <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
                                 </svg>
-                                <input type="text" id="toolsSearchInput" placeholder="搜索工具...">
+                                <input type="text" id="toolsSearchInput" placeholder="Search tools...">
                             </div>
 
-                            <!-- 工具列表 -->
+                            <!-- Tool list -->
                             <div class="tools-list" id="toolsList">
-                                <div class="loading">加载中...</div>
+                                <div class="loading">Loading...</div>
                             </div>
                         </div>
 
-                        <!-- 已选工具统计 -->
+                        <!-- Selected tools summary -->
                         <div class="selected-tools-summary">
-                            <span class="summary-text">已选择 <strong id="selectedCount">0</strong> 个工具</span>
+                            <span class="summary-text">Selected <strong id="selectedCount">0</strong> tools</span>
                         </div>
                     </div>
 
@@ -185,7 +185,7 @@ const AgentToolsDialog = {
             this.renderTools('plugin', allTools.plugins || []);
         } catch (error) {
             console.error('[AgentToolsDialog] Failed to load data:', error);
-            this.showError('加载数据失败');
+            this.showError('Failed to load data');
         }
     },
 
@@ -230,7 +230,7 @@ const AgentToolsDialog = {
         const listContainer = document.getElementById('toolsList');
 
         if (!tools || tools.length === 0) {
-            listContainer.innerHTML = '<div class="empty-state">暂无可用工具</div>';
+            listContainer.innerHTML = '<div class="empty-state">No tools available</div>';
             return;
         }
 
@@ -472,14 +472,14 @@ const AgentToolsDialog = {
             console.log('[AgentToolsDialog] Save result:', result);
 
             // Show success message
-            this.showSuccess('工具配置已保存');
+            this.showSuccess('Tool configuration saved');
 
             // Close dialog
             setTimeout(() => this.close(), 1000);
 
         } catch (error) {
             console.error('[AgentToolsDialog] Failed to save configuration:', error);
-            this.showError('保存失败：' + error.message);
+            this.showError('Save failed: ' + error.message);
         }
     },
 

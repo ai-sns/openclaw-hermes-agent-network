@@ -21,7 +21,7 @@ function geocodeAddress(address, city) {
     return new Promise((resolve, reject) => {
         new BMapGL.Geocoder().getPoint(address, point => {
             if (point) resolve(point);
-            else reject(`地址解析失败: ${address}`);
+            else reject(`Address resolution failed: ${address}`);
         }, city);
     });
 }
@@ -45,17 +45,17 @@ function geocodeAddressnew(address, city) {
                     // Success callback
                     point ? resolve(point) :
 
-                        alert(`地址解析失败: "${address}"`);
+                        alert(`Address resolution failed: "${address}"`);
                 },
                 city,
                 (errorCode) => {  // Baidu map error callback
-                    alert(`地理编码错误 [${errorCode}]: ${getGeocodeErrorMsg(errorCode)}`);
-                    reject(new Error(`地理编码错误 [${errorCode}]: ${getGeocodeErrorMsg(errorCode)}`));
+                    alert(`Geocoding error [${errorCode}]: ${getGeocodeErrorMsg(errorCode)}`);
+                    reject(new Error(`Geocoding error [${errorCode}]: ${getGeocodeErrorMsg(errorCode)}`));
                 }
             );
         } catch (error) {
             // Catch sync errors (e.g. constructor exceptions)
-            reject(new Error(`地理编码初始化失败: ${error.message}`));
+            reject(new Error(`Failed to initialize geocoding: ${error.message}`));
         }
     });
 }
@@ -67,17 +67,17 @@ function geocodeAddressnew(address, city) {
  */
 function getGeocodeErrorMsg(code) {
     const errors = {
-        1: '服务器内部错误',
-        2: '请求参数非法',
-        3: '权限校验失败',
-        4: '配额校验失败',
-        5: 'ak不存在或非法',
-        101: '服务禁用',
-        102: '不通过白名单或安全码不对',
-        200: 'APP不存在，AK有误请检查',
+        1: 'Internal server error',
+        2: 'Invalid request parameters',
+        3: 'Permission verification failed',
+        4: 'Quota verification failed',
+        5: 'AK does not exist or is invalid',
+        101: 'Service disabled',
+        102: 'Not in allowlist or security code mismatch',
+        200: 'App does not exist (AK might be incorrect)',
         // Add more codes as needed
     };
-    return errors[code] || `未知错误 (${code})`;
+    return errors[code] || `Unknown error (${code})`;
 }
 
 // Initialize route planning related features
@@ -131,7 +131,7 @@ function startCoordinateCapture(targetField) {
     // Update link text for current field
     const linkElement = document.getElementById(targetField + "_coord_link_element");
     if (linkElement) {
-        linkElement.textContent = "结束坐标获取";
+        linkElement.textContent = "Stop coordinate capture";
         linkElement.onclick = stopCoordinateCapture;
     }
 
@@ -144,14 +144,14 @@ function startCoordinateCapture(targetField) {
             if (field !== targetField) {
                 const otherLinkElement = document.getElementById(field + "_coord_link_element");
                 if (otherLinkElement) {
-                    otherLinkElement.textContent = "点此获取坐标";
+                    otherLinkElement.textContent = "Click to get coordinates";
                     otherLinkElement.onclick = function() { startCoordinateCapture(field); };
                 }
             }
         });
     }
 
-    showAlert("请点击地图来指定来获取相应的坐标。");
+    showAlert("Click on the map to capture coordinates.");
 }
 
 // Stop coordinate capture
@@ -165,20 +165,20 @@ function stopCoordinateCapture() {
     // Restore link text and click handler
     const startLinkElement = document.getElementById("start_coord_link_element");
     if (startLinkElement) {
-        startLinkElement.textContent = "点此获取坐标";
+        startLinkElement.textContent = "Click to get coordinates";
         startLinkElement.onclick = function() { startCoordinateCapture('start'); };
     }
 
     const endLinkElement = document.getElementById("end_coord_link_element");
     if (endLinkElement) {
-        endLinkElement.textContent = "点此获取坐标";
+        endLinkElement.textContent = "Click to get coordinates";
         endLinkElement.onclick = function() { startCoordinateCapture('end'); };
     }
 
     // Restore home position link text and click handler
     const homeAddressLinkElement = document.getElementById("home_address_coord_link_element");
     if (homeAddressLinkElement) {
-        homeAddressLinkElement.textContent = "点此获取坐标";
+        homeAddressLinkElement.textContent = "Click to get coordinates";
         homeAddressLinkElement.onclick = function() { startCoordinateCapture('home_address'); };
     }
 }
@@ -194,21 +194,21 @@ function resetCoordinateLinks() {
     // Restore start link text and click handler
     const startLinkElement = document.getElementById("start_coord_link_element");
     if (startLinkElement) {
-        startLinkElement.textContent = "点此获取坐标";
+        startLinkElement.textContent = "Click to get coordinates";
         startLinkElement.onclick = function() { startCoordinateCapture('start'); };
     }
 
     // Restore end link text and click handler
     const endLinkElement = document.getElementById("end_coord_link_element");
     if (endLinkElement) {
-        endLinkElement.textContent = "点此获取坐标";
+        endLinkElement.textContent = "Click to get coordinates";
         endLinkElement.onclick = function() { startCoordinateCapture('end'); };
     }
 
     // Restore home position link text and click handler
     const homeAddressLinkElement = document.getElementById("home_address_coord_link_element");
     if (homeAddressLinkElement) {
-        homeAddressLinkElement.textContent = "点此获取坐标";
+        homeAddressLinkElement.textContent = "Click to get coordinates";
         homeAddressLinkElement.onclick = function() { startCoordinateCapture('home_address'); };
     }
 }
@@ -239,7 +239,7 @@ async function planRoute(isUserInitiated = true) {
     const positionType = document.getElementById("position_type").value;
 
     if (!start || !end) {
-        showAlert("请输入起点和终点");
+        showAlert("Please enter both a start and end location");
         return;
     }
 
@@ -260,7 +260,7 @@ async function planRoute(isUserInitiated = true) {
                 if (!isNaN(startLat) && !isNaN(startLng)) {
                     startPoint = new BMapGL.Point(startLng, startLat);
                 } else {
-                    throw new Error("起点坐标格式不正确");
+                    throw new Error("Invalid start coordinate format");
                 }
             }
         } else {
@@ -279,7 +279,7 @@ async function planRoute(isUserInitiated = true) {
                 if (!isNaN(endLat) && !isNaN(endLng)) {
                     endPoint = new BMapGL.Point(endLng, endLat);
                 } else {
-                    throw new Error("终点坐标格式不正确");
+                    throw new Error("Invalid end coordinate format");
                 }
             }
         } else {
@@ -315,7 +315,7 @@ function getAllGpsPositions(routeResult) {
         strokeWeight: 2,
         strokeOpacity: 0.5
     });
-    map.addOverlay(currentRoute);
+    map.addOverlay(currentRoute)
 
 
     track = new Track.View(map, {
@@ -382,9 +382,9 @@ function getAllGpsPositions(routeResult) {
     // track.focusTrack(trackLine);
     alert(init_route_current_position.lng);
     movePointbak = new Track.GroundPoint({
-        point: (typeof init_route_current_position !== 'undefined' && init_route_current_position !== null) ?
-               new BMapGL.Point(init_route_current_position.lng, init_route_current_position.lat) :
-               trackData[0].getPoint(),
+        point: (typeof init_route_current_position !== 'undefined' && init_route_current_position !== null)
+               ? new BMapGL.Point(init_route_current_position.lng, init_route_current_position.lat)
+               : trackData[0].getPoint(),
         style: {
             url: 'http://localhost:8900/scripts/car3.png',//https://mapopen-pub-jsapi.bj.bcebos.com/jsapiGlgeo/img/car.png
             level: 18,
@@ -411,7 +411,6 @@ function getAllGpsPositions(routeResult) {
         rotationY: 90,//90
         rotationZ: 0//0
     } });
-
 
     // movePoint.setPosition(new BMapGL.Point(init_route_current_position.lng, init_route_current_position.lat));
     movePoint.addEventListener(Track.MapCodes.CLICK, (e) => {
@@ -459,24 +458,24 @@ function toggleTrack() {
     switch (route_status) {
         case 'stopped':
             startTrack();
-            span.textContent = '暂停漫游'; // Update text
+            span.textContent = 'Pause route'; // Update text
             icon.className = 'fas fa-circle-pause'; // Update icon: pause
             route_status = 'playing'; // Update state
             break;
         case 'playing':
             pauseTrack();
-            span.textContent = '继续漫游'; // Update text
+            span.textContent = 'Resume route'; // Update text
             icon.className = 'fas fa-circle-play'; // Update icon: play
             route_status = 'paused'; // Update state
             break;
         case 'paused':
             continueTrack();
-            span.textContent = '暂停漫游'; // Update text
+            span.textContent = 'Pause route'; // Update text
             icon.className = 'fas fa-circle-pause'; // Update icon: pause
             route_status = 'playing'; // Update state
             break;
         default:
-            console.error('未知的路由状态:', route_status);
+            console.error('Unknown route status:', route_status);
     }
     update_map_setting("route_status", route_status);
 }
@@ -494,7 +493,7 @@ function stopTrack() {
             try {
                 trackLine.stopAnimation();
             } catch (e) {
-                console.warn("停止动画失败:", e);
+                console.warn("Failed to stop animation:", e);
             }
         }
 
@@ -504,7 +503,7 @@ function stopTrack() {
                 // Remove movePoint from trackLine
                 trackLine.setMovePoint(null);
             } catch (e) {
-                console.warn("移除movePoint失败:", e);
+                console.warn("Failed to remove movePoint:", e);
             }
 
             // If movePoint has hide(), call it
@@ -512,7 +511,7 @@ function stopTrack() {
                 try {
                     movePoint.hide();
                 } catch (e) {
-                    console.warn("隐藏movePoint失败:", e);
+                    console.warn("Failed to hide movePoint:", e);
                 }
             }
 
@@ -521,7 +520,7 @@ function stopTrack() {
                 try {
                     map.removeOverlay(movePoint.Yt);
                 } catch (e) {
-                    console.warn("移除movePoint覆盖物失败:", e);
+                    console.warn("Failed to remove movePoint overlay:", e);
                 }
             }
         }
@@ -531,7 +530,7 @@ function stopTrack() {
             try {
                 trackLine.clearTrackPoint();
             } catch (e) {
-                console.warn("清除轨迹点失败:", e);
+                console.warn("Failed to clear track points:", e);
             }
         }
 
@@ -541,7 +540,7 @@ function stopTrack() {
                 // Remove track line from Track view system
                 track.removeTrackLine(trackLine);
             } catch (e) {
-                console.warn("移除轨迹线失败:", e);
+                console.warn("Failed to remove track line:", e);
             }
 
             // Force redraw map
@@ -549,7 +548,7 @@ function stopTrack() {
                 try {
                     map._drawFrame(); // Force redraw to ensure visual update
                 } catch (e) {
-                    console.warn("重绘地图失败:", e);
+                    console.warn("Failed to redraw map:", e);
                 }
             }
         }
@@ -558,18 +557,16 @@ function stopTrack() {
         trackData = [];
         colorOffset = [];
 
-        // 6. Clear route planning results
-        if (driving) {
+        if (driving && typeof driving.clearResults === 'function') {
             try {
                 driving.clearResults();
             } catch (e) {
-                console.warn("清除路线规划结果失败:", e);
+                console.warn("Failed to clear route planning results:", e);
             }
         }
 
         // 7. Reset references
         trackLine = null;
-        movePoint = null;
 
         // 8. Check and remove any leftover polylines
         if (map) {
@@ -584,13 +581,13 @@ function stopTrack() {
                     }
                 }
             } catch (e) {
-                console.warn("清除折线覆盖物失败:", e);
+                console.warn("Failed to clear polyline overlays:", e);
             }
         }
 
-        console.log("轨迹和车辆已完全清除");
+        console.log("Track and vehicle have been fully cleared");
     } catch (error) {
-        console.error("stopTrack执行失败:", error);
+        console.error("stopTrack failed:", error);
         // Ensure references are cleared even on error
         trackLine = null;
         movePoint = null;
@@ -611,7 +608,7 @@ function pauseTrack() {
     );
 
     setPersonModelPointByNationId(nation_id_me, offsetPoint);
-    alert('暂停位置:');
+    alert('Paused position:');
     alert(currentPoint);
     alert(currentPoint.lng);
     alert(currentPoint.lat);
@@ -672,5 +669,5 @@ function viewRoute() {
             map.setCenter(trackData[0].getPoint());
             alert(2);
         }
-    }else{showAlert("路线加载出错，请检查网络后刷新页面或重新指定路线。",true)}
+    }else{showAlert("Failed to load route. Check your network, refresh the page, or specify the route again.",true)}
 }

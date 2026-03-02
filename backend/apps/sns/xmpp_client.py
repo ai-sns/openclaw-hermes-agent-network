@@ -128,13 +128,14 @@ class XMPPClient(slixmpp.ClientXMPP):
                         'type': 'contact_upserted',
                         'data': contact_payload
                     })
-                    await self.broadcast_new_message({
-                        'type': 'map_chat_message',
-                        'from_user': from_jid,
-                        'to_user': config.account,
-                        'content': body,
-                        'timestamp': message.create_time.isoformat() if message.create_time else None
-                    })
+                    # handled1 in await _social_engine_instance.receiveMessage(event)
+                    # await self.broadcast_new_message({
+                    #     'type': 'map_chat_message',
+                    #     'from_user': from_jid,
+                    #     'to_user': config.account,
+                    #     'content': body,
+                    #     'timestamp': message.create_time.isoformat() if message.create_time else None
+                    # })
             except Exception as e:
                 logger.error(f"Error saving message to database: {e}")
 

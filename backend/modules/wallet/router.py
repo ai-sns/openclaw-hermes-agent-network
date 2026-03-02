@@ -52,14 +52,14 @@ async def create_wallet(request: WalletCreateRequest):
                 "public_key": wallet.public_key,
                 "private_key": wallet.private_key,  # IMPORTANT: Save this securely!
                 "label": request.label or "",
-                "warning": "请务必安全保存私钥！私钥丢失将无法恢复钱包！"
+                "warning": "Please store your private key securely! If you lose it, the wallet cannot be recovered!"
             }
         }
     except ImportError as e:
         logger.error(f"Wallet dependencies not installed: {e}")
         raise HTTPException(
             status_code=500,
-            detail="区块链钱包功能需要安装 web3 和 eth-account。请运行: pip install web3 eth-account"
+            detail="Blockchain wallet features require web3 and eth-account. Please run: pip install web3 eth-account"
         )
     except Exception as e:
         logger.error(f"Error creating wallet: {e}")
@@ -100,7 +100,7 @@ async def import_wallet(private_key: str, label: Optional[str] = ""):
         logger.error(f"Wallet dependencies not installed: {e}")
         raise HTTPException(
             status_code=500,
-            detail="区块链钱包功能需要安装 web3 和 eth-account。请运行: pip install web3 eth-account"
+            detail="Blockchain wallet features require web3 and eth-account. Please run: pip install web3 eth-account"
         )
     except Exception as e:
         logger.error(f"Error importing wallet: {e}")
@@ -141,7 +141,7 @@ async def list_wallets():
         logger.error(f"Wallet dependencies not installed: {e}")
         raise HTTPException(
             status_code=500,
-            detail="区块链钱包功能需要安装 web3 和 eth-account。请运行: pip install web3 eth-account"
+            detail="Blockchain wallet features require web3 and eth-account. Please run: pip install web3 eth-account"
         )
     except Exception as e:
         logger.error(f"Error listing wallets: {e}")
@@ -188,7 +188,7 @@ async def get_wallet(address: str):
         logger.error(f"Wallet dependencies not installed: {e}")
         raise HTTPException(
             status_code=500,
-            detail="区块链钱包功能需要安装 web3 和 eth-account。请运行: pip install web3 eth-account"
+            detail="Blockchain wallet features require web3 and eth-account. Please run: pip install web3 eth-account"
         )
     except Exception as e:
         logger.error(f"Error getting wallet: {e}")

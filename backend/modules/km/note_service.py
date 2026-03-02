@@ -37,29 +37,29 @@ class NoteService:
                     try:
                         conn.execute(text("ALTER TABLE note_mng ADD COLUMN tags TEXT"))
                         conn.commit()
-                        print("✅ 已添加 tags 列")
+                        print("✅ Added tags column")
                     except Exception as e:
-                        print(f"⚠️  添加 tags 列失败: {e}")
+                        print(f"⚠️  Failed to add tags column: {e}")
 
                 if 'is_pinned' not in columns:
                     try:
                         conn.execute(text("ALTER TABLE note_mng ADD COLUMN is_pinned BOOLEAN DEFAULT 0"))
                         conn.commit()
-                        print("✅ 已添加 is_pinned 列")
+                        print("✅ Added is_pinned column")
                     except Exception as e:
-                        print(f"⚠️  添加 is_pinned 列失败: {e}")
+                        print(f"⚠️  Failed to add is_pinned column: {e}")
 
                 if 'updated_at' not in columns:
                     try:
                         conn.execute(text("ALTER TABLE note_mng ADD COLUMN updated_at DATETIME"))
                         conn.execute(text("UPDATE note_mng SET updated_at = create_time WHERE updated_at IS NULL"))
                         conn.commit()
-                        print("✅ 已添加 updated_at 列")
+                        print("✅ Added updated_at column")
                     except Exception as e:
-                        print(f"⚠️  添加 updated_at 列失败: {e}")
+                        print(f"⚠️  Failed to add updated_at column: {e}")
 
         except Exception as e:
-            print(f"⚠️  检查/添加列时出错: {e}")
+            print(f"⚠️  Error while checking/adding columns: {e}")
 
     def _get_session(self) -> Session:
         """Get a database session."""
@@ -192,7 +192,7 @@ class NoteService:
                 if hasattr(note, 'updated_at'):
                     note.updated_at = datetime.now()
             except Exception as e:
-                print(f"⚠️  更新扩展字段时出错: {e}")
+                print(f"⚠️  Error while updating extended fields: {e}")
 
             session.commit()
             session.refresh(note)
@@ -257,7 +257,7 @@ class NoteService:
                 if hasattr(note, 'updated_at'):
                     note.updated_at = datetime.now()
             except Exception as e:
-                print(f"⚠️  切换置顶状态时出错: {e}")
+                print(f"⚠️  Error while toggling pinned status: {e}")
 
             session.commit()
             session.refresh(note)

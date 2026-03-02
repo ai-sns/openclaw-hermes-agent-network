@@ -295,9 +295,9 @@ class AgentService:
                                 param_data = json.loads(parameter) if isinstance(parameter, str) else parameter
                                 if isinstance(param_data, dict) and "tools" in param_data:
                                     tool_detail["tools"] = param_data["tools"]
-                                    logger.info(f"从parameter加载MCP工具列表: {len(param_data['tools'])} 个工具")
+                                    logger.info(f"Loaded MCP tool list from parameter: {len(param_data['tools'])} tools")
                             except Exception as parse_error:
-                                logger.warning(f"解析MCP parameter失败: {parse_error}")
+                                logger.warning(f"Failed to parse MCP parameter: {parse_error}")
 
                 elif tool_type == "function":
                     function_repo = FunctionMngRepository()

@@ -5,7 +5,7 @@ const REQUEST_TIMEOUT = 80000;
 async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIAL_RETRY_DELAY) {
     // Validate input parameters
     if (typeof url !== 'string' || !url.trim()) {
-        throw new Error('无效的URL参数');
+        throw new Error('Invalid URL parameter');
     }
 
     // Inner function that performs the request
@@ -15,7 +15,7 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
 
         try {
 
-            console.log(`剩余重试次数: ${retriesLeft}`);
+            console.log(`Retries left: ${retriesLeft}`);
 
             // Add random query param to avoid caching
             const fetchUrl = new URL(url);
@@ -30,7 +30,7 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+                throw new Error(`Request failed: ${response.status} ${response.statusText}`);
             }
 
             // Try parsing JSON response
@@ -43,21 +43,21 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
 
             // Check whether it is a timeout error
             if (error.name === 'AbortError') {
-                console.error('请求超时被取消');
-                showAlert('请求超时被取消');
-                throw new Error('请求超时');
+                console.error('Request timed out and was aborted');
+                showAlert('Request timed out and was aborted');
+                throw new Error('Request timed out');
             }
 
             // Retry logic
             if (retriesLeft > 0) {
-                console.warn(`请求失败，错误: ${error.message}. 剩余重试次数: ${retriesLeft}。将在 ${delay}ms 后重试...`);
-                showAlert(`请求数据失败，剩余重试次数: ${retriesLeft}。将在 ${delay}ms 后重试...`);
+                console.warn(`Request failed: ${error.message}. Retries left: ${retriesLeft}. Retrying in ${delay}ms...`);
+                showAlert(`Failed to fetch data. Retries left: ${retriesLeft}. Retrying in ${delay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return fetchData(retriesLeft - 1, delay * 1);
             }
 
-            console.error('最终请求失败:', error.message);
-            showAlert(`最终请求失败: ${error.message}`);
+            console.error('Final request failed:', error.message);
+            showAlert(`Final request failed: ${error.message}`);
             throw error;
         }
     }
@@ -77,8 +77,8 @@ async function load_persons_data_and_show() {
     alert(nation_id_me);
     try {
         const data = await loadPersonsData(dataUrl); // Load person data
-        console.log("成功加载人员数据:", data);
-        showAlert(`用户数据已加载成功。`);
+        console.log("Successfully loaded person data:", data);
+        showAlert(`User data loaded successfully.`);
 
         // Filter out items whose nation_id equals the input value
         personsdata = data.filter(person => {
@@ -89,10 +89,10 @@ async function load_persons_data_and_show() {
         // Show updated data points
         showpoints();
     } catch (error) {
-        console.error("人员数据加载失败，建议:",
+        console.error("Failed to load person data. Suggestion:",
             error.name === 'AbortError'
-                ? '检查网络连接或稍后重试'
-                : '联系系统管理员');
+                ? 'Check your network connection or try again later'
+                : 'Contact the system administrator');
     }
 }
 
@@ -142,14 +142,14 @@ async function loadModelWithRetry(loaderInstance, url, retries = 3, retryDelay =
 
             return gltf;
         } catch (error) {
-            console.error(`模型加载失败 (尝试 ${attempt}/${retries}): ${error.message}`);
+            console.error(`Model load failed (attempt ${attempt}/${retries}): ${error.message}`);
 
             if (attempt < retries) {
-                console.log(`将在 ${retryDelay}ms 后重试...`);
+                console.log(`Retrying in ${retryDelay}ms...`);
                 await new Promise(resolve => setTimeout(resolve, retryDelay));
                 retryDelay *= 2; // Exponential backoff
             } else {
-                throw new Error(`模型加载失败，已重试 ${retries} 次: ${error.message}`);
+                throw new Error(`Model load failed after ${retries} retries: ${error.message}`);
             }
         }
     }
@@ -163,10 +163,10 @@ function initMap() {
     if (typeof window.current_position !== 'undefined' && window.current_position !== null &&
         typeof window.current_position.lng !== 'undefined' && typeof window.current_position.lat !== 'undefined') {
         center = {lng: window.current_position.lng, lat: window.current_position.lat, altitude: 0};
-        console.log("使用配置的位置初始化Google地图:", window.current_position);
+        console.log("Initializing Google map with configured position:", window.current_position);
     } else {
         center = {lng: 116.27882, lat: 39.71164, altitude: 0};
-        console.log("使用默认位置初始化Google地图");
+        console.log("Initializing Google map with default position");
     }
 
 
@@ -320,7 +320,7 @@ function initMap() {
     });
     map.addListener("zoom_changed", () => {
         const zoomLevel = map.getZoom();
-        console.log("当前缩放级别:", zoomLevel);
+        console.log("Current zoom level:", zoomLevel);
     });
 
     const contentString = "<div style='font-size:20px'>Hello,I'm CBot.Nice to meet you.</div>";
@@ -385,7 +385,7 @@ function initMap() {
         setTimeout(() => {
             // Close info window
             infowindow2.close();
-            console.log("信息窗口已关闭"); // For debugging
+            console.log("Info window closed"); // For debugging
         }, 2000);
     }
 
@@ -406,7 +406,7 @@ function initMap() {
             const box = new THREE.Box3().setFromObject(modelhouse);
             const size = box.getSize(new THREE.Vector3());
             const height = size.y; // Model height
-            console.log("房屋模型高度:", height);
+            console.log("House model height:", height);
             // Set model scale/rotation/position
             modelhouse.scale.set(1, 1, 1);
             modelhouse.rotation.x = (Math.PI / 15) * 0;
@@ -414,11 +414,11 @@ function initMap() {
             const position3 = overlay.latLngAltitudeToVector3(home_position, modelhouse.position);
             // Add model to scene
             overlay.scene.add(modelhouse);
-            console.log("房屋模型加载成功");
+            console.log("House model loaded successfully");
             modelLoadStatus.house = true;
             checkAnimationStart();
         } catch (error) {
-            console.error('房屋模型加载失败:', error);
+            console.error('Failed to load house model:', error);
         }
     };
     loadHouse();
@@ -438,7 +438,7 @@ function initMap() {
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const height = size.y; // Model height
-            console.log("女孩模型高度:", height);
+            console.log("Girl model height:", height);
             // Adjust scale based on height
             const desiredHeight = 150; // Desired height
             const scale = desiredHeight / height;
@@ -467,13 +467,13 @@ function initMap() {
                 mixer.timeScale = 0.5;
                 action.setDuration(1).play();
                 mixers.push(mixer);
-                console.log("女孩模型动画已启动");
+                console.log("Girl model animation started");
             }
-            console.log("女孩模型加载成功");
+            console.log("Girl model loaded successfully");
             modelLoadStatus.girl = true;
             checkAnimationStart();
         } catch (error) {
-            console.error('女孩模型加载失败:', error);
+            console.error('Failed to load girl model:', error);
         }
     };
 // Call loadModel
@@ -498,7 +498,7 @@ function initMap() {
             const box = new THREE.Box3().setFromObject(model2);
             const size = box.getSize(new THREE.Vector3());
             const height = size.y; // Model height
-            console.log("男孩模型高度:", height);
+            console.log("Boy model height:", height);
             // Adjust scale based on height
             const desiredHeight = 150; // Desired height
             const scale = desiredHeight / height;
@@ -529,13 +529,13 @@ function initMap() {
                 mixer.timeScale = 0.5;
                 action.setDuration(10).play();
                 mixers.push(mixer);
-                console.log("男孩模型动画已启动");
+                console.log("Boy model animation started");
             }
-            console.log("男孩模型加载成功");
+            console.log("Boy model loaded successfully");
             modelLoadStatus.boy = true;
             checkAnimationStart();
         } catch (error) {
-            console.error('男孩模型加载失败:', error);
+            console.error('Failed to load boy model:', error);
         }
     };
     loadModel2();
@@ -582,9 +582,9 @@ function initMap() {
         const textureLoader = new THREE.TextureLoader();
         const texture = textureLoader.load(
             'https://i.ibb.co/PtWsXLY/three-Layer.png',
-            () => console.log("立方体纹理加载成功"),
+            () => console.log("Cube texture loaded successfully"),
             undefined,
-            (err) => console.error("纹理加载失败", err)
+            (err) => console.error("Failed to load texture", err)
         );
 
         // Create cube (units: meters)
@@ -633,8 +633,8 @@ function initMap() {
                 recursive: false,
             });
             if (highlightedObject) {
-                console.log("取消高亮显示");
-                console.log("鼠标位置:", mousePosition);
+                console.log("Highlight cleared");
+                console.log("Mouse position:", mousePosition);
             }
             if (intersections.length === 0) {
                 highlightedObject = null;
@@ -644,7 +644,7 @@ function initMap() {
             highlightedObject.material.color.setHex(HIGHLIGHT_COLOR);// pause color changes
             if (highlightedObject.userData) {
                 if (highlightedObject.userData.nation_id) {
-                    console.log("检测到国家ID:", highlightedObject.userData.nation_id);
+                    console.log("Detected nation ID:", highlightedObject.userData.nation_id);
                     nation_id = highlightedObject.userData.nation_id;
                     currentModel = getPersonModelByNationId(nation_id);
                     mousePosition.x = 0;
@@ -669,7 +669,7 @@ function checkAnimationStart() {
 
         animate(0);
         animationStarted = true;
-        console.log("所有模型加载完成，启动动画");
+        console.log("All models loaded. Starting animation");
     }
 }
 
@@ -697,7 +697,7 @@ function parseModelFilename(filename) {
     const params = paramString.split('_').filter(s => s !== '');
 
     if (params.length < 6) {
-        console.warn(`文件名参数不足6个: ${filename}, 找到 ${params.length} 个参数`);
+        console.warn(`Filename has fewer than 6 params: ${filename}. Found ${params.length} params`);
         return null;
     }
 
@@ -747,11 +747,11 @@ function loadModel(persondata) {
         // Parse params from filename
         modelParams = parseModelFilename(url);
         if (modelParams) {
-            console.log(`解析到模型参数:`, modelParams);
+            console.log(`Parsed model params:`, modelParams);
         }
         // Add directory prefix
         url = '/scripts/avatar3d/' + url;
-        console.log(`模型完整路径: ${url}`);
+        console.log(`Full model path: ${url}`);
     }
 
     // Create a new loader instance to avoid conflicts
@@ -777,7 +777,7 @@ function loadModel(persondata) {
             const box = new THREE.Box3().setFromObject(model);
             const size = box.getSize(new THREE.Vector3());
             const height = size.y;
-            console.log(`个人模型高度 (${persondata.name}):`, height);
+            console.log(`Person model height (${persondata.name}):`, height);
 alert(height);
             const desiredHeight = 150;
             let scale = desiredHeight / height;
@@ -785,9 +785,9 @@ alert(height);
             // If filename params exist, apply scale multiplier
             if (modelParams && modelParams.scaleMultiplier) {
                 scale = scale * modelParams.scaleMultiplier;
-                console.log(`应用缩放乘数 ${modelParams.scaleMultiplier}, 最终缩放比例: ${scale}`);
+                console.log(`Applied scale multiplier ${modelParams.scaleMultiplier}. Final scale: ${scale}`);
             } else {
-                console.log("缩放比例:", scale);
+                console.log("Scale:", scale);
             }
 
             model.scale.set(scale, scale, scale);
@@ -798,7 +798,7 @@ alert(height);
                 model.rotation.x = THREE.MathUtils.degToRad(modelParams.rotationX);
                 model.rotation.y = THREE.MathUtils.degToRad(modelParams.rotationY);
                 model.rotation.z = THREE.MathUtils.degToRad(modelParams.rotationZ);
-                console.log(`应用旋转: x=${modelParams.rotationX}°, y=${modelParams.rotationY}°, z=${modelParams.rotationZ}°`);
+                console.log(`Applied rotation: x=${modelParams.rotationX}°, y=${modelParams.rotationY}°, z=${modelParams.rotationZ}°`);
             } else {
                 // Use default rotation
                 model.rotation.x = Math.PI / 30;
@@ -813,10 +813,10 @@ alert(height);
                     lng: coordinates.lng,
                     altitude: modelParams.altitude
                 };
-                console.log(`应用海拔高度: ${modelParams.altitude}`);
+                console.log(`Applied altitude: ${modelParams.altitude}`);
             }
             const position2 = overlay.latLngAltitudeToVector3(altitudeCoordinates, model.position);
-            console.log("模型位置:", position2);
+            console.log("Model position:", position2);
 
             // Add to scene
             overlay.scene.add(model);
@@ -847,7 +847,7 @@ alert(height);
                     animIndex = modelParams.animationIndex;
                     // Ensure index is within bounds
                     if (animIndex >= gltf.animations.length) {
-                        console.warn(`动画索引 ${animIndex} 超出范围，使用索引 0`);
+                        console.warn(`Animation index ${animIndex} out of range. Using index 0`);
                         animIndex = 0;
                     }
                 }
@@ -857,12 +857,12 @@ alert(height);
                 const duration = gltf.animations[animIndex].duration;
                 action.setDuration(duration).play();
                 mixers.push(mixer);
-                console.log(`个人模型动画已启动 (${persondata.name}), 播放动画索引: ${animIndex}`);
+                console.log(`Person model animation started (${persondata.name}). Playing animation index: ${animIndex}`);
             }
 
-            console.log(`个人模型加载成功: ${persondata.name}`);
+            console.log(`Person model loaded successfully: ${persondata.name}`);
         } catch (error) {
-            console.error(`个人模型加载失败 (${persondata.name}):`, error);
+            console.error(`Failed to load person model (${persondata.name}):`, error);
         }
     };
 
@@ -875,9 +875,9 @@ function removeModel(nation_id) {
         model = model_loaded_list[nation_id];
         overlay.scene.remove(model);
         delete model_loaded_list[nation_id];
-        console.log(`已移除模型: ${nation_id}`);
+        console.log(`Model removed: ${nation_id}`);
     } else {
-        console.warn(`尝试移除不存在的模型: ${nation_id}`);
+        console.warn(`Tried to remove a non-existent model: ${nation_id}`);
     }
 }
 
@@ -897,12 +897,12 @@ function getCenter() {
 function updateHouseModel(position, scale, rotation) {
     // Check whether overlay and modelhouse exist
     if (typeof overlay === 'undefined' || !overlay.scene) {
-        console.warn('overlay未初始化，无法更新模型');
+        console.warn('overlay is not initialized; cannot update model');
         return;
     }
 
     if (typeof modelhouse === 'undefined') {
-        console.warn('modelhouse未初始化，无法更新模型');
+        console.warn('modelhouse is not initialized; cannot update model');
         return;
     }
 
@@ -934,7 +934,7 @@ function updateHouseModel(position, scale, rotation) {
             rotation: rotation
         });
     } catch (error) {
-        console.error('更新房屋模型时出错:', error);
+        console.error('Error while updating house model:', error);
     }
 }
 
@@ -982,7 +982,7 @@ function set_move_status() {
             draggableCursor: 'crosshair', // default cursor
             draggingCursor: 'crosshair', // cursor while dragging
         });
-        showAlert("请点击地图来指定要移动的目标位置。");
+        showAlert("Please click on the map to select the target position to move to.");
     }
 }
 
@@ -1244,10 +1244,34 @@ function talk_to_it(nation_id, content) {
 }
 
 function stop_talk_to_it(nation_id) {
-    removeModel(nation_id);
-    let marker = hiddenMarkers[nation_id];
-    marker.setVisible(true); // show marker
-    infowindow.close();
+    try {
+        if (typeof removeModel === 'function') {
+            removeModel(nation_id);
+        }
+    } catch (e) {
+    }
+
+    try {
+        if (typeof hiddenMarkers === 'undefined' || !hiddenMarkers) {
+            console.warn('stop_talk_to_it skipped: hiddenMarkers not ready');
+            return;
+        }
+        let marker = hiddenMarkers[nation_id];
+        if (!marker || typeof marker.setVisible !== 'function') {
+            console.warn('stop_talk_to_it skipped: marker not ready');
+            return;
+        }
+        marker.setVisible(true);
+    } catch (e) {
+        console.warn('stop_talk_to_it marker restore failed:', e);
+    }
+
+    try {
+        if (typeof infowindow !== 'undefined' && infowindow && typeof infowindow.close === 'function') {
+            infowindow.close();
+        }
+    } catch (e) {
+    }
 }
 
 
@@ -1257,7 +1281,7 @@ let showing_info_flag = false;
 function send_chat_msg(lng, lat, msg, send_person_name = "") {
     // Check whether an info window is currently being shown
     if (showing_info_flag) {
-        console.log("信息窗口仍在显示。请稍后...");
+        console.log("Info window is still open. Please wait...");
 
         // Retry later
         setTimeout(() => send_chat_msg(lng, lat, msg, send_person_name), 1000);
@@ -1313,7 +1337,7 @@ function send_chat_msg(lng, lat, msg, send_person_name = "") {
     }, 3000);
 
     // Debug output
-    console.log("信息窗口已打开。");
+    console.log("Info window opened.");
 }
 
 
@@ -1333,7 +1357,7 @@ function showprofile(nation_id) {
 </div>
 
     ${person["profile"]}
-    <a href="#" onclick="talk_to_it('${nation_id}','');return false;">和Ta聊天</a>
+    <a href="#" onclick="talk_to_it('${nation_id}','');return false;">Chat</a>
     </p></div>`;
     // Create a <h4> element
     // var h4Element = document.createElement('h4');
@@ -1377,7 +1401,7 @@ function showprofile3d(geoGroup) {
     var contentString = `
     <p style='margin:0;line-height:1.5;font-size:13px;text-indent:2em'>
     ${person["profile"]}
-    <a href="#" onclick="stop_talk_to_it('${nation_id}');return false;">结束聊天</a>
+    <a href="#" onclick="stop_talk_to_it('${nation_id}');return false;">End chat</a>
     </p></div>`;
 // Create a <h4> element
     var h4Element = document.createElement('h4');

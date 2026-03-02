@@ -1,0 +1,7 @@
+{
+  "id": "agent-hello-panel",
+  "name": "Agent Hello Panel",
+  "version": "1.0.0",
+  "description": "A minimal Agent renderer plugin example with a counter and toast messages.",
+  "entry": "index.js"
+}

@@ -37,17 +37,17 @@ class ToolExecutor:
             for name, obj in inspect.getmembers(tools_module):
                 if inspect.isfunction(obj) and not name.startswith('_'):
                     self._tool_functions[name] = obj
-                    logger.info(f"加载内置工具: {name}")
+                    logger.info(f"Loaded built-in tool: {name}")
 
         except ModuleNotFoundError as e:
             module_name = f"{__package__}.tools" if __package__ else "backend.modules.agent.tools"
             if e.name == module_name or e.name == "agent":
                 logger.warning(f"Built-in tools module not found: {module_name}")
                 return
-            logger.error(f"加载内置工具失败: {e}", exc_info=True)
+            logger.error(f"Failed to load built-in tools: {e}", exc_info=True)
 
         except Exception as e:
-            logger.error(f"加载内置工具失败: {e}", exc_info=True)
+            logger.error(f"Failed to load built-in tools: {e}", exc_info=True)
 
     def load_plugin_tool(self, plugin_id: str, tool_function: callable):
         """
@@ -59,7 +59,7 @@ class ToolExecutor:
         """
         tool_name = f"plugin_{plugin_id}_{tool_function.__name__}"
         self._tool_functions[tool_name] = tool_function
-        logger.info(f"加载插件工具: {tool_name}")
+        logger.info(f"Loaded plugin tool: {tool_name}")
 
     def load_custom_tool(self, tool_name: str, tool_function: callable):
         """
@@ -70,7 +70,7 @@ class ToolExecutor:
             tool_function: Tool function
         """
         self._tool_functions[tool_name] = tool_function
-        logger.info(f"加载自定义工具: {tool_name}")
+        logger.info(f"Loaded custom tool: {tool_name}")
 
     def get_tool_function(self, tool_name: str) -> Optional[callable]:
         """
@@ -102,11 +102,11 @@ class ToolExecutor:
 
             # Execute tool
             result = tool_func(**kwargs)
-            logger.info(f"工具 {tool_name} 执行成功")
+            logger.info(f"Tool {tool_name} executed successfully")
             return result
 
         except Exception as e:
-            logger.error(f"工具执行失败: {e}", exc_info=True)
+            logger.error(f"Tool execution failed: {e}", exc_info=True)
             return f"Error executing tool '{tool_name}': {str(e)}"
 
     def get_tool_signature(self, tool_name: str) -> Optional[Dict[str, Any]]:
@@ -162,7 +162,7 @@ class ToolExecutor:
             }
 
         except Exception as e:
-            logger.error(f"获取工具签名失败: {e}")
+            logger.error(f"Failed to get tool signature: {e}")
             return None
 
     def list_tools(self) -> List[str]:

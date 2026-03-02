@@ -163,7 +163,7 @@ class KMService:
             }
             if file_ext not in allowed_exts:
                 raise ValueError(
-                    f"不支持的文件类型: {file_ext or '(无扩展名)'}。支持: doc, txt, markdown, pdf, ppt, excel"
+                    f"Unsupported file type: {file_ext or '(no extension)'}. Supported: doc, txt, markdown, pdf, ppt, excel"
                 )
 
             # Get km_id from km_cfg
@@ -201,7 +201,7 @@ class KMService:
                 except Exception:
                     pass
                 raise ValueError(
-                    f"文件解析失败或暂不支持该文件内容: {file_ext}。支持: doc, txt, markdown, pdf, ppt, excel"
+                    f"File parsing failed or this file content is not supported yet: {file_ext}. Supported: doc, txt, markdown, pdf, ppt, excel"
                 )
 
             # Vectorize the document

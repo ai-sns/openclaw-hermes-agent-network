@@ -1,6 +1,6 @@
-/* AI-SNS Components Styles - 各页面组件样式 */
+/* AI-SNS Components Styles - Component styles for pages */
 
-/* ========== Home 页面 ========== */
+/* ========== Home Page ========== */
 .home-content {
     padding: var(--spacing-xl);
 }
@@ -92,7 +92,7 @@
      cursor: pointer;
  }
 
-/* ========== SNS 页面 - 地图探索 ========== */
+/* ========== SNS Page - Map exploration ========== */
 .sns-layout {
     display: flex;
     height: 100%;
@@ -167,7 +167,7 @@
     background-color: #fff;
 }
 
-/* 地图信息面板 */
+/* Map info panel */
 .sns-info-panel {
     position: absolute;
     top: 70px;
@@ -240,7 +240,7 @@
     text-decoration: none;
 }
 
-/* 地图设置面板 */
+/* Map settings panel */
 .sns-settings-panel {
     position: absolute;
     top: 70px;
@@ -286,7 +286,7 @@
     height: 16px;
 }
 
-/* 地图底部功能栏 */
+/* Map bottom action bar */
 .sns-map-footer {
     position: absolute;
     bottom: var(--spacing-lg);
@@ -329,7 +329,7 @@
     font-size: var(--font-size-xs);
 }
 
-/* 右侧状态面板 */
+/* Right status panel */
 .sns-status-panel {
     width: 280px;
     background-color: var(--bg-content);
@@ -379,7 +379,7 @@
     font-weight: 500;
 }
 
-/* 底部 Tab 切换 */
+/* Bottom tab switch */
 .sns-tabs {
     display: flex;
     border-top: 1px solid var(--border-light);
@@ -406,7 +406,7 @@
     border-top-color: var(--color-primary);
 }
 
-/* 启动按钮 */
+/* Start button */
 .sns-start-btn {
     display: flex;
     align-items: center;
@@ -426,7 +426,7 @@
     background-color: var(--bg-hover);
 }
 
-/* ========== Agent 页面 - 聊天界面 ========== */
+/* ========== Agent Page - Chat interface ========== */
 .agent-layout {
     display: flex;
     height: 100%;
@@ -440,7 +440,7 @@
     overflow: hidden;
 }
 
-/* 聊天头部 */
+/* Chat header */
 .chat-header {
     display: flex;
     justify-content: space-between;
@@ -478,7 +478,7 @@
     min-width: 120px;
 }
 
-/* 聊天消息区 */
+/* Chat messages area */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -537,7 +537,7 @@
     -webkit-user-select: text;
 }
 
-/* 聊天输入区 */
+/* Chat input area */
 .chat-input-area {
     padding: var(--spacing-lg);
     background-color: #fff;
@@ -617,7 +617,7 @@
     background-color: var(--color-primary-hover);
 }
 
-/* ========== KM 页面 - 知识库/笔记 ========== */
+/* ========== KM Page - Knowledge base/notes ========== */
 .km-layout {
     display: flex;
     height: 100%;
@@ -631,7 +631,7 @@
     overflow: hidden;
 }
 
-/* 编辑器工具栏 */
+/* Editor toolbar */
 .km-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -691,7 +691,7 @@
     width: 60px;
 }
 
-/* 编辑器内容区 */
+/* Editor content area */
 .km-editor {
     flex: 1;
     padding: var(--spacing-xl);
@@ -706,7 +706,7 @@
     line-height: 1.8;
 }
 
-/* ========== Tools 页面 - 插件管理 ========== */
+/* ========== Tools Page - Plugin management ========== */
 .tools-layout {
     display: flex;
     height: 100%;
@@ -718,7 +718,7 @@
     overflow-y: auto;
 }
 
-/* 插件市场头部 */
+/* Plugin marketplace header */
 .plugin-market-header {
     display: flex;
     justify-content: space-between;
@@ -773,7 +773,7 @@
     background-color: var(--bg-hover);
 }
 
-/* 插件列表 */
+/* Plugin list */
 .plugin-list-header {
     padding: var(--spacing-xl);
 }
@@ -874,7 +874,7 @@
     background-color: var(--color-primary-hover);
 }
 
-/* 更多按钮 */
+/* More button */
 .plugin-more {
     text-align: center;
     padding: var(--spacing-xl);
@@ -890,7 +890,7 @@
     cursor: pointer;
 }
 
-/* 插件市场底部 */
+/* Plugin marketplace footer */
 .plugin-market-footer {
     background-color: var(--color-primary);
     color: #fff;
@@ -933,7 +933,7 @@
     color: #fff;
 }
 
-/* ========== Web 页面 ========== */
+/* ========== Web Page ========== */
 .web-layout {
     display: flex;
     height: 100%;
@@ -958,7 +958,7 @@
     border: none;
 }
 
-/* Web 首页 Hero 区域 */
+/* Web home hero section */
 .web-hero {
     background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%);
     color: #fff;
@@ -1001,7 +1001,7 @@
     opacity: 1;
 }
 
-/* ========== 用户信息卡片 (SNS侧边栏) ========== */
+/* ========== User info card (SNS sidebar) ========== */
 .user-stats {
     display: flex;
     align-items: center;
@@ -1065,7 +1065,7 @@
     border-radius: 2px;
 }
 
-/* ========== 通用表单组件 ========== */
+/* ========== Common form components ========== */
 .form-group {
     margin-bottom: var(--spacing-md);
 }
@@ -1249,7 +1249,7 @@
     to { transform: rotate(360deg); }
 }
 
-/* ========== 响应式调整 ========== */
+/* ========== Responsive adjustments ========== */
 @media (max-width: 1200px) {
     .plugin-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -1266,9 +1266,9 @@
     }
 }
 
-/* ========== 新版页面样式 ========== */
+/* ========== New page styles ========== */
 
-/* === Home 页面新样式 - 参照 home.png === */
+/* === Home page new styles - see home.png === */
 .home-page {
     height: 100%;
     overflow-y: auto;
@@ -1280,7 +1280,7 @@
     padding: 40px 60px;
 }
 
-/* Logo 和品牌 */
+/* Logo and brand */
 .home-brand {
     display: flex;
     align-items: center;
@@ -1298,7 +1298,7 @@
     color: var(--text-primary);
 }
 
-/* 主标语 */
+/* Main tagline */
 .home-tagline {
     font-size: 20px;
     font-weight: 600;
@@ -1307,7 +1307,7 @@
     line-height: 1.4;
 }
 
-/* 描述文字 */
+/* Description text */
 .home-description {
     font-size: 14px;
     color: var(--text-secondary);
@@ -1315,7 +1315,7 @@
     line-height: 1.6;
 }
 
-/* 功能列表 */
+/* Feature list */
 .home-feature-list {
     list-style: disc;
     padding-left: 24px;
@@ -1329,7 +1329,7 @@
     margin-bottom: 8px;
 }
 
-/* 插图区域 */
+/* Illustration area */
 .home-illustration {
     margin-bottom: 40px;
 }
@@ -1345,7 +1345,7 @@
     box-shadow: var(--shadow-md);
 }
 
-/* 联系我们 */
+/* Contact us */
 .home-contact {
     margin-top: 32px;
 }
@@ -1373,7 +1373,7 @@
     text-decoration: underline;
 }
 
-/* Setting 侧边栏样式 - 参照 home.png */
+/* Settings sidebar styles - see home.png */
 .sidebar-header-row {
     display: flex;
     align-items: center;
@@ -1427,14 +1427,14 @@
     font-weight: 500;
 }
 
-/* === SNS 页面新样式 - 参照 aisns.png === */
+/* === SNS page new styles - see aisns.png === */
 .sns-page-layout {
     display: flex;
     height: 100%;
     overflow: hidden;
 }
 
-/* 地图主区域 */
+/* Map main area */
 .sns-map-area {
     flex: 1;
     position: relative;
@@ -1445,7 +1445,7 @@
     background: linear-gradient(145deg, #1a1f2e 0%, #2d3548 100%);
 }
 
-/* ========== 现代化顶部工具栏 ========== */
+/* ========== Modern top toolbar ========== */
 .sns-toolbar {
     position: absolute;
     top: 0;
@@ -1584,7 +1584,7 @@
     transform: translateY(0);
 }
 
-/* 工具栏展开按钮 - 顶到窗口顶部 */
+/* Toolbar expand button - aligned to window top */
 .toolbar-expand-btn {
     position: absolute;
     top: 0;
@@ -1619,7 +1619,7 @@
     height: 24px;
 }
 
-/* ========== 地图容器 ========== */
+/* ========== Map container ========== */
 .map-container {
     flex: 1;
     position: relative;
@@ -1702,13 +1702,13 @@
     40% { transform: scale(1); opacity: 1; }
 }
 
-/* ========== 现代化右侧设置面板 ========== */
+/* ========== Modern right settings panel ========== */
 .map-settings-panel {
     position: absolute;
-    top: 70px;  /* 留出顶部工具栏的空间 */
+    top: 70px;  /* Leave space for top toolbar */
     right: 12px;
     width: 220px;
-    max-height: calc(100% - 180px);  /* 避免挡住底部操作栏 */
+    max-height: calc(100% - 180px);  /* Avoid covering the bottom action bar */
     background: rgba(30, 35, 50, 0.95);
     backdrop-filter: blur(20px);
     border-radius: 16px;
@@ -1797,7 +1797,7 @@
     padding: 6px;
 }
 
-/* Toggle 开关项 */
+/* Toggle switch item */
 .settings-toggle-item {
     display: flex;
     align-items: center;
@@ -1851,7 +1851,7 @@
     left: 21px;
 }
 
-/* 点击项 */
+/* Click item */
 .settings-click-item {
     display: flex;
     align-items: center;
@@ -1881,7 +1881,7 @@
     transform: translateX(2px);
 }
 
-/* Radio 单选项 */
+/* Radio option item */
 .settings-radio-item {
     display: flex;
     align-items: center;
@@ -1935,11 +1935,11 @@
     color: rgba(255, 255, 255, 0.8);
 }
 
-/* 设置面板展开按钮 - 位于地图控制栏上方 */
+/* Settings panel expand button - above the map controls */
 .settings-expand-btn {
     position: absolute;
-    bottom: 300px;  /* 位于地图控制栏上方，留出足够间距 */
-    right: 16px;    /* 与地图控制栏对齐 */
+    bottom: 300px;  /* Above map controls, with enough spacing */
+    right: 16px;    /* Align with map controls */
     width: 48px;
     height: 48px;
     display: flex;
@@ -1969,7 +1969,7 @@
     transform: scale(1.05);
 }
 
-/* ========== 现代化底部动作栏 ========== */
+/* ========== Modern bottom action bar ========== */
 .map-action-bar {
     position: absolute;
     bottom: 20px;
@@ -2061,7 +2061,7 @@ body.theme-dark .action-btn.active svg {
     height: 16px;
 }
 
-/* 主要动作按钮 */
+/* Primary action button */
 .action-btn-primary {
     display: flex;
     align-items: center;
@@ -2092,7 +2092,7 @@ body.theme-dark .action-btn.active svg {
     transform: translateY(0);
 }
 
-/* ========== 地图控制按钮组 ========== */
+/* ========== Map control button group ========== */
 .map-controls {
     position: absolute;
     bottom: 90px;
@@ -2110,7 +2110,7 @@ body.theme-dark .action-btn.active svg {
     transition: all 0.3s ease;
 }
 
-/* 设置面板打开时隐藏地图控制栏 */
+/* Hide map controls when the settings panel is open */
 .sns-map-area:not(.settings-hidden) .map-controls {
     opacity: 0;
     pointer-events: none;
@@ -2147,7 +2147,7 @@ body.theme-dark .action-btn.active svg {
     margin: 4px auto;
 }
 
-/* 右侧状态面板收缩条 */
+/* Right status panel resizer */
 .sns-panel-resizer {
     position: relative;
     width: 8px;
@@ -2222,7 +2222,7 @@ body.theme-dark .action-btn.active svg {
     color: white;
 }
 
-/* SNS panel 收缩状态 - 箭头翻转 */
+/* SNS panel collapsed state - arrow flipped */
 .sns-panel-resizer.collapsed .panel-collapse-btn {
     opacity: 0;
     background: var(--color-primary);
@@ -2238,7 +2238,7 @@ body.theme-dark .action-btn.active svg {
     color: white;
 }
 
-/* 右侧状态面板 */
+/* Right status panel */
 .sns-status-panel {
     width: 280px;
     background: #fff;
@@ -2259,7 +2259,7 @@ body.theme-dark .action-btn.active svg {
     overflow: hidden;
 }
 
-/* 搜索栏 */
+/* Search bar */
 .status-search-bar {
     padding: 12px;
     border-bottom: 1px solid var(--border-light);
@@ -2269,7 +2269,7 @@ body.theme-dark .action-btn.active svg {
     gap: 8px;
 }
 
-/* 右键菜单 */
+/* Context menu */
 .status-context-menu {
     position: fixed;
     background: var(--bg-content, #fff);
@@ -2432,7 +2432,7 @@ body.theme-dark .context-menu-item:hover {
     cursor: not-allowed;
 }
 
-/* 搜索高亮样式 */
+/* Search highlight style */
 .search-highlight {
     background-color: #fff59d;
     color: #000;
@@ -2446,7 +2446,7 @@ body.theme-dark .context-menu-item:hover {
     font-weight: 600;
 }
 
-/* 页签内容区域 */
+/* Tab content area */
 .status-tab-content {
     flex: 1;
     overflow-y: auto;
@@ -2564,12 +2564,12 @@ body.theme-dark .context-menu-item:hover {
     overflow-x: auto;
     overflow-y: hidden;
     position: relative;
-    /* 滚动条样式 */
+    /* Scrollbar style */
     scrollbar-width: auto;
     scrollbar-color: var(--border-light) var(--bg-secondary, #f5f5f5);
 }
 
-/* Webkit 浏览器滚动条样式 */
+/* Webkit browser scrollbar style */
 .status-tabs::-webkit-scrollbar {
     height: 8px;
 }
@@ -2623,7 +2623,7 @@ body.theme-dark .context-menu-item:hover {
     font-weight: 500;
 }
 
-/* === SNS 侧边栏样式 === */
+/* === SNS sidebar styles === */
 .user-stats-panel {
     padding: 12px;
     background: rgba(26, 115, 232, 0.05);
@@ -2796,7 +2796,7 @@ body.theme-dark .context-menu-item:hover {
     color: var(--text-primary);
 }
 
-/* === Agent 页面新样式 - 参照 agent.png === */
+/* === Agent page new styles - see agent.png === */
 #agent-pages-container {
     height: 100%;
     width: 100%;
@@ -2806,10 +2806,10 @@ body.theme-dark .context-menu-item:hover {
     height: 100%;
     width: 100%;
     overflow: hidden;
-    min-height: 0; /* 允许作为 flex 子元素时收缩 */
+    min-height: 0; /* Allow shrink as a flex child */
 }
 
-/* display: none 的元素不会占据空间，所以可以安全地设置 height: 100% */
+/* Elements with display: none do not take up space, so height: 100% is safe */
 
 .agent-chat-area {
     flex: 1;
@@ -2817,11 +2817,11 @@ body.theme-dark .context-menu-item:hover {
     flex-direction: column;
     background: #fff;
     overflow: hidden;
-    min-height: 0; /* 允许 flex 子元素收缩 */
-    max-height: 100%; /* 防止超出父容器 */
+    min-height: 0; /* Allow shrink as a flex child */
+    max-height: 100%; /* Prevent overflow beyond parent */
 }
 
-/* 顶部工具栏 */
+/* Top toolbar */
 .agent-chat-toolbar {
     display: flex;
     align-items: center;
@@ -2829,7 +2829,7 @@ body.theme-dark .context-menu-item:hover {
     padding: 12px 20px;
     border-bottom: 1px solid var(--border-light);
     background: #fff;
-    flex-shrink: 0; /* 防止被压缩 */
+    flex-shrink: 0; /* Prevent being compressed */
 }
 
 .toolbar-left, .toolbar-right {
@@ -2859,14 +2859,14 @@ body.theme-dark .context-menu-item:hover {
     outline: none;
 }
 
-/* 消息区域 */
+/* Message area */
 .agent-chat-messages {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 20px 24px;
     background: #f8f9fa;
-    min-height: 0; /* 确保flex子元素可以缩小 */
+    min-height: 0; /* Ensure flex children can shrink */
 }
 
 .agent-chat-messages .message-item {
@@ -2906,12 +2906,12 @@ body.theme-dark .context-menu-item:hover {
     color: var(--text-secondary);
 }
 
-/* 输入区域 */
+/* Input area */
 .agent-chat-input-area {
     padding: 16px 24px;
     background: #fff;
     border-top: 1px solid var(--border-light);
-    flex-shrink: 0; /* 防止被压缩 */
+    flex-shrink: 0; /* Prevent being compressed */
 }
 
 .input-hint {
@@ -2990,7 +2990,7 @@ body.theme-dark .context-menu-item:hover {
     background: var(--color-primary-hover);
 }
 
-/* === Agent 侧边栏样式 === */
+/* === Agent sidebar styles === */
 .agent-user-section {
     padding-bottom: 0 !important;
 }
@@ -3047,7 +3047,7 @@ body.theme-dark .context-menu-item:hover {
     color: var(--text-primary);
 }
 
-/* 搜索框 */
+/* Search box */
 .agent-search {
     display: flex;
     align-items: center;
@@ -3067,7 +3067,7 @@ body.theme-dark .context-menu-item:hover {
     background: transparent;
 }
 
-/* Chat List 标签切换 */
+/* Chat list tab switch */
 .chat-list-tabs {
     display: flex;
     gap: 0;
@@ -3096,7 +3096,7 @@ body.theme-dark .context-menu-item:hover {
     border-bottom-color: var(--color-primary);
 }
 
-/* 聊天列表 */
+/* Chat list */
 .chat-list-container {
     flex: 1;
     overflow-y: auto;
@@ -3174,23 +3174,23 @@ body.theme-dark .chat-tree .tree-item.active {
     text-overflow: ellipsis;
 }
 
-/* Agent 用户信息区域 */
+/* Agent user info area */
 .agent-user-section {
     flex-shrink: 0;
 }
 
-/* 中间的聊天列表区域 - 保持原有高度 */
+/* Middle chat list area - keep original height */
 .sidebar-section:not(.agent-user-section):not(.agent-list-section) {
     flex-shrink: 0;
 }
 
-/* 聊天列表 - 保持固定高度 */
+/* Chat list - keep fixed height */
 .chat-list-container {
     max-height: 280px;
     overflow-y: auto;
 }
 
-/* Agent 列表 */
+/* Agent list */
 .agent-list-section {
     margin-top: 0;
     flex-shrink: 0;
@@ -3217,7 +3217,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-primary);
 }
 
-/* 兼容旧样式 */
+/* Backward-compatible legacy styles */
 .message {
     margin-bottom: 16px;
 }
@@ -3275,7 +3275,7 @@ body.theme-dark .chat-tree .tree-item.active {
     }
 }
 
-/* === KM 页面新样式 === */
+/* === KM page new styles === */
 .km-page {
     height: 100%;
     padding: 20px;
@@ -3345,7 +3345,7 @@ body.theme-dark .chat-tree .tree-item.active {
     outline: none;
 }
 
-/* === Tools 页面新样式 === */
+/* === Tools page new styles === */
 .tools-page {
     height: 100%;
     overflow-y: auto;
@@ -3483,7 +3483,7 @@ body.theme-dark .chat-tree .tree-item.active {
     background: var(--color-primary-hover);
 }
 
-/* === Web 页面新样式 === */
+/* === Web page new styles === */
 .web-page {
     height: 100%;
     padding: 20px;
@@ -3572,7 +3572,7 @@ body.theme-dark .chat-tree .tree-item.active {
     border: none;
 }
 
-/* === 侧边栏新样式 === */
+/* === Sidebar new styles === */
 .sidebar-section {
     padding: 16px;
     border-bottom: 1px solid var(--border-light);
@@ -3645,7 +3645,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-primary);
 }
 
-/* 用户头像区域 */
+/* User avatar area */
 .user-profile {
     display: flex;
     flex-direction: column;
@@ -3682,7 +3682,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-success);
 }
 
-/* 聊天列表 */
+/* Chat list */
 .chat-list, .agent-list, .note-list {
     display: flex;
     flex-direction: column;
@@ -3738,7 +3738,7 @@ body.theme-dark .chat-tree .tree-item.active {
     text-overflow: ellipsis;
 }
 
-/* 知识库分类 */
+/* Knowledge base categories */
 .km-category-list {
     display: flex;
     flex-direction: column;
@@ -3772,7 +3772,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-muted);
 }
 
-/* 工具侧边栏 */
+/* Tools sidebar */
 .sidebar-actions {
     display: flex;
     flex-direction: column;
@@ -3802,7 +3802,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-danger);
 }
 
-/* LLM图标网格 */
+/* LLM icon grid */
 .llm-icon-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -3848,7 +3848,7 @@ body.theme-dark .chat-tree .tree-item.active {
     width: 100%;
 }
 
-/* 工具分类列表 */
+/* Tools category list */
 .tools-category-list {
     display: flex;
     flex-direction: column;
@@ -3871,7 +3871,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-primary);
 }
 
-/* Web服务列表 */
+/* Web service list */
 .web-service-list {
     display: flex;
     flex-direction: column;
@@ -3909,7 +3909,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-primary);
 }
 
-/* 空状态 */
+/* Empty state */
 .empty-state {
     padding: 24px 16px;
     text-align: center;
@@ -3921,14 +3921,14 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-danger);
 }
 
-/* 书签列表 */
+/* Bookmark list */
 .bookmark-list {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-/* 模态框样式增强 */
+/* Enhanced modal styles */
 .form-group {
     margin-bottom: 16px;
 }
@@ -3990,7 +3990,7 @@ body.theme-dark .chat-tree .tree-item.active {
     border-color: var(--color-primary);
 }
 
-/* 关于弹窗 */
+/* About modal */
 .about-modal {
     text-align: center;
     padding: 20px 0;
@@ -4034,7 +4034,7 @@ body.theme-dark .chat-tree .tree-item.active {
     text-decoration: underline;
 }
 
-/* 帮助弹窗 */
+/* Help modal */
 .help-modal h4 {
     font-size: 15px;
     font-weight: 600;
@@ -4068,7 +4068,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-primary);
 }
 
-/* 搜索弹窗 */
+/* Search modal */
 .search-modal {
     padding: 8px 0;
 }
@@ -4093,10 +4093,10 @@ body.theme-dark .chat-tree .tree-item.active {
 }
 
 /* ============================================
-   KM 页面样式 - 知识库管理
+   KM page styles - Knowledge base management
    ============================================ */
 
-/* KM 主内容容器 - 动态渲染区域 */
+/* KM main content container - dynamic render area */
 .km-main-content-wrapper {
     height: 100%;
     display: flex;
@@ -4111,7 +4111,7 @@ body.theme-dark .chat-tree .tree-item.active {
      min-height: 0;
  }
 
-/* KM 页面布局 */
+/* KM page layout */
 .km-page-layout {
     height: 100%;
     display: flex;
@@ -4119,7 +4119,7 @@ body.theme-dark .chat-tree .tree-item.active {
     background: #f8f9fa;
 }
 
-/* KM 搜索栏 */
+/* KM search bar */
 .km-search-bar {
     padding: 12px 16px;
     background: #fff;
@@ -4177,7 +4177,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: #333;
 }
 
-/* KM 编辑器区域 */
+/* KM editor area */
 .km-editor-area {
     flex: 1;
     display: flex;
@@ -4189,7 +4189,7 @@ body.theme-dark .chat-tree .tree-item.active {
     overflow: hidden;
 }
 
-/* KM 工具栏行 */
+/* KM toolbar row */
 .km-toolbar-row {
     display: flex;
     align-items: center;
@@ -4212,7 +4212,7 @@ body.theme-dark .chat-tree .tree-item.active {
     border-left: 1px solid var(--border-light);
 }
 
-/* KM 工具按钮 */
+/* KM tool button */
 .km-tool-btn {
     width: 32px;
     height: 32px;
@@ -4241,13 +4241,13 @@ body.theme-dark .chat-tree .tree-item.active {
     color: #fff;
 }
 
-/* 格式按钮特殊样式 */
+/* Special styles for format buttons */
 .km-tool-btn.format-btn {
     font-size: 14px;
     font-weight: 600;
 }
 
-/* 工具栏分隔符 */
+/* Toolbar divider */
 .km-toolbar-row .toolbar-divider {
     width: 1px;
     height: 20px;
@@ -4255,7 +4255,7 @@ body.theme-dark .chat-tree .tree-item.active {
     margin: 0 6px;
 }
 
-/* 字体选择器 */
+/* Font selector */
 .km-font-select,
 .km-size-select {
     padding: 4px 8px;
@@ -4281,7 +4281,7 @@ body.theme-dark .chat-tree .tree-item.active {
     border-color: var(--color-primary);
 }
 
-/* 颜色选择器 */
+/* Color picker */
 .km-color-picker-wrapper {
     position: relative;
     display: inline-flex;
@@ -4325,13 +4325,13 @@ body.theme-dark .chat-tree .tree-item.active {
     display: block;
 }
 
-/* 格式行 */
+/* Format row */
 .km-format-row {
     background: #fff;
     padding: 6px 12px;
 }
 
-/* 编辑内容区域 */
+/* Editor content area */
 .km-editor-content {
     flex: 1;
     padding: 24px 32px;
@@ -4352,10 +4352,10 @@ body.theme-dark .chat-tree .tree-item.active {
 }
 
 /* ============================================
-   KM 侧边栏样式
+   KM sidebar styles
    ============================================ */
 
-/* KM 侧边栏头部 */
+/* KM sidebar header */
 .km-sidebar-header {
     display: flex;
     align-items: center;
@@ -4370,7 +4370,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-primary);
 }
 
-/* KM 操作按钮 */
+/* KM action buttons */
 .km-action-buttons {
     display: flex;
     gap: 12px;
@@ -4407,7 +4407,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-secondary);
 }
 
-/* KM 搜索框 */
+/* KM search box */
 .km-search-box {
     display: flex;
     align-items: center;
@@ -4439,7 +4439,7 @@ body.theme-dark .chat-tree .tree-item.active {
     font-size: 11px;
 }
 
-/* KM 标签页 */
+/* KM tabs */
 .km-tabs {
     display: flex;
     padding: 0 16px;
@@ -4475,7 +4475,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: #fff;
 }
 
-/* KM 笔记树 */
+/* KM note tree */
 .km-note-tree {
     flex: 0 1 auto;
     max-height: 50%;
@@ -4535,7 +4535,7 @@ body.theme-dark .chat-tree .tree-item.active {
     padding-left: 22px;
 }
 
-/* 展开/收起动画 */
+/* Expand/collapse animation */
 .km-tree-node.expandable .km-tree-children {
     display: none;
 }
@@ -4544,7 +4544,7 @@ body.theme-dark .chat-tree .tree-item.active {
     display: block;
 }
 
-/* KM 知识库区域 */
+/* KM knowledge base section */
 .km-kb-section {
     margin-top: auto;
     border-top: 1px solid var(--border-light);
@@ -4584,10 +4584,10 @@ body.theme-dark .chat-tree .tree-item.active {
 }
 
 /* ============================================
-   Tools 页面样式 - 插件市场
+   Tools page styles - Plugin marketplace
    ============================================ */
 
-/* Tools 页面布局 */
+/* Tools page layout */
 .tools-page {
     height: 100%;
     display: flex;
@@ -4596,7 +4596,7 @@ body.theme-dark .chat-tree .tree-item.active {
     overflow: hidden;
 }
 
-/* 顶部导航栏 */
+/* Top navigation bar */
 .tools-top-nav {
     display: flex;
     align-items: center;
@@ -4647,7 +4647,7 @@ body.theme-dark .chat-tree .tree-item.active {
     background: #f0f0f0;
 }
 
-/* 插件市场区域 */
+/* Plugin marketplace area */
 .plugin-market {
     flex: 1;
     padding: 32px;
@@ -4661,7 +4661,7 @@ body.theme-dark .chat-tree .tree-item.active {
     margin-bottom: 24px;
 }
 
-/* 插件卡片网格 */
+/* Plugin card grid */
 .plugin-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -4680,7 +4680,7 @@ body.theme-dark .chat-tree .tree-item.active {
     }
 }
 
-/* 插件卡片 */
+/* Plugin card */
 .plugin-card {
     background: #fff;
     border: 1px solid #e0e0e0;
@@ -4781,7 +4781,7 @@ body.theme-dark .chat-tree .tree-item.active {
     background: #1557b0;
 }
 
-/* More 按钮 */
+/* More button */
 .plugin-more-section {
     display: flex;
     justify-content: center;
@@ -4803,7 +4803,7 @@ body.theme-dark .chat-tree .tree-item.active {
     background: #1557b0;
 }
 
-/* 底部导航 */
+/* Footer navigation */
 .tools-footer {
     padding: 16px 24px;
     background: #1a73e8;
@@ -4845,7 +4845,7 @@ body.theme-dark .chat-tree .tree-item.active {
 }
 
 /* ============================================
-   Tools 侧边栏样式
+   Tools sidebar styles
    ============================================ */
 
 .tools-sidebar-header {
@@ -4917,7 +4917,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--text-secondary);
 }
 
-/* LLM 图标网格 */
+/* LLM icon grid */
 .llm-icon-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -4959,7 +4959,7 @@ body.theme-dark .chat-tree .tree-item.active {
     text-align: center;
 }
 
-/* 工具分类列表 - 现代化设计 */
+/* Tools category list - modern design */
 .tools-category-section {
     display: flex;
     flex-direction: column;
@@ -5050,7 +5050,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: var(--color-primary);
 }
 
-/* 分类项选中状态 */
+/* Category item selected state */
 .tools-category-item.active {
     background: var(--color-primary-bg);
 }
@@ -5429,7 +5429,7 @@ body.theme-dark .chat-tree .tree-item.active {
     box-shadow: 0 0 0 3px var(--color-primary-bg);
 }
 
-/* 主题切换器 */
+/* Theme switcher */
 .theme-switcher {
     display: flex;
     gap: 12px;
@@ -5471,7 +5471,7 @@ body.theme-dark .chat-tree .tree-item.active {
     font-weight: 500;
 }
 
-/* 亮色主题预览 */
+/* Light theme preview */
 .theme-option[data-theme="light"] {
     background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
 }
@@ -5481,7 +5481,7 @@ body.theme-dark .chat-tree .tree-item.active {
     border-color: var(--color-primary);
 }
 
-/* 暗色主题预览 */
+/* Dark theme preview */
 .theme-option[data-theme="dark"] {
     background: linear-gradient(135deg, #1a1a24 0%, #16161e 100%);
     color: #a0a0b8;
@@ -5497,7 +5497,7 @@ body.theme-dark .chat-tree .tree-item.active {
     color: #818cf8;
 }
 
-/* 暗色模式下的设置样式 */
+/* Settings styles in dark mode */
 body.theme-dark .setting-select,
 body.theme-dark .setting-input {
     background: var(--bg-secondary);
@@ -5530,7 +5530,7 @@ body.theme-dark {
     --agent-bubble-ai-text: #f1f5f9;
 }
 
-/* 消息头像 */
+/* Message avatar */
 .agent-chat-messages .message-avatar {
     width: 32px;
     height: 32px;
@@ -5551,7 +5551,7 @@ body.theme-dark {
     color: #fff;
 }
 
-/* 改进的消息样式 */
+/* Improved message styles */
 .agent-chat-messages .message-item {
     margin-bottom: 32px;
     animation: messageSlideIn 0.3s ease-out;
@@ -5626,7 +5626,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     color: #fff;
 }
 
-/* 思考中动画 */
+/* Thinking animation */
 .agent-chat-messages .thinking-indicator {
     display: flex;
     align-items: center;
@@ -5667,7 +5667,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     }
 }
 
-/* 流式输出光标 */
+/* Streaming output cursor */
 .agent-chat-messages .cursor-blink {
     display: inline-block;
     width: 2px;
@@ -5687,7 +5687,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     }
 }
 
-/* 发送按钮状态 */
+/* Send button state */
 .send-btn.sending {
     opacity: 0.6;
     cursor: not-allowed;
@@ -5698,7 +5698,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     cursor: not-allowed;
 }
 
-/* 错误消息 */
+/* Error message */
 .agent-chat-messages .error-message .message-body {
     background: #fef2f2;
     border-color: #fecaca;
@@ -5711,7 +5711,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     color: #dc2626;
 }
 
-/* ==================== Markdown 渲染样式 ==================== */
+/* ==================== Markdown rendering styles ==================== */
 
 .agent-chat-messages .message-body h1,
 .agent-chat-messages .message-body h2,
@@ -5808,7 +5808,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     font-style: italic;
 }
 
-/* 行内代码 */
+/* Inline code */
 .agent-chat-messages .inline-code {
     display: inline;
     padding: 2px 6px;
@@ -5826,7 +5826,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     color: #fff;
 }
 
-/* 代码块 */
+/* Code block */
 .agent-chat-messages .code-block {
     margin: 16px 0;
     border-radius: 12px;
@@ -5894,7 +5894,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     tab-size: 4;
 }
 
-/* 代码语法高亮 */
+/* Code syntax highlighting */
 .agent-chat-messages .code-block .hljs-keyword {
     color: #c792ea;
     font-weight: 500;
@@ -5925,7 +5925,7 @@ body.theme-dark .agent-chat-messages .assistant-message .message-sender {
     color: #f07178;
 }
 
-/* 代码块滚动条 */
+/* Code block scrollbar */
 .agent-chat-messages .code-block pre::-webkit-scrollbar {
     height: 6px;
 }
@@ -5994,7 +5994,7 @@ body:not(.theme-dark) .agent-chat-messages .code-block pre::-webkit-scrollbar-th
     background: #94a3b8;
 }
 
-/* 消息区域滚动条美化 */
+/* Beautified message area scrollbar */
 .agent-chat-messages::-webkit-scrollbar {
     width: 8px;
 }
@@ -6012,9 +6012,9 @@ body:not(.theme-dark) .agent-chat-messages .code-block pre::-webkit-scrollbar-th
     background: #94a3b8;
 }
 
-/* 清空初始消息样式 */
+/* Initial empty message state */
 .agent-chat-messages:empty::before {
-    content: '发送消息开始对话...';
+    content: 'Send a message to start the conversation...';
     display: flex;
     align-items: center;
     justify-content: center;
@@ -6023,13 +6023,13 @@ body:not(.theme-dark) .agent-chat-messages .code-block pre::-webkit-scrollbar-th
     font-size: 14px;
 }
 
-/* 新建对话按钮效果 */
+/* New chat button effect */
 #newChatBtn:hover .action-btn-icon svg {
     transform: scale(1.1);
     transition: transform 0.2s ease;
 }
 
-/* 输入框增强 */
+/* Enhanced input box */
 .agent-chat-input {
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -6039,7 +6039,7 @@ body:not(.theme-dark) .agent-chat-messages .code-block pre::-webkit-scrollbar-th
     box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.1);
 }
 
-/* 响应式调整 */
+/* Responsive adjustments */
 @media (max-width: 768px) {
     .agent-chat-messages .message-body {
         margin-left: 0;
@@ -6059,7 +6059,7 @@ body:not(.theme-dark) .agent-chat-messages .code-block pre::-webkit-scrollbar-th
     }
 }
 
-/* 暗色主题支持 */
+/* Dark theme support */
 body.theme-dark .agent-chat-messages .message-body {
     color: #e2e8f0;
 }
@@ -6101,7 +6101,7 @@ body.theme-dark .agent-chat-messages .error-content {
     color: #fca5a5;
 }
 
-/* ==================== 欢迎页面样式 ==================== */
+/* ==================== Welcome page styles ==================== */
 .welcome-message {
     display: flex;
     flex-direction: column;
@@ -6180,7 +6180,7 @@ body.theme-dark .agent-chat-messages .error-content {
     font-size: 18px;
 }
 
-/* 暗色主题欢迎消息 */
+/* Dark theme welcome message */
 body.theme-dark .welcome-message {
     background: transparent;
 }
@@ -6234,7 +6234,7 @@ body.theme-dark .km-editor-content table tr:hover {
     background: #2a2a2a;
 }
 
-/* 编辑器图片样式 */
+/* Editor image styles */
 .km-editor-content img {
     max-width: 100%;
     height: auto;
@@ -6242,7 +6242,7 @@ body.theme-dark .km-editor-content table tr:hover {
     margin: 10px 0;
 }
 
-/* 编辑器链接样式 */
+/* Editor link styles */
 .km-editor-content a {
     color: var(--color-primary);
     text-decoration: none;
@@ -6583,7 +6583,7 @@ body.theme-dark .form-select:focus {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* ========== Agent 右侧设置面板 ========== */
+/* ========== Agent right settings panel ========== */
 .agent-panel-resizer {
     width: 8px;
     background: transparent;
@@ -6657,7 +6657,7 @@ body.theme-dark .form-select:focus {
     color: white;
 }
 
-/* Agent panel 收缩状态 - 箭头翻转 */
+/* Agent panel collapsed state - arrow flipped */
 .agent-panel-resizer.collapsed .panel-collapse-btn {
     opacity: 0;
     background: var(--color-primary);
@@ -6750,7 +6750,7 @@ body.theme-dark .form-select:focus {
     background: var(--bg-hover);
 }
 
-/* Param 页签样式 */
+/* Param tab styles */
 .param-group {
     display: flex;
     flex-direction: column;
@@ -6824,7 +6824,7 @@ body.theme-dark .form-select:focus {
 }
 
 .param-toggle .toggle-slider::after {
-    content: none; /* 隐藏继承的 ::after 伪元素 */
+    content: none; /* Hide inherited ::after pseudo-element */
 }
 
 .param-toggle input[type="checkbox"]:checked + .toggle-slider {
@@ -6835,7 +6835,7 @@ body.theme-dark .form-select:focus {
     transform: translateX(18px);
 }
 
-/* Prompt 页签样式 */
+/* Prompt tab styles */
 .prompt-editor {
     display: flex;
     flex-direction: column;
@@ -6917,7 +6917,7 @@ body.theme-dark .form-select:focus {
     color: #fff;
 }
 
-/* File 页签样式 */
+/* File tab styles */
 .file-upload-btn {
     margin-left: auto;
     background: transparent;
@@ -6999,7 +6999,7 @@ body.theme-dark .form-select:focus {
     color: #f44336;
 }
 
-/* Plugins 页签样式 */
+/* Plugins tab styles */
 .plugin-add-btn {
     margin-left: auto;
     background: transparent;
@@ -7087,7 +7087,7 @@ body.theme-dark .form-select:focus {
      min-height: 0;
  }
 
-/* 空状态样式 */
+/* Empty state styles */
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -7122,7 +7122,7 @@ body.theme-dark .form-select:focus {
     background: #1557b0;
 }
 
-/* 底部页签按钮 */
+/* Bottom tab buttons */
 .settings-tabs {
     display: flex;
     border-top: 1px solid var(--border-light);
@@ -7130,12 +7130,12 @@ body.theme-dark .form-select:focus {
     overflow-x: auto;
     overflow-y: hidden;
     position: relative;
-    /* 滚动条样式 */
+    /* Scrollbar style */
     scrollbar-width: auto;
     scrollbar-color: var(--border-light) var(--bg-secondary, #f5f5f5);
 }
 
- /* Webkit 浏览器滚动条样式 */
+ /* Webkit browser scrollbar style */
  .settings-tabs::-webkit-scrollbar {
      height: 8px;
  }
@@ -7193,7 +7193,7 @@ body.theme-dark .form-select:focus {
     flex-shrink: 0;
 }
 
-/* 展开按钮 */
+/* Expand button */
 .settings-expand-btn {
     position: absolute;
     top: 50%;
@@ -7227,7 +7227,7 @@ body.theme-dark .form-select:focus {
     color: var(--color-primary);
 }
 
-/* Agent 设置面板展开按钮 */
+/* Agent settings panel expand button */
 .agent-settings-expand-btn {
     position: fixed;
     top: 50%;
@@ -7261,7 +7261,7 @@ body.theme-dark .form-select:focus {
     color: var(--color-primary);
 }
 
-/* ========== Agent 右侧设置面板主题修复 ========== */
+/* ========== Agent right settings panel theme fixes ========== */
 
 .agent-settings-panel {
     width: 320px;
@@ -7289,7 +7289,7 @@ body.theme-dark .form-select:focus {
     margin-bottom: 12px;
 }
 
-/* Param 输入框 */
+/* Param input */
 .param-input {
     padding: 8px 10px;
     border: 1px solid var(--border-color);
@@ -7301,7 +7301,7 @@ body.theme-dark .form-select:focus {
     color: var(--text-primary);
 }
 
-/* Prompt 编辑器 */
+/* Prompt editor */
 .prompt-textarea {
     width: 100%;
     min-height: 120px;
@@ -7351,7 +7351,7 @@ body.theme-dark .form-select:focus {
     color: var(--text-primary);
 }
 
-/* File 和 Plugin 项 */
+/* File and plugin items */
 .file-item, .plugin-item {
     background: var(--bg-secondary);
     border-radius: var(--radius-sm);
@@ -7375,7 +7375,7 @@ body.theme-dark .form-select:focus {
     color: var(--text-secondary);
 }
 
-/* 底部页签 */
+/* Bottom tabs */
 .settings-tabs {
     border-top: 1px solid var(--border-light);
     background: var(--bg-content);
@@ -7447,7 +7447,7 @@ body.theme-dark .form-select:focus {
     background: var(--bg-content);
 }
 
-/* 展开按钮 */
+/* Expand button */
 .agent-settings-expand-btn {
     background: var(--bg-content);
     border: 1px solid var(--border-light);
@@ -7472,6 +7472,18 @@ body.theme-dark .form-select:focus {
     padding: var(--spacing-xl);
     max-width: 1400px;
     margin: 0 auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.models-container,
+.roles-container {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .page-header {
@@ -7481,6 +7493,7 @@ body.theme-dark .form-select:focus {
     margin-bottom: var(--spacing-xl);
     padding-bottom: var(--spacing-md);
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .page-header h2 {
@@ -8287,10 +8300,10 @@ body.theme-dark .control-send-btn:hover {
 }
 
 /* ============================================
-   KM 模块增强样式 - 优化版
+   KM module enhanced styles - optimized version
    ============================================ */
 
-/* KM Sidebar 列表样式 - 参考 Agent Sidebar */
+/* KM sidebar list styles - refer to Agent Sidebar */
 .km-list-section {
     flex: 1;
     display: flex;
@@ -8339,17 +8352,17 @@ body.theme-dark .control-send-btn:hover {
     margin-top: auto;
 }
 
-/* KM Section Container - 展开内容区域 */
+/* KM Section Container - expanded content area */
 .km-section-container {
 
 }
 
-/* KM User Section 样式 */
+/* KM User Section styles */
 .km-user-section {
     padding: 0 ;
 }
 
-/* KM 搜索框 */
+/* KM search box */
 .km-search {
     display: flex;
     align-items: center;
@@ -8380,7 +8393,7 @@ body.theme-dark .control-send-btn:hover {
     font-size: 11px;
 }
 
-/* KM 列表标签切换 */
+/* KM list tab switch */
 .km-list-tabs {
     display: flex;
     gap: 0;
@@ -8428,7 +8441,7 @@ body.theme-dark .control-send-btn:hover {
 }
 
 /* ============================================
-   KM File Page 优化样式 (kmtype=0)
+   KM File Page optimized styles (kmtype=0)
    ============================================ */
 .km-file-page-layout {
     display: flex;
@@ -8563,7 +8576,7 @@ body.theme-dark .control-send-btn:hover {
     color: #f44336;
 }
 
-/* 文件搜索区域 */
+/* File search area */
 .km-vector-search-panel {
     flex: 1;
     display: flex;
@@ -8688,7 +8701,7 @@ body.theme-dark .control-send-btn:hover {
 }
 
 /* ============================================
-   KM Key-Value Page 优化样式 (kmtype=2)
+   KM Key-Value Page optimized styles (kmtype=2)
    ============================================ */
 .km-kv-page-layout {
     display: flex;
@@ -8789,7 +8802,7 @@ body.theme-dark .control-send-btn:hover {
     text-overflow: ellipsis;
 }
 
-/* KV 编辑器面板 */
+/* KV editor panel */
 .km-kv-editor-panel {
     flex: 1;
     display: flex;
@@ -8882,7 +8895,7 @@ body.theme-dark .control-send-btn:hover {
     border-top: 1px solid var(--border-light);
 }
 
-/* 通用按钮样式增强 */
+/* General button style enhancements */
 .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -8950,7 +8963,7 @@ body.theme-dark .control-send-btn:hover {
     font-size: 13px;
 }
 
-/* KM 空状态样式 */
+/* KM empty state styles */
 .km-empty-state {
     display: flex;
     flex-direction: column;
@@ -9025,13 +9038,13 @@ body.theme-dark .profile-webview {
     background: var(--bg-primary);
 }
 
-/* 页签滚动提示 - 渐变效果 */
+/* Tab scroll hint - gradient effect */
 .status-tabs::before,
 .status-tabs::after {
     content: '';
     position: absolute;
     top: 0;
-    bottom: 10px; /* 留出滚动条空间（8px 高度 + 2px 间距） */
+    bottom: 10px; /* Leave space for scrollbar (8px height + 2px gap) */
     width: 30px;
     pointer-events: none;
     z-index: 1;
@@ -9049,7 +9062,7 @@ body.theme-dark .profile-webview {
     background: linear-gradient(to left, var(--bg-primary), transparent);
 }
 
-/* 当可以滚动时显示渐变 */
+/* Show gradient when scrollable */
 .status-tabs.can-scroll-left::before {
     opacity: 1;
 }
@@ -9058,7 +9071,7 @@ body.theme-dark .profile-webview {
     opacity: 1;
 }
 
-/* 响应式优化 - 小屏幕下的页签样式 */
+/* Responsive optimization - tab styles on small screens */
 @media (max-width: 768px) {
     .status-tab {
         min-width: 70px;
@@ -9072,7 +9085,7 @@ body.theme-dark .profile-webview {
     }
 }
 
-/* 超小屏幕优化 */
+/* Ultra-small screen optimization */
 @media (max-width: 480px) {
     .status-tab {
         min-width: 60px;

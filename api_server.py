@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """
 AI-SNS API Server
-使用模块化后端架构，提供 REST API、WebSocket 和 JSON-RPC 接口
-支持 Agent 管理、AI 聊天、地图功能、知识管理等模块
+Uses a modular backend architecture that provides REST API, WebSocket, and JSON-RPC interfaces.
+Supports agent management, AI chat, map features, knowledge management, and other modules.
 """
 
 import os
 import sys
 from pathlib import Path
+from datetime import datetime
 
 if os.environ.get("PYCHARM_HOSTED"):
     os.environ["OMP_NUM_THREADS"] = "1"
@@ -15,11 +16,11 @@ if os.environ.get("PYCHARM_HOSTED"):
 
 
 
-# 设置工作目录
+# Set working directory
 app_directory = Path(__file__).resolve().parent
 os.chdir(app_directory)
 
-# 将 backend 目录添加到 sys.path
+# Add the backend directory to sys.path
 sys.path.insert(0, str(app_directory / 'backend'))
 
 import logging
@@ -29,25 +30,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse
 
-# 导入配置
+# Import configuration
 from backend.config.settings import get_settings
 from backend.config.database import init_db
 
-# 导入 WebSocket 管理器 - 使用全局管理器
+# Import the WebSocket manager - use the global manager
 from backend.shared.websocket_manager import ConnectionManager, manager as ws_manager
 
-# 配置日志（必须在使用 logger 之前）
+# Configure logging (must run before the logger is used)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 导入所有模块路由（使用 try-except 优雅处理依赖问题）
-# Tools module (必须加载)
+# Import all module routers (use try-except to gracefully handle dependency issues)
+# Tools module (must be loaded)
 from backend.modules.tools.router import router as tools_router
 
 # DocSkill module (OpenClaw-style skills)
 from backend.modules.skills_registry.router import router as skills_registry_router
 
-# 其他模块（可选加载）
+# Other modules (optional)
 agent_router = None
 llm_router = None
 role_router = None
@@ -78,7 +79,7 @@ try:
 except Exception as e:
     logger.warning(f"⚠ Map module not available: {e}")
 
-# 临时调试：查看 KM 模块导入次数
+# Temporary debug: check how many times the KM module is imported
 import os
 logger.info(f"⚠️ Attempting to import KM module (PID: {os.getpid()}, Path: {os.getcwd()})")
 try:
@@ -109,19 +110,19 @@ try:
 except Exception as e:
     logger.warning(f"⚠ SNS module not available: {e}")
 
-# 获取配置
+# Load configuration
 settings = get_settings()
 
-# 不再创建新的 WebSocket 管理器，而是使用从模块导入的全局管理器
+# Do not create a new WebSocket manager; reuse the global manager imported from the module
 
-# 创建FastAPI应用
+# Create FastAPI application
 app = FastAPI(
     title="AI-SNS API",
     description="AI Agent Social Network API Server - Modular Architecture with REST, WebSocket, and JSON-RPC support",
     version="2.0.0"
 )
 
-# CORS配置
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.server.cors_origins,
@@ -130,7 +131,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 静态文件
+# Static files
 try:
     if os.path.exists("images"):
         app.mount("/images", StaticFiles(directory="images"), name="images")
@@ -147,18 +148,18 @@ try:
 except Exception as e:
     logger.warning(f"Failed to mount static files: {e}")
 
-# 注册所有模块路由
+# Register all module routes
 # IMPORTANT: Register more specific routes BEFORE general routes to avoid path conflicts
 
-# 优先注册 Tools 模块（必须可用）
+# Register the Tools module first (must be available)
 app.include_router(tools_router, prefix="/api/tools", tags=["Tools"])
 logger.info("✓ Tools Module registered")
 
-# 注册 DocSkills 模块
+# Register the DocSkills module
 app.include_router(skills_registry_router, prefix="/api/skills", tags=["Skills"])
 logger.info("✓ Skills Registry Module registered")
 
-# 注册其他模块（如果可用）
+# Register other modules when available
 if llm_router:
     app.include_router(llm_router, prefix="/api/agent", tags=["Agent-LLM"])
     logger.info("✓ Agent LLM Module registered")
@@ -203,10 +204,10 @@ if sns_router:
     app.include_router(sns_router, prefix="/api/sns", tags=["SNS"])
     logger.info("✓ SNS Module registered")
 
-# 健康检查端点（保持向后兼容）
+# Health check endpoint (maintain backward compatibility)
 @app.get("/health")
 async def health_check_compat():
-    """健康检查（兼容旧版）"""
+    """Health check (legacy compatible)"""
     return {
         "status": "healthy",
         "version": "2.0.0",
@@ -215,7 +216,7 @@ async def health_check_compat():
 
 @app.get("/api/health")
 async def health_check():
-    """健康检查"""
+    """Health check"""
     return {
         "status": "healthy",
         "version": "2.0.0",
@@ -413,11 +414,11 @@ async def aigc_center_redirect():
         raise HTTPException(status_code=404, detail="AIGC center is not configured")
     return RedirectResponse(url=f"{remote_base}/aigccenter.html")
 
-# WebSocket 端点 - 通用端点（自动生成client_id）
+# WebSocket endpoint - general endpoint (auto-generates client_id)
 @app.websocket("/ws")
 async def websocket_general_endpoint(websocket: WebSocket):
     """
-    通用 WebSocket 连接端点（自动生成client_id）
+    General WebSocket connection endpoint (auto-generates client_id)
     """
     import uuid
     client_id = str(uuid.uuid4())
@@ -426,15 +427,15 @@ async def websocket_general_endpoint(websocket: WebSocket):
 
     try:
         while True:
-            # 接收消息
+            # Receive message
             data = await websocket.receive_json()
             logger.info(f"Received from {client_id}: {data}")
 
-            # 处理消息类型
+            # Handle message type
             msg_type = data.get('type', '')
 
             if msg_type == 'ping':
-                # 响应 ping
+                # Respond to ping
                 await ws_manager.send_message({
                     'type': 'pong',
                     'timestamp': data.get('timestamp')
@@ -447,37 +448,37 @@ async def websocket_general_endpoint(websocket: WebSocket):
         logger.error(f"WebSocket error for client {client_id}: {e}")
         ws_manager.disconnect(client_id)
 
-# WebSocket 端点
+# WebSocket endpoint
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
     """
-    WebSocket 连接端点
+    WebSocket connection endpoint
 
     Args:
-        websocket: WebSocket 连接
-        client_id: 客户端ID
+        websocket: WebSocket connection
+        client_id: Client ID
     """
     await ws_manager.connect(websocket, client_id)
     logger.info(f"WebSocket client {client_id} connected")
 
     try:
         while True:
-            # 接收消息
+            # Receive message
             data = await websocket.receive_json()
             logger.info(f"Received from {client_id}: {data}")
 
-            # 处理消息类型
+            # Handle message type
             msg_type = data.get('type', '')
 
             if msg_type == 'ping':
-                # 响应 ping
+                # Respond to ping
                 await ws_manager.send_message({
                     'type': 'pong',
                     'timestamp': data.get('timestamp')
                 }, client_id)
 
             elif msg_type == 'broadcast':
-                # 广播消息
+                # Broadcast message
                 await ws_manager.broadcast({
                     'type': 'message',
                     'from': client_id,
@@ -485,7 +486,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 })
 
             elif msg_type == 'map_chat':
-                # 地图聊天消息
+                # Map chat message
                 await ws_manager.broadcast({
                     'type': 'map_chat_message',
                     'from_user': data.get('from_user', client_id),
@@ -495,7 +496,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 })
 
             else:
-                # 回显未知消息
+                # Echo unknown message
                 await ws_manager.send_message({
                     'type': 'echo',
                     'data': data
@@ -508,18 +509,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         logger.error(f"WebSocket error for client {client_id}: {e}")
         ws_manager.disconnect(client_id)
 
-# JSON-RPC 2.0 端点（向后兼容）
+# JSON-RPC 2.0 endpoint (backward compatible)
 @app.post("/jsonrpc")
 async def jsonrpc_endpoint(request: Request):
     """
-    JSON-RPC 2.0 接口（兼容旧版前端）
+    JSON-RPC 2.0 interface (compatible with the legacy frontend)
 
-    将 JSON-RPC 请求路由到对应的 REST API 端点
+    Route JSON-RPC requests to the corresponding REST API endpoints
     """
     try:
         body = await request.json()
 
-        # 验证 JSON-RPC 版本
+        # Validate the JSON-RPC version
         if body.get("jsonrpc") != "2.0":
             return {
                 "jsonrpc": "2.0",
@@ -535,14 +536,26 @@ async def jsonrpc_endpoint(request: Request):
         params = body.get("params", {})
         request_id = body.get("id")
 
-        # 导入需要的模块服务（懒加载）
+        # Import required module services (lazy load)
         from backend.modules.map.dependencies import get_map_service
 
-        # 创建服务实例（MapService使用静态方法，不需要db参数）
+        # Create the service instance (MapService uses static methods, so no db parameter is required)
         map_service = get_map_service()
 
-        # 路由到对应的方法
-        if method == "get_map_settings":
+        # Route to the corresponding method
+        if method == "ping":
+            return {
+                "jsonrpc": "2.0",
+                "result": {
+                    "ok": True,
+                    "message": "pong",
+                    "echo": params,
+                    "server_time": datetime.utcnow().isoformat() + "Z"
+                },
+                "id": request_id
+            }
+
+        elif method == "get_map_settings":
             result = map_service.get_map_settings()
             return {
                 "jsonrpc": "2.0",
@@ -628,7 +641,7 @@ async def jsonrpc_endpoint(request: Request):
             }
 
         elif method == "send_map_chat_message":
-            # 广播聊天消息通过 WebSocket
+            # Broadcast chat messages through WebSocket
             await ws_manager.broadcast({
                 "type": "map_chat_message",
                 "from_user": params.get("from_user", ""),
@@ -658,7 +671,7 @@ async def jsonrpc_endpoint(request: Request):
             }
 
         elif method == "get_map_chat_history":
-            # TODO: 实现聊天历史查询
+            # TODO: Implement chat history lookup
             result = map_service.get_map_chat_history()
             return {
                 "jsonrpc": "2.0",
@@ -689,10 +702,10 @@ async def jsonrpc_endpoint(request: Request):
             "id": body.get("id") if 'body' in locals() else None
         }
 
-# 根端点
+# Root endpoint
 @app.get("/")
 async def root():
-    """根端点 - 返回 API 信息"""
+    """Root endpoint - returns API information"""
     return {
         "message": "AI-SNS API Server",
         "name": "AI-SNS API",
@@ -732,10 +745,10 @@ async def root():
         }
     }
 
-# 启动事件
+# Startup event
 @app.on_event("startup")
 async def startup_event():
-    """应用启动时执行"""
+    """Execute when the application starts"""
     logger.info("="*60)
     logger.info("AI-SNS API Server Starting...")
     logger.info(f"Version: 2.0.0")
@@ -744,7 +757,7 @@ async def startup_event():
     logger.info(f"Server: {settings.server.host}:{settings.server.port}")
     logger.info("="*60)
 
-    # 初始化数据库
+    # Initialize the database
     try:
         init_db()
         logger.info("✓ Database initialized")
@@ -775,10 +788,34 @@ async def startup_event():
         except Exception as e:
             logger.warning(f"⚠ Failed to start XMPP client: {e}")
 
-# 关闭事件
+    try:
+        async def _stop_sns_engine_if_active():
+            try:
+                from backend.apps.sns.service_async import SNSService
+
+                service = SNSService(db=None)
+                status = await service.get_social_engine_status()
+                task_status = str((status or {}).get("task_status") or "").lower()
+                active = bool((status or {}).get("running")) or bool((status or {}).get("started"))
+                if task_status in ("started", "paused"):
+                    active = True
+
+                if not active:
+                    return
+
+                logger.info("No WebSocket clients connected. Stopping SNS engine...")
+                await service.stop_social_engine()
+            except Exception as e:
+                logger.warning(f"Failed to stop SNS engine on zero WebSocket clients: {e}")
+
+        ws_manager.add_on_zero_clients_callback(_stop_sns_engine_if_active)
+    except Exception as e:
+        logger.warning(f"Failed to register zero-clients hook: {e}")
+
+# Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
-    """应用关闭时执行"""
+    """Execute when the application shuts down"""
     logger.info("AI-SNS API Server shutting down...")
 
     # Stop XMPP client
@@ -791,9 +828,9 @@ async def shutdown_event():
         except Exception as e:
             logger.warning(f"⚠ Failed to stop XMPP client: {e}")
 
-# 主函数
+# Main function
 def main():
-    """启动服务器"""
+    """Start the server"""
     reload = settings.server.reload and not os.environ.get("PYCHARM_HOSTED")
     try:
         uvicorn.run(

@@ -140,7 +140,7 @@ async function jsonrpcRequest(method, params = {}) {
         return data.result;
     } catch (error) {
         console.error("JSON-RPC request error:", error);
-        showAlert(`API请求失败: ${error.message}`, true);
+        showAlert(`API request failed: ${error.message}`, true);
         return null;
     }
 }
@@ -266,6 +266,24 @@ window.addEventListener('message', function(event) {
         const meta = (event.data && typeof event.data === 'object') ? (event.data.meta || {}) : {};
         console.log('Received mapButtonAction from electron:', action);
 
+        try {
+            if (meta && meta.setTopInfoDisabled !== undefined && meta.setTopInfoDisabled !== null) {
+                const disabled = !!meta.setTopInfoDisabled;
+                if (typeof window.setTopInfoDisabled === 'function') {
+                    window.setTopInfoDisabled(disabled);
+                } else {
+                    const btn = document.getElementById('top_info_btn');
+                    if (btn) {
+                        btn.style.pointerEvents = disabled ? 'none' : '';
+                        btn.style.opacity = disabled ? '0.5' : '';
+                        btn.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to update top info disabled state:', e);
+        }
+
         const getInfoVisible = () => {
             try {
                 const info = document.getElementById('info');
@@ -324,6 +342,38 @@ window.addEventListener('message', function(event) {
             }
         } else {
             console.warn('Button not found:', buttonSelector);
+        }
+    } else if (event.data && event.data.type === 'snsPluginCommand') {
+        const command = event.data.command;
+        const params = (event.data && typeof event.data === 'object') ? (event.data.params || {}) : {};
+
+        if (command === 'sendImTo') {
+            try {
+                const toUser = params && params.to_user ? String(params.to_user).trim() : '';
+                const content = params && params.content ? String(params.content) : '';
+
+                if (!toUser || !content) {
+                    console.warn('[snsPluginCommand] sendImTo missing to_user/content');
+                    return;
+                }
+
+                const fromUser = (typeof person_data_me !== 'undefined' && person_data_me && person_data_me.account)
+                    ? String(person_data_me.account)
+                    : '';
+
+                if (!fromUser) {
+                    console.warn('[snsPluginCommand] sendImTo missing current user account');
+                    return;
+                }
+
+                if (typeof send_im === 'function') {
+                    send_im(fromUser, toUser, content);
+                } else {
+                    console.warn('[snsPluginCommand] send_im function not found');
+                }
+            } catch (e) {
+                console.warn('[snsPluginCommand] sendImTo failed:', e);
+            }
         }
     }
     // Add handling for other message types here if needed
@@ -395,7 +445,7 @@ var handle_command = function (command, param_1, param_2) {
         if (map_type == "google") {
             setPersonModelPointByNationId(nation_id_me, new google.maps.LatLng(parseFloat(param_2), parseFloat(param_1)));
         } else {
-            alert("moving");
+            alert("Moving");
             alert(param_2);
             setPersonModelPointByNationId(nation_id_me, new BMapGL.Point(parseFloat(param_1), parseFloat(param_2)));
         }
@@ -435,10 +485,10 @@ var handle_command = function (command, param_1, param_2) {
                 const buttons = msgdiv.getElementsByTagName('button');
                 for (let i = 0; i < buttons.length; i++) {
                     const button = buttons[i];
-                    const buttonText = button.textContent.trim();
-                    if (buttonText === '确定') {
+                    const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+                    if (action === 'route-confirm') {
                         button.style.display = 'inline-block';
-                    } else if (buttonText === '查看' || buttonText === '重设') {
+                    } else if (action === 'route-view' || action === 'route-reset') {
                         button.style.display = 'none';
                     }
                 }
@@ -574,98 +624,98 @@ function handle_map_setting_loaded(setting_json) {
 
     // Check required fields; alert user if any is missing
     if (!nationid || nationid === "") {
-        showAlert("缺少 nationid 配置，请检查设置", true);
+        showAlert("Missing nationid configuration. Please check your settings.", true);
         return;
     }
 
     if (!account || account === "") {
-        showAlert("缺少 account 配置，请检查设置", true);
+        showAlert("Missing account configuration. Please check your settings.", true);
         return;
     }
 
     if (!current_position || !current_position.lng || !current_position.lat) {
-        showAlert("缺少当前位置配置，请检查设置", true);
+        showAlert("Missing current location configuration. Please check your settings.", true);
         return;
     }
 
     if (!nick_name || nick_name === "") {
-        showAlert("缺少昵称配置，请检查设置", true);
+        showAlert("Missing nickname configuration. Please check your settings.", true);
         return;
     }
 
     if (!avatar || avatar === "") {
-        showAlert("缺少头像配置，请检查设置", true);
+        showAlert("Missing avatar configuration. Please check your settings.", true);
         return;
     }
 
     if (!avatar3d || avatar3d === "") {
-        showAlert("缺少3D头像配置，请检查设置", true);
+        showAlert("Missing 3D avatar configuration. Please check your settings.", true);
         return;
     }
 
     if (!profile || profile === "") {
-        showAlert("缺少个人资料配置，请检查设置", true);
+        showAlert("Missing profile configuration. Please check your settings.", true);
         return;
     }
 
     if (map_type === undefined || map_type === null) {
-        showAlert("缺少地图类型配置，请检查设置", true);
+        showAlert("Missing map type configuration. Please check your settings.", true);
         return;
     }
 
     // setting_home_position may be empty, but if provided it must include lng and lat
     if (setting_home_position &&
         (setting_home_position.lng === undefined || setting_home_position.lat === undefined)) {
-        showAlert("家庭位置配置不完整，请检查设置", true);
+        showAlert("Home location configuration is incomplete. Please check your settings.", true);
         return;
     }
 
     nation_id_me = nationid;
 
     if (route_current_position && Object.keys(route_current_position).length > 0) {
-        addMessageToBoard("路线当前位置: " + route_current_position.lng + ", " + route_current_position.lat);
+        addMessageToBoard("Route current position: " + route_current_position.lng + ", " + route_current_position.lat);
     }
 
     if (route && route !== "") {
-        addMessageToBoard("路线距离: " + route);
+        addMessageToBoard("Route distance: " + route);
     }
 
     if (route_end && route_end !== "") {
-        addMessageToBoard("路线终点: " + route_end);
+        addMessageToBoard("Route end: " + route_end);
     }
 
     if (route_start && route_start !== "") {
-        addMessageToBoard("路线起点: " + route_start);
+        addMessageToBoard("Route start: " + route_start);
     }
 
     if (route_status && route_status !== "") {
         var display_route_status;
         if (route_status == "playing") {
-            display_route_status = "指定路线";
+            display_route_status = "Specified route";
         } else if (route_status == "stopped") {
-            display_route_status = "自由路线";
+            display_route_status = "Free route";
         } else {
-            display_route_status = "路线类型不明";
+            display_route_status = "Unknown route type";
         }
-        addMessageToBoard("路线状态: " + display_route_status);
+        addMessageToBoard("Route status: " + display_route_status);
     }
 
     if (setting_home_position && Object.keys(setting_home_position).length > 0) {
-        addMessageToBoard("家庭位置: " + setting_home_position.lng + ", " + setting_home_position.lat);
+        addMessageToBoard("Home position: " + setting_home_position.lng + ", " + setting_home_position.lat);
     } else {
-        addMessageToBoard("家庭位置: 未设置");
+        addMessageToBoard("Home position: Not set");
     }
 
-    addMessageToBoard("当前位置: " + current_position.lng + ", " + current_position.lat);
+    addMessageToBoard("Current position: " + current_position.lng + ", " + current_position.lat);
     var display_map_type = (map_type == "0") ? "google" : "baidu";
-    addMessageToBoard("地图类型: " + display_map_type);
-    addMessageToBoard("个人资料: " + profile);
-    addMessageToBoard("3D头像: " + avatar3d);
-    addMessageToBoard("头像: " + avatar);
-    addMessageToBoard("昵称: " + nick_name);
-    addMessageToBoard("XMPP账户: " + account);
-    addMessageToBoard("用户ID: " + nationid);
-    addMessageToBoard("配置加载成功:");
+    addMessageToBoard("Map type: " + display_map_type);
+    addMessageToBoard("Profile: " + profile);
+    addMessageToBoard("3D avatar: " + avatar3d);
+    addMessageToBoard("Avatar: " + avatar);
+    addMessageToBoard("Nickname: " + nick_name);
+    addMessageToBoard("XMPP account: " + account);
+    addMessageToBoard("User ID: " + nationid);
+    addMessageToBoard("Configuration loaded successfully:");
 
     window.current_position = current_position || {};
 
@@ -673,7 +723,7 @@ function handle_map_setting_loaded(setting_json) {
         if (typeof map !== 'undefined' && map !== null) {
             const googleCenter = new google.maps.LatLng(current_position.lat, current_position.lng);
             map.setCenter(googleCenter);
-            console.log("Google地图中心点已更新:", current_position);
+            console.log("Google map center updated:", current_position);
         }
     } else {
         if (typeof initializeMapCenter === 'function') {
@@ -780,7 +830,7 @@ function open_url(url) {
     const u = String(url || '').trim();
     if (!u) {
         if (typeof showAlert === 'function') {
-            showAlert('ai_sns_server 未配置', true);
+            showAlert('ai_sns_server is not configured', true);
         }
         return;
     }

@@ -4,8 +4,8 @@ Tools module - API router
 Provides REST API for managing plugins, MCP, functions, and computer use tools
 """
 import logging
-from typing import List
-from fastapi import APIRouter, HTTPException, Depends
+from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
 from sqlalchemy.orm import Session
 
 from backend.config.database import get_db_sync_depends
@@ -30,10 +30,13 @@ def get_tools_service(db: Session = Depends(get_db_sync_depends)) -> ToolsServic
 # ==================== Plugin Endpoints ====================
 
 @router.get("/plugins", response_model=List[PluginResponse])
-async def get_all_plugins(service: ToolsService = Depends(get_tools_service)):
+async def get_all_plugins(
+    used_in_sns: Optional[bool] = None,
+    service: ToolsService = Depends(get_tools_service)
+):
     """Get all plugins"""
     try:
-        return service.get_all_plugins()
+        return service.get_all_plugins(used_in_sns=used_in_sns)
     except Exception as e:
         logger.error(f"Error getting plugins: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -55,6 +58,22 @@ async def create_plugin(plugin: PluginCreate, service: ToolsService = Depends(ge
         return service.create_plugin(plugin)
     except Exception as e:
         logger.error(f"Error creating plugin: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/plugins/import", response_model=PluginResponse)
+async def import_plugin(
+    file: UploadFile = File(...),
+    used_in_sns: bool = True,
+    service: ToolsService = Depends(get_tools_service)
+):
+    """Import a renderer plugin from a zip file"""
+    try:
+        return service.import_renderer_plugin_zip(file, used_in_sns=used_in_sns)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error importing plugin: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

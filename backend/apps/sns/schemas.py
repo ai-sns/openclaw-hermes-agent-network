@@ -79,6 +79,7 @@ class AIChatConfigResponse(BaseModel):
 class AIChatConfigUpdateRequest(BaseModel):
     user_id: Optional[str] = None
     account: Optional[str] = None
+    password: Optional[str] = None
     nickname: Optional[str] = None
     avatar: Optional[str] = None
     avatar3d: Optional[str] = None

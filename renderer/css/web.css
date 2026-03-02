@@ -256,7 +256,7 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 暗色主题下的图标项 hover 效果 */
+/* Icon item hover effect in dark theme */
 body.theme-dark .web-icon-item:hover {
     box-shadow: 0 4px 16px rgba(0, 120, 212, 0.3);
 }
@@ -282,7 +282,7 @@ body.theme-dark .web-icon-item:hover {
     transition: background 0.3s ease;
 }
 
-/* 暗色主题下的 fallback 图标 */
+/* Fallback icon in dark theme */
 body.theme-dark .web-icon-fallback {
     background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
     color: white;

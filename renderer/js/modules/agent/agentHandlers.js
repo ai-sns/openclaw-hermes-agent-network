@@ -16,6 +16,294 @@ const agentHandlers = {
         }
         return urlOrPath;
     },
+
+    async _deleteRendererPlugin(pluginId) {
+        const base = await this._getApiBaseUrl();
+        if (!base) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error('API base URL not available');
+            }
+            return false;
+        }
+
+        const id = pluginId ? String(pluginId).trim() : '';
+        if (!id) return false;
+
+        try {
+            const resp = await fetch(`${base}/api/tools/plugins/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error(text || `HTTP ${resp.status}`);
+            }
+
+            // Unload if currently loaded
+            try {
+                this.unloadAgentRendererPlugin(id);
+            } catch (e) {
+            }
+
+            if (typeof Notification !== 'undefined') {
+                Notification.success('Plugin deleted');
+            }
+            return true;
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Delete failed: ${e && e.message ? e.message : String(e)}`);
+            }
+            return false;
+        }
+    },
+
+    async _getApiBaseUrl() {
+        try {
+            if (window.electronAPI && typeof window.electronAPI.getApiUrl === 'function') {
+                const raw = await window.electronAPI.getApiUrl();
+                return raw ? String(raw).replace(/\/+$/, '') : '';
+            }
+        } catch (e) {
+        }
+
+        try {
+            const raw = (window.appConfig && window.appConfig.agent_server) || '';
+            return raw ? String(raw).replace(/\/+$/, '') : '';
+        } catch (e) {
+        }
+
+        try {
+            const u = new URL(this.resolve('/'));
+            return u.origin;
+        } catch (e) {
+        }
+
+        return '';
+    },
+
+    async _fetchRendererPlugins() {
+        const base = await this._getApiBaseUrl();
+        if (!base) return [];
+
+        try {
+            const resp = await fetch(`${base}/api/tools/plugins?used_in_sns=false`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const list = Array.isArray(data) ? data : [];
+            return list.filter(p => {
+                const pluginType = (p && p.plugin_type) ? String(p.plugin_type) : '';
+                return pluginType.toLowerCase() === 'renderer';
+            });
+        } catch (e) {
+            console.warn('[AgentHandlers] Failed to fetch renderer plugins:', e);
+            return [];
+        }
+    },
+
+    _getLoadedRendererPlugins() {
+        if (!this._loadedRendererPlugins || typeof this._loadedRendererPlugins !== 'object') {
+            this._loadedRendererPlugins = new Map();
+        }
+        return this._loadedRendererPlugins;
+    },
+
+    async loadAgentRendererPlugin(plugin) {
+        const settingsTabs = document.getElementById('settingsTabs');
+        const tabContent = document.getElementById('settingsTabContent');
+        if (!settingsTabs || !tabContent) {
+            console.warn('[AgentHandlers] Settings panel not found for renderer plugin');
+            return;
+        }
+
+        const pluginKey = plugin && (plugin.plugin_id || plugin.id) ? String(plugin.plugin_id || plugin.id) : '';
+        if (!pluginKey) return;
+
+        const tabId = `plugin-ext-${pluginKey}`;
+        const existingTab = settingsTabs.querySelector(`.settings-tab[data-tab="${CSS.escape(tabId)}"]`);
+        const existingPane = tabContent.querySelector(`.tab-pane[data-tab="${CSS.escape(tabId)}"]`);
+        if (existingTab && existingPane) {
+            existingTab.click();
+            return;
+        }
+
+        const entryRaw = plugin.filename;
+        const entryUrl = this.resolve(entryRaw);
+        let mod;
+        try {
+            mod = await import(entryUrl + '?t=' + Date.now());
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Failed to load plugin: ${plugin.name || pluginKey}`);
+            }
+            return;
+        }
+
+        const pluginInstance = mod && mod.default ? mod.default : null;
+        if (!pluginInstance || typeof pluginInstance.render !== 'function') {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Invalid plugin module: ${plugin.name || pluginKey}`);
+            }
+            return;
+        }
+
+        const name = plugin.name ? String(plugin.name) : pluginKey;
+
+        const tabButton = document.createElement('button');
+        tabButton.className = 'settings-tab';
+        tabButton.dataset.tab = tabId;
+        tabButton.innerHTML = `
+            <span>${name}</span>
+            <button class="tab-close-btn" title="Close plugin">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        `;
+
+        const closeBtn = tabButton.querySelector('.tab-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.unloadAgentRendererPlugin(pluginKey);
+            });
+        }
+
+        settingsTabs.appendChild(tabButton);
+
+        const pane = document.createElement('div');
+        pane.className = 'tab-pane';
+        pane.dataset.tab = tabId;
+        pane.innerHTML = `
+            <div class="settings-section">
+                <div class="settings-section-title">
+                    <span>${name}</span>
+                </div>
+                <div class="plugin-content" id="plugin-content-ext-${pluginKey}"></div>
+            </div>
+        `;
+        tabContent.appendChild(pane);
+
+        // Activate tab
+        tabButton.click();
+
+        const container = pane.querySelector(`#plugin-content-ext-${CSS.escape(pluginKey)}`);
+        if (!container) return;
+
+        const api = {
+            ui: {
+                toast: (type, message) => {
+                    const t = type ? String(type) : 'info';
+                    const msg = (message === undefined || message === null) ? '' : String(message);
+                    if (typeof Notification !== 'undefined' && typeof Notification[t] === 'function') {
+                        Notification[t](msg);
+                        return;
+                    }
+                    if (typeof Notification !== 'undefined' && typeof Notification.info === 'function') {
+                        Notification.info(msg);
+                    }
+                },
+                openUrl: (url) => {
+                    const u = url ? String(url) : '';
+                    if (!u) return;
+                    try {
+                        if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                            window.electronAPI.openUrl(u);
+                            return;
+                        }
+                    } catch (e) {
+                    }
+                    try {
+                        window.open(u, '_blank', 'noopener');
+                    } catch (e) {
+                    }
+                }
+            },
+            sns: {
+                getJson: async (path) => {
+                    const base = await this._getApiBaseUrl();
+                    const resp = await fetch(`${base}${path}`);
+                    return await resp.json();
+                },
+                postJson: async (path, body) => {
+                    const base = await this._getApiBaseUrl();
+                    const resp = await fetch(`${base}${path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body || {})
+                    });
+                    return await resp.json();
+                },
+                jsonrpc: async (method, params) => {
+                    const base = await this._getApiBaseUrl();
+                    const payload = {
+                        jsonrpc: '2.0',
+                        id: Date.now(),
+                        method: String(method || ''),
+                        params: (params && typeof params === 'object') ? params : {}
+                    };
+                    const resp = await fetch(`${base}/jsonrpc`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    return await resp.json();
+                }
+            }
+        };
+
+        try {
+            await pluginInstance.render(container, api);
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Plugin render failed: ${name}`);
+            }
+            try {
+                container.textContent = `Render failed: ${e && e.message ? e.message : String(e)}`;
+            } catch (_) {
+            }
+        }
+
+        this._getLoadedRendererPlugins().set(pluginKey, {
+            plugin,
+            pluginInstance,
+            tabId
+        });
+    },
+
+    unloadAgentRendererPlugin(pluginKey) {
+        const key = pluginKey ? String(pluginKey) : '';
+        if (!key) return;
+
+        const loaded = this._getLoadedRendererPlugins();
+        const item = loaded.get(key);
+        if (!item) return;
+
+        try {
+            if (item.pluginInstance && typeof item.pluginInstance.dispose === 'function') {
+                item.pluginInstance.dispose();
+            }
+        } catch (e) {
+            console.warn('[AgentHandlers] Plugin dispose failed:', e);
+        }
+
+        const settingsTabs = document.getElementById('settingsTabs');
+        const tabContent = document.getElementById('settingsTabContent');
+        if (settingsTabs) {
+            const tab = settingsTabs.querySelector(`.settings-tab[data-tab="${CSS.escape(item.tabId)}"]`);
+            const wasActive = !!(tab && tab.classList && tab.classList.contains('active'));
+            if (tab) tab.remove();
+
+            if (wasActive) {
+                const fallback = settingsTabs.querySelector('.settings-tab[data-tab="param"]');
+                if (fallback) fallback.click();
+            }
+        }
+        if (tabContent) {
+            const pane = tabContent.querySelector(`.tab-pane[data-tab="${CSS.escape(item.tabId)}"]`);
+            if (pane) pane.remove();
+        }
+
+        loaded.delete(key);
+    },
     currentManagementPage: null, // Track the currently open management page
 
     /**
@@ -224,14 +512,14 @@ const agentHandlers = {
 
                 if (textarea) {
                     const prompts = {
-                        'developer': '你是一个资深的程序员，精通多种编程语言和框架。你擅长编写高质量、可维护的代码，并能够清晰地解释技术概念。',
-                        'writer': '你是一个富有创意的写作助手，擅长创作各类文学作品。你的文字优美流畅，富有感染力，能够根据不同主题和风格进行创作。',
-                        'analyst': '你是一个专业的数据分析师，擅长从数据中提取洞察。你能够清晰地解释复杂的数据模式，并提供可操作的建议。'
+                        'developer': 'You are a senior programmer proficient in multiple programming languages and frameworks. You write high-quality, maintainable code and can clearly explain technical concepts.',
+                        'writer': 'You are a creative writing assistant skilled at producing various literary works. Your writing is fluent and engaging, and you can adapt to different topics and styles.',
+                        'analyst': 'You are a professional data analyst skilled at extracting insights from data. You can explain complex patterns clearly and provide actionable recommendations.'
                     };
 
                     textarea.value = prompts[preset] || '';
                     if (typeof Notification !== 'undefined') {
-                        Notification.success('已应用预设 Prompt');
+                        Notification.success('Preset prompt applied');
                     }
                 }
             });
@@ -293,7 +581,7 @@ const agentHandlers = {
                     <div class="file-name">${file.name}</div>
                     <div class="file-size">${this.formatFileSize(file.size)}</div>
                 </div>
-                <button class="file-remove-btn" title="移除文件">
+                <button class="file-remove-btn" title="Remove file">
                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                     </svg>
@@ -312,7 +600,7 @@ const agentHandlers = {
                             <svg viewBox="0 0 24 24" width="48" height="48" fill="#ccc">
                                 <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
                             </svg>
-                            <p>暂无文件</p>
+                            <p>No files</p>
                         </div>
                     `;
                 }
@@ -322,7 +610,7 @@ const agentHandlers = {
         });
 
         if (typeof Notification !== 'undefined') {
-            Notification.success(`已添加 ${files.length} 个文件`);
+            Notification.success(`Added ${files.length} file(s)`);
         }
     },
 
@@ -352,66 +640,197 @@ const agentHandlers = {
             }
 
             Modal.show({
-                title: '添加插件',
+                title: 'Agent Plugins',
                 content: `
-                    <div class="form-group">
-                        <label>选择插件</label>
-                        <select class="form-input" id="pluginSelect">
-                            <option value="">请选择插件...</option>
-                            <option value="mindmap">思维导图插件</option>
-                            <option value="code">代码执行插件</option>
-                            <option value="calendar">日历插件</option>
-                            <option value="chart">图表插件</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>插件说明</label>
-                        <p style="font-size: 12px; color: #666;" id="pluginDescription">请先选择一个插件</p>
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div class="form-group">
+                            <label>Select plugin</label>
+                            <select class="form-input" id="agentPluginSelect">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <p style="font-size: 12px; color: var(--text-secondary, #666);" id="agentPluginDescription">Select a plugin to view details</p>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-secondary" id="agentPluginRefreshBtn">Refresh</button>
+                            <button type="button" class="btn btn-secondary" id="agentPluginImportBtn">Import zip</button>
+                            <button type="button" class="btn btn-secondary" id="agentPluginDeleteBtn" disabled>Delete</button>
+                            <input type="file" id="agentPluginImportFile" accept=".zip" style="display:none" />
+                        </div>
                     </div>
                 `,
-                confirmText: '添加',
+                confirmText: 'Load',
                 showCancel: true,
-                onConfirm: () => {
-                    const select = document.getElementById('pluginSelect');
-                    const pluginId = select.value;
+                width: '560px',
+                onOpen: async () => {
+                    const select = document.getElementById('agentPluginSelect');
+                    const desc = document.getElementById('agentPluginDescription');
+                    const refreshBtn = document.getElementById('agentPluginRefreshBtn');
+                    const importBtn = document.getElementById('agentPluginImportBtn');
+                    const deleteBtn = document.getElementById('agentPluginDeleteBtn');
+                    const importFile = document.getElementById('agentPluginImportFile');
 
-                    if (!pluginId) {
-                        if (typeof Notification !== 'undefined') {
-                            Notification.error('请选择一个插件');
+                    const loadIntoUi = async () => {
+                        if (!select) return;
+                        select.innerHTML = '<option value="">Please select a plugin...</option>';
+                        if (desc) desc.textContent = 'Select a plugin to view details';
+
+                        const builtin = [
+                            { id: 'mindmap', name: 'Mind map plugin', description: 'Convert Markdown mindmap syntax in chat messages into a visual mind map' },
+                            { id: 'code', name: 'Code execution plugin', description: 'Extract code blocks from chat messages and provide edit/run features (supports JavaScript, Python, HTML/CSS/JS)' },
+                            { id: 'calendar', name: 'Calendar plugin', description: 'Display and manage calendar events in chat' },
+                            { id: 'chart', name: 'Chart plugin', description: 'Visualize data into charts' }
+                        ];
+                        for (const b of builtin) {
+                            const opt = document.createElement('option');
+                            opt.value = `builtin:${b.id}`;
+                            opt.textContent = b.name;
+                            opt.dataset.description = b.description;
+                            select.appendChild(opt);
                         }
-                        return false; // Prevent the modal from closing
+
+                        const plugins = await this._fetchRendererPlugins();
+                        window.__agentRendererPlugins__ = plugins;
+                        if (plugins.length) {
+                            const group = document.createElement('optgroup');
+                            group.label = 'Imported plugins';
+                            for (const p of plugins) {
+                                const opt = document.createElement('option');
+                                opt.value = `renderer:${p.plugin_id}`;
+                                opt.textContent = p.name ? String(p.name) : String(p.plugin_id);
+                                group.appendChild(opt);
+                            }
+                            select.appendChild(group);
+                        }
+                    };
+
+                    await loadIntoUi();
+
+                    if (select && desc) {
+                        select.addEventListener('change', () => {
+                            const value = String(select.value || '').trim();
+                            if (!value) {
+                                desc.textContent = 'Select a plugin to view details';
+                                if (deleteBtn) deleteBtn.disabled = true;
+                                return;
+                            }
+
+                            if (value.startsWith('builtin:')) {
+                                const selectedOpt = select.options[select.selectedIndex];
+                                const detail = selectedOpt && selectedOpt.dataset && selectedOpt.dataset.description
+                                    ? String(selectedOpt.dataset.description)
+                                    : '';
+                                desc.textContent = detail || 'Select a plugin to view details';
+
+                                if (deleteBtn) deleteBtn.disabled = true;
+                                return;
+                            }
+
+                            if (value.startsWith('renderer:')) {
+                                const id = value.slice('renderer:'.length);
+                                const plugins = Array.isArray(window.__agentRendererPlugins__) ? window.__agentRendererPlugins__ : [];
+                                const plugin = plugins.find(p => String(p.plugin_id) === String(id));
+                                if (!plugin) {
+                                    desc.textContent = 'Select a plugin to view details';
+                                    if (deleteBtn) deleteBtn.disabled = true;
+                                    return;
+                                }
+                                const name = plugin.name ? String(plugin.name) : 'Unnamed plugin';
+                                const version = plugin.version ? String(plugin.version) : '';
+                                const detail = plugin.description ? String(plugin.description) : '';
+                                desc.textContent = `${name}${version ? ` v${version}` : ''}${detail ? ` - ${detail}` : ''}`;
+
+                                if (deleteBtn) deleteBtn.disabled = false;
+                            }
+                        });
                     }
 
-                    this.loadPlugin(pluginId);
+                    if (refreshBtn) {
+                        refreshBtn.addEventListener('click', async () => {
+                            await loadIntoUi();
+                        });
+                    }
+
+                    if (importBtn && importFile) {
+                        importBtn.addEventListener('click', () => {
+                            try {
+                                importFile.value = '';
+                            } catch (e) {
+                            }
+                            importFile.click();
+                        });
+
+                        importFile.addEventListener('change', async () => {
+                            const file = importFile.files && importFile.files[0] ? importFile.files[0] : null;
+                            if (!file) return;
+                            await this._importRendererPluginZip(file);
+                            await loadIntoUi();
+                        });
+                    }
+
+                    if (deleteBtn) {
+                        deleteBtn.addEventListener('click', async () => {
+                            const value = select ? String(select.value || '').trim() : '';
+                            if (!value.startsWith('renderer:')) return;
+                            const id = value.slice('renderer:'.length);
+                            const ok = window.confirm('Delete selected plugin?');
+                            if (!ok) return;
+                            const deleted = await this._deleteRendererPlugin(id);
+                            if (deleted) {
+                                await loadIntoUi();
+                                if (desc) desc.textContent = 'Select a plugin to view details';
+                                deleteBtn.disabled = true;
+                            }
+                        });
+                    }
+                },
+                onConfirm: async () => {
+                    const select = document.getElementById('agentPluginSelect');
+                    const value = select ? String(select.value || '').trim() : '';
+                    if (!value) {
+                        if (typeof Notification !== 'undefined') {
+                            Notification.error('Please select a plugin');
+                        }
+                        return false;
+                    }
+
+                    if (value.startsWith('builtin:')) {
+                        const pluginId = value.slice('builtin:'.length);
+                        this.loadPlugin(pluginId);
+                        return;
+                    }
+
+                    if (value.startsWith('renderer:')) {
+                        const id = value.slice('renderer:'.length);
+                        const plugins = Array.isArray(window.__agentRendererPlugins__) ? window.__agentRendererPlugins__ : [];
+                        const plugin = plugins.find(p => String(p.plugin_id) === String(id));
+                        if (!plugin) {
+                            if (typeof Notification !== 'undefined') {
+                                Notification.error('Plugin not found');
+                            }
+                            return false;
+                        }
+
+                        await this.loadAgentRendererPlugin(plugin);
+                        return;
+                    }
+
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Unsupported plugin selection');
+                    }
+                    return false;
                 }
             });
-
-            // Bind plugin selection change event
-            setTimeout(() => {
-                const select = document.getElementById('pluginSelect');
-                const descriptionEl = document.getElementById('pluginDescription');
-
-                if (select && descriptionEl) {
-                    select.addEventListener('change', (e) => {
-                        const descriptions = {
-                            'mindmap': '将聊天内容中的 Markdown mindmap 语法转换为可视化的思维导图',
-                            'code': '从聊天中提取代码块，提供编辑和运行功能（支持 JavaScript、Python、HTML/CSS/JS）',
-                            'calendar': '在聊天中显示和管理日历事件',
-                            'chart': '将数据可视化为各种图表'
-                        };
-
-                        descriptionEl.textContent = descriptions[e.target.value] || '请先选择一个插件';
-                    });
-                }
-            }, 100);
         };
 
         // Bind the toolbar "add" button
         if (addToolbarBtn) {
             addToolbarBtn.addEventListener('click', handleAddPlugin);
-            console.log('[AgentHandlers] 已绑定工具栏添加按钮到插件选择');
+            console.log('[AgentHandlers] Toolbar add button bound to plugin selection');
         } else {
-            console.warn('[AgentHandlers] 未找到工具栏添加按钮');
+            console.warn('[AgentHandlers] Toolbar add button not found');
         }
     },
 
@@ -419,49 +838,49 @@ const agentHandlers = {
      * Load plugin - dynamically create tabs and content
      */
     loadPlugin(pluginId) {
-        console.log('[AgentHandlers] 开始加载插件:', pluginId);
+        console.log('[AgentHandlers] Start loading plugin:', pluginId);
 
         // Plugin configuration
         const pluginConfigs = {
             'mindmap': {
-                name: '思维导图',
-                fullName: '思维导图插件',
-                description: '将 Markdown mindmap 转换为可视化思维导图',
+                name: 'Mind map',
+                fullName: 'Mind map plugin',
+                description: 'Convert Markdown mindmap into a visual mind map',
                 icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
             },
             'code': {
-                name: '代码执行',
-                fullName: '代码执行插件',
-                description: '从聊天中提取代码并在浏览器中运行',
+                name: 'Code execution',
+                fullName: 'Code execution plugin',
+                description: 'Extract code from chat messages and run it in the browser',
                 icon: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>'
             },
             'calendar': {
-                name: '日历',
-                fullName: '日历插件',
-                description: '在聊天中显示和管理日历事件',
+                name: 'Calendar',
+                fullName: 'Calendar plugin',
+                description: 'Display and manage calendar events in chat',
                 icon: '<path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>'
             },
             'chart': {
-                name: '图表',
-                fullName: '图表插件',
-                description: '将数据可视化为各种图表',
+                name: 'Charts',
+                fullName: 'Chart plugin',
+                description: 'Visualize data into charts',
                 icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>'
             }
         };
 
         const config = pluginConfigs[pluginId];
         if (!config) {
-            console.error('[AgentHandlers] 未知的插件ID:', pluginId);
+            console.error('[AgentHandlers] Unknown plugin ID:', pluginId);
             return;
         }
 
         // Check whether the plugin is already loaded
         const existingTab = document.querySelector(`.settings-tab[data-tab="plugin-${pluginId}"]`);
         if (existingTab) {
-            console.log('[AgentHandlers] 插件已存在，切换到该页签');
+            console.log('[AgentHandlers] Plugin already exists; switching to its tab');
             existingTab.click();
             if (typeof Notification !== 'undefined') {
-                Notification.info(`${config.fullName} 已加载`);
+                Notification.info(`${config.fullName} loaded`);
             }
             return;
         }
@@ -469,7 +888,7 @@ const agentHandlers = {
         // 1. Create tab button
         const settingsTabs = document.getElementById('settingsTabs');
         if (!settingsTabs) {
-            console.error('[AgentHandlers] 未找到设置页签容器');
+            console.error('[AgentHandlers] Settings tabs container not found');
             return;
         }
 
@@ -481,7 +900,7 @@ const agentHandlers = {
                 ${config.icon}
             </svg>
             <span>${config.name}</span>
-            <button class="tab-close-btn" title="关闭插件">
+            <button class="tab-close-btn" title="Close plugin">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
                     <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                 </svg>
@@ -498,12 +917,12 @@ const agentHandlers = {
         // Note: tab switching is handled by initSettingsPanelTabs() via event delegation; no extra binding needed here
 
         settingsTabs.appendChild(tabButton);
-        console.log('[AgentHandlers] ✓ 已创建页签按钮');
+        console.log('[AgentHandlers] ✓ Tab button created');
 
         // 2. Create tab content
         const tabContent = document.getElementById('settingsTabContent');
         if (!tabContent) {
-            console.error('[AgentHandlers] 未找到页签内容容器');
+            console.error('[AgentHandlers] Tab content container not found');
             return;
         }
 
@@ -519,13 +938,13 @@ const agentHandlers = {
                     <span>${config.fullName}</span>
                 </div>
                 <div class="plugin-content" id="plugin-content-${pluginId}">
-                    <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">正在加载插件...</p>
+                    <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">Loading plugin...</p>
                 </div>
             </div>
         `;
 
         tabContent.appendChild(tabPane);
-        console.log('[AgentHandlers] ✓ 已创建页签内容');
+        console.log('[AgentHandlers] ✓ Tab content created');
 
         // 3. Activate the newly created tab
         tabButton.click();
@@ -534,17 +953,17 @@ const agentHandlers = {
         this.loadPluginContent(pluginId);
 
         if (typeof Notification !== 'undefined') {
-            Notification.success(`${config.fullName} 已加载`);
+            Notification.success(`${config.fullName} loaded`);
         }
 
-        console.log('[AgentHandlers] ✓ 插件加载完成');
+        console.log('[AgentHandlers] ✓ Plugin loaded');
     },
 
     /**
      * Remove plugin tab
      */
     removePluginTab(pluginId) {
-        console.log('[AgentHandlers] 移除插件:', pluginId);
+        console.log('[AgentHandlers] Remove plugin:', pluginId);
 
         // Remove tab button
         const tabButton = document.querySelector(`.settings-tab[data-tab="plugin-${pluginId}"]`);
@@ -566,10 +985,10 @@ const agentHandlers = {
         }
 
         if (typeof Notification !== 'undefined') {
-            Notification.info('插件已移除');
+            Notification.info('Plugin removed');
         }
 
-        console.log('[AgentHandlers] ✓ 插件已移除');
+        console.log('[AgentHandlers] ✓ Plugin removed');
     },
 
     /**
@@ -578,7 +997,7 @@ const agentHandlers = {
     loadPluginContent(pluginId) {
         const container = document.getElementById(`plugin-content-${pluginId}`);
         if (!container) {
-            console.error('[AgentHandlers] 未找到插件内容容器:', `plugin-content-${pluginId}`);
+            console.error('[AgentHandlers] Plugin content container not found:', `plugin-content-${pluginId}`);
             return;
         }
 
@@ -591,13 +1010,13 @@ const agentHandlers = {
                 this.loadCodePlugin(container);
                 break;
             case 'calendar':
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">日历插件开发中...</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Calendar plugin is under development...</p>';
                 break;
             case 'chart':
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">图表插件开发中...</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Chart plugin is under development...</p>';
                 break;
             default:
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">未知插件</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Unknown plugin</p>';
         }
     },
 
@@ -608,19 +1027,19 @@ const agentHandlers = {
         container.innerHTML = `
             <div style="padding: 12px;">
                 <p style="font-size: 11px; color: var(--text-secondary, #666); margin-bottom: 12px;">
-                    思维导图插件已激活。在聊天中发送包含 mindmap 格式的代码块，将自动转换为可视化思维导图。
+                    The mind map plugin is active. Send a code block with the mindmap format in chat, and it will be automatically converted into a visual mind map.
                 </p>
                 <div style="margin-bottom: 12px;">
-                    <p style="font-size: 10px; color: var(--text-secondary, #999); margin-bottom: 6px;">语法格式：</p>
+                    <p style="font-size: 10px; color: var(--text-secondary, #999); margin-bottom: 6px;">Syntax:</p>
                     <pre style="background: var(--bg-secondary, #f5f5f5); padding: 8px; border-radius: 4px; font-size: 10px; overflow-x: auto; margin-bottom: 8px;">\`\`\`mindmap
-- 根节点
-  - 子节点1
-    - 孙节点1.1
-  - 子节点2
+- Root node
+  - Child node 1
+    - Grandchild node 1.1
+  - Child node 2
 \`\`\`</pre>
                 </div>
-                <button class="preset-use-btn" style="width: 100%; margin-bottom: 6px;" onclick="agentHandlers.showMindmapExample()">填充示例代码</button>
-                <button class="preset-use-btn" style="width: 100%;" onclick="agentHandlers.askAIForMindmap()">让 AI 生成思维导图</button>
+                <button class="preset-use-btn" style="width: 100%; margin-bottom: 6px;" onclick="agentHandlers.showMindmapExample()">Fill example code</button>
+                <button class="preset-use-btn" style="width: 100%;" onclick="agentHandlers.askAIForMindmap()">Ask AI to generate a mind map</button>
             </div>
         `;
     },
@@ -631,9 +1050,9 @@ const agentHandlers = {
     showMindmapExample() {
         const input = document.getElementById('chatInput');
         if (input) {
-            input.value = '```mindmap\n- 学习编程\n  - 基础知识\n    - 数据类型\n    - 控制流程\n    - 函数\n  - 实践项目\n    - Web开发\n    - 移动应用\n    - 数据分析\n  - 进阶学习\n    - 算法与数据结构\n    - 设计模式\n    - 系统架构\n```';
+            input.value = '```mindmap\n- Learning to Program\n  - Fundamentals\n    - Data types\n    - Control flow\n    - Functions\n  - Projects\n    - Web development\n    - Mobile apps\n    - Data analysis\n  - Advanced topics\n    - Algorithms & data structures\n    - Design patterns\n    - System architecture\n```';
             if (typeof Notification !== 'undefined') {
-                Notification.info('已填充示例代码，点击发送按钮即可看到思维导图效果');
+                Notification.info('Example code filled. Send it to see the mind map result.');
             }
             // Focus the input
             input.focus();
@@ -646,9 +1065,9 @@ const agentHandlers = {
     askAIForMindmap() {
         const input = document.getElementById('chatInput');
         if (input) {
-            input.value = '请帮我生成一个关于"人工智能发展历程"的思维导图。\n\n请严格使用以下格式：\n```mindmap\n- 根节点\n  - 子节点（用2个空格缩进）\n    - 孙节点（用4个空格缩进）\n```\n\n注意：\n1. 代码块语言必须是 mindmap\n2. 每个节点用 "- " 开头\n3. 子节点用2个空格缩进\n4. 不要使用 Tab 键';
+            input.value = 'Please generate a mind map about the "History of AI".\n\nPlease strictly follow this format:\n```mindmap\n- Root node\n  - Child node (indent with 2 spaces)\n    - Grandchild node (indent with 4 spaces)\n```\n\nNotes:\n1. The code block language must be mindmap\n2. Each node must start with "- "\n3. Child nodes must be indented with 2 spaces\n4. Do not use the Tab key';
             if (typeof Notification !== 'undefined') {
-                Notification.info('已填充 AI 请求，发送后等待 AI 按照正确格式回复');
+                Notification.info('AI request filled. Send it and wait for the AI to reply in the correct format.');
             }
             // Focus the input
             input.focus();
@@ -662,8 +1081,8 @@ const agentHandlers = {
         if (window.CodePlugin) {
             window.CodePlugin.render(container);
         } else {
-            container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">代码执行插件未加载，请刷新页面</p>';
-            console.error('[AgentHandlers] CodePlugin 未找到');
+            container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Code execution plugin is not loaded. Please refresh the page.</p>';
+            console.error('[AgentHandlers] CodePlugin not found');
         }
     },
 
@@ -742,11 +1161,11 @@ const agentHandlers = {
                         await this.loadAndApplyModelConfig(defaultModel.config_id);
                     }
                 } else {
-                    modelSelector.innerHTML = '<option value="">暂无可用模型</option>';
+                    modelSelector.innerHTML = '<option value="">No available models</option>';
                 }
             }
         } catch (error) {
-            console.error('加载模型列表失败:', error);
+            console.error('Failed to load model list:', error);
             // Keep default options
         }
     },
@@ -782,11 +1201,11 @@ const agentHandlers = {
                         await this.loadAndApplyRoleConfig(defaultRole.role_id);
                     }
                 } else {
-                    roleSelector.innerHTML = '<option value="">暂无可用角色</option>';
+                    roleSelector.innerHTML = '<option value="">No available roles</option>';
                 }
             }
         } catch (error) {
-            console.error('加载角色列表失败:', error);
+            console.error('Failed to load role list:', error);
             // Keep default options
         }
     },
@@ -804,7 +1223,7 @@ const agentHandlers = {
             agentState.setAgents(agents);
 
             if (agents.length === 0) {
-                agentList.innerHTML = '<div class="empty-state">暂无Agent</div>';
+                agentList.innerHTML = '<div class="empty-state">No agents</div>';
                 // Management buttons still need to be added
                 this.appendManagementButtons(agentList);
                 return;
@@ -830,8 +1249,8 @@ const agentHandlers = {
             // Re-bind management button events
             this.bindManagementButtonEvents();
         } catch (error) {
-            console.error('加载Agent列表失败:', error);
-            agentList.innerHTML = '<div class="empty-state error">加载失败</div>';
+            console.error('Failed to load agent list:', error);
+            agentList.innerHTML = '<div class="empty-state error">Load failed</div>';
             // Add management buttons even when loading fails
             this.appendManagementButtons(agentList);
         }
@@ -900,24 +1319,24 @@ const agentHandlers = {
             if (!treeChildren) return;
 
             if (conversations.length === 0) {
-                treeChildren.innerHTML = '<div class="empty-state">暂无对话</div>';
+                treeChildren.innerHTML = '<div class="empty-state">No conversations</div>';
                 return;
             }
 
             // Render conversation list
             treeChildren.innerHTML = conversations.map((conv) => `
                 <div class="tree-item" data-conversation-id="${conv.conversation_id}">
-                    <span class="item-text">${this.escapeHtml(conv.title || '新对话')}</span>
+                    <span class="item-text">${this.escapeHtml(conv.title || 'New chat')}</span>
                 </div>
             `).join('');
 
             // Bind click events
             this.bindChatListItemEvents();
         } catch (error) {
-            console.error('加载聊天列表失败:', error);
+            console.error('Failed to load chat list:', error);
             const treeChildren = chatList.querySelector('.tree-children');
             if (treeChildren) {
-                treeChildren.innerHTML = '<div class="empty-state error">加载失败</div>';
+                treeChildren.innerHTML = '<div class="empty-state error">Load failed</div>';
             }
         }
     },
@@ -975,7 +1394,7 @@ const agentHandlers = {
             item.classList.remove('active');
         });
 
-        console.log('[AgentHandlers] 新建对话，ID:', newConversationId);
+        console.log('[AgentHandlers] New chat, ID:', newConversationId);
     },
 
     /**
@@ -983,7 +1402,7 @@ const agentHandlers = {
      */
     async loadConversation(conversationId) {
         try {
-            console.log('[AgentHandlers] 加载对话:', conversationId);
+            console.log('[AgentHandlers] Load conversation:', conversationId);
 
             // Fetch conversation messages
             const response = await agentApi.getConversationMessages(conversationId);
@@ -1019,11 +1438,11 @@ const agentHandlers = {
             // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-            console.log('[AgentHandlers] 对话加载完成，消息数:', messages.length);
+            console.log('[AgentHandlers] Conversation loaded. Message count:', messages.length);
         } catch (error) {
-            console.error('加载对话失败:', error);
+            console.error('Failed to load conversation:', error);
             if (typeof Notification !== 'undefined') {
-                Notification.error('加载对话失败');
+                Notification.error('Failed to load conversation');
             }
         }
     },
@@ -1083,7 +1502,7 @@ const agentHandlers = {
         } else {
             console.error('AgentSettingsDialog not loaded');
             if (typeof Notification !== 'undefined') {
-                Notification.error('配置对话框未加载');
+                Notification.error('Settings dialog is not loaded');
             }
         }
     },
@@ -1112,15 +1531,15 @@ const agentHandlers = {
         // Get current agent
         const currentAgent = agentState.getCurrentAgent();
         if (!currentAgent) {
-            console.error('[AgentHandlers] 没有选中的Agent');
+            console.error('[AgentHandlers] No agent selected');
             if (typeof Notification !== 'undefined') {
-                Notification.error('请先选择一个Agent');
+                Notification.error('Please select an agent first');
             }
             return;
         }
 
         const agentId = currentAgent.id;
-        console.log('[AgentHandlers] 使用Agent发送消息:', currentAgent.name, 'ID:', agentId);
+        console.log('[AgentHandlers] Sending message with agent:', currentAgent.name, 'ID:', agentId);
 
         // Disable send button
         if (sendBtn) {
@@ -1170,7 +1589,7 @@ const agentHandlers = {
         if (!conversationId) {
             conversationId = agentState.generateConversationId();
             agentState.setConversationId(conversationId);
-            console.log('[AgentHandlers] 生成新对话ID:', conversationId);
+            console.log('[AgentHandlers] Generated new conversation ID:', conversationId);
         }
 
         // Add AI reply container (with thinking animation)
@@ -1188,7 +1607,7 @@ const agentHandlers = {
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
-                        <span class="thinking-text">思考中...</span>
+                        <span class="thinking-text">Thinking...</span>
                     </div>
                 </div>
             </div>
@@ -1232,7 +1651,7 @@ const agentHandlers = {
             };
 
             // Call agent-specific streaming API
-            console.log('[AgentHandlers] 调用Agent专属接口:', `/api/agent/${agentId}/chat/stream`);
+            console.log('[AgentHandlers] Calling agent-specific endpoint:', `/api/agent/${agentId}/chat/stream`);
             await agentApi.agentChatStream(
                 agentId,
                 message,
@@ -1247,14 +1666,14 @@ const agentHandlers = {
             // Setup timeout handling
             setTimeout(() => {
                 if (agentState.getRequestId() === requestId) {
-                    this.showStreamError('请求超时，请重试');
+                    this.showStreamError('Request timed out. Please try again.');
                     agentState.clearRequestId();
                     enableSendBtn();
                 }
             }, 120000); // 2 minute timeout
 
         } catch (error) {
-            console.error('发送消息失败:', error);
+            console.error('Failed to send message:', error);
             this.showStreamError(error.message);
             agentState.clearRequestId();
             enableSendBtn();
@@ -1312,7 +1731,7 @@ const agentHandlers = {
             const streamingBody = streamingMsg.querySelector('.message-body');
             if (streamingBody) {
                 streamingBody.innerHTML = `<div class="error-content"><svg viewBox="0 0 24 24" width="16" height="16" fill="#d93025"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>
-请求失败: ${this.escapeHtml(error)}</span></div>`;
+Request failed: ${this.escapeHtml(error)}</span></div>`;
             }
         }
     },
@@ -1321,31 +1740,31 @@ const agentHandlers = {
      * Simulate streaming response (for development/testing)
      */
     simulateStreamResponse(enableSendBtn) {
-        const mockResponse = `好的，我来回答你的问题。
+        const mockResponse = `Sure, here is the answer to your question.
 
-## 示例代码
+## Example code
 
-这是一个简单的 Python 示例：
+Here is a simple Python example:
 
 \`\`\`python
 def hello_world():
     print("Hello, World!")
     return True
 
-# 调用函数
+# Call the function
 if __name__ == "__main__":
     hello_world()
 \`\`\`
 
-### 主要特点：
+### Key features:
 
-1. **简洁明了** - 代码结构清晰
-2. **易于理解** - 注释完善
-3. **可扩展性强** - 便于后续修改
+1. **Concise** - Clear structure
+2. **Easy to understand** - Well-commented
+3. **Extensible** - Easy to modify later
 
-> 提示：这只是一个演示示例，实际使用时请根据需求调整。
+> Tip: This is just a demo. Adjust as needed for real use.
 
-如果你有其他问题，欢迎继续提问！`;
+If you have more questions, feel free to ask!`;
 
         let index = 0;
         const chars = mockResponse.split('');
@@ -1380,7 +1799,7 @@ if __name__ == "__main__":
             const escapedCode = this.escapeHtml(rawCode);
             const escapedRawCode = this.escapeHtml(rawCode).replace(/"/g, '&quot;');
             const placeholder = `__CODEBLOCK_${codeBlocks.length}__`;
-            codeBlocks.push(`<div class="code-block"><div class="code-header"><span class="code-lang">${language}</span><button class="copy-code-btn" onclick="agentHandlers.copyCode(this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg><span>复制</span></button></div><pre><code class="language-${language}" data-raw-code="${escapedRawCode}">${escapedCode}</code></pre></div>`);
+            codeBlocks.push(`<div class="code-block"><div class="code-header"><span class="code-lang">${language}</span><button class="copy-code-btn" onclick="agentHandlers.copyCode(this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg><span>Copy</span></button></div><pre><code class="language-${language}" data-raw-code="${escapedRawCode}">${escapedCode}</code></pre></div>`);
             return placeholder;
         });
 
@@ -1484,7 +1903,7 @@ if __name__ == "__main__":
 
         const showCopiedState = () => {
             const originalText = btn.querySelector('span').textContent;
-            btn.querySelector('span').textContent = '已复制!';
+            btn.querySelector('span').textContent = 'Copied!';
             btn.classList.add('copied');
             setTimeout(() => {
                 btn.querySelector('span').textContent = originalText;
@@ -1627,10 +2046,10 @@ if __name__ == "__main__":
                 agentState.currentModelConfig = modelConfig;
                 // Update right-side panel Param tab
                 this.populateParamTab(modelConfig);
-                console.log('[AgentHandlers] 模型配置已加载:', modelConfig.name);
+                console.log('[AgentHandlers] Model config loaded:', modelConfig.name);
             }
         } catch (error) {
-            console.error('加载模型配置失败:', error);
+            console.error('Failed to load model config:', error);
         }
     },
 
@@ -1648,10 +2067,10 @@ if __name__ == "__main__":
                 agentState.currentRoleConfig = roleConfig;
                 // Update right-side panel Prompt tab
                 this.populatePromptTab(roleConfig);
-                console.log('[AgentHandlers] 角色配置已加载:', roleConfig.name);
+                console.log('[AgentHandlers] Role config loaded:', roleConfig.name);
             }
         } catch (error) {
-            console.error('加载角色配置失败:', error);
+            console.error('Failed to load role config:', error);
         }
     },
 
@@ -1739,7 +2158,7 @@ if __name__ == "__main__":
     async saveModelParams() {
         const currentConfig = agentState.currentModelConfig;
         if (!currentConfig || !currentConfig.config_id) {
-            console.warn('[AgentHandlers] 没有当前模型配置，无法保存');
+            console.warn('[AgentHandlers] No current model config; cannot save');
             return;
         }
 
@@ -1786,12 +2205,12 @@ if __name__ == "__main__":
             if (result.success) {
                 // Update config in state
                 Object.assign(agentState.currentModelConfig, params);
-                console.log('[AgentHandlers] 模型参数已保存');
+                console.log('[AgentHandlers] Model params saved');
             } else {
-                console.error('[AgentHandlers] 保存模型参数失败:', result.error);
+                console.error('[AgentHandlers] Failed to save model params:', result.error);
             }
         } catch (error) {
-            console.error('[AgentHandlers] 保存模型参数失败:', error);
+            console.error('[AgentHandlers] Failed to save model params:', error);
         }
     },
 
@@ -1802,7 +2221,7 @@ if __name__ == "__main__":
         const currentConfig = agentState.currentRoleConfig;
         if (!currentConfig || !currentConfig.role_id) {
             if (typeof Notification !== 'undefined') {
-                Notification.error('没有选择角色配置');
+                Notification.error('No role config selected');
             }
             return;
         }
@@ -1819,18 +2238,18 @@ if __name__ == "__main__":
                 // Update config in state
                 agentState.currentRoleConfig.system_prompt = prompt;
                 if (typeof Notification !== 'undefined') {
-                    Notification.success('System Prompt 已保存');
+                    Notification.success('System prompt saved');
                 }
-                console.log('[AgentHandlers] 角色提示词已保存');
+                console.log('[AgentHandlers] Role prompt saved');
             } else {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('保存失败: ' + (result.error || '未知错误'));
+                    Notification.error('Save failed: ' + (result.error || 'Unknown error'));
                 }
             }
         } catch (error) {
-            console.error('[AgentHandlers] 保存角色提示词失败:', error);
+            console.error('[AgentHandlers] Failed to save role prompt:', error);
             if (typeof Notification !== 'undefined') {
-                Notification.error('保存失败: ' + error.message);
+                Notification.error('Save failed: ' + error.message);
             }
         }
     },

@@ -286,9 +286,9 @@ class MapService:
                     "avatar3d": getattr(cfg, 'avatar3d', 'default.glb'),
                     "nationid": getattr(cfg, 'nationid', '123456'),
                     "account": getattr(cfg, 'account', 'user@example.com'),
-                    "nick_name": getattr(cfg, 'nickname', '用户昵称'),
+                    "nick_name": getattr(cfg, 'nickname', 'User nickname'),
                     "avatar": getattr(cfg, 'avatar', 'avatar.png'),
-                    "profile": getattr(cfg, 'sign', '个人简介'),
+                    "profile": getattr(cfg, 'sign', 'Bio'),
                     "sns_url": getattr(cfg, 'sns_url', 'https://example.com'),
                     "status": getattr(cfg, 'status', 'online')
                 }
@@ -311,9 +311,9 @@ class MapService:
                     "avatar3d": "default.glb",
                     "nationid": "123456",
                     "account": "user@example.com",
-                    "nick_name": "用户昵称",
+                    "nick_name": "User nickname",
                     "avatar": "avatar.png",
-                    "profile": "个人简介",
+                    "profile": "Bio",
                     "sns_url": "https://example.com",
                     "status": "online"
                 }

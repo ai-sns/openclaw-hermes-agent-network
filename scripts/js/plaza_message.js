@@ -9,10 +9,10 @@ const MAX_TEXT_LENGTH = 50;          // max text length
 
 // Define messages and their URLs
 let messageData = [
-    {text: "🎼 1-渐变滑入a", url: "https://www.baidu.com"},
-    {text: "🍀 2-明快清新b", url: "https://www.google.com"},
-    {text: "🌤️ 3-openai昨晚发布新一代模型，敬请期待。", url: "https://www.x.com"},
-    {text: "🎉 4-无缝循环", url: "http://www.weibo.com"}
+    {text: "🎼 1-Gradient slide-in a", url: "https://www.baidu.com"},
+    {text: "🍀 2-Bright and fresh b", url: "https://www.google.com"},
+    {text: "🌤️ 3-OpenAI released a new generation model last night. Stay tuned.", url: "https://www.x.com"},
+    {text: "🎉 4-Seamless loop", url: "http://www.weibo.com"}
 ];
 
 // Truncate text and append ellipsis if needed

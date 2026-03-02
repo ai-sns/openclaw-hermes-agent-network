@@ -12,6 +12,7 @@ from typing import AsyncGenerator, Generator
 import logging
 import asyncio
 import sqlite3
+from sqlalchemy import event
 
 from .settings import get_settings
 
@@ -29,8 +30,34 @@ SQLALCHEMY_DATABASE_URL = f"sqlite+aiosqlite:///{settings.database.full_path}"
 # Create async engine
 engine = create_async_engine(
     SQLALCHEMY_DATABASE_URL,
-    echo=settings.debug
+    echo=settings.debug,
+    connect_args={"timeout": 30}
 )
+
+
+@event.listens_for(engine.sync_engine, "connect")
+def _sqlite_on_connect_async(dbapi_connection, connection_record):
+    try:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA busy_timeout=30000")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            pass
+        cursor.close()
+    except Exception:
+        pass
 
 # Async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -45,10 +72,35 @@ from sqlalchemy.orm import sessionmaker, Session
 SYNC_SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.database.full_path}"
 sync_engine = create_engine(
     SYNC_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={"check_same_thread": False, "timeout": 30},
     poolclass=NullPool,
     echo=settings.debug
 )
+
+
+@event.listens_for(sync_engine, "connect")
+def _sqlite_on_connect_sync(dbapi_connection, connection_record):
+    try:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA busy_timeout=30000")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            pass
+        cursor.close()
+    except Exception:
+        pass
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
 

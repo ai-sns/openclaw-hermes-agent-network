@@ -148,7 +148,7 @@ def create_test_data():
         # Create test script files
         script_paths = create_test_scripts()
 
-        print("\n开始创建测试数据...")
+        print("\nStarting to create test data...")
 
         # 1. Create Plugin with file_path
         plugin1 = PluginMng(
@@ -288,15 +288,15 @@ print(json.dumps(result))
         # Commit all changes
         db.commit()
 
-        print("\n✓ 成功创建测试数据:")
-        print(f"  - 2 个 Plugins (file + inline code)")
-        print(f"  - 1 个 MCP")
-        print(f"  - 1 个 Function")
-        print(f"  - 4 个 Skills")
-        print(f"\n所有测试工具都可以执行!")
+        print("\n✓ Test data created successfully:")
+        print(f"  - 2 Plugins (file + inline code)")
+        print(f"  - 1 MCP")
+        print(f"  - 1 Function")
+        print(f"  - 4 Skills")
+        print(f"\nAll test tools are executable!")
 
     except Exception as e:
-        print(f"\n✗ 创建测试数据失败: {e}")
+        print(f"\n✗ Failed to create test data: {e}")
         db.rollback()
         raise
     finally:

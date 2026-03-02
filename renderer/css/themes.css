@@ -1,28 +1,28 @@
 /* AI-SNS Theme System */
-/* 主题系统 - 支持亮色和暗色模式 */
+/* Theme system - supports light and dark modes */
 
-/* ========== 亮色主题 (默认) ========== */
+/* ========== Light theme (default) ========== */
 :root,
 body,
 body.theme-light {
-    /* 主色调 */
+    /* Primary color */
     --color-primary: #4F46E5;
     --color-primary-light: #6366F1;
     --color-primary-dark: #4338CA;
     --color-primary-hover: #5B52E8;
     --color-primary-bg: rgba(79, 70, 229, 0.08);
 
-    /* 次要色 */
+    /* Secondary colors */
     --color-secondary: #7C3AED;
     --color-accent: #06B6D4;
 
-    /* 语义色 */
+    /* Semantic colors */
     --color-success: #10B981;
     --color-warning: #F59E0B;
     --color-danger: #EF4444;
     --color-info: #3B82F6;
 
-    /* 背景色 */
+    /* Background colors */
     --bg-body: #F3F4F6;
     --bg-content: #FFFFFF;
     --bg-sidebar: #FFFFFF;
@@ -32,7 +32,7 @@ body.theme-light {
     --bg-hover: rgba(0, 0, 0, 0.04);
     --bg-active: rgba(79, 70, 229, 0.08);
 
-    /* 文本色 */
+    /* Text colors */
     --text-primary: #111827;
     --text-secondary: #4B5563;
     --text-tertiary: #6B7280;
@@ -40,19 +40,19 @@ body.theme-light {
     --text-inverse: #FFFFFF;
     --text-link: #4F46E5;
 
-    /* 边框色 */
+    /* Border colors */
     --border-color: #E5E7EB;
     --border-light: #F3F4F6;
     --border-focus: #4F46E5;
 
-    /* 阴影 */
+    /* Shadows */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 
-    /* 灰度 */
+    /* Grayscale */
     --gray-50: #F9FAFB;
     --gray-100: #F3F4F6;
     --gray-200: #E5E7EB;
@@ -64,36 +64,36 @@ body.theme-light {
     --gray-800: #1F2937;
     --gray-900: #111827;
 
-    /* 标题栏 */
+    /* Titlebar */
     --titlebar-bg: linear-gradient(180deg, #FAFAFA 0%, #F5F5F5 100%);
     --titlebar-text: #333333;
 
-    /* 滚动条 */
+    /* Scrollbar */
     --scrollbar-track: transparent;
     --scrollbar-thumb: #D1D5DB;
     --scrollbar-thumb-hover: #9CA3AF;
 }
 
-/* ========== 暗色主题 (VS Code Dark+ 风格) ========== */
+/* ========== Dark theme (VS Code Dark+ style) ========== */
 body.theme-dark {
-    /* 主色调 - VS Code 蓝色 */
+    /* Primary color - VS Code blue */
     --color-primary: #0078D4;
     --color-primary-light: #1E90FF;
     --color-primary-dark: #005A9E;
     --color-primary-hover: #1A85D4;
     --color-primary-bg: rgba(0, 120, 212, 0.15);
 
-    /* 次要色 */
+    /* Secondary colors */
     --color-secondary: #9CDCFE;
     --color-accent: #4EC9B0;
 
-    /* 语义色 - VS Code 风格 */
+    /* Semantic colors - VS Code style */
     --color-success: #4EC9B0;
     --color-warning: #CCA700;
     --color-danger: #F14C4C;
     --color-info: #3794FF;
 
-    /* 背景色 - VS Code Dark+ */
+    /* Background colors - VS Code Dark+ */
     --bg-body: #1E1E1E;
     --bg-content: #1E1E1E;
     --bg-sidebar: #252526;
@@ -103,7 +103,7 @@ body.theme-dark {
     --bg-hover: rgba(255, 255, 255, 0.05);
     --bg-active: rgba(0, 120, 212, 0.2);
 
-    /* 文本色 - VS Code 风格 */
+    /* Text colors - VS Code style */
     --text-primary: #CCCCCC;
     --text-secondary: #9D9D9D;
     --text-tertiary: #808080;
@@ -111,19 +111,19 @@ body.theme-dark {
     --text-inverse: #1E1E1E;
     --text-link: #3794FF;
 
-    /* 边框色 */
+    /* Border colors */
     --border-color: #3C3C3C;
     --border-light: #2D2D2D;
     --border-focus: #0078D4;
 
-    /* 阴影 */
+    /* Shadows */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.5);
     --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
     --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.5);
 
-    /* 灰度 - VS Code 风格 */
+    /* Grayscale - VS Code style */
     --gray-50: #1E1E1E;
     --gray-100: #252526;
     --gray-200: #2D2D2D;
@@ -135,19 +135,19 @@ body.theme-dark {
     --gray-800: #CCCCCC;
     --gray-900: #E5E5E5;
 
-    /* 标题栏 - VS Code 风格 */
+    /* Titlebar - VS Code style */
     --titlebar-bg: #323233;
     --titlebar-text: #CCCCCC;
 
-    /* 滚动条 */
+    /* Scrollbar */
     --scrollbar-track: transparent;
     --scrollbar-thumb: #5A5A5A;
     --scrollbar-thumb-hover: #808080;
 }
 
-/* ========== 暗色主题样式覆盖 ========== */
+/* ========== Dark theme overrides ========== */
 
-/* 标题栏 */
+/* Titlebar */
 body.theme-dark .titlebar {
     background: var(--titlebar-bg);
     border-bottom: 1px solid var(--border-color);
@@ -166,7 +166,7 @@ body.theme-dark .titlebar-btn:hover {
     color: var(--text-primary);
 }
 
-/* 图标导航栏 */
+/* Icon navigation bar */
 body.theme-dark .icon-nav {
     background: var(--bg-sidebar);
     border-right-color: var(--border-color);
@@ -190,18 +190,18 @@ body.theme-dark .icon-nav-bottom {
     border-top-color: var(--border-color);
 }
 
-/* 二级侧边栏 */
+/* Secondary sidebar */
 body.theme-dark .secondary-sidebar {
     background: var(--bg-sidebar);
     border-right-color: var(--border-color);
 }
 
-/* 主内容区 */
+/* Main content */
 body.theme-dark .main-content {
     background: var(--bg-body);
 }
 
-/* 侧边栏拖拽条 */
+/* Sidebar resizer */
 body.theme-dark .resizer-line {
     background: var(--border-color);
 }
@@ -229,7 +229,7 @@ body.theme-dark .sidebar-resizer.collapsed .sidebar-collapse-btn {
     color: white;
 }
 
-/* 窗口按钮 */
+/* Window buttons */
 body.theme-dark .window-btn {
     color: var(--text-muted);
 }
@@ -251,7 +251,7 @@ body.theme-dark .window-btn.maximize:hover {
     background: var(--bg-hover);
 }
 
-/* 滚动条 */
+/* Scrollbar */
 body.theme-dark ::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
 }
@@ -260,7 +260,7 @@ body.theme-dark ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover);
 }
 
-/* 输入框 */
+/* Inputs */
 body.theme-dark input,
 body.theme-dark textarea,
 body.theme-dark select {
@@ -281,7 +281,7 @@ body.theme-dark select:focus {
     outline: none;
 }
 
-/* 按钮 */
+/* Buttons */
 body.theme-dark .btn-primary {
     background: var(--color-primary);
     border-color: var(--color-primary);
@@ -303,7 +303,7 @@ body.theme-dark .btn-secondary:hover {
     color: var(--text-primary);
 }
 
-/* 模态框 */
+/* Modals */
 body.theme-dark .modal-overlay {
     background: rgba(0, 0, 0, 0.6);
 }
@@ -335,13 +335,13 @@ body.theme-dark .modal-footer {
     border-top-color: var(--border-color);
 }
 
-/* 卡片 */
+/* Cards */
 body.theme-dark .card {
     background: var(--bg-primary);
     border-color: var(--border-color);
 }
 
-/* 侧边栏组件通用样式 */
+/* Shared sidebar component styles */
 body.theme-dark .sidebar-section {
     border-bottom-color: var(--border-color);
 }
@@ -350,7 +350,7 @@ body.theme-dark .sidebar-title {
     color: var(--text-secondary);
 }
 
-/* Agent 页面 */
+/* Agent page */
 body.theme-dark .agent-sidebar-header,
 body.theme-dark .km-sidebar-header,
 body.theme-dark .tools-sidebar-header,
@@ -379,7 +379,7 @@ body.theme-dark .km-note-item.active {
     color: var(--color-primary-light);
 }
 
-/* 搜索框 */
+/* Search boxes */
 body.theme-dark .search-box,
 body.theme-dark .agent-search-box,
 body.theme-dark .km-search-box,
@@ -397,7 +397,7 @@ body.theme-dark .web-search-input {
     color: var(--text-primary);
 }
 
-/* 操作按钮 */
+/* Action buttons */
 body.theme-dark .action-btn,
 body.theme-dark .agent-action-btn,
 body.theme-dark .km-action-btn,
@@ -425,7 +425,7 @@ body.theme-dark .web-action-btn.primary {
     color: white;
 }
 
-/* 聊天界面 */
+/* Chat UI */
 body.theme-dark .chat-container {
     background: var(--bg-body);
 }
@@ -464,7 +464,7 @@ body.theme-dark .chat-send-btn:hover {
     background: var(--color-primary-hover);
 }
 
-/* 设置面板主题选项 */
+/* Settings panel theme options */
 body.theme-dark .theme-option {
     border-color: var(--border-color);
     color: var(--text-secondary);
@@ -493,7 +493,7 @@ body.theme-dark .theme-option[data-theme="dark"].active {
     color: var(--color-primary-light);
 }
 
-/* 设置选择框和输入框 */
+/* Settings selects and inputs */
 body.theme-dark .setting-select,
 body.theme-dark .setting-input {
     background: var(--bg-secondary);
@@ -506,7 +506,7 @@ body.theme-dark .setting-input:focus {
     border-color: var(--color-primary);
 }
 
-/* 插件卡片 */
+/* Plugin cards */
 body.theme-dark .plugin-card {
     background: var(--bg-primary);
     border-color: var(--border-color);
@@ -516,7 +516,7 @@ body.theme-dark .plugin-card:hover {
     border-color: var(--color-primary);
 }
 
-/* LLM 图标网格 */
+/* LLM icon grid */
 body.theme-dark .llm-icon-box,
 body.theme-dark .web-llm-icon-box {
     background: var(--bg-tertiary);
@@ -529,7 +529,7 @@ body.theme-dark .web-llm-icon-box:hover {
     border-color: var(--color-primary);
 }
 
-/* Home 页面 */
+/* Home page */
 body.theme-dark .home-card {
     background: var(--bg-primary);
     border-color: var(--border-color);
@@ -539,7 +539,7 @@ body.theme-dark .home-card:hover {
     border-color: var(--color-primary);
 }
 
-/* KM 笔记树 */
+/* KM note tree */
 body.theme-dark .km-note-tree {
     color: var(--text-secondary);
 }
@@ -548,7 +548,7 @@ body.theme-dark .km-kb-section {
     border-top-color: var(--border-color);
 }
 
-/* 通知 */
+/* Notifications */
 body.theme-dark .notification {
     background: var(--bg-primary);
     border-color: var(--border-color);
@@ -556,7 +556,7 @@ body.theme-dark .notification {
     box-shadow: var(--shadow-lg);
 }
 
-/* ========== 暗色主题 - Home 页面 ========== */
+/* ========== Dark theme - Home page ========== */
 body.theme-dark .home-page {
     background: var(--bg-body);
 }
@@ -603,7 +603,7 @@ body.theme-dark .setting-btn-text {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - SNS 页面 ========== */
+/* ========== Dark theme - SNS page ========== */
 body.theme-dark .sns-status-panel {
     background: var(--bg-sidebar);
     border-left-color: var(--border-color);
@@ -643,7 +643,7 @@ body.theme-dark .status-tab.active {
     border-top-color: var(--color-primary);
 }
 
-/* SNS 右侧面板收缩条 */
+/* SNS right panel resizer */
 body.theme-dark .panel-resizer-line {
     background: var(--border-color);
 }
@@ -782,7 +782,7 @@ body.theme-dark .user-label {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - Agent 页面 ========== */
+/* ========== Dark theme - Agent page ========== */
 body.theme-dark .agent-chat-area {
     background: var(--bg-body);
 }
@@ -950,7 +950,7 @@ body.theme-dark .message.assistant .message-content {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - KM 页面 ========== */
+/* ========== Dark theme - KM page ========== */
 body.theme-dark .km-page-layout {
     background: var(--bg-body);
 }
@@ -1106,7 +1106,7 @@ body.theme-dark .km-kb-setting span {
     color: var(--text-secondary);
 }
 
-/* ========== 暗色主题 - Tools 页面 ========== */
+/* ========== Dark theme - Tools page ========== */
 body.theme-dark .tools-page {
     background: var(--bg-body);
 }
@@ -1219,7 +1219,7 @@ body.theme-dark .market-title {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - Web 页面 ========== */
+/* ========== Dark theme - Web page ========== */
 body.theme-dark .web-page {
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
 }
@@ -1301,7 +1301,7 @@ body.theme-dark .web-tool-item:hover {
     background: var(--bg-hover);
 }
 
-/* ========== 暗色主题 - 通用组件 ========== */
+/* ========== Dark theme - shared components ========== */
 body.theme-dark .sidebar-section {
     border-bottom-color: var(--border-color);
 }
@@ -1447,7 +1447,7 @@ body.theme-dark .empty-state {
     color: var(--text-muted);
 }
 
-/* ========== 暗色主题 - 表单和模态框 ========== */
+/* ========== Dark theme - forms and modals ========== */
 body.theme-dark .form-group label {
     color: var(--text-primary);
 }
@@ -1531,7 +1531,7 @@ body.theme-dark .search-input-field:focus {
     border-color: var(--color-primary);
 }
 
-/* ========== 暗色主题 - 浏览器组件 ========== */
+/* ========== Dark theme - browser components ========== */
 body.theme-dark .web-browser {
     background: var(--bg-primary);
     box-shadow: var(--shadow-md);
@@ -1561,7 +1561,7 @@ body.theme-dark .address-input:focus {
     border-color: var(--color-primary);
 }
 
-/* ========== 暗色主题 - 笔记编辑器 ========== */
+/* ========== Dark theme - note editor ========== */
 body.theme-dark .note-editor-container {
     background: var(--bg-primary);
     box-shadow: var(--shadow-md);
@@ -1593,7 +1593,7 @@ body.theme-dark .note-content {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - 聊天 ========== */
+/* ========== Dark theme - chat ========== */
 body.theme-dark .chat-header {
     background: var(--bg-sidebar);
     border-bottom-color: var(--border-color);
@@ -1635,7 +1635,7 @@ body.theme-dark .chat-message-content {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - 工具栏 ========== */
+/* ========== Dark theme - toolbar ========== */
 body.theme-dark .km-toolbar {
     background: var(--bg-sidebar);
     border-bottom-color: var(--border-color);
@@ -1667,7 +1667,7 @@ body.theme-dark .km-editor-content {
     color: var(--text-primary);
 }
 
-/* ========== 暗色主题 - 加载和状态 ========== */
+/* ========== Dark theme - loading and status ========== */
 body.theme-dark .spinner {
     border-color: var(--border-color);
     border-top-color: var(--color-primary);
@@ -1677,7 +1677,7 @@ body.theme-dark .typing-indicator span {
     background: var(--color-primary);
 }
 
-/* ========== 主题过渡动画 ========== */
+/* ========== Theme transition animations ========== */
 body,
 .titlebar,
 .icon-nav,
@@ -1699,7 +1699,7 @@ button,
                 color 0.25s ease;
 }
 
-/* ========== 亮色主题 SNS 地图区域样式 ========== */
+/* ========== Light theme - SNS map area styles ========== */
 body.theme-light .sns-map-area {
     background: linear-gradient(145deg, #f0f4f8 0%, #e2e8f0 100%);
 }
@@ -1937,10 +1937,10 @@ body.theme-light .map-control-divider {
 }
 
 /* ============================================
-   暗色主题 - KM 模块新增组件样式
+   Dark theme - KM module new component styles
    ============================================ */
 
-/* KM Sidebar 列表 */
+/* KM Sidebar list */
 body.theme-dark .km-list-section {
     background: var(--bg-sidebar);
 }
@@ -1967,14 +1967,14 @@ body.theme-dark .km-list .km-item.km-management {
 }
 
 body.theme-dark .km-section-container {
-
+    display: block;
 }
 
 body.theme-dark .km-user-section {
-
+    display: block;
 }
 
-/* KM 搜索框 */
+/* KM search box */
 body.theme-dark .km-search {
     background: var(--bg-tertiary);
     border-color: var(--border-color);
@@ -1993,7 +1993,7 @@ body.theme-dark .km-search .search-input::placeholder {
     color: var(--text-muted);
 }
 
-/* KM 列表标签 */
+/* KM list tabs */
 body.theme-dark .km-list-tabs {
     border-bottom-color: var(--border-color);
 }
@@ -2246,7 +2246,7 @@ body.theme-dark .km-empty-state p {
     color: var(--text-muted);
 }
 
-/* 通用按钮暗色主题 */
+/* General buttons (dark theme) */
 body.theme-dark .btn-primary {
     background: var(--color-primary);
     color: white;

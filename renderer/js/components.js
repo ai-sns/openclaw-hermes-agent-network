@@ -201,13 +201,13 @@ class Modal {
 
     static confirm(message, onConfirm) {
         return Modal.show({
-            title: '确认',
+            title: 'Confirm',
             content: `<p>${message}</p>`,
             onConfirm
         });
     }
 
-    static alert(message, title = '提示') {
+    static alert(message, title = 'Notice') {
         return Modal.show({
             title,
             content: `<p>${message}</p>`,
@@ -568,11 +568,11 @@ function formatTime(timestamp) {
     const diff = now - date;
 
     if (diff < 60000) {
-        return '刚刚';
+        return 'Just now';
     } else if (diff < 3600000) {
-        return `${Math.floor(diff / 60000)}分钟前`;
+        return `${Math.floor(diff / 60000)} minutes ago`;
     } else if (diff < 86400000) {
-        return `${Math.floor(diff / 3600000)}小时前`;
+        return `${Math.floor(diff / 3600000)} hours ago`;
     } else {
         return date.toLocaleDateString('zh-CN');
     }
@@ -580,12 +580,12 @@ function formatTime(timestamp) {
 
 function getStatusText(status) {
     const statusTexts = {
-        'available': '在线',
-        'chat': '聊天中',
-        'away': '离开',
-        'xa': '长时间离开',
-        'dnd': '请勿打扰',
-        'offline': '离线'
+        'available': 'Online',
+        'chat': 'Chatting',
+        'away': 'Away',
+        'xa': 'Extended away',
+        'dnd': 'Do not disturb',
+        'offline': 'Offline'
     };
     return statusTexts[status] || status;
 }
@@ -614,7 +614,7 @@ function hideLoading(loading) {
 function showEmptyState(container, options = {}) {
     const {
         icon = '📭',
-        title = '暂无数据',
+        title = 'No data',
         description = '',
         actionText = '',
         onAction = null

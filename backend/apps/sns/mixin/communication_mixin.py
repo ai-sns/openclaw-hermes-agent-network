@@ -270,14 +270,14 @@ class CommunicationMixin:
                 logger.error(f"Failed to resume activity after conversation end: {e}")
 
     def talk_to_a_people(self, content, nationid, account, user_name):
-        title_str = "选择人员交谈"
+        title_str = "Choose a person to talk"
         content_str = f"""🟪 *The function is*:
 
 talk_to_a_people
 
 🟩 *The Content is*:
 
-{lt(f"Talk to a people with {user_name} acount:{account},nationid:{nationid},content:{content}", f"和别人交谈 with {user_name} acount:{account},nationid:{nationid},content:{content}")}
+{lt(f"Talk to a people with {user_name} acount:{account},nationid:{nationid},content:{content}", f"Talk to a people with {user_name} acount:{account},nationid:{nationid},content:{content}")}
             """
 
         self.write_thinking_process_to_pane(title_str, content_str)
@@ -289,9 +289,20 @@ talk_to_a_people
         )
         self._touch_conversation_activity(account)
 
-        current_talk_people = self.current_talk_people
-        round = current_talk_people.get("talk_round", 0) + 1
-        self.current_talk_people["talk_round"] = round
+        try:
+            current_talk_people = self.current_talk_people
+            if not isinstance(current_talk_people, dict):
+                current_talk_people = {
+                    "nation_id": nationid,
+                    "account": account,
+                    "nick_name": user_name,
+                }
+                self.current_talk_people = current_talk_people
+
+            round = current_talk_people.get("talk_round", 0) + 1
+            self.current_talk_people["talk_round"] = round
+        except Exception:
+            pass
         command = ("start_talk_to_it", nationid, content)
         self.send_msg_to_map(command)
         self.sendMessage(content, False, account, user_name)
@@ -369,7 +380,7 @@ talk_to_a_people
             self.talk_to_a_people(message, nation_id, account, nick_name)
 
         else:
-            description = "我未找到目标人员。"
+            description = "Target person not found."
 
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
 
@@ -417,10 +428,10 @@ talk_to_a_people
             return
 
         if not continue_chat:
-            self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-            self.write_task_process_to_pane(f"和朋友沟通后得到如下情况：{current_chat_summary}\n\n")
-            self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-            resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+            self.taskmng.add_process_info_to_list(f"After communicating with a friend, got the following: {current_chat_summary}")
+            self.write_task_process_to_pane(f"After communicating with a friend, got the following: {current_chat_summary}\n\n")
+            self.taskmng.current_situation = f"After communicating with someone, got the following: {current_chat_summary}"
+            resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter communicating with someone, got the following: {current_chat_summary}"
             self.end_active_conversation(
                 reason="completed",
                 message="Conversation completed.",
@@ -439,10 +450,10 @@ talk_to_a_people
                         116.30690718139134,
                         40.06259235539735
                     ],
-                    "nick_name": "W宝",
+                    "nick_name": "W Bao",
                     "avatar": "img_woman_hi",
                     "avatar_3d": "smallofficewoman_0_0_0_0_1_0.glb",
-                    "profile": "我是个医生",
+                    "profile": "I am a doctor",
                     "sns_url": "x.com"
                 }
 
@@ -450,9 +461,9 @@ talk_to_a_people
                 self.taskmng.current_process["rounds_current_person"] = self.taskmng.current_process["rounds_current_person"] + 1
                 self.talk_to_a_people(message, self.current_talk_people["nation_id"], self.current_talk_people["account"], self.current_talk_people["nick_name"])
             else:
-                self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-                self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-                resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+                self.taskmng.add_process_info_to_list(f"After communicating with a friend, got the following: {current_chat_summary}")
+                self.taskmng.current_situation = f"After communicating with someone, got the following: {current_chat_summary}"
+                resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter communicating with someone, got the following: {current_chat_summary}"
                 self.end_active_conversation(
                     reason="max_rounds",
                     message="Conversation reached max rounds.",

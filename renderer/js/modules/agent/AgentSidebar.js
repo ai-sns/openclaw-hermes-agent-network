@@ -28,14 +28,14 @@ const AgentSidebar = {
      * Init - load agents from API and create UI
      */
     async init() {
-        console.log('[AgentSidebar] 开始初始化...');
+        console.log('[AgentSidebar] Starting initialization...');
 
         // 1. Load agent list from API
         const agents = await this.loadAgentsFromAPI();
-        console.log('[AgentSidebar] 加载到的agents:', agents);
+        console.log('[AgentSidebar] Loaded agents:', agents);
 
         if (agents.length === 0) {
-            console.warn('[AgentSidebar] 没有可用的Agent');
+            console.warn('[AgentSidebar] No available agents');
             this.renderEmptyState();
             return;
         }
@@ -54,7 +54,7 @@ const AgentSidebar = {
                 ? savedAgentId
                 : agents[0].id;
 
-            console.log('[AgentSidebar] 选择Agent:', agentToSelect, savedAgentId ? '(恢复之前的选择)' : '(默认第一个)');
+            console.log('[AgentSidebar] Selected agent:', agentToSelect, savedAgentId ? '(restored previous selection)' : '(default first)');
 
             // Ensure agentState has currentAgentId set
             if (window.agentState) {
@@ -64,7 +64,7 @@ const AgentSidebar = {
             this.switchAgent(agentToSelect);
         }
 
-        console.log('[AgentSidebar] 初始化完成');
+        console.log('[AgentSidebar] Initialization complete');
     },
 
     /**
@@ -80,7 +80,7 @@ const AgentSidebar = {
             }
             return [];
         } catch (error) {
-            console.error('[AgentSidebar] 加载Agent列表失败:', error);
+            console.error('[AgentSidebar] Failed to load agent list:', error);
             return [];
         }
     },
@@ -95,7 +95,7 @@ const AgentSidebar = {
             }
             return [];
         } catch (error) {
-            console.error('[AgentSidebar] 加载Agent列表失败:', error);
+            console.error('[AgentSidebar] Failed to load agent list:', error);
             return [];
         }
     },
@@ -109,25 +109,25 @@ const AgentSidebar = {
 
         // For each agent create: item + section
         const agentItemsHTML = agents.map(agent => `
-            <!-- Agent列表项 -->
+            <!-- Agent list item -->
             <div class="agent-item" data-agent-id="${agent.id}">
 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- 头部 -->
+  <!-- Head -->
   <rect x="3" y="6" width="18" height="14" rx="2" stroke="currentColor" stroke-width="2"/>
-  <!-- 天线 -->
+  <!-- Antenna -->
   <line x1="12" y1="6" x2="12" y2="3" stroke="currentColor" stroke-width="2"/>
   <circle cx="12" cy="2" r="1.5" fill="currentColor"/>
-  <!-- 眼睛 -->
+  <!-- Eyes -->
   <circle cx="8.5" cy="11.5" r="1.5" fill="currentColor"/>
   <circle cx="15.5" cy="11.5" r="1.5" fill="currentColor"/>
-  <!-- 嘴巴 -->
+  <!-- Mouth -->
   <path d="M9 15 Q12 18 15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 </svg>
 
                 <span>${agent.name || 'Unnamed Agent'}</span>
             </div>
 
-            <!-- Agent专属的可展开section（初始隐藏）-->
+            <!-- Agent-specific expandable section (initially hidden) -->
             <div class="agent-section-container" data-agent-id="${agent.id}" style="display: none;">
                 ${this.createAgentSectionHTML(agent)}
             </div>
@@ -156,7 +156,7 @@ const AgentSidebar = {
         `;
 
         agentList.innerHTML = agentItemsHTML + managementButtons;
-        console.log('[AgentSidebar] Agent列表已渲染（新架构：item+section模式）');
+        console.log('[AgentSidebar] Agent list rendered (new architecture: item + section)');
     },
 
     /**
@@ -165,7 +165,7 @@ const AgentSidebar = {
     createAgentSectionHTML(agent) {
         return `
             <div class="agent-user-section" data-agent-id="${agent.id}">
-                <!-- 大图标按钮 -->
+                <!-- Large icon buttons -->
                 <div class="agent-action-buttons">
                     <button class="agent-action-btn" data-action="new-chat" data-agent-id="${agent.id}">
                         <div class="action-btn-icon">
@@ -192,7 +192,7 @@ const AgentSidebar = {
                     </button>
                 </div>
                 <div class="conversation-section">
-                    <!-- Chat List / Tag List 切换 -->
+                    <!-- Chat List / Tag List switch -->
                     <div class="sns-sidebar-tabs">
                         <button class="sidebar-tab active" data-tab="chatList" data-agent-id="${agent.id}">Chat List</button>
                         <button class="sidebar-tab" data-tab="tagList" data-agent-id="${agent.id}">Tag List</button>
@@ -211,11 +211,11 @@ const AgentSidebar = {
                                 </button>
                             </div>
                         </div>
-                        <!-- 聊天列表 -->
+                        <!-- Chat list -->
                         <div class="chat-list-container" id="chatListContainer-${agent.id}">
                             <div class="chat-tree" id="chatList-${agent.id}">
                                    <div class="tree-children">
-                                    <!-- 聊天列表将在这里动态加载 -->
+                                    <!-- Chat list will be loaded dynamically here -->
                                 </div>
                             </div>
                         </div>
@@ -255,8 +255,8 @@ const AgentSidebar = {
         if (agentList) {
             agentList.innerHTML = `
                 <div class="empty-state" style="padding: 20px; text-align: center; color: #999;">
-                    <p>暂无可用的Agent</p>
-                    <p style="font-size: 12px; margin-top: 10px;">请先在Agent Management中创建Agent</p>
+                    <p>No available agents</p>
+                    <p style="font-size: 12px; margin-top: 10px;">Please create an agent in Agent Management first</p>
                 </div>
             `;
         }
@@ -266,38 +266,37 @@ const AgentSidebar = {
      * Bind events
      */
     bindEvents() {
-        console.log('[AgentSidebar] 开始绑定事件...');
+        console.log('[AgentSidebar] Binding events...');
 
         // 1. Agent list item click - switch agent (expand/collapse)
         document.querySelectorAll('#agentList .agent-item[data-agent-id]').forEach(item => {
             item.addEventListener('click', () => {
                 const agentId = parseInt(item.dataset.agentId);
-                console.log('[AgentSidebar] 点击Agent:', agentId);
+                console.log('[AgentSidebar] Clicked agent:', agentId);
                 this.switchAgent(agentId);
             });
         });
 
-        // 2. New Chat button
-        document.querySelectorAll('[data-action="new-chat"]').forEach(btn => {
+        // 2. Action buttons inside each agent section
+        document.querySelectorAll('.agent-action-btn[data-action="new-chat"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const agentId = parseInt(btn.dataset.agentId);
-                console.log('[AgentSidebar] 点击New Chat:', agentId);
+                console.log('[AgentSidebar] Clicked New Chat:', agentId);
                 this.handleNewChat(agentId);
             });
         });
 
-        // 3. Settings button
-        document.querySelectorAll('[data-action="settings"]').forEach(btn => {
+        document.querySelectorAll('.agent-action-btn[data-action="settings"]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const agentId = parseInt(btn.dataset.agentId);
-                console.log('[AgentSidebar] 点击Settings:', agentId);
+                console.log('[AgentSidebar] Clicked Settings:', agentId);
                 this.handleSettings(agentId);
             });
         });
 
-        // 4. Chat tab switching
+        // 3. Tab switching (chatList/tagList)
         document.querySelectorAll('.sidebar-tab[data-agent-id]').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -315,7 +314,7 @@ const AgentSidebar = {
                     activeContent.classList.add('active');
                 }
 
-                console.log('[AgentSidebar] 切换tab:', tabType, 'for agent:', agentId);
+                console.log('[AgentSidebar] Switched tab:', tabType, 'for agent:', agentId);
 
                 if (window.multiAgentHandlers) {
                     const aId = parseInt(agentId);
@@ -367,24 +366,24 @@ const AgentSidebar = {
         document.querySelectorAll('.agent-management[data-page]').forEach(btn => {
             btn.addEventListener('click', () => {
                 const page = btn.dataset.page;
-                console.log('[AgentSidebar] 点击管理按钮:', page);
+                console.log('[AgentSidebar] Clicked management button:', page);
                 this.navigateToManagementPage(page);
             });
         });
 
-        console.log('[AgentSidebar] 事件绑定完成');
+        console.log('[AgentSidebar] Event binding complete');
     },
 
     /**
      * Switch agent (new architecture: expand/collapse the corresponding section-container)
      */
     switchAgent(agentId) {
-        console.log('[AgentSidebar] 切换到Agent:', agentId);
+        console.log('[AgentSidebar] Switching to agent:', agentId);
 
         // 0. Update agentState
         if (window.agentState) {
             window.agentState.setCurrentAgent(agentId);
-            console.log('[AgentSidebar] 已更新agentState.currentAgentId为:', agentId);
+            console.log('[AgentSidebar] Updated agentState.currentAgentId to:', agentId);
         }
 
         // 1. Collapse all agent-section-containers
@@ -396,7 +395,7 @@ const AgentSidebar = {
         const targetContainer = document.querySelector(`.agent-section-container[data-agent-id="${agentId}"]`);
         if (targetContainer) {
             targetContainer.style.display = 'block';
-            console.log('[AgentSidebar] 已展开Agent section container:', agentId);
+            console.log('[AgentSidebar] Expanded agent section container:', agentId);
         }
 
         // 3. Hide all agent pages
@@ -407,8 +406,8 @@ const AgentSidebar = {
         // 4. Show selected agent page
         const targetPage = document.getElementById(`page-agent-${agentId}`);
         if (targetPage) {
-            targetPage.style.display = 'flex'; // 使用flex而不是block以保持布局
-            console.log('[AgentSidebar] 已显示Agent page:', agentId);
+            targetPage.style.display = 'flex'; // Use flex instead of block to preserve layout
+            console.log('[AgentSidebar] Agent page shown:', agentId);
         }
 
         // 5. Update agent list active state
@@ -424,10 +423,10 @@ const AgentSidebar = {
         // Add a small delay to ensure DOM has finished rendering
         setTimeout(() => {
             if (window.multiAgentHandlers && typeof window.multiAgentHandlers.loadChatListForAgent === 'function') {
-                console.log('[AgentSidebar] 直接加载chat list for agent:', agentId);
+                console.log('[AgentSidebar] Loading chat list for agent:', agentId);
                 window.multiAgentHandlers.loadChatListForAgent(agentId);
             } else {
-                console.error('[AgentSidebar] multiAgentHandlers.loadChatListForAgent 不可用');
+                console.error('[AgentSidebar] multiAgentHandlers.loadChatListForAgent is not available');
             }
         }, 100);  // 100ms delay to ensure DOM is ready
 
@@ -436,14 +435,14 @@ const AgentSidebar = {
             detail: { agentId }
         }));
 
-        console.log('[AgentSidebar] Agent切换完成');
+        console.log('[AgentSidebar] Agent switch complete');
     },
 
     /**
      * Handle New Chat
      */
     handleNewChat(agentId) {
-        console.log('[AgentSidebar] 处理New Chat for agent:', agentId);
+        console.log('[AgentSidebar] Handling New Chat for agent:', agentId);
 
         // Dispatch global event
         window.dispatchEvent(new CustomEvent('agent-new-chat', {
@@ -455,7 +454,7 @@ const AgentSidebar = {
      * Handle Settings
      */
     async handleSettings(agentId) {
-        console.log('[AgentSidebar] 处理Settings for agent:', agentId);
+        console.log('[AgentSidebar] Handling Settings for agent:', agentId);
 
         try {
             // Load agent details
@@ -467,13 +466,13 @@ const AgentSidebar = {
                 if (typeof AgentSettingsDialog !== 'undefined') {
                     AgentSettingsDialog.show(result.data);
                 } else {
-                    console.error('[AgentSidebar] AgentSettingsDialog未定义');
+                    console.error('[AgentSidebar] AgentSettingsDialog is not defined');
                 }
             } else {
-                console.error('[AgentSidebar] 加载Agent详情失败:', result);
+                console.error('[AgentSidebar] Failed to load agent details:', result);
             }
         } catch (error) {
-            console.error('[AgentSidebar] 加载Agent详情失败:', error);
+            console.error('[AgentSidebar] Failed to load agent details:', error);
         }
     },
 
@@ -482,7 +481,7 @@ const AgentSidebar = {
      */
     async navigateToManagementPage(page) {
         try {
-            console.log('[AgentSidebar] 导航到管理页面:', page);
+            console.log('[AgentSidebar] Navigating to management page:', page);
 
             if (page === 'agent-management') {
                 await this.showAgentManageDialog();
@@ -493,7 +492,7 @@ const AgentSidebar = {
             const module = await import('./index.js');
             const { ModelManagementPage, RoleManagementPage } = module.default;
 
-            console.log('[AgentSidebar] 已导入管理页面模块');
+            console.log('[AgentSidebar] Management modules imported');
 
             if (page === 'model-management' && ModelManagementPage) {
                 await ModelManagementPage.init();
@@ -551,11 +550,13 @@ const AgentSidebar = {
     },
 
     renderAgentManageItems(agents) {
-        if (!agents || agents.length === 0) {
+        const visibleAgents = (agents || []).filter(a => a && a.is_active !== false);
+
+        if (!visibleAgents || visibleAgents.length === 0) {
             return '<div class="web-empty-message">No agents available</div>';
         }
 
-        return agents.map((agent, index) => {
+        return visibleAgents.map((agent, index) => {
             const name = (agent.name || 'Unnamed Agent');
             const description = (agent.description || '');
             const activeText = agent.is_active === false ? 'Inactive' : 'Active';
@@ -576,6 +577,15 @@ const AgentSidebar = {
                     </div>
                     <div class="web-manage-item-actions">
                         <div style="font-size:12px; color:#666; padding:0 6px;">${activeText}</div>
+                        <button type="button" class="web-manage-item-btn web-manage-item-btn-delete" data-action="delete-agent" data-id="${agent.id}" title="Delete">
+                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18"/>
+                                <path d="M8 6V4h8v2"/>
+                                <path d="M19 6l-1 14H6L5 6"/>
+                                <path d="M10 11v6"/>
+                                <path d="M14 11v6"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
             `;
@@ -598,6 +608,87 @@ const AgentSidebar = {
 
             if (button.id === 'agentAddBtn') {
                 await this.showAddAgentDialog();
+                return;
+            }
+
+            if (action === 'delete-agent') {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const agentId = parseInt(button.dataset.id);
+                if (!agentId) return;
+
+                const agents = await this.fetchAllAgentsForManage();
+                const agent = (agents || []).find(a => parseInt(a.id) === agentId);
+                const agentName = agent && agent.name ? `"${agent.name}"` : 'this agent';
+
+                const confirmed = await (async () => {
+                    try {
+                        if (window.Toast && typeof window.Toast.confirm === 'function') {
+                            return await window.Toast.confirm(`Delete ${agentName}?`, {
+                                title: 'Delete Agent',
+                                confirmText: 'Delete',
+                                cancelText: 'Cancel',
+                                type: 'warning'
+                            });
+                        }
+
+                        if (window.Modal && typeof window.Modal.show === 'function') {
+                            return await new Promise((resolve) => {
+                                window.Modal.show({
+                                    title: 'Delete Agent',
+                                    content: `<p>Delete ${agentName}?</p>`,
+                                    confirmText: 'Delete',
+                                    cancelText: 'Cancel',
+                                    onConfirm: () => {
+                                        resolve(true);
+                                        return true;
+                                    },
+                                    onCancel: () => {
+                                        resolve(false);
+                                        return true;
+                                    }
+                                });
+                            });
+                        }
+                    } catch (err) {
+                        console.error('Failed to show delete agent confirmation dialog:', err);
+                    }
+                    return false;
+                })();
+
+                if (!confirmed) return;
+
+                try {
+                    const resp = await fetch(this.resolve(`/api/agent/${agentId}`), {
+                        method: 'DELETE'
+                    });
+
+                    if (!resp.ok) {
+                        const text = await resp.text();
+                        throw new Error(text || `Delete failed: ${resp.status}`);
+                    }
+
+                    const payload = await resp.json().catch(() => ({}));
+                    if (payload && payload.success === false) {
+                        throw new Error(payload.detail || payload.error || 'Delete failed');
+                    }
+
+                    if (window.Toast && typeof window.Toast.success === 'function') {
+                        window.Toast.success('Agent deleted successfully');
+                    }
+
+                    const nextAgents = (await this.fetchAllAgentsForManage()).filter(a => a && a.is_active !== false);
+                    const list = document.getElementById('agentManageList');
+                    if (list) {
+                        list.innerHTML = this.renderAgentManageItems(nextAgents);
+                    }
+                } catch (err) {
+                    console.error('[AgentSidebar] Failed to delete agent:', err);
+                    if (window.Toast && typeof window.Toast.error === 'function') {
+                        window.Toast.error('Delete failed: ' + (err.message || String(err)));
+                    }
+                }
             }
         });
 
@@ -804,7 +895,7 @@ const AgentSidebar = {
 
             this.closeAddAgentDialog();
 
-            const agents = await this.fetchAllAgentsForManage();
+            const agents = (await this.fetchAllAgentsForManage()).filter(a => a && a.is_active !== false);
             const list = document.getElementById('agentManageList');
             if (list) {
                 list.innerHTML = this.renderAgentManageItems(agents);
@@ -820,14 +911,14 @@ const AgentSidebar = {
      * Used to refresh the sidebar after agent updates
      */
     async reload() {
-        console.log('[AgentSidebar] 开始重新加载...');
+        console.log('[AgentSidebar] Reloading...');
 
         // 1. Reload agent list from API
         const agents = await this.loadAgentsFromAPI();
-        console.log('[AgentSidebar] 重新加载的agents:', agents);
+        console.log('[AgentSidebar] Reloaded agents:', agents);
 
         if (agents.length === 0) {
-            console.warn('[AgentSidebar] 没有可用的Agent');
+            console.warn('[AgentSidebar] No available agents');
             this.renderEmptyState();
             return;
         }
@@ -847,14 +938,14 @@ const AgentSidebar = {
 
         // 5. Restore previously expanded agent; if missing, expand the first
         if (currentAgentId && agents.find(a => a.id === currentAgentId)) {
-            console.log('[AgentSidebar] 恢复之前选中的agent:', currentAgentId);
+            console.log('[AgentSidebar] Restoring previously selected agent:', currentAgentId);
             this.switchAgent(currentAgentId);
         } else if (agents.length > 0) {
-            console.log('[AgentSidebar] 选择第一个agent');
+            console.log('[AgentSidebar] Selecting the first agent');
             this.switchAgent(agents[0].id);
         }
 
-        console.log('[AgentSidebar] 重新加载完成');
+        console.log('[AgentSidebar] Reload complete');
     }
 };
 

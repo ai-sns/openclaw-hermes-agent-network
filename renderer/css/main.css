@@ -1,26 +1,26 @@
 /* AI-SNS Modern Design System */
-/* 现代化设计系统 - 2024 */
+/* Modern design system - 2024 */
 
 /* ========== CSS Variables ========== */
 :root {
-    /* 主色调 - 渐变紫蓝 */
+    /* Primary color - gradient purple/blue */
     --color-primary: #4F46E5;
     --color-primary-light: #6366F1;
     --color-primary-dark: #4338CA;
     --color-primary-hover: #5B52E8;
     --color-primary-bg: rgba(79, 70, 229, 0.08);
 
-    /* 次要色 */
+    /* Secondary colors */
     --color-secondary: #7C3AED;
     --color-accent: #06B6D4;
 
-    /* 语义色 */
+    /* Semantic colors */
     --color-success: #10B981;
     --color-warning: #F59E0B;
     --color-danger: #EF4444;
     --color-info: #3B82F6;
 
-    /* 灰度系统 */
+    /* Grayscale system */
     --gray-50: #F9FAFB;
     --gray-100: #F3F4F6;
     --gray-200: #E5E7EB;
@@ -32,7 +32,7 @@
     --gray-800: #1F2937;
     --gray-900: #111827;
 
-    /* 文本颜色 */
+    /* Text colors */
     --text-primary: #111827;
     --text-secondary: #4B5563;
     --text-tertiary: #6B7280;
@@ -40,19 +40,19 @@
     --text-inverse: #FFFFFF;
     --text-link: #4F46E5;
 
-    /* 背景色 */
+    /* Background colors */
     --bg-body: #F3F4F6;
     --bg-content: #FFFFFF;
     --bg-sidebar: #FFFFFF;
     --bg-hover: rgba(0, 0, 0, 0.04);
     --bg-active: rgba(79, 70, 229, 0.08);
 
-    /* 边框 */
+    /* Borders */
     --border-color: #E5E7EB;
     --border-light: #F3F4F6;
     --border-focus: #4F46E5;
 
-    /* 阴影 */
+    /* Shadows */
     --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -60,7 +60,7 @@
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
     --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.06);
 
-    /* 圆角 */
+    /* Border radius */
     --radius-xs: 4px;
     --radius-sm: 6px;
     --radius-md: 8px;
@@ -69,7 +69,7 @@
     --radius-2xl: 24px;
     --radius-full: 9999px;
 
-    /* 间距 */
+    /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
@@ -78,11 +78,11 @@
     --spacing-2xl: 32px;
     --spacing-3xl: 48px;
 
-    /* 字体 */
+    /* Fonts */
     --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Monaco, Consolas, monospace;
 
-    /* 字号 */
+    /* Font sizes */
     --font-size-xs: 11px;
     --font-size-sm: 12px;
     --font-size-base: 13px;
@@ -93,17 +93,17 @@
     --font-size-3xl: 24px;
     --font-size-4xl: 30px;
 
-    /* 行高 */
+    /* Line heights */
     --line-height-tight: 1.25;
     --line-height-normal: 1.5;
     --line-height-relaxed: 1.75;
 
-    /* 过渡 */
+    /* Transitions */
     --transition-fast: 0.1s ease;
     --transition-normal: 0.2s ease;
     --transition-slow: 0.3s ease;
 
-    /* 布局尺寸 */
+    /* Layout sizes */
     --titlebar-height: 38px;
     --icon-nav-width: 68px;
     --sidebar-width: 280px;
@@ -315,7 +315,7 @@ img {
     transform: scale(0.95);
 }
 
-/* 主题切换按钮 - 亮色时显示月亮(切换到暗色)，暗色时显示太阳(切换到亮色) */
+/* Theme toggle button - show moon in light theme (switch to dark), sun in dark theme (switch to light) */
 .theme-toggle-btn .icon-sun {
     display: none;
 }
@@ -450,7 +450,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     overflow: hidden;
 }
 
-/* ========== Sidebar Resizer (现代化侧边栏控制) ========== */
+/* ========== Sidebar Resizer (modern sidebar control) ========== */
 .sidebar-resizer {
     position: relative;
     width: 8px;
@@ -462,7 +462,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     justify-content: center;
 }
 
-/* 拖拽把手区域 */
+/* Drag handle area */
 .resizer-handle {
     position: absolute;
     top: 0;
@@ -474,7 +474,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     justify-content: center;
 }
 
-/* 分隔线 */
+/* Divider line */
 .resizer-line {
     width: 1px;
     height: 100%;
@@ -482,7 +482,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     transition: all var(--transition-normal);
 }
 
-/* 悬浮时分隔线变粗变色 */
+/* Thicken and recolor divider line on hover */
 .sidebar-resizer:hover .resizer-line,
 .sidebar-resizer.resizing .resizer-line {
     width: 3px;
@@ -490,7 +490,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     border-radius: 2px;
 }
 
-/* 折叠按钮 - 默认隐藏 */
+/* Collapse button - hidden by default */
 .sidebar-collapse-btn {
     position: absolute;
     left: 50%;
@@ -512,7 +512,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     box-shadow: var(--shadow-md);
 }
 
-/* 悬浮时显示折叠按钮 */
+/* Show collapse button on hover */
 .sidebar-resizer:hover .sidebar-collapse-btn,
 .secondary-sidebar:hover + .sidebar-resizer .sidebar-collapse-btn {
     opacity: 1;
@@ -529,7 +529,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     transition: transform var(--transition-normal);
 }
 
-/* 折叠状态 */
+/* Collapsed state */
 .sidebar-resizer.collapsed {
     width: 20px;
     cursor: pointer;
@@ -556,7 +556,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     transform: translate(-50%, -50%) scale(1.15);
 }
 
-/* 拖拽时的视觉反馈 */
+/* Visual feedback while dragging */
 .sidebar-resizer.resizing {
     background: rgba(79, 70, 229, 0.05);
 }
@@ -565,7 +565,7 @@ body.theme-dark .theme-toggle-btn .icon-moon {
     opacity: 0;
 }
 
-/* 展开提示条 - 折叠状态下悬浮显示 */
+/* Expand hint bar - shown on hover when collapsed */
 .sidebar-resizer.collapsed::before {
     content: '';
     position: absolute;

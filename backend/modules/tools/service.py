@@ -6,8 +6,14 @@ import logging
 from typing import List, Optional
 from datetime import datetime
 import uuid
+import json
+import zipfile
+import shutil
+from pathlib import Path
 
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
+from fastapi import UploadFile
 
 from ...database.models.system import PluginMng, FunctionMng, McpMng, SkillMng
 from .schemas import (
@@ -55,11 +61,16 @@ class ToolsService:
         ).first()
         return PluginResponse.model_validate(db_plugin) if db_plugin else None
 
-    def get_all_plugins(self) -> List[PluginResponse]:
+    def get_all_plugins(self, used_in_sns: Optional[bool] = None) -> List[PluginResponse]:
         """Get all plugins"""
-        db_plugins = self.db.query(PluginMng).filter(
+        q = self.db.query(PluginMng).filter(
             PluginMng.is_delete == False
-        ).order_by(PluginMng.create_time.desc()).all()
+        )
+
+        if used_in_sns is not None:
+            q = q.filter(PluginMng.used_in_sns == used_in_sns)
+
+        db_plugins = q.order_by(PluginMng.create_time.desc()).all()
         return [PluginResponse.model_validate(p) for p in db_plugins]
 
     def update_plugin(self, plugin_id: str, plugin: PluginUpdate) -> Optional[PluginResponse]:
@@ -98,11 +109,130 @@ class ToolsService:
 
             db_plugin.is_delete = True
             self.db.commit()
+
+            # Best-effort cleanup for extracted renderer plugins.
+            # This keeps DB soft-delete semantics, but also frees disk space.
+            try:
+                if (db_plugin.plugin_type or '').lower() == 'renderer' and db_plugin.plugin_directory:
+                    uploads_root = (Path('uploads') / 'plugins').resolve()
+                    plugin_dir = Path(str(db_plugin.plugin_directory)).resolve()
+
+                    # Only allow deletion of uploads/plugins/<plugin_id> to avoid unsafe deletes.
+                    if plugin_dir.parent == uploads_root and plugin_dir.name == str(plugin_id):
+                        shutil.rmtree(plugin_dir, ignore_errors=True)
+            except Exception as e:
+                logger.warning(f"Renderer plugin directory cleanup failed for {plugin_id}: {e}")
+
             return True
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error deleting plugin: {e}")
             raise
+
+    def import_renderer_plugin_zip(self, file: UploadFile, used_in_sns: bool = True) -> PluginResponse:
+        """Import a renderer plugin from a zip upload and register it in DB"""
+        filename = (file.filename or '').lower()
+        if not filename.endswith('.zip'):
+            raise HTTPException(status_code=400, detail='Only .zip files are supported')
+
+        uploads_root = Path('uploads') / 'plugins'
+        uploads_root.mkdir(parents=True, exist_ok=True)
+
+        raw_bytes = file.file.read()
+        if not raw_bytes:
+            raise HTTPException(status_code=400, detail='Empty file')
+
+        try:
+            tmp_dir = uploads_root / f"_tmp_{datetime.now().strftime('%Y%m%d%H%M%S')}_{str(uuid.uuid4().int)[:6]}"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            tmp_zip = tmp_dir / 'plugin.zip'
+            tmp_zip.write_bytes(raw_bytes)
+
+            with zipfile.ZipFile(tmp_zip, 'r') as zf:
+                names = zf.namelist()
+                manifest_candidates = [n for n in names if n.endswith('plugin.json') and not n.endswith('/plugin.json/')]
+                if not manifest_candidates:
+                    raise HTTPException(status_code=400, detail='plugin.json not found in zip')
+
+                manifest_path = sorted(manifest_candidates, key=len)[0]
+                manifest_raw = zf.read(manifest_path).decode('utf-8')
+                manifest = json.loads(manifest_raw)
+
+                plugin_name = str(manifest.get('name') or '').strip()
+                plugin_version = str(manifest.get('version') or '1.0.0').strip()
+                plugin_desc = str(manifest.get('description') or '').strip()
+                plugin_entry = str(manifest.get('entry') or '').strip()
+                plugin_alias = str(manifest.get('id') or '').strip()
+
+                if not plugin_name:
+                    raise HTTPException(status_code=400, detail='plugin.json: name is required')
+                if not plugin_entry:
+                    raise HTTPException(status_code=400, detail='plugin.json: entry is required')
+
+                plugin_id = self._generate_id('PL')
+                target_dir = uploads_root / plugin_id
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+                target_dir_resolved = target_dir.resolve()
+                for member in zf.infolist():
+                    member_name = member.filename
+                    if not member_name or member_name.endswith('/'):
+                        continue
+
+                    if member_name.startswith('/') or member_name.startswith('\\'):
+                        raise HTTPException(status_code=400, detail='Zip contains absolute paths')
+
+                    dest = (target_dir / member_name).resolve()
+                    if target_dir_resolved not in dest.parents and dest != target_dir_resolved:
+                        raise HTTPException(status_code=400, detail='Zip contains unsafe paths')
+
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(member, 'r') as src, open(dest, 'wb') as out:
+                        shutil.copyfileobj(src, out)
+
+                manifest_dir = Path(manifest_path).parent
+                entry_rel = (manifest_dir / plugin_entry).as_posix()
+                entry_rel = entry_rel.lstrip('./')
+
+                if entry_rel.startswith('/') or entry_rel.startswith('\\') or '..' in Path(entry_rel).parts:
+                    raise HTTPException(status_code=400, detail='plugin.json: entry contains unsafe path')
+
+                entry_fs = target_dir / entry_rel
+                if not entry_fs.exists():
+                    raise HTTPException(status_code=400, detail=f'Entry file not found after extract: {entry_rel}')
+
+                entry_url = f"/uploads/plugins/{plugin_id}/{entry_rel}"
+
+                db_plugin = PluginMng(
+                    plugin_id=plugin_id,
+                    name=plugin_name,
+                    version=plugin_version,
+                    alias_name=plugin_alias or None,
+                    description=plugin_desc or None,
+                    filename=entry_url,
+                    plugin_directory=str(target_dir).replace('\\', '/'),
+                    plugin_type='renderer',
+                    confirm_needed=True,
+                    used_in_sns=bool(used_in_sns)
+                )
+
+                self.db.add(db_plugin)
+                self.db.commit()
+                self.db.refresh(db_plugin)
+                return PluginResponse.model_validate(db_plugin)
+        except HTTPException:
+            self.db.rollback()
+            raise
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error importing renderer plugin zip: {e}")
+            raise
+        finally:
+            try:
+                if 'tmp_dir' in locals() and tmp_dir.exists():
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
 
     # ==================== MCP Methods ====================
 

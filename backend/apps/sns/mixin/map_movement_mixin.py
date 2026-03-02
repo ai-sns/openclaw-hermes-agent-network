@@ -142,7 +142,7 @@ class MapMovementMixin:
         command = ("move_to_a_place", str(new_pos[0]), str(new_pos[1]))
         self.send_msg_to_map(command)
 
-        result = f"你移动了500米。"
+        result = f"You moved 500 meters."
         self.update_after_moving()
         return result
 
@@ -176,7 +176,7 @@ class MapMovementMixin:
                 self.aichatcfg_record.last_position = self.aichatcfg_record.current_position
                 self.aichatcfg_record.current_position = [current_position.longitude, current_position.latitude]
                 self.target_position = None
-                return f"您已在目的地{target_place}。"
+                return f"You are already at the destination {target_place}."
 
             # Case 2: Remaining distance less than one step
             if actual_distance <= move_distance:
@@ -186,7 +186,7 @@ class MapMovementMixin:
                 command = ("move_to_a_place", str(new_pos[0]), str(new_pos[1]))
                 self.send_msg_to_map(command)
                 self.target_position = None
-                return f"您已到达目的地{target_place}（剩余 0 公里）。"
+                return f"You have arrived at the destination {target_place} (remaining 0 km)."
 
                 # Case 3: Need to compute bearing
 
@@ -222,11 +222,11 @@ class MapMovementMixin:
 
             self.update_after_moving()
 
-            return f"你向目标地点{target_place}移动了{move_distance}米。距离目标还剩 {remaining_distance:.2f} 公里。"
+            return f"You moved {move_distance} meters toward {target_place}. Remaining distance: {remaining_distance:.2f} km."
 
 
         except Exception as e:
-            return f"计算移动坐标时出错：{str(e)}"
+            return f"Error while calculating movement coordinates: {str(e)}"
 
     def move_by_route(self):
         target_place = getattr(self, "route_target_place", "")
@@ -243,7 +243,7 @@ class MapMovementMixin:
 
         command = ("route_move_action", "", "")
         self.send_msg_to_map(command)
-        return f"你向目标地点{target_place}移动了{moved_distance}米。距离目标还剩 {remaining_distance:.2f} 公里。"
+        return f"You moved {moved_distance} meters toward {target_place}. Remaining distance: {remaining_distance:.2f} km."
 
     def update_after_moving(self):
         lng = self.aichatcfg_record.current_position[0]

@@ -307,16 +307,16 @@ async def stream_chat_info(request: Request):
     """
     base_url = str(request.base_url).rstrip('/')
     return {
-        "message": "这是一个 POST 端点，用于流式聊天",
+        "message": "This is a POST endpoint for streaming chat",
         "method": "POST",
         "url": f"{base_url}/api/chat/stream",
         "content_type": "application/json",
         "accept": "text/event-stream",
         "request_body": {
             "messages": [
-                {"role": "user", "content": "你好"}
+                {"role": "user", "content": "Hello"}
             ],
-            "model": "gpt-4o-mini (可选)",
+            "model": "gpt-4o-mini (optional)",
             "temperature": 1.0,
             "max_tokens": 4096
         },
@@ -324,9 +324,9 @@ async def stream_chat_info(request: Request):
             f'curl -N -X POST {base_url}/api/chat/stream '
             '-H "Content-Type: application/json" '
             '-H "Accept: text/event-stream" '
-            '-d \'{"messages": [{"role": "user", "content": "你好"}]}\''
+            '-d \'{"messages": [{"role": "user", "content": "Hello"}]}\''
         ),
-        "test_script": "运行 python test_stream_api.py 进行测试"
+        "test_script": "Run python test_stream_api.py to test"
     }
 
 
@@ -357,7 +357,7 @@ async def stream_chat(
                     yield {
                         "event": "error",
                         "data": json.dumps({
-                            "error": f"模型配置 ID {request.model_config_id} 不存在"
+                            "error": f"Model config ID {request.model_config_id} does not exist"
                         })
                     }
                 return EventSourceResponse(error_generator())
@@ -383,7 +383,7 @@ async def stream_chat(
                 yield {
                     "event": "error",
                     "data": json.dumps({
-                        "error": f"加载模型配置失败: {error_msg}"
+                        "error": f"Failed to load model config: {error_msg}"
                     })
                 }
             return EventSourceResponse(error_generator())
@@ -397,7 +397,7 @@ async def stream_chat(
                 yield {
                     "event": "error",
                     "data": json.dumps({
-                        "error": "API key 未配置。请在 ai_config.yaml 中配置 api_key"
+                        "error": "API key is not configured. Please set api_key in ai_config.yaml"
                     })
                 }
             return EventSourceResponse(error_generator())
@@ -436,7 +436,7 @@ async def config_status(service: ChatService = Depends(get_chat_service)):
         "has_api_key": has_api_key,
         "api_base": config.get('api_base'),
         "model": config.get('model'),
-        "api_key_preview": config.get('api_key', '')[:10] + "..." if has_api_key else "未配置",
+        "api_key_preview": config.get('api_key', '')[:10] + "..." if has_api_key else "Not configured",
         "config_file_exists": Path('ai_config.yaml').exists(),
-        "recommendation": "配置正常" if has_api_key else "请在 ai_config.yaml 中配置 api_key"
+        "recommendation": "Configuration OK" if has_api_key else "Please set api_key in ai_config.yaml"
     }

@@ -295,8 +295,8 @@ class SNSService:
                     "running": True
                 }
 
-            # Import the AI social engine adapter
-            from backend.apps.sns.ai_social_engine_adapter import AISocialEngine
+            # Import the AI social engine
+            from backend.apps.sns.ai_social_engine import AISocialEngine
 
             # Create engine instance if not exists
             if _social_engine_instance is None:

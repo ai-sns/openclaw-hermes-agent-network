@@ -21,7 +21,7 @@ const agentApi = {
             const response = await fetch(this.resolve('/api/agent'));
             return await response.json();
         } catch (error) {
-            console.error('获取Agent列表失败:', error);
+            console.error('Failed to get agent list:', error);
             return { success: false, data: [] };
         }
     },
@@ -34,7 +34,7 @@ const agentApi = {
             const response = await fetch(this.resolve(`/api/agent/${agentId}`));
             return await response.json();
         } catch (error) {
-            console.error('获取 Agent 详情失败:', error);
+            console.error('Failed to get agent details:', error);
             throw error;
         }
     },
@@ -119,7 +119,7 @@ const agentApi = {
 
             return { success: true };
         } catch (error) {
-            console.error('Agent流式问答(含附件)失败:', error);
+            console.error('Agent streaming chat (with attachments) failed:', error);
             if (callbacks.onError) {
                 callbacks.onError(error.message);
             }
@@ -135,7 +135,7 @@ const agentApi = {
             const response = await fetch(this.resolve(`/api/agent/${agentId}/info`));
             return await response.json();
         } catch (error) {
-            console.error('获取Agent实例信息失败:', error);
+            console.error('Failed to get agent instance info:', error);
             throw error;
         }
     },
@@ -157,7 +157,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('Agent问答失败:', error);
+            console.error('Agent chat failed:', error);
             throw error;
         }
     },
@@ -239,7 +239,7 @@ const agentApi = {
 
             return { success: true };
         } catch (error) {
-            console.error('Agent流式问答失败:', error);
+            console.error('Agent streaming chat failed:', error);
             if (callbacks.onError) {
                 callbacks.onError(error.message);
             }
@@ -264,7 +264,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('Agent问答失败:', error);
+            console.error('Agent chat failed:', error);
             throw error;
         }
     },
@@ -283,7 +283,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('清除记忆失败:', error);
+            console.error('Failed to clear memory:', error);
             throw error;
         }
     },
@@ -300,7 +300,7 @@ const agentApi = {
             const response = await fetch(this.resolve(path));
             return await response.json();
         } catch (error) {
-            console.error('获取记忆失败:', error);
+            console.error('Failed to get memory:', error);
             throw error;
         }
     },
@@ -315,7 +315,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('重新加载Agent失败:', error);
+            console.error('Failed to reload agent:', error);
             throw error;
         }
     },
@@ -334,7 +334,7 @@ const agentApi = {
                 data: { id: Date.now(), ...agentData }
             };
         } catch (error) {
-            console.error('创建Agent失败:', error);
+            console.error('Failed to create agent:', error);
             throw error;
         }
     },
@@ -347,7 +347,7 @@ const agentApi = {
             // Call the newer conversations list API
             return await this.getConversations();
         } catch (error) {
-            console.error('获取聊天历史失败:', error);
+            console.error('Failed to get chat history:', error);
             return { success: false, data: [] };
         }
     },
@@ -365,7 +365,7 @@ const agentApi = {
             const result = await response.json();
             return result;
         } catch (error) {
-            console.error('获取对话列表失败:', error);
+            console.error('Failed to get conversation list:', error);
             return { success: false, data: [] };
         }
     },
@@ -379,7 +379,7 @@ const agentApi = {
             const result = await response.json();
             return result;
         } catch (error) {
-            console.error('获取对话消息失败:', error);
+            console.error('Failed to get conversation messages:', error);
             return { success: false, data: [] };
         }
     },
@@ -441,7 +441,7 @@ const agentApi = {
 
                 // Split by line
                 const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // 保留不完整的行
+                buffer = lines.pop() || ''; // Keep the incomplete line
 
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
@@ -493,7 +493,7 @@ const agentApi = {
 
             return { success: true };
         } catch (error) {
-            console.error('发送消息失败:', error);
+            console.error('Failed to send message:', error);
 
             // Notify error
             if (callbacks.onError) {
@@ -517,9 +517,9 @@ const agentApi = {
                 return { success: true };
             }
             // If electronAPI is not available, fail
-            throw new Error('流式聊天API不可用');
+            throw new Error('Streaming chat API is not available');
         } catch (error) {
-            console.error('发送消息失败:', error);
+            console.error('Failed to send message:', error);
             throw error;
         }
     },
@@ -537,11 +537,11 @@ const agentApi = {
                 success: true,
                 data: {
                     role: 'assistant',
-                    content: '这是一个模拟响应。'
+                    content: 'This is a mock response.'
                 }
             };
         } catch (error) {
-            console.error('发送消息失败:', error);
+            console.error('Failed to send message:', error);
             throw error;
         }
     },
@@ -556,7 +556,7 @@ const agentApi = {
             }
             return { success: true };
         } catch (error) {
-            console.error('删除聊天失败:', error);
+            console.error('Failed to delete chat:', error);
             throw error;
         }
     },
@@ -571,7 +571,7 @@ const agentApi = {
             }
             return { success: true };
         } catch (error) {
-            console.error('更新聊天标题失败:', error);
+            console.error('Failed to update chat title:', error);
             throw error;
         }
     },
@@ -586,7 +586,7 @@ const agentApi = {
             }
             return { success: true };
         } catch (error) {
-            console.error('收藏操作失败:', error);
+            console.error('Favorite operation failed:', error);
             throw error;
         }
     },
@@ -603,7 +603,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('创建钱包失败:', error);
+            console.error('Failed to create wallet:', error);
             throw error;
         }
     },
@@ -620,7 +620,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('导入钱包失败:', error);
+            console.error('Failed to import wallet:', error);
             throw error;
         }
     },
@@ -633,7 +633,7 @@ const agentApi = {
             const response = await fetch(this.resolve('/api/wallet/list'));
             return await response.json();
         } catch (error) {
-            console.error('获取钱包列表失败:', error);
+            console.error('Failed to get wallet list:', error);
             throw error;
         }
     },
@@ -646,7 +646,7 @@ const agentApi = {
             const response = await fetch(this.resolve(`/api/wallet/${encodeURIComponent(address)}`));
             return await response.json();
         } catch (error) {
-            console.error('获取钱包信息失败:', error);
+            console.error('Failed to get wallet info:', error);
             throw error;
         }
     },
@@ -663,7 +663,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('更新 Agent 失败:', error);
+            console.error('Failed to update agent:', error);
             throw error;
         }
     },
@@ -678,7 +678,7 @@ const agentApi = {
             const response = await fetch(this.resolve(`/api/agent/${encodeURIComponent(agentId)}/tools`));
             return await response.json();
         } catch (error) {
-            console.error('获取Agent工具失败:', error);
+            console.error('Failed to get agent tools:', error);
             return { success: false, data: { agent_id: agentId, tools: [] } };
         }
     },
@@ -695,7 +695,7 @@ const agentApi = {
             });
             return await response.json();
         } catch (error) {
-            console.error('更新Agent工具失败:', error);
+            console.error('Failed to update agent tools:', error);
             throw error;
         }
     },
@@ -708,7 +708,7 @@ const agentApi = {
             const response = await fetch(this.resolve(`/api/agent/${encodeURIComponent(agentId)}/available-tools`));
             return await response.json();
         } catch (error) {
-            console.error('获取可用工具失败:', error);
+            console.error('Failed to get available tools:', error);
             return { success: false, data: {} };
         }
     },

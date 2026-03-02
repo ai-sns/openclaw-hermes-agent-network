@@ -172,25 +172,25 @@ const PageRenderers = {
                             </div>
                         </div>
                         <div class="toolbar-right">
-                            <button class="toolbar-btn" title="刷新">
+                            <button class="toolbar-btn" title="Refresh">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M23 4v6h-6M1 20v-6h6"/>
                                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
                                 </svg>
                             </button>
-                            <button class="toolbar-btn" title="全屏">
+                            <button class="toolbar-btn" title="Fullscreen">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
                                 </svg>
                             </button>
-                            <button class="toolbar-btn" title="搜索">
+                            <button class="toolbar-btn" title="Search">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="11" cy="11" r="8"/>
                                     <path d="m21 21-4.35-4.35"/>
                                 </svg>
                             </button>
                             <div class="toolbar-divider"></div>
-                            <button class="toolbar-btn toolbar-collapse-btn" id="toolbarCollapseBtn" title="收起工具栏">
+                            <button class="toolbar-btn toolbar-collapse-btn" id="toolbarCollapseBtn" title="Collapse toolbar">
                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="18 15 12 9 6 15"/>
                                 </svg>
@@ -198,7 +198,7 @@ const PageRenderers = {
                         </div>
                     </div>
                     <!-- Expand button shown after the toolbar is collapsed -->
-                    <button class="toolbar-expand-btn" id="toolbarExpandBtn" title="展开工具栏">
+                    <button class="toolbar-expand-btn" id="toolbarExpandBtn" title="Expand toolbar">
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
@@ -212,7 +212,7 @@ const PageRenderers = {
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                                 </svg>
                             </div>
-                            <p class="map-placeholder-text">正在加载地图...</p>
+                            <p class="map-placeholder-text">Loading map...</p>
                             <div class="map-placeholder-loader">
                                 <div class="loader-dot"></div>
                                 <div class="loader-dot"></div>
@@ -225,7 +225,7 @@ const PageRenderers = {
                     <div class="map-settings-panel" id="mapSettingsPanel">
                         <div class="settings-panel-header">
                             <span class="settings-panel-title">Settings</span>
-                            <button class="settings-collapse-btn" id="settingsCollapseBtn" title="收起面板">
+                            <button class="settings-collapse-btn" id="settingsCollapseBtn" title="Collapse panel">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                                     <polyline points="9 18 15 12 9 6"/>
                                 </svg>
@@ -237,21 +237,21 @@ const PageRenderers = {
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                         <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/>
                                     </svg>
-                                    <span>地图</span>
+                                    <span>Map</span>
                                 </div>
                                 <div class="settings-group-items">
                                     <label class="settings-toggle-item">
-                                        <span>卫星视图</span>
+                                        <span>Satellite view</span>
                                         <input type="checkbox" class="toggle-input">
                                         <span class="toggle-slider"></span>
                                     </label>
                                     <label class="settings-toggle-item">
-                                        <span>3D 倾斜</span>
+                                        <span>3D tilt</span>
                                         <input type="checkbox" class="toggle-input">
                                         <span class="toggle-slider"></span>
                                     </label>
                                     <label class="settings-toggle-item">
-                                        <span>交通路况</span>
+                                        <span>Traffic</span>
                                         <input type="checkbox" class="toggle-input">
                                         <span class="toggle-slider"></span>
                                     </label>
@@ -262,23 +262,23 @@ const PageRenderers = {
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                         <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
                                     </svg>
-                                    <span>系统</span>
+                                    <span>System</span>
                                 </div>
                                 <div class="settings-group-items">
                                     <div class="settings-click-item" data-action="user-config">
-                                        <span>用户配置</span>
+                                        <span>User config</span>
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                                     </div>
                                     <div class="settings-click-item" data-action="role-setting">
-                                        <span>角色职业</span>
+                                        <span>Role & profession</span>
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                                     </div>
                                     <div class="settings-click-item" data-action="advanced">
-                                        <span>高级控制</span>
+                                        <span>Advanced controls</span>
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                                     </div>
                                     <div class="settings-click-item" data-action="task-goal">
-                                        <span>任务目标</span>
+                                        <span>Task goals</span>
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                                     </div>
                                 </div>
@@ -288,30 +288,30 @@ const PageRenderers = {
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                         <path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
                                     </svg>
-                                    <span>移动模式</span>
+                                    <span>Movement mode</span>
                                 </div>
                                 <div class="settings-group-items">
                                     <label class="settings-radio-item">
                                         <input type="radio" name="moveMode" value="route">
                                         <span class="radio-mark"></span>
-                                        <span>指定路线</span>
+                                        <span>Specified route</span>
                                     </label>
                                     <label class="settings-radio-item">
                                         <input type="radio" name="moveMode" value="free" checked>
                                         <span class="radio-mark"></span>
-                                        <span>自由移动</span>
+                                        <span>Free movement</span>
                                     </label>
                                     <label class="settings-radio-item">
                                         <input type="radio" name="moveMode" value="follow">
                                         <span class="radio-mark"></span>
-                                        <span>跟随模式</span>
+                                        <span>Follow mode</span>
                                     </label>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <!-- Expand button shown after the settings panel is collapsed -->
-                    <button class="settings-expand-btn" id="settingsExpandBtn" title="展开设置">
+                    <button class="settings-expand-btn" id="settingsExpandBtn" title="Expand settings">
                         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                             <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58z"/>
                         </svg>
@@ -325,7 +325,7 @@ const PageRenderers = {
                                     <rect x="3" y="3" width="18" height="18" rx="2"/>
                                     <path d="M3 9h18M9 21V9"/>
                                 </svg>
-                                <span>广场</span>
+                                <span>Plaza</span>
                             </button>
                             <button class="action-btn active" data-action="community">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -333,7 +333,7 @@ const PageRenderers = {
                                     <circle cx="9" cy="7" r="4"/>
                                     <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
                                 </svg>
-                                <span>社区</span>
+                                <span>Community</span>
                             </button>
                             <button class="action-btn" data-action="ai">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -357,13 +357,13 @@ const PageRenderers = {
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                                     <polygon points="3 11 22 2 13 21 11 13 3 11"/>
                                 </svg>
-                                <span>导航</span>
+                                <span>Navigate</span>
                             </button>
                             <button class="action-btn" data-action="weather">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
                                 </svg>
-                                <span>气象</span>
+                                <span>Weather</span>
                             </button>
                             <button class="action-btn" data-action="layers">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -371,32 +371,32 @@ const PageRenderers = {
                                     <polyline points="2 17 12 22 22 17"/>
                                     <polyline points="2 12 12 17 22 12"/>
                                 </svg>
-                                <span>图层</span>
+                                <span>Layers</span>
                             </button>
                         </div>
                     </div>
 
                     <!-- Map control button group -->
                     <div class="map-controls">
-                        <button class="map-control-btn" title="放大">
+                        <button class="map-control-btn" title="Zoom in">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="12" y1="5" x2="12" y2="19"/>
                                 <line x1="5" y1="12" x2="19" y2="12"/>
                             </svg>
                         </button>
-                        <button class="map-control-btn" title="缩小">
+                        <button class="map-control-btn" title="Zoom out">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="5" y1="12" x2="19" y2="12"/>
                             </svg>
                         </button>
                         <div class="map-control-divider"></div>
-                        <button class="map-control-btn" title="我的位置">
+                        <button class="map-control-btn" title="My location">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="3"/>
                                 <path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>
                             </svg>
                         </button>
-                        <button class="map-control-btn" title="指南针">
+                        <button class="map-control-btn" title="Compass">
                             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10"/>
                                 <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
@@ -410,7 +410,7 @@ const PageRenderers = {
                     <div class="panel-resizer-handle">
                         <div class="panel-resizer-line"></div>
                     </div>
-                    <button class="panel-collapse-btn" id="snsPanelCollapseBtn" title="折叠状态面板">
+                    <button class="panel-collapse-btn" id="snsPanelCollapseBtn" title="Collapse status panel">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
                             <polyline points="9,6 15,12 9,18"/>
                         </svg>
@@ -429,7 +429,7 @@ const PageRenderers = {
                                     <div class="status-row"><span>💰 Money</span><span class="value">: 10,996.61</span></div>
                                     <div class="status-row"><span>❤️ Life</span><span class="value">: 125</span></div>
                                     <div class="status-row"><span>⚡ Energy</span><span class="value">: 150</span></div>
-                                    <div class="status-row"><span>👤 Profession</span><span class="value">: 医生 (*需要800元开办费)</span></div>
+                                    <div class="status-row"><span>👤 Profession</span><span class="value">: Doctor (*requires 800 CNY startup fee)</span></div>
                                     <div class="status-row"><span>📍 Location</span></div>
                                     <div class="status-row sub"><span>lng</span><span class="value">: 116.36383031947238</span></div>
                                     <div class="status-row sub"><span>lat</span><span class="value">: 39.76458567198844</span></div>
@@ -512,7 +512,7 @@ const PageRenderers = {
             <div class="sidebar-section">
                 <div class="sidebar-header-row">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="#1a73e8"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/></svg>
-                    <span class="sidebar-section-title">Explore the Earth-Y宝</span>
+                    <span class="sidebar-section-title">Explore the Earth - YBao</span>
                 </div>
                 <!-- User attributes panel -->
                 <div class="user-stats-panel">
@@ -585,10 +585,10 @@ const PageRenderers = {
                                 <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                             </svg>
                             <select class="role-selector" id="roleSelector">
-                                <option value="senior-dev">资深的程序员</option>
-                                <option value="assistant">通用助手</option>
-                                <option value="writer">创意写作</option>
-                                <option value="analyst">数据分析师</option>
+                                <option value="senior-dev">Senior developer</option>
+                                <option value="assistant">General assistant</option>
+                                <option value="writer">Creative writing</option>
+                                <option value="analyst">Data analyst</option>
                             </select>
                         </div>
                     </div>
@@ -614,15 +614,15 @@ const PageRenderers = {
                             <div class="welcome-tips">
                                 <div class="tip-item">
                                     <span class="tip-icon">💡</span>
-                                    <span>输入问题，按 Enter 发送</span>
+                                    <span>Type your question and press Enter to send</span>
                                 </div>
                                 <div class="tip-item">
                                     <span class="tip-icon">📝</span>
-                                    <span>支持 Markdown 格式输出</span>
+                                    <span>Supports Markdown output</span>
                                 </div>
                                 <div class="tip-item">
                                     <span class="tip-icon">🔄</span>
-                                    <span>实时流式响应</span>
+                                    <span>Real-time streaming responses</span>
                                 </div>
                             </div>
                         </div>
@@ -636,14 +636,14 @@ const PageRenderers = {
                         </div>
                         <div class="input-toolbar">
                             <div class="toolbar-buttons">
-                                <button class="toolbar-icon-btn" title="添加"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="附件"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="图片"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="文档"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="列表"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="屏幕"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="视频"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
-                                <button class="toolbar-icon-btn" title="窗口"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Add"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Attachment"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Image"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Document"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="List"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Screen"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 18c1.1 0 1.99-.9 1.99-2L22 6c0-1.1-.9-2-2-2H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2H0v2h24v-2h-4zM4 6h16v10H4V6z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Video"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg></button>
+                                <button class="toolbar-icon-btn" title="Window"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/></svg></button>
                             </div>
                             <button class="send-btn" id="sendMessageBtn">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -751,28 +751,28 @@ const PageRenderers = {
                     <!-- First row toolbar -->
                     <div class="km-toolbar-row">
                         <div class="toolbar-group">
-                            <button class="km-tool-btn" title="保存"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
-                            <button class="km-tool-btn" title="打印"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg></button>
-                            <button class="km-tool-btn" title="复制"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
+                            <button class="km-tool-btn" title="Save"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M17 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg></button>
+                            <button class="km-tool-btn" title="Print"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/></svg></button>
+                            <button class="km-tool-btn" title="Copy"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg></button>
                         </div>
                         <div class="toolbar-group">
-                            <button class="km-tool-btn" title="剪切"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg></button>
-                            <button class="km-tool-btn" title="粘贴"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg></button>
+                            <button class="km-tool-btn" title="Cut"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M9.64 7.64c.23-.5.36-1.05.36-1.64 0-2.21-1.79-4-4-4S2 3.79 2 6s1.79 4 4 4c.59 0 1.14-.13 1.64-.36L10 12l-2.36 2.36C7.14 14.13 6.59 14 6 14c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4c0-.59-.13-1.14-.36-1.64L12 14l7 7h3v-1L9.64 7.64zM6 8c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm0 12c-1.1 0-2-.89-2-2s.9-2 2-2 2 .89 2 2-.9 2-2 2zm6-7.5c-.28 0-.5-.22-.5-.5s.22-.5.5-.5.5.22.5.5-.22.5-.5.5zM19 3l-6 6 2 2 7-7V3z"/></svg></button>
+                            <button class="km-tool-btn" title="Paste"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg></button>
                         </div>
                         <div class="toolbar-group">
-                            <button class="km-tool-btn" title="撤销"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
-                            <button class="km-tool-btn" title="重做"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
+                            <button class="km-tool-btn" title="Undo"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg></button>
+                            <button class="km-tool-btn" title="Redo"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.4 10.6C16.55 8.99 14.15 8 11.5 8c-4.65 0-8.58 3.03-9.96 7.22L3.9 16c1.05-3.19 4.05-5.5 7.6-5.5 1.95 0 3.73.72 5.12 1.88L13 16h9V7l-3.6 3.6z"/></svg></button>
                         </div>
                         <div class="toolbar-group">
-                            <button class="km-tool-btn" title="搜索"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
-                            <button class="km-tool-btn" title="日期"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg></button>
-                            <button class="km-tool-btn" title="表格"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"/></svg></button>
-                            <button class="km-tool-btn" title="图片"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
-                            <button class="km-tool-btn" title="链接"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></button>
+                            <button class="km-tool-btn" title="Search"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+                            <button class="km-tool-btn" title="Date"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM9 10H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2z"/></svg></button>
+                            <button class="km-tool-btn" title="Table"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM8 20H4v-4h4v4zm0-6H4v-4h4v4zm0-6H4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4zm6 12h-4v-4h4v4zm0-6h-4v-4h4v4zm0-6h-4V4h4v4z"/></svg></button>
+                            <button class="km-tool-btn" title="Image"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></button>
+                            <button class="km-tool-btn" title="Link"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76 0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76 0 5-2.24 5-5s-2.24-5-5-5z"/></svg></button>
                         </div>
                         <div class="toolbar-group">
-                            <button class="km-tool-btn" title="无序列表"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg></button>
-                            <button class="km-tool-btn" title="有序列表"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg></button>
+                            <button class="km-tool-btn" title="Bullet list"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 10.5c-.83 0-1.5.67-1.5 1.5s.67 1.5 1.5 1.5 1.5-.67 1.5-1.5-.67-1.5-1.5-1.5zm0-6c-.83 0-1.5.67-1.5 1.5S3.17 7.5 4 7.5 5.5 6.83 5.5 6 4.83 4.5 4 4.5zm0 12c-.83 0-1.5.68-1.5 1.5s.68 1.5 1.5 1.5 1.5-.68 1.5-1.5-.67-1.5-1.5-1.5zM7 19h14v-2H7v2zm0-6h14v-2H7v2zm0-8v2h14V5H7z"/></svg></button>
+                            <button class="km-tool-btn" title="Numbered list"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg></button>
                         </div>
                     </div>
                     <!-- Second row toolbar: font and formatting -->
@@ -794,23 +794,23 @@ const PageRenderers = {
                             <option value="36">36pt</option>
                         </select>
                         <div class="toolbar-divider"></div>
-                        <button class="km-tool-btn" title="表情"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></button>
-                        <button class="km-tool-btn" title="符号"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></button>
+                        <button class="km-tool-btn" title="Emoji"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg></button>
+                        <button class="km-tool-btn" title="Symbols"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></button>
                         <div class="toolbar-divider"></div>
-                        <button class="km-tool-btn format-btn" data-format="bold" title="粗体"><strong>B</strong></button>
-                        <button class="km-tool-btn format-btn" data-format="italic" title="斜体"><em>I</em></button>
-                        <button class="km-tool-btn format-btn" data-format="underline" title="下划线"><u>U</u></button>
-                        <button class="km-tool-btn format-btn" data-format="strikethrough" title="删除线"><s>S</s></button>
-                        <button class="km-tool-btn format-btn" title="上标">X<sup>1</sup></button>
-                        <button class="km-tool-btn format-btn" title="下标">X<sub>1</sub></button>
+                        <button class="km-tool-btn format-btn" data-format="bold" title="Bold"><strong>B</strong></button>
+                        <button class="km-tool-btn format-btn" data-format="italic" title="Italic"><em>I</em></button>
+                        <button class="km-tool-btn format-btn" data-format="underline" title="Underline"><u>U</u></button>
+                        <button class="km-tool-btn format-btn" data-format="strikethrough" title="Strikethrough"><s>S</s></button>
+                        <button class="km-tool-btn format-btn" title="Superscript">X<sup>1</sup></button>
+                        <button class="km-tool-btn format-btn" title="Subscript">X<sub>1</sub></button>
                         <div class="toolbar-divider"></div>
-                        <button class="km-tool-btn" data-align="left" title="左对齐"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg></button>
-                        <button class="km-tool-btn" data-align="center" title="居中"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg></button>
-                        <button class="km-tool-btn" data-align="right" title="右对齐"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg></button>
-                        <button class="km-tool-btn" data-align="justify" title="两端对齐"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zM3 3v2h18V3H3z"/></svg></button>
+                        <button class="km-tool-btn" data-align="left" title="Align left"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M15 15H3v2h12v-2zm0-8H3v2h12V7zM3 13h18v-2H3v2zm0 8h18v-2H3v2zM3 3v2h18V3H3z"/></svg></button>
+                        <button class="km-tool-btn" data-align="center" title="Align center"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 15v2h10v-2H7zm-4 6h18v-2H3v2zm0-8h18v-2H3v2zm4-6v2h10V7H7zM3 3v2h18V3H3z"/></svg></button>
+                        <button class="km-tool-btn" data-align="right" title="Align right"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zm6-4h12v-2H9v2zm-6-4h18v-2H3v2zm6-4h12V7H9v2zM3 3v2h18V3H3z"/></svg></button>
+                        <button class="km-tool-btn" data-align="justify" title="Justify"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zM3 3v2h18V3H3z"/></svg></button>
                         <div class="toolbar-divider"></div>
-                        <button class="km-tool-btn" title="减少缩进"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11 17h10v-2H11v2zm-8-5l4 4V8l-4 4zm0 9h18v-2H3v2zM3 3v2h18V3H3zm8 6h10V7H11v2zm0 4h10v-2H11v2z"/></svg></button>
-                        <button class="km-tool-btn" title="增加缩进"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zM3 8v8l4-4-4-4zm8 9h10v-2H11v2zM3 3v2h18V3H3zm8 6h10V7H11v2zm0 4h10v-2H11v2z"/></svg></button>
+                        <button class="km-tool-btn" title="Decrease indent"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11 17h10v-2H11v2zm-8-5l4 4V8l-4 4zm0 9h18v-2H3v2zM3 3v2h18V3H3zm8 6h10V7H11v2zm0 4h10v-2H11v2z"/></svg></button>
+                        <button class="km-tool-btn" title="Increase indent"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 21h18v-2H3v2zM3 8v8l4-4-4-4zm8 9h10v-2H11v2zM3 3v2h18V3H3zm8 6h10V7H11v2zm0 4h10v-2H11v2z"/></svg></button>
                     </div>
                     <!-- Editor area -->
                     <div class="km-editor-content" id="noteContent" contenteditable="true">
@@ -1287,8 +1287,8 @@ const PageRenderers = {
             'Mistral': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><path d="M7 8h10M7 12h10M7 16h10" stroke="white" stroke-width="2" stroke-linecap="round"/></svg>`,
             'Grok': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">X</text></svg>`,
             'Kimi': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><circle fill="white" cx="12" cy="12" r="4"/></svg>`,
-            'Zhipu': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">智</text></svg>`,
-            'Tongyi': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">通</text></svg>`
+            'Zhipu': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">Z</text></svg>`,
+            'Tongyi': `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">T</text></svg>`
         };
         return icons[name] || `<svg viewBox="0 0 24 24" width="24" height="24"><circle fill="${color}" cx="12" cy="12" r="10"/></svg>`;
     }
@@ -1371,11 +1371,11 @@ const PageControllers = {
 
     showInitializationModal() {
         Modal.show({
-            title: '初始化设置',
+            title: 'Initialization',
             content: `
                 <div class="init-settings">
                     <div class="setting-group">
-                        <label>默认 AI 模型</label>
+                        <label>Default AI model</label>
                         <select class="setting-select">
                             <option value="gpt-4">GPT-4</option>
                             <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
@@ -1385,20 +1385,20 @@ const PageControllers = {
                     </div>
                     <div class="setting-group">
                         <label>API Key</label>
-                        <input type="password" class="setting-input" placeholder="输入您的 API Key">
+                        <input type="password" class="setting-input" placeholder="Enter your API key">
                     </div>
                     <div class="setting-group">
-                        <label>语言</label>
+                        <label>Language</label>
                         <select class="setting-select">
-                            <option value="zh">中文</option>
+                            <option value="zh">Chinese</option>
                             <option value="en">English</option>
                         </select>
                     </div>
                 </div>
             `,
-            confirmText: '保存',
+            confirmText: 'Save',
             onConfirm: () => {
-                Notification.success('设置已保存');
+                Notification.success('Settings saved');
             }
         });
     },
@@ -1453,7 +1453,7 @@ const PageControllers = {
                 }
             } catch (e) {
                 if (typeof Notification !== 'undefined' && Notification.error) {
-                    Notification.error(e.message || '加载配置失败');
+                    Notification.error(e.message || 'Failed to load configuration');
                 }
             }
         };
@@ -1508,7 +1508,7 @@ const PageControllers = {
                     const localRes = await window.electronAPI.writeConfigJson({ agent_server, ai_sns_server });
                     if (!localRes || !localRes.success) {
                         if (typeof Notification !== 'undefined' && Notification.error) {
-                            Notification.error(localRes?.error || '本地保存失败');
+                            Notification.error(localRes?.error || 'Failed to save locally');
                         }
                         return false;
                     }
@@ -1525,18 +1525,18 @@ const PageControllers = {
 
                     if (typeof Notification !== 'undefined') {
                         if (remoteOk && Notification.success) {
-                            Notification.success('配置已保存');
+                            Notification.success('Configuration saved');
                         } else if (!remoteOk && Notification.warning) {
-                            Notification.warning('已保存到本地 config.json，但写入数据库失败');
+                            Notification.warning('Saved to local config.json, but failed to write to database');
                         } else if (!remoteOk && Notification.success) {
-                            Notification.success('已保存到本地 config.json');
+                            Notification.success('Saved to local config.json');
                         }
                     }
 
                     return true;
                 } catch (e) {
                     if (typeof Notification !== 'undefined' && Notification.error) {
-                        Notification.error(e.message || '保存失败');
+                        Notification.error(e.message || 'Save failed');
                     }
                     return false;
                 }
@@ -1546,15 +1546,15 @@ const PageControllers = {
 
     showHelpModal() {
         Modal.show({
-            title: '帮助',
+            title: 'Help',
             content: `
                 <div class="help-content">
-                    <h4>快速入门</h4>
-                    <p>1. 在 Tools 页面配置您的 LLM 插件</p>
-                    <p>2. 在 Agent 页面创建 AI Agent 并开始对话</p>
-                    <p>3. 在 KM 页面管理您的知识库</p>
-                    <p>4. 在 SNS 页面探索社交网络</p>
-                    <h4>联系我们</h4>
+                    <h4>Quick start</h4>
+                    <p>1. Configure your LLM plugins on the Tools page</p>
+                    <p>2. Create an AI Agent on the Agent page and start chatting</p>
+                    <p>3. Manage your knowledge base on the KM page</p>
+                    <p>4. Explore the social network on the SNS page</p>
+                    <h4>Contact us</h4>
                     <p>GitHub: <a href="https://github.com/ai-sns" target="_blank">github.com/ai-sns</a></p>
                 </div>
             `,
@@ -1564,8 +1564,8 @@ const PageControllers = {
 
     // SNS page controller
     initSNSPage() {
-        console.log('SNS 页面控制器初始化');
-        this.loadBaiduMap();
+        console.log('SNS page controller initialized');
+        this.loadMapIframe();
         this.loadSNSData();
         this.initSNSPanelResizer();
         this.initSNSStatusTabs();
@@ -1764,14 +1764,14 @@ const PageControllers = {
         });
     },
 
-    async loadBaiduMap() {
+    async loadMapIframe() {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) {
-            console.error('地图容器未找到');
+            console.error('Map container not found');
             return;
         }
 
-        console.log('加载地图');
+        console.log('Loading map');
 
         // Show map content immediately; do not show loading animation
         const placeholder = mapContainer.querySelector('.map-placeholder');
@@ -1782,7 +1782,7 @@ const PageControllers = {
         // Check whether the map has already been loaded
         const existingIframe = mapContainer.querySelector('iframe');
         if (existingIframe) {
-            console.log('地图已加载，直接显示');
+            console.log('Map already loaded; showing directly');
             return;
         }
 
@@ -1826,7 +1826,7 @@ const PageControllers = {
 
         // Establish communication after the iframe finishes loading
         iframe.onload = () => {
-            console.log('地图页面加载完成');
+            console.log('Map page loaded');
 
             // Send initial data to the iframe
             const initialData = {
@@ -1839,15 +1839,15 @@ const PageControllers = {
 
             try {
                 iframe.contentWindow.postMessage(initialData, this.getMapIframeTargetOrigin(iframe));
-                console.log('已发送初始化消息');
+                console.log('Initialization message sent');
             } catch (error) {
-                console.error('发送消息到地图页面失败:', error);
+                console.error('Failed to send message to map page:', error);
             }
         };
 
         // Listen for iframe load failures
         iframe.onerror = () => {
-            console.error('地图页面加载失败');
+            console.error('Map page failed to load');
             // Create error display
             const errorDiv = document.createElement('div');
             errorDiv.className = 'map-placeholder';
@@ -1858,9 +1858,9 @@ const PageControllers = {
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/>
                     </svg>
                 </div>
-                <p class="map-placeholder-text">地图加载失败</p>
-                <p class="map-placeholder-desc">请检查地图服务器配置是否正确</p>
-                <button class="map-retry-btn" onclick="PageControllers.tryLoadMap()">重试</button>
+                <p class="map-placeholder-text">Failed to load map</p>
+                <p class="map-placeholder-desc">Please check whether the map server configuration is correct</p>
+                <button class="map-retry-btn" onclick="PageControllers.tryLoadMap()">Retry</button>
             `;
             mapContainer.appendChild(errorDiv);
         };
@@ -1869,7 +1869,7 @@ const PageControllers = {
         const handleMessage = (event) => {
             if (event.origin === this.getMapIframeTargetOrigin(iframe)) {
                 const data = event.data;
-                console.log('收到地图页面消息:', data);
+                console.log('Received map page message:', data);
 
                 switch (data.type) {
                     case 'locationUpdate':
@@ -1882,7 +1882,7 @@ const PageControllers = {
                         this.handleMarkerAdd(data.data);
                         break;
                     default:
-                        console.log('未知消息类型:', data.type);
+                        console.log('Unknown message type:', data.type);
                 }
             }
         };
@@ -1895,7 +1895,7 @@ const PageControllers = {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) return;
 
-        console.log('尝试重新加载地图');
+        console.log('Trying to reload the map');
 
         // Remove the existing iframe (if any)
         const existingIframe = mapContainer.querySelector('iframe');
@@ -1922,7 +1922,7 @@ const PageControllers = {
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/>
                 </svg>
             </div>
-            <p class="map-placeholder-text">正在加载地图...</p>
+            <p class="map-placeholder-text">Loading map...</p>
             <div class="map-placeholder-loader">
                 <div class="loader-dot"></div>
                 <div class="loader-dot"></div>
@@ -1937,7 +1937,7 @@ const PageControllers = {
         }, 500);
     },
     handleLocationUpdate(data) {
-        console.log('位置更新:', data);
+        console.log('Location update:', data);
         // You can update the UI to display the current location
         // For example: update location info in the status panel
         const lngElement = document.querySelector('.status-row.sub span[class="value"]');
@@ -1952,13 +1952,13 @@ const PageControllers = {
 
     // Handle map click events
     handleMapClick(data) {
-        console.log('地图点击:', data);
+        console.log('Map click:', data);
         // You can add markers on the map or perform other actions
     },
 
     // Handle marker add events
     handleMarkerAdd(data) {
-        console.log('添加标记:', data);
+        console.log('Marker added:', data);
         // You can add custom markers on the map
     },
 
@@ -2072,7 +2072,7 @@ const PageControllers = {
             streamingMsg.classList.add('error-message');
             const streamingBody = streamingMsg.querySelector('.message-body');
             if (streamingBody) {
-                streamingBody.innerHTML = `<div class="error-content"><svg viewBox="0 0 24 24" width="16" height="16" fill="#d93025"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>请求失败: ${this.escapeHtml(error)}</span></div>`;
+                streamingBody.innerHTML = `<div class="error-content"><svg viewBox="0 0 24 24" width="16" height="16" fill="#d93025"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>Request failed: ${this.escapeHtml(error)}</span></div>`;
             }
         }
     },
@@ -2089,7 +2089,7 @@ const PageControllers = {
             const language = lang || 'plaintext';
             const escapedCode = this.escapeHtml(code.trim());
             const placeholder = `__CODEBLOCK_${codeBlocks.length}__`;
-            codeBlocks.push(`<div class="code-block"><div class="code-header"><span class="code-lang">${language}</span><button class="copy-code-btn" onclick="PageControllers.copyCode(this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg><span>复制</span></button></div><pre><code class="language-${language}">${escapedCode}</code></pre></div>`);
+            codeBlocks.push(`<div class="code-block"><div class="code-header"><span class="code-lang">${language}</span><button class="copy-code-btn" onclick="PageControllers.copyCode(this)"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg><span>Copy</span></button></div><pre><code class="language-${language}">${escapedCode}</code></pre></div>`);
             return placeholder;
         });
 
@@ -2206,7 +2206,7 @@ const PageControllers = {
 
         navigator.clipboard.writeText(code).then(() => {
             const originalText = btn.querySelector('span').textContent;
-            btn.querySelector('span').textContent = '已复制!';
+            btn.querySelector('span').textContent = 'Copied!';
             btn.classList.add('copied');
             setTimeout(() => {
                 btn.querySelector('span').textContent = originalText;
@@ -2224,7 +2224,7 @@ const PageControllers = {
             const agents = response.data || [];
 
             if (agents.length === 0) {
-                agentList.innerHTML = '<div class="empty-state">暂无Agent，点击 + 创建</div>';
+                agentList.innerHTML = '<div class="empty-state">No agents yet. Click + to create one.</div>';
                 return;
             }
 
@@ -2242,7 +2242,7 @@ const PageControllers = {
                 </div>
             `).join('');
         } catch (error) {
-            agentList.innerHTML = '<div class="empty-state error">加载失败</div>';
+            agentList.innerHTML = '<div class="empty-state error">Load failed</div>';
         }
     },
 
@@ -2255,7 +2255,7 @@ const PageControllers = {
             const chats = response.data || [];
 
             if (chats.length === 0) {
-                chatList.innerHTML = '<div class="empty-state">暂无对话，点击 + 新建</div>';
+                chatList.innerHTML = '<div class="empty-state">No conversations yet. Click + to create one.</div>';
                 return;
             }
 
@@ -2267,13 +2267,13 @@ const PageControllers = {
                         </svg>
                     </div>
                     <div class="chat-info">
-                        <div class="chat-title">${chat.title || '新对话'}</div>
+                        <div class="chat-title">${chat.title || 'New chat'}</div>
                         <div class="chat-preview">${chat.lastMessage || ''}</div>
                     </div>
                 </div>
             `).join('');
         } catch (error) {
-            chatList.innerHTML = '<div class="empty-state">暂无对话</div>';
+            chatList.innerHTML = '<div class="empty-state">No conversations</div>';
         }
     },
 
@@ -2310,18 +2310,18 @@ const PageControllers = {
 
     showNewChatModal() {
         Modal.show({
-            title: '新建对话',
+            title: 'New chat',
             content: `
                 <div class="form-group">
-                    <label>选择 Agent</label>
+                    <label>Select agent</label>
                     <select class="form-select" id="selectAgent">
-                        <option value="">请选择...</option>
+                        <option value="">Please select...</option>
                     </select>
                 </div>
             `,
-            confirmText: '开始',
+            confirmText: 'Start',
             onConfirm: () => {
-                Notification.success('对话已创建');
+                Notification.success('Chat created');
             }
         });
 
@@ -2341,14 +2341,14 @@ const PageControllers = {
 
     showNewAgentModal() {
         Modal.show({
-            title: '创建 Agent',
+            title: 'Create agent',
             content: `
                 <div class="form-group">
-                    <label>名称</label>
-                    <input type="text" class="form-input" id="agentName" placeholder="输入Agent名称">
+                    <label>Name</label>
+                    <input type="text" class="form-input" id="agentName" placeholder="Enter agent name">
                 </div>
                 <div class="form-group">
-                    <label>模型</label>
+                    <label>Model</label>
                     <select class="form-select" id="agentModel">
                         <option value="gpt-4">GPT-4</option>
                         <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
@@ -2357,15 +2357,15 @@ const PageControllers = {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>描述</label>
-                    <textarea class="form-textarea" id="agentDesc" placeholder="描述Agent的功能"></textarea>
+                    <label>Description</label>
+                    <textarea class="form-textarea" id="agentDesc" placeholder="Describe what the agent does"></textarea>
                 </div>
             `,
-            confirmText: '创建',
+            confirmText: 'Create',
             onConfirm: async () => {
                 const name = document.getElementById('agentName').value;
                 if (!name) {
-                    Notification.error('请输入Agent名称');
+                    Notification.error('Please enter an agent name');
                     return false;
                 }
                 try {
@@ -2374,10 +2374,10 @@ const PageControllers = {
                         model: document.getElementById('agentModel').value,
                         description: document.getElementById('agentDesc').value
                     });
-                    Notification.success('Agent创建成功');
+                    Notification.success('Agent created successfully');
                     this.loadAgentList();
                 } catch (error) {
-                    Notification.error('创建失败: ' + error.message);
+                    Notification.error('Creation failed: ' + error.message);
                     return false;
                 }
             }
@@ -2464,7 +2464,7 @@ const PageControllers = {
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
-                        <span class="thinking-text">思考中...</span>
+                        <span class="thinking-text">Thinking...</span>
                     </div>
                 </div>
             </div>
@@ -2478,21 +2478,21 @@ const PageControllers = {
 
         // Get system prompt
         const roleSelector = document.getElementById('roleSelector');
-        let systemPrompt = '你是一个有帮助的AI助手。';
+        let systemPrompt = 'You are a helpful AI assistant.';
         if (roleSelector) {
             const role = roleSelector.value;
             switch (role) {
                 case 'senior-dev':
-                    systemPrompt = '你是一位资深的软件工程师，有超过15年的开发经验。你精通多种编程语言和框架，善于编写高质量、可维护的代码。请用专业但易懂的方式回答问题，必要时提供代码示例。';
+                    systemPrompt = 'You are a senior software engineer with over 15 years of experience. You are proficient in multiple programming languages and frameworks, and you write high-quality, maintainable code. Answer in a professional but easy-to-understand way, and provide code examples when necessary.';
                     break;
                 case 'assistant':
-                    systemPrompt = '你是一个通用的AI助手，能够帮助用户解答各种问题。请用友好、清晰的方式回答。';
+                    systemPrompt = 'You are a general AI assistant who can help answer a wide range of questions. Respond in a friendly and clear way.';
                     break;
                 case 'writer':
-                    systemPrompt = '你是一位专业的创意写作者，擅长各种文体的写作，包括故事、文章、诗歌等。请发挥创意，提供高质量的写作内容。';
+                    systemPrompt = 'You are a professional creative writer skilled in many styles, including stories, essays, and poems. Be creative and provide high-quality writing.';
                     break;
                 case 'analyst':
-                    systemPrompt = '你是一位专业的数据分析师，擅长数据分析、统计和可视化。请用专业的角度分析问题，必要时提供数据支持。';
+                    systemPrompt = 'You are a professional data analyst skilled in data analysis, statistics, and visualization. Analyze problems from a professional perspective and provide data support when needed.';
                     break;
             }
         }
@@ -2518,7 +2518,7 @@ const PageControllers = {
             // Timeout handling
             setTimeout(() => {
                 if (this.currentRequestId) {
-                    this.showStreamError('请求超时，请重试');
+                    this.showStreamError('Request timed out. Please try again.');
                     this.currentRequestId = null;
                     enableSendBtn();
                 }
@@ -2539,31 +2539,31 @@ const PageControllers = {
 
     // Simulate streaming response (for development/testing)
     simulateStreamResponse(enableSendBtn) {
-        const mockResponse = `好的，我来回答你的问题。
+        const mockResponse = `Sure, here is the answer to your question.
 
-## 示例代码
+## Example code
 
-这是一个简单的 Python 示例：
+Here is a simple Python example:
 
 \`\`\`python
 def hello_world():
     print("Hello, World!")
     return True
 
-# 调用函数
+# Call the function
 if __name__ == "__main__":
     hello_world()
 \`\`\`
 
-### 主要特点：
+### Key features:
 
-1. **简洁明了** - 代码结构清晰
-2. **易于理解** - 注释完善
-3. **可扩展性强** - 便于后续修改
+1. **Concise** - Clear structure
+2. **Easy to understand** - Well-commented
+3. **Extensible** - Easy to modify later
 
-> 提示：这只是一个演示示例，实际使用时请根据需求调整。
+> Tip: This is just a demo. Adjust as needed for real use.
 
-如果你有其他问题，欢迎继续提问！`;
+If you have more questions, feel free to ask!`;
 
         let index = 0;
         const chars = mockResponse.split('');
@@ -2603,7 +2603,7 @@ if __name__ == "__main__":
             const notes = response.data || [];
 
             if (notes.length === 0) {
-                noteList.innerHTML = '<div class="empty-state">暂无笔记，点击 + 创建</div>';
+                noteList.innerHTML = '<div class="empty-state">No notes yet. Click + to create one.</div>';
                 return;
             }
 
@@ -2621,7 +2621,7 @@ if __name__ == "__main__":
                 </div>
             `).join('');
         } catch (error) {
-            noteList.innerHTML = '<div class="empty-state">暂无笔记</div>';
+            noteList.innerHTML = '<div class="empty-state">No notes</div>';
         }
     },
 
@@ -2654,87 +2654,115 @@ if __name__ == "__main__":
                         const title = btn.getAttribute('title');
                         switch(title) {
                             case '粗体':
+                            case 'Bold':
                                 action = 'bold';
                                 break;
                             case '斜体':
+                            case 'Italic':
                                 action = 'italic';
                                 break;
                             case '下划线':
+                            case 'Underline':
                                 action = 'underline';
                                 break;
                             case '删除线':
+                            case 'Strikethrough':
                                 action = 'strikethrough';
                                 break;
                             case '上标':
+                            case 'Superscript':
                                 action = 'superscript';
                                 break;
                             case '下标':
+                            case 'Subscript':
                                 action = 'subscript';
                                 break;
                             case '左对齐':
+                            case 'Align left':
                                 action = 'justifyLeft';
                                 break;
                             case '居中':
+                            case 'Align center':
                                 action = 'justifyCenter';
                                 break;
                             case '右对齐':
+                            case 'Align right':
                                 action = 'justifyRight';
                                 break;
                             case '两端对齐':
+                            case 'Justify':
                                 action = 'justifyFull';
                                 break;
                             case '无序列表':
+                            case 'Bulleted list':
                                 action = 'insertUnorderedList';
                                 break;
                             case '有序列表':
+                            case 'Numbered list':
                                 action = 'insertOrderedList';
                                 break;
                             case '增加缩进':
+                            case 'Increase indent':
                                 action = 'indent';
                                 break;
                             case '减少缩进':
+                            case 'Decrease indent':
                                 action = 'outdent';
                                 break;
                             case '保存':
+                            case 'Save':
                                 action = 'save';
                                 break;
                             case '打印':
+                            case 'Print':
                                 action = 'print';
                                 break;
                             case '复制':
+                            case 'Copy':
                                 action = 'copy';
                                 break;
                             case '剪切':
+                            case 'Cut':
                                 action = 'cut';
                                 break;
                             case '粘贴':
+                            case 'Paste':
                                 action = 'paste';
                                 break;
                             case '撤销':
+                            case 'Undo':
                                 action = 'undo';
                                 break;
                             case '重做':
+                            case 'Redo':
                                 action = 'redo';
                                 break;
                             case '搜索':
+                            case 'Search':
                                 action = 'search';
                                 break;
                             case '日期':
+                            case 'Date':
                                 action = 'insertDate';
                                 break;
                             case '表格':
+                            case 'Table':
                                 action = 'insertTable';
                                 break;
                             case '图片':
+                            case 'Image':
                                 action = 'insertImage';
                                 break;
                             case '链接':
+                            case 'Link':
                                 action = 'createLink';
                                 break;
                             case '表情':
+                            case 'Emoticon':
                                 action = 'insertEmoticon';
                                 break;
                             case '符号':
+                            case 'Symbol':
                                 action = 'insertSpecialChar';
                                 break;
                         }
@@ -2749,47 +2777,47 @@ if __name__ == "__main__":
 
     showNewNoteModal() {
         Modal.show({
-            title: '新建笔记',
+            title: 'New note',
             content: `
                 <div class="form-group">
-                    <label>标题</label>
-                    <input type="text" class="form-input" id="noteTitle" placeholder="输入笔记标题">
+                    <label>Title</label>
+                    <input type="text" class="form-input" id="noteTitle" placeholder="Enter note title">
                 </div>
             `,
-            confirmText: '创建',
+            confirmText: 'Create',
             onConfirm: () => {
                 const title = document.getElementById('noteTitle').value;
                 if (!title) {
-                    Notification.error('请输入笔记标题');
+                    Notification.error('Please enter a note title');
                     return false;
                 }
-                Notification.success('笔记已创建');
+                Notification.success('Note created');
             }
         });
     },
 
     showNewKMModal() {
         Modal.show({
-            title: '新建知识库',
+            title: 'New knowledge base',
             content: `
                 <div class="form-group">
-                    <label>名称</label>
-                    <input type="text" class="form-input" id="kmName" placeholder="输入知识库名称">
+                    <label>Name</label>
+                    <input type="text" class="form-input" id="kmName" placeholder="Enter knowledge base name">
                 </div>
                 <div class="form-group">
-                    <label>类型</label>
+                    <label>Type</label>
                     <select class="form-select" id="kmType">
-                        <option value="vector">向量数据库</option>
-                        <option value="graph">知识图谱</option>
-                        <option value="document">文档库</option>
+                        <option value="vector">Vector database</option>
+                        <option value="graph">Knowledge graph</option>
+                        <option value="document">Document library</option>
                     </select>
                 </div>
             `,
-            confirmText: '创建',
+            confirmText: 'Create',
             onConfirm: async () => {
                 const name = document.getElementById('kmName').value;
                 if (!name) {
-                    Notification.error('请输入知识库名称');
+                    Notification.error('Please enter a knowledge base name');
                     return false;
                 }
                 try {
@@ -2797,10 +2825,10 @@ if __name__ == "__main__":
                         name,
                         km_type: document.getElementById('kmType').value
                     });
-                    Notification.success('知识库创建成功');
+                    Notification.success('Knowledge base created successfully');
                     this.loadNoteList();
                 } catch (error) {
-                    Notification.error('创建失败: ' + error.message);
+                    Notification.error('Creation failed: ' + error.message);
                     return false;
                 }
             }
@@ -2817,13 +2845,13 @@ if __name__ == "__main__":
         const title = noteTitle ? noteTitle.value : 'Untitled';
 
         // Add persistence logic here, e.g. send to backend API
-        console.log('保存笔记:', title, content);
+        console.log('Saving note:', title, content);
         // Notification.success('Note saved');
     },
 
     // Show search dialog
     showSearchDialog() {
-        const searchTerm = prompt('请输入搜索内容:');
+        const searchTerm = prompt('Enter search text:');
         if (searchTerm) {
             const noteContent = document.getElementById('noteContent');
             if (noteContent) {
@@ -2831,9 +2859,9 @@ if __name__ == "__main__":
                 const text = noteContent.innerText;
                 const index = text.indexOf(searchTerm);
                 if (index !== -1) {
-                    alert(`找到搜索内容在位置 ${index}`);
+                    alert(`Found at position ${index}`);
                 } else {
-                    alert('未找到搜索内容');
+                    alert('Not found');
                 }
             }
         }
@@ -2841,8 +2869,8 @@ if __name__ == "__main__":
 
     // Insert table
     insertTable() {
-        const rows = prompt('请输入行数:');
-        const cols = prompt('请输入列数:');
+        const rows = prompt('Enter number of rows:');
+        const cols = prompt('Enter number of columns:');
 
         if (rows && cols) {
             let tableHtml = '<table border="1" cellpadding="5" cellspacing="0">';
@@ -2861,7 +2889,7 @@ if __name__ == "__main__":
 
     // Insert emoticon
     insertEmoticon() {
-        const emoticon = prompt('请输入表情符号:');
+        const emoticon = prompt('Enter an emoticon:');
         if (emoticon) {
             document.execCommand('insertText', false, emoticon);
         }
@@ -2869,7 +2897,7 @@ if __name__ == "__main__":
 
     // Insert special character
     insertSpecialChar() {
-        const specialChar = prompt('请输入特殊字符:');
+        const specialChar = prompt('Enter a special character:');
         if (specialChar) {
             document.execCommand('insertText', false, specialChar);
         }
@@ -2933,11 +2961,11 @@ if __name__ == "__main__":
                 document.execCommand('formatBlock', false, '<h3>');
                 break;
             case 'link':
-                const url = prompt('输入链接地址:');
+                const url = prompt('Enter link URL:');
                 if (url) document.execCommand('createLink', false, url);
                 break;
             case 'image':
-                const imgUrl = prompt('输入图片地址:');
+                const imgUrl = prompt('Enter image URL:');
                 if (imgUrl) document.execCommand('insertImage', false, imgUrl);
                 break;
             case 'code':
@@ -2982,7 +3010,7 @@ if __name__ == "__main__":
                 this.insertSpecialChar();
                 break;
             default:
-                console.log('未知操作:', action);
+                console.log('Unknown action:', action);
         }
     },
 
@@ -3115,7 +3143,42 @@ if __name__ == "__main__":
     },
 
     async deleteTool(id, type) {
-        if (!confirm('Are you sure you want to delete this tool?')) return;
+        const confirmed = await (async () => {
+            try {
+                if (window.Toast && typeof window.Toast.confirm === 'function') {
+                    return await window.Toast.confirm('Delete this tool?', {
+                        title: 'Delete Tool',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel',
+                        type: 'warning'
+                    });
+                }
+
+                if (window.Modal && typeof window.Modal.show === 'function') {
+                    return await new Promise((resolve) => {
+                        window.Modal.show({
+                            title: 'Delete Tool',
+                            content: '<p>Delete this tool?</p>',
+                            confirmText: 'Delete',
+                            cancelText: 'Cancel',
+                            onConfirm: () => {
+                                resolve(true);
+                                return true;
+                            },
+                            onCancel: () => {
+                                resolve(false);
+                                return true;
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to show delete confirmation dialog:', e);
+            }
+            return false;
+        })();
+
+        if (!confirmed) return;
 
         try {
             switch (type) {
@@ -3186,29 +3249,29 @@ if __name__ == "__main__":
         // Download button
         document.querySelectorAll('.plugin-download-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                Notification.info('插件下载功能开发中...');
+                Notification.info('Plugin download is under development...');
             });
         });
     },
 
     showImportPluginModal() {
         Modal.show({
-            title: '导入插件',
+            title: 'Import plugin',
             content: `
                 <div class="form-group">
-                    <label>插件文件</label>
+                    <label>Plugin file</label>
                     <input type="file" class="form-input" id="pluginFile" accept=".zip,.json">
                 </div>
-                <p class="form-hint">支持 .zip 或 .json 格式的插件文件</p>
+                <p class="form-hint">Supports plugin files in .zip or .json format</p>
             `,
-            confirmText: '导入',
+            confirmText: 'Import',
             onConfirm: () => {
                 const fileInput = document.getElementById('pluginFile');
                 if (!fileInput.files.length) {
-                    Notification.error('请选择插件文件');
+                    Notification.error('Please select a plugin file');
                     return false;
                 }
-                Notification.success('插件导入成功');
+                Notification.success('Plugin imported successfully');
             }
         });
     },

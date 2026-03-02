@@ -1,6 +1,102 @@
 //page ui menu
 var current_screen_type = "AI";
 
+try {
+    if (typeof window !== 'undefined' && window) {
+        window.__topInfoDisabled = window.__topInfoDisabled === true;
+    }
+} catch (e) {
+}
+
+function setTopInfoDisabled(disabled) {
+    const next = !!disabled;
+    try {
+        if (typeof window !== 'undefined' && window) {
+            window.__topInfoDisabled = next;
+        }
+    } catch (e) {
+    }
+
+    try {
+        const btn = document.getElementById('top_info_btn');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (btn) {
+            btn.style.pointerEvents = next ? 'none' : '';
+            btn.style.opacity = next ? '0.5' : '';
+            btn.setAttribute('aria-disabled', next ? 'true' : 'false');
+        }
+        if (icon) {
+            icon.style.pointerEvents = next ? 'none' : '';
+        }
+    } catch (e) {
+    }
+}
+
+try {
+    if (typeof window !== 'undefined' && window) {
+        window.setTopInfoDisabled = setTopInfoDisabled;
+    }
+} catch (e) {
+}
+
+function __postInfoPanelStateToParent() {
+    try {
+        const info = document.getElementById('info');
+        const visible = !!(info && info.style && info.style.display !== 'none');
+        const payload = { type: 'infoPanelState', visible: visible, timestamp: Date.now() };
+        if (window.parent && window.parent !== window) {
+            window.parent.postMessage(payload, '*');
+        }
+    } catch (e) {
+    }
+}
+
+function __syncTopInfoButtonActiveState() {
+    try {
+        const info = document.getElementById('info');
+        const visible = !!(info && info.style && info.style.display !== 'none');
+        const btn = document.getElementById('top_info_btn');
+        if (btn) {
+            if (visible) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    } catch (e) {
+    }
+}
+
+function toggleTopInfoPanel() {
+    try {
+        if (typeof window !== 'undefined' && window && window.__topInfoDisabled) {
+            return;
+        }
+    } catch (e) {
+    }
+    try {
+        const info = document.getElementById('info');
+        const visible = !!(info && info.style && info.style.display !== 'none');
+        if (visible) {
+            hideHistory();
+        } else {
+            showHistory();
+        }
+    } catch (e) {
+    }
+}
+
+try {
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            __syncTopInfoButtonActiveState();
+        });
+    } else {
+        __syncTopInfoButtonActiveState();
+    }
+} catch (e) {
+}
+
 // Map button titles to click handlers
 const buttonActions = {
     plaza: function () {
@@ -34,11 +130,13 @@ const buttonActions = {
         if (info_title.textContent == "Notification" || info_title.textContent == "Chat message" || info_title.textContent == "All message") {
             info_title.textContent = "All message";
         } else {
-            info_title.textContent = "旅程信息";
+            info_title.textContent = "Journey";
         }
 
         document.getElementById("info").style.display = "block";
         document.getElementById("info_chat").style.display = "none";
+        __syncTopInfoButtonActiveState();
+        __postInfoPanelStateToParent();
     }
 };
 
@@ -76,6 +174,12 @@ if (topButtons) {
         if (!target) return;
         const btn = target.closest('.top-btn');
         if (!btn) return;
+        try {
+            if (btn.id === 'top_info_btn' && typeof window !== 'undefined' && window && window.__topInfoDisabled) {
+                return;
+            }
+        } catch (e2) {
+        }
         const icon = btn.querySelector('i');
         if (!icon) return;
         if (target === icon) return;
@@ -364,6 +468,8 @@ function findHim() {
 
 function hideHistory() {
     document.getElementById("info").style.display = "none";
+    __syncTopInfoButtonActiveState();
+    __postInfoPanelStateToParent();
 }
 
 function showHistory() {
@@ -377,6 +483,8 @@ function showHistory() {
     info_title = document.getElementById("info_title");
     info_title.textContent = lt("Information", "Information");
     document.getElementById("info").style.display = "block";
+    __syncTopInfoButtonActiveState();
+    __postInfoPanelStateToParent();
 }
 
 function clear_chat_history() {
@@ -409,8 +517,10 @@ function show_inform_message_in_info_list() {
     btn = document.getElementById("process_btn");
     btn.classList.remove('active');
     info_title = document.getElementById("info_title");
-    info_title.textContent = lt("Notification", "通知信息");
+    info_title.textContent = lt("Notification", "Notifications");
     document.getElementById("info").style.display = "block";
+    __syncTopInfoButtonActiveState();
+    __postInfoPanelStateToParent();
 }
 
 function show_talk_message_in_info_list() {
@@ -429,8 +539,10 @@ function show_talk_message_in_info_list() {
     btn = document.getElementById("process_btn");
     btn.classList.remove('active');
     info_title = document.getElementById("info_title");
-    info_title.textContent = lt("Chat message", "聊天信息");
+    info_title.textContent = lt("Chat message", "Chat messages");
     document.getElementById("info").style.display = "block";
+    __syncTopInfoButtonActiveState();
+    __postInfoPanelStateToParent();
 }
 
 function close_info_list() {
@@ -554,7 +666,7 @@ function setHomePosition() {
     // Ensure coordinate link click handler is correctly bound
     const coordLinkElement = document.getElementById("home_address_coord_link_element");
     if (coordLinkElement) {
-        coordLinkElement.textContent = "点此获取坐标";
+        coordLinkElement.textContent = "Click to get coordinates";
         coordLinkElement.onclick = function() { startCoordinateCapture('home_address'); };
     }
 }
@@ -604,7 +716,7 @@ function updateHomePosition() {
     closeHomePositionSetting();
 
     // Show toast
-    showAlert("家位置设置成功");
+    showAlert("Home location updated successfully");
 
     // Update house_red.glb model parameters
     updateHouseModel(homePosition, homePosition.scale, rotationValues);
@@ -646,10 +758,10 @@ function setRoute() {
         const buttons = msgdiv.getElementsByTagName('button');
         for (let i = 0; i < buttons.length; i++) {
             const button = buttons[i];
-            const buttonText = button.textContent.trim();
-            if (buttonText === '确定') {
+            const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+            if (action === 'route-confirm') {
                 button.style.display = 'none';
-            } else if (buttonText === '查看' || buttonText === '重设') {
+            } else if (action === 'route-view' || action === 'route-reset') {
                 button.style.display = 'inline';
             }
         }
@@ -667,7 +779,7 @@ function setRoute() {
             endCoordLink.style.display = 'none';
         }
 
-        showAlert("当前已经是指定路线");
+        showAlert("You are already in specified route mode");
     } else {
         // If not in specified-route state
         // Remove readonly attribute (ensure inputs are editable)
@@ -678,10 +790,10 @@ function setRoute() {
         const buttons = msgdiv.getElementsByTagName('button');
         for (let i = 0; i < buttons.length; i++) {
             const button = buttons[i];
-            const buttonText = button.textContent.trim();
-            if (buttonText === '确定') {
+            const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+            if (action === 'route-confirm') {
                 button.style.display = 'inline';
-            } else if (buttonText === '查看' || buttonText === '重设') {
+            } else if (action === 'route-view' || action === 'route-reset') {
                 button.style.display = 'none';
             }
         }
@@ -719,12 +831,12 @@ function setRoute() {
 function setRouteRandom() {
     // Check whether it is already in random route mode
     if (route_status === "stopped") {
-        showAlert("当前已经是随机路线");
+        showAlert("You are already in random route mode");
         return;
     }
 
     // Ask user to confirm switching to random route
-    showConfirmDialog("路线设置确认", "是否要将路线设置为随机路线？", function() {
+    showConfirmDialog("Route Settings", "Switch to random route mode?", function() {
         try {
             // Clear existing route
             stopTrack();
@@ -757,10 +869,10 @@ function setRouteRandom() {
                 const buttons = msgdiv.getElementsByTagName('button');
                 for (let i = 0; i < buttons.length; i++) {
                     const button = buttons[i];
-                    const buttonText = button.textContent.trim();
-                    if (buttonText === '确定') {
+                    const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+                    if (action === 'route-confirm') {
                         button.style.display = 'inline-block';
-                    } else if (buttonText === '查看' || buttonText === '重设') {
+                    } else if (action === 'route-view' || action === 'route-reset') {
                         button.style.display = 'none';
                     }
                 }
@@ -788,11 +900,11 @@ function setRouteRandom() {
                 }
             }
 
-            showAlert("已设置为随机路线");
+            showAlert("Switched to random route mode");
         } catch (error) {
             // If operation fails, show error but do not update UI
-            showAlert("设置随机路线失败: " + error.message);
-            console.error("设置随机路线失败:", error);
+            showAlert("Failed to switch to random route mode: " + error.message);
+            console.error("Failed to switch to random route mode:", error);
         }
     }, function() {
         // User cancelled; no action needed
@@ -831,10 +943,10 @@ function resetRoute() {
     const buttons = msgdiv.getElementsByTagName('button');
     for (let i = 0; i < buttons.length; i++) {
         const button = buttons[i];
-        const buttonText = button.textContent.trim();
-        if (buttonText === '确定') {
+        const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+        if (action === 'route-confirm') {
             button.style.display = 'inline-block';
-        } else if (buttonText === '查看' || buttonText === '重设') {
+        } else if (action === 'route-view' || action === 'route-reset') {
             button.style.display = 'none';
         }
     }

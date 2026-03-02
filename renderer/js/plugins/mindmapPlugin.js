@@ -9,9 +9,9 @@ const MindmapPlugin = {
      */
     info: {
         id: 'mindmap',
-        name: '思维导图插件',
+        name: 'Mind Map Plugin',
         version: '1.0.0',
-        description: '将 Markdown mindmap 语法转换为可视化思维导图'
+        description: 'Convert Markdown mindmap syntax into a visual mind map'
     },
 
     /**
@@ -209,11 +209,11 @@ const MindmapPlugin = {
      * Render mind map into message
      */
     renderInMessage(messageBody) {
-        console.log('[MindmapPlugin] ========== 开始检查消息 ==========');
+        console.log('[MindmapPlugin] ========== Start checking messages ==========');
 
         // Find all code block elements directly
         const codeBlocks = messageBody.querySelectorAll('.code-block');
-        console.log('[MindmapPlugin] 找到代码块数量:', codeBlocks.length);
+        console.log('[MindmapPlugin] Code blocks found:', codeBlocks.length);
 
         let renderedCount = 0;
 
@@ -221,7 +221,7 @@ const MindmapPlugin = {
             const langSpan = block.querySelector('.code-lang');
             const codeElement = block.querySelector('code');
 
-            console.log(`[MindmapPlugin] 代码块 ${blockIndex + 1}:`, {
+            console.log(`[MindmapPlugin] Code block ${blockIndex + 1}:`, {
                 hasLangSpan: !!langSpan,
                 language: langSpan ? langSpan.textContent : 'null',
                 hasCodeElement: !!codeElement,
@@ -230,24 +230,24 @@ const MindmapPlugin = {
 
             if (langSpan && langSpan.textContent.toLowerCase().trim() === 'mindmap' && codeElement) {
                 try {
-                    console.log('[MindmapPlugin] ✓ 发现 mindmap 代码块');
+                    console.log('[MindmapPlugin] ✓ Mindmap code block detected');
 
                     // Get raw code content
                     const mindmapContent = codeElement.dataset.rawCode || codeElement.textContent;
-                    console.log('[MindmapPlugin] 代码内容:', mindmapContent.substring(0, 100) + '...');
+                    console.log('[MindmapPlugin] Code content:', mindmapContent.substring(0, 100) + '...');
 
                     // Parse mind map data
                     const data = this.parseMindmap(mindmapContent);
-                    console.log('[MindmapPlugin] 解析结果:', data);
+                    console.log('[MindmapPlugin] Parsed result:', data);
 
                     if (!data || (!data.text && data.children.length === 0)) {
-                        console.error('[MindmapPlugin] ✗ 解析失败或数据为空');
+                        console.error('[MindmapPlugin] ✗ Parse failed or data is empty');
                         return;
                     }
 
                     // Render to SVG
                     const svg = this.renderToSVG(data);
-                    console.log('[MindmapPlugin] ✓ SVG 已创建');
+                    console.log('[MindmapPlugin] ✓ SVG created');
 
                     // Create container
                     const container = document.createElement('div');
@@ -275,7 +275,7 @@ const MindmapPlugin = {
                         <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--color-primary, #1976d2)">
                             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                         </svg>
-                        <span>思维导图</span>
+                        <span>Mind map</span>
                     `;
                     container.appendChild(title);
 
@@ -285,15 +285,15 @@ const MindmapPlugin = {
                     // Replace code block
                     block.replaceWith(container);
                     renderedCount++;
-                    console.log('[MindmapPlugin] ✓ 已替换为思维导图可视化');
+                    console.log('[MindmapPlugin] ✓ Replaced with mind map visualization');
                 } catch (error) {
-                    console.error('[MindmapPlugin] ✗ 渲染失败:', error);
+                    console.error('[MindmapPlugin] ✗ Render failed:', error);
                     console.error(error.stack);
                 }
             }
         });
 
-        console.log('[MindmapPlugin] ========== 检查完成，渲染了', renderedCount, '个思维导图 ==========');
+        console.log('[MindmapPlugin] ========== Check complete, rendered', renderedCount, 'mind maps ==========');
         return renderedCount > 0;
     },
 
@@ -302,19 +302,19 @@ const MindmapPlugin = {
      */
     getExample() {
         return `\`\`\`mindmap
-- 学习编程
-  - 基础知识
-    - 数据类型
-    - 控制流程
-    - 函数
-  - 实践项目
-    - Web开发
-    - 移动应用
-    - 数据分析
-  - 进阶学习
-    - 算法与数据结构
-    - 设计模式
-    - 系统架构
+ - Learn programming
+  - Fundamentals
+    - Data types
+    - Control flow
+    - Functions
+  - Hands-on projects
+    - Web development
+    - Mobile apps
+    - Data analysis
+  - Advanced learning
+    - Algorithms and data structures
+    - Design patterns
+    - System architecture
 \`\`\``;
     }
 };

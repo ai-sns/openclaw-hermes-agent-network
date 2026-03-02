@@ -2,6 +2,20 @@ var hiddenPoints = {}; // Store hidden point elements
 
 var indexs = ['province', 'city', 'area'];
 
+function _aiSnsUrl(p) {
+    try {
+        const baseRaw = (typeof window !== 'undefined' && window.__AI_SNS_SERVER__) ? String(window.__AI_SNS_SERVER__) : '';
+        const base = baseRaw.endsWith('/') ? baseRaw.slice(0, -1) : baseRaw;
+        if (!base) return '';
+        const path = String(p || '');
+        if (!path) return base;
+        if (path.startsWith('/')) return base + path;
+        return base + '/' + path;
+    } catch (e) {
+        return '';
+    }
+}
+
 function getHTMLDOM(context) {
     console.log("context:", context);
     var index = context.belongKey ?? 'other'; // Clustering key
@@ -47,12 +61,12 @@ function getSinglePointHTML(context) {
     // Check point type and set style
     if (context.name.startsWith("北京")) {
         div.innerHTML = `
-                <img src="mapavartar.png" style="width: 36px;height: 49px">
+                <img src="${_aiSnsUrl('/avatars/' + context.nation_id + '_avatar.png')}" style="width: 36px;height: 49px">
                 <span style="display: none">${context.name}</span>
             `;
     } else {
         div.innerHTML = `
-                <img src="mapavartar2.png" style="width: 36px;height: 49px">
+                <img src="${_aiSnsUrl('/avatars/' + context.nation_id + '_avatar.png')}" style="width: 36px;height: 49px">
                 <span style="display: none">${context.name}</span>
             `;
     }

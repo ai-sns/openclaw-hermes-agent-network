@@ -10,9 +10,9 @@ export default {
     render() {
         return `
             <div class="sns-page-layout">
-                <!-- 地图主区域 -->
+                <!-- Map main area -->
                 <div class="sns-map-area">
-                    <!-- 地图容器 -->
+                    <!-- Map container -->
                     <div class="map-container" id="mapContainer">
                         <div class="map-placeholder">
                             <div class="map-placeholder-icon">
@@ -20,7 +20,7 @@ export default {
                                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
                                 </svg>
                             </div>
-                            <p class="map-placeholder-text">正在加载地图...</p>
+                            <p class="map-placeholder-text">Loading map...</p>
                             <div class="map-placeholder-loader">
                                 <div class="loader-dot"></div>
                                 <div class="loader-dot"></div>
@@ -29,7 +29,7 @@ export default {
                         </div>
                     </div>
 
-                    <!-- 现代化底部功能栏 -->
+                    <!-- Modern bottom action bar -->
                     <div class="map-action-bar">
                         <!-- State 1: Default toolbar (menubar001 style) -->
                         <div class="action-bar-state-1" id="actionBarState1">
@@ -73,14 +73,11 @@ export default {
                                     </svg>
                                     <span>Control</span>
                                 </button>
-                                
-                                <button class="action-btn" data-action="board">
-                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-                                        <line x1="3" y1="12" x2="21" y2="12"/>
-                                        <line x1="3" y1="6" x2="21" y2="6"/>
-                                        <line x1="3" y1="18" x2="21" y2="18"/>
+                                <button class="action-btn" data-action="plugin">
+                                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19.439 7.85c.157-.24.245-.525.245-.814V3a1 1 0 0 0-1-1h-3.95c-.289 0-.574.088-.814.245a2.5 2.5 0 1 1-3.84 0A1.5 1.5 0 0 0 9.266 2H5.316a1 1 0 0 0-1 1v3.95c0 .289-.088.574-.245.814a2.5 2.5 0 1 1 0 3.84c.157.24.245.525.245.814V20a1 1 0 0 0 1 1h3.95c.289 0 .574-.088.814-.245a2.5 2.5 0 1 1 3.84 0c.24.157.525.245.814.245h3.95a1 1 0 0 0 1-1v-3.95c0-.289.088-.574.245-.814a2.5 2.5 0 1 1 0-3.84Z"/>
                                     </svg>
-                                    <span>Info</span>
+                                    <span>Plugin</span>
                                 </button>
                                 <button class="action-btn" data-action="help">
                                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -132,11 +129,11 @@ export default {
                                 <div class="control-center-input">
                                     <button class="control-computer-btn" id="computerBtn">
                                         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <!-- 显示器外框 -->
+    <!-- Monitor frame -->
     <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
     <line x1="8" y1="21" x2="16" y2="21"/>
     <line x1="12" y1="17" x2="12" y2="21"/>
-    <!-- 叉号 -->
+    <!-- Cross icon -->
     <line x1="9" y1="7" x2="15" y2="13"/>
     <line x1="15" y1="7" x2="9" y2="13"/>
 </svg>
@@ -169,14 +166,6 @@ export default {
                                         </svg>
                                     </button>
                                     <div class="control-dropdown control-dropdown-right" id="mapDropdown" style="display: none;">
-                                        <button class="dropdown-item" data-action="board">
-                                            <span>Info</span>
-                                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                                                <line x1="3" y1="12" x2="21" y2="12"/>
-                                                <line x1="3" y1="6" x2="21" y2="6"/>
-                                                <line x1="3" y1="18" x2="21" y2="18"/>
-                                            </svg>
-                                        </button>
                                         <button class="dropdown-item" data-action="help">
                                             <span>Help</span>
                                             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
@@ -185,38 +174,44 @@ export default {
                                                 <line x1="12" y1="17" x2="12.01" y2="17"/>
                                             </svg>
                                         </button>
+                                        <button class="dropdown-item" data-action="plugin">
+                                            <span>Plugin</span>
+                                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M19.439 7.85c.157-.24.245-.525.245-.814V3a1 1 0 0 0-1-1h-3.95c-.289 0-.574.088-.814.245a2.5 2.5 0 1 1-3.84 0A1.5 1.5 0 0 0 9.266 2H5.316a1 1 0 0 0-1 1v3.95c0 .289-.088.574-.245.814a2.5 2.5 0 1 1 0 3.84c.157.24.245.525.245.814V20a1 1 0 0 0 1 1h3.95c.289 0 .574-.088.814-.245a2.5 2.5 0 1 1 3.84 0c.24.157.525.245.814.245h3.95a1 1 0 0 0 1-1v-3.95c0-.289.088-.574.245-.814a2.5 2.5 0 1 1 0-3.84Z"/>
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- 地图控制按钮组已移除 -->
+                    <!-- Map control button group removed -->
                 </div>
 
-                <!-- 右侧状态面板收缩条 -->
+                <!-- Right status panel resizer -->
                 <div class="sns-panel-resizer" id="snsPanelResizer">
                     <div class="panel-resizer-handle">
                         <div class="panel-resizer-line"></div>
                     </div>
-                    <button class="panel-collapse-btn" id="snsPanelCollapseBtn" title="折叠状态面板">
+                    <button class="panel-collapse-btn" id="snsPanelCollapseBtn" title="Collapse status panel">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
                             <polyline points="9,6 15,12 9,18"/>
                         </svg>
                     </button>
                 </div>
 
-                <!-- 右侧状态面板 -->
+                <!-- Right status panel -->
                 <div class="sns-status-panel" id="snsStatusPanel">
-                    <!-- 搜索栏（默认隐藏，通过右键菜单唤出） -->
+                    <!-- Search bar (hidden by default, opened via context menu) -->
                     <div class="status-search-bar" id="statusSearchBar" style="display: none;">
                         <div class="search-input-wrapper">
                             <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"/>
                                 <path d="m21 21-4.35-4.35"/>
                             </svg>
-                            <input type="text" class="search-input" id="statusSearchInput" placeholder="搜索当前页签内容...">
-                            <button class="search-clear-btn" id="statusSearchClear" title="关闭搜索">
+                            <input type="text" class="search-input" id="statusSearchInput" placeholder="Search within the current tab...">
+                            <button class="search-clear-btn" id="statusSearchClear" title="Close search">
                                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="18" y1="6" x2="6" y2="18"/>
                                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -224,14 +219,14 @@ export default {
                             </button>
                         </div>
                         <div class="search-results-info" id="searchResultsInfo" style="display: none;">
-                            <span id="searchResultsText">找到 0 个结果</span>
+                            <span id="searchResultsText">Found 0 results</span>
                             <div class="search-navigation">
-                                <button class="search-nav-btn" id="searchPrevBtn" title="上一个">
+                                <button class="search-nav-btn" id="searchPrevBtn" title="Previous">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="15 18 9 12 15 6"/>
                                     </svg>
                                 </button>
-                                <button class="search-nav-btn" id="searchNextBtn" title="下一个">
+                                <button class="search-nav-btn" id="searchNextBtn" title="Next">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                         <polyline points="9 18 15 12 9 6"/>
                                     </svg>
@@ -240,7 +235,7 @@ export default {
                         </div>
                     </div>
                     
-                    <!-- 右键菜单 -->
+                    <!-- Context menu -->
                     <div class="status-context-menu" id="statusContextMenu" style="display: none;">
                         <button class="context-menu-item" data-action="copy">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -266,9 +261,9 @@ export default {
                         </button>
                     </div>
                     
-                    <!-- 页签内容区域 - 整个面板内容随页签切换 -->
+                    <!-- Tab content area - entire panel content switches with tabs -->
                     <div class="status-tab-content" id="statusTabContent">
-                        <!-- Process 页签内容 -->
+                        <!-- Process tab content -->
                         <div class="tab-pane active" data-tab="process">
                             <div class="status-section">
                                 <div class="status-section-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg> Current Status</div>
@@ -285,7 +280,7 @@ export default {
                                 <div class="status-rows"><span class="na">N/A</span></div>
                             </div>
                         </div>
-                        <!-- Resource 页签内容 -->
+                        <!-- Resource tab content -->
                         <div class="tab-pane" data-tab="resource">
                             <div class="status-section">
                                 <div class="status-section-title"><svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4 14h-2v-4H7v-2h6V7h2v4h4v2h-4v4z"/></svg> Resource Overview</div>
@@ -294,13 +289,13 @@ export default {
                                 </div>
                             </div>
                         </div>
-                        <!-- Think 页签内容 -->
+                        <!-- Think tab content -->
                         <div class="tab-pane" data-tab="think">
                             <div class="status-section">
                                 <div class="status-section-title">
                                     <svg viewBox="0 0 24 24" width="16" height="16" fill="#1a73e8"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
                                     AI Model
-                                    <button class="refresh-btn" id="refreshModelInfoBtn" title="刷新模型信息">
+                                    <button class="refresh-btn" id="refreshModelInfoBtn" title="Refresh model info">
                                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
                                             <polyline points="23 4 23 10 17 10"></polyline>
                                             <polyline points="1 20 1 14 7 14"></polyline>
@@ -324,7 +319,7 @@ export default {
 
                         </div>
                     </div>
-                    <!-- 底部页签按钮 -->
+                    <!-- Bottom tab buttons -->
                     <div class="status-tabs" id="statusTabs">
                         <button class="status-tab active" data-tab="process">Process</button>
                         <button class="status-tab" data-tab="resource">Resource</button>

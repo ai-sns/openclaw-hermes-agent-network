@@ -111,7 +111,7 @@ function startCoordinateCapture(targetField) {
     // Update the currently clicked link text
     const linkElement = document.getElementById(targetField + "_coord_link_element");
     if (linkElement) {
-        linkElement.textContent = "结束坐标获取";
+        linkElement.textContent = "Stop coordinate capture";
         linkElement.onclick = stopCoordinateCapture;
     }
 
@@ -124,14 +124,14 @@ function startCoordinateCapture(targetField) {
             if (field !== targetField) {
                 const otherLinkElement = document.getElementById(field + "_coord_link_element");
                 if (otherLinkElement) {
-                    otherLinkElement.textContent = "点此获取坐标";
+                    otherLinkElement.textContent = "Click to get coordinates";
                     otherLinkElement.onclick = function() { startCoordinateCapture(field); };
                 }
             }
         });
     }
 
-    showAlert("请点击地图来指定来获取相应的坐标。");
+    showAlert("Click on the map to capture coordinates.");
 }
 
 // Stop coordinate capture
@@ -145,20 +145,20 @@ function stopCoordinateCapture() {
     // Restore link text and click handlers
     const startLinkElement = document.getElementById("start_coord_link_element");
     if (startLinkElement) {
-        startLinkElement.textContent = "点此获取坐标";
+        startLinkElement.textContent = "Click to get coordinates";
         startLinkElement.onclick = function() { startCoordinateCapture('start'); };
     }
 
     const endLinkElement = document.getElementById("end_coord_link_element");
     if (endLinkElement) {
-        endLinkElement.textContent = "点此获取坐标";
+        endLinkElement.textContent = "Click to get coordinates";
         endLinkElement.onclick = function() { startCoordinateCapture('end'); };
     }
 
     // Restore home position link text and click handler
     const homeAddressLinkElement = document.getElementById("home_address_coord_link_element");
     if (homeAddressLinkElement) {
-        homeAddressLinkElement.textContent = "点此获取坐标";
+        homeAddressLinkElement.textContent = "Click to get coordinates";
         homeAddressLinkElement.onclick = function() { startCoordinateCapture('home_address'); };
     }
 }
@@ -174,21 +174,21 @@ function resetCoordinateLinks() {
     // Restore start link text and click handler
     const startLinkElement = document.getElementById("start_coord_link_element");
     if (startLinkElement) {
-        startLinkElement.textContent = "点此获取坐标";
+        startLinkElement.textContent = "Click to get coordinates";
         startLinkElement.onclick = function() { startCoordinateCapture('start'); };
     }
 
     // Restore end link text and click handler
     const endLinkElement = document.getElementById("end_coord_link_element");
     if (endLinkElement) {
-        endLinkElement.textContent = "点此获取坐标";
+        endLinkElement.textContent = "Click to get coordinates";
         endLinkElement.onclick = function() { startCoordinateCapture('end'); };
     }
 
     // Restore home position link text and click handler
     const homeAddressLinkElement = document.getElementById("home_address_coord_link_element");
     if (homeAddressLinkElement) {
-        homeAddressLinkElement.textContent = "点此获取坐标";
+        homeAddressLinkElement.textContent = "Click to get coordinates";
         homeAddressLinkElement.onclick = function() { startCoordinateCapture('home_address'); };
     }
 }
@@ -374,10 +374,10 @@ function calcRoute() {
                 const buttons = msgdiv.getElementsByTagName('button');
                 for (let i = 0; i < buttons.length; i++) {
                     const button = buttons[i];
-                    const buttonText = button.textContent.trim();
-                    if (buttonText === '确定') {
+                    const action = (button && button.dataset) ? String(button.dataset.action || '') : '';
+                    if (action === 'route-confirm') {
                         button.style.display = 'none';
-                    } else if (buttonText === '查看' || buttonText === '重设') {
+                    } else if (action === 'route-view' || action === 'route-reset') {
                         button.style.display = 'inline-block';
                     }
                 }
@@ -401,7 +401,7 @@ function calcRoute() {
             }
         } else {
             // Route planning failed; do not update status or UI
-            showAlert("路线规划失败: " + status);
+            showAlert("Route planning failed: " + status);
         }
     });
 }
@@ -557,7 +557,7 @@ alert("1viewroute");
     } else {
         alert(22);
         map.setCenter(polyline.getPath().getAt(0));
-    }}else{showAlert("路线加载出错，请检查网络后刷新页面或重新指定路线。",true)}
+    }}else{showAlert("Failed to load route. Check your network, refresh the page, or specify the route again.",true)}
 }
 
 // Track toggle function
@@ -582,24 +582,24 @@ function toggleTrack() {
     switch (route_status) {
         case 'stopped':
             startTrack();
-            span.textContent = '暂停漫游'; // update text
+            span.textContent = 'Pause roaming'; // update text
             icon.className = 'fas fa-circle-pause'; // update icon to pause
             route_status = 'playing'; // update status
             break;
         case 'playing':
             pauseTrack();
-            span.textContent = '继续漫游'; // update text
+            span.textContent = 'Resume roaming'; // update text
             icon.className = 'fas fa-circle-play'; // update icon to play
             route_status = 'paused'; // update status
             break;
         case 'paused':
             continueTrack();
-            span.textContent = '暂停漫游'; // update text
+            span.textContent = 'Pause roaming'; // update text
             icon.className = 'fas fa-circle-pause'; // update icon to pause
             route_status = 'playing'; // update status
             break;
         default:
-            console.error('未知的路由状态:', route_status);
+            console.error('Unknown route status:', route_status);
     }
     update_map_setting("route_status", route_status);
 }
@@ -647,7 +647,7 @@ function stopTrack() {
             try {
                 user_marker.setMap(null);
             } catch (e) {
-                console.warn("移除user_marker失败:", e);
+                console.warn("Failed to remove user_marker:", e);
             }
             user_marker = null;
         }
@@ -656,7 +656,7 @@ function stopTrack() {
             try {
                 polyline.setMap(null);
             } catch (e) {
-                console.warn("移除polyline失败:", e);
+                console.warn("Failed to remove polyline:", e);
             }
         }
 
@@ -664,7 +664,7 @@ function stopTrack() {
             try {
                 poly2.setMap(null);
             } catch (e) {
-                console.warn("移除poly2失败:", e);
+                console.warn("Failed to remove poly2:", e);
             }
         }
 
@@ -672,17 +672,17 @@ function stopTrack() {
             try {
                 directionsDisplay.setMap(null);
             } catch (e) {
-                console.warn("移除directionsDisplay失败:", e);
+                console.warn("Failed to remove directionsDisplay:", e);
             }
         }
 
-        console.log("路线已完全清除");
+        console.log("Route has been fully cleared");
 
         // Note: do not update menu checkmarks here
         // stopTrack() may be called from multiple places (e.g. before planning a new route)
         // Only update checkmarks when switching to random route is confirmed (handled in setRouteRandom callback)
     } catch (error) {
-        console.error("stopTrack执行失败:", error);
+        console.error("stopTrack failed:", error);
         // Ensure references are cleared even on errors
         timerHandle = null;
         user_marker = null;
@@ -703,7 +703,7 @@ function computeTotalDistance(result) {
 
     total = total / 1000;
 
-alert("总距离");
+alert("Total distance");
 alert(total);
 
 }

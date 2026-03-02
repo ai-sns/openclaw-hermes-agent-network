@@ -13,11 +13,11 @@ const RoleManagementPage = {
         roles: [],
         presets: [],
         categories: [
-            { value: 'developer', label: '开发者' },
-            { value: 'writer', label: '写作者' },
-            { value: 'analyst', label: '分析师' },
-            { value: 'assistant', label: '助手' },
-            { value: 'other', label: '其他' }
+            { value: 'developer', label: 'Developer' },
+            { value: 'writer', label: 'Writer' },
+            { value: 'analyst', label: 'Analyst' },
+            { value: 'assistant', label: 'Assistant' },
+            { value: 'other', label: 'Other' }
         ]
     },
 
@@ -40,7 +40,7 @@ const RoleManagementPage = {
             }
         } catch (error) {
             console.error('Failed to load roles:', error);
-            window.showNotification?.('加载角色配置失败', 'error');
+            window.showNotification?.('Failed to load role configurations', 'error');
         }
     },
 
@@ -118,7 +118,7 @@ const RoleManagementPage = {
 
     renderRolesList() {
         if (!this.state.roles.length) {
-            return '<div class="empty-state">暂无角色配置，点击"添加角色"或"从模板创建"开始配置</div>';
+            return '<div class="empty-state">No role configurations yet. Click "New Role" to add one.</div>';
         }
 
         const rolesHtml = this.state.roles.map(role => this.renderRoleCard(role)).join('');
@@ -134,6 +134,12 @@ const RoleManagementPage = {
 
     renderRoleCard(role) {
         const categoryLabel = this.state.categories.find(c => c.value === role.category)?.label || role.category;
+        const isPreset = role && (
+            role.is_preset === true ||
+            role.is_preset === 'true' ||
+            role.is_preset === 1 ||
+            role.is_preset === '1'
+        );
 
         return `
             <div class="role-card" data-id="${role.role_id}">
@@ -141,23 +147,21 @@ const RoleManagementPage = {
                     <div class="role-info">
                         <h3 class="role-name">${role.display_name || role.name}</h3>
                         <span class="role-category ${role.category}">${categoryLabel}</span>
-                        ${role.is_default ? '<span class="badge badge-primary">默认</span>' : ''}
-                        ${role.is_preset ? '<span class="badge badge-info">预设</span>' : ''}
+                        ${role.is_default ? '<span class="badge badge-primary">Default</span>' : ''}
+                        ${isPreset ? '<span class="badge badge-info">Preset</span>' : ''}
                     </div>
                     <div class="role-actions">
-                        <button class="btn-icon" data-action="edit" data-id="${role.role_id}" title="编辑">
+                        <button class="btn-icon" data-action="edit" data-id="${role.role_id}" title="Edit">
                             ✏️
                         </button>
-                        ${!role.is_preset ? `
-                        <button class="btn-icon" data-action="delete" data-id="${role.role_id}" title="删除">
+                        <button class="btn-icon" data-action="delete" data-id="${role.role_id}" title="${isPreset ? 'Preset roles cannot be deleted' : 'Delete'}" ${isPreset ? 'disabled aria-disabled="true"' : ''}>
                             🗑️
                         </button>
-                        ` : ''}
                     </div>
                 </div>
                 <div class="role-card-body">
                     <div class="role-detail">
-                        <span class="detail-label">使用次数:</span>
+                        <span class="detail-label">Usage:</span>
                         <span class="detail-value">${role.usage_count || 0}</span>
                     </div>
                     ${role.description ? `<div class="role-description">${role.description}</div>` : ''}
@@ -215,7 +219,7 @@ const RoleManagementPage = {
             <div class="modal-overlay" id="presetModal">
                 <div class="modal-dialog">
                     <div class="modal-header">
-                        <h3>选择预设模板</h3>
+                        <h3>Select a preset template</h3>
                         <button class="modal-close" id="closePresetModal">×</button>
                     </div>
                     <div class="modal-body">
@@ -226,7 +230,7 @@ const RoleManagementPage = {
                                     <p class="preset-category">${preset.category}</p>
                                     <p class="preset-description">${preset.description || ''}</p>
                                     <button class="btn btn-sm btn-primary" data-action="use-preset" data-id="${preset.role_id}">
-                                        使用此模板
+                                        Use this template
                                     </button>
                                 </div>
                             `).join('')}
@@ -266,7 +270,7 @@ const RoleManagementPage = {
 
     showRoleDialog(role = null) {
         const isEdit = !!role?.role_id;
-        const title = isEdit ? '编辑角色' : '添加角色';
+        const title = isEdit ? 'Edit Role' : 'Add Role';
 
         const modalHtml = `
             <div class="modal-overlay" id="roleModal">
@@ -312,22 +316,22 @@ const RoleManagementPage = {
         return `
             <form id="roleForm" class="role-form">
                 <div class="dialog-section">
-                    <h4>基本信息</h4>
+                    <h4>Basic</h4>
                     <div class="form-row">
                         <div class="form-group" style="flex: 1;">
-                            <label>角色名称 (ID) *</label>
+                            <label>Role ID *</label>
                             <input type="text" name="name" class="form-control"
-                                   value="${role?.name || ''}" required placeholder="例如: python_expert">
+                                   value="${role?.name || ''}" required placeholder="e.g. python_expert">
                         </div>
                         <div class="form-group" style="flex: 1;">
-                            <label>显示名称</label>
+                            <label>Display Name</label>
                             <input type="text" name="display_name" class="form-control"
-                                   value="${role?.display_name || ''}" placeholder="例如: Python 专家">
+                                   value="${role?.display_name || ''}" placeholder="e.g. Python Expert">
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>分类</label>
+                        <label>Category</label>
                         <select name="category" class="form-control">
                             ${this.state.categories.map(c => `
                                 <option value="${c.value}" ${role?.category === c.value ? 'selected' : ''}>
@@ -338,41 +342,41 @@ const RoleManagementPage = {
                     </div>
 
                     <div class="form-group">
-                        <label>描述</label>
-                        <textarea name="description" class="form-control" rows="2" placeholder="简要描述角色的功能">${role?.description || ''}</textarea>
+                        <label>Description</label>
+                        <textarea name="description" class="form-control" rows="2" placeholder="Briefly describe what this role does">${role?.description || ''}</textarea>
                     </div>
 
                     <div class="form-group">
-                        <label>标签</label>
+                        <label>Tags</label>
                         <input type="text" name="tags" class="form-control"
                                value="${role?.tags || ''}"
-                               placeholder="例如: 编程,Python,AI (用逗号分隔)">
+                               placeholder="e.g. coding,Python,AI (comma separated)">
                     </div>
                 </div>
 
                 <div class="dialog-section">
-                    <h4>角色设定</h4>
+                    <h4>Persona</h4>
                     <div class="form-group">
-                        <label>系统提示词 (System Prompt) *</label>
-                        <textarea name="system_prompt" class="form-control" rows="8" required placeholder="定义角色的行为、性格和能力...">${role?.system_prompt || ''}</textarea>
+                        <label>System Prompt *</label>
+                        <textarea name="system_prompt" class="form-control" rows="8" required placeholder="Define the role's behavior, personality, and capabilities...">${role?.system_prompt || ''}</textarea>
                     </div>
 
                     <div class="form-group">
-                        <label>欢迎消息</label>
-                        <textarea name="greeting_message" class="form-control" rows="2" placeholder="用户首次对话时显示的欢迎语">${role?.greeting_message || ''}</textarea>
+                        <label>Greeting Message</label>
+                        <textarea name="greeting_message" class="form-control" rows="2" placeholder="Shown when the user starts the first conversation">${role?.greeting_message || ''}</textarea>
                     </div>
                 </div>
 
                 <div class="dialog-section">
-                    <h4>状态</h4>
+                    <h4>Status</h4>
                     <div class="checkbox-group">
                         <label class="checkbox-label">
                             <input type="checkbox" name="is_default" ${role?.is_default ? 'checked' : ''}>
-                            设为默认角色
+                            Set as default
                         </label>
                         <label class="checkbox-label">
                             <input type="checkbox" name="is_active" ${role?.is_active !== false ? 'checked' : ''}>
-                            启用此角色
+                            Enable this role
                         </label>
                     </div>
                 </div>
@@ -406,18 +410,18 @@ const RoleManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('角色创建成功', 'success');
+                window.showNotification?.('Role created', 'success');
                 // Notify main UI to refresh role options
                 if (window.agentHandlers && window.agentHandlers.loadRoleOptions) {
                     window.agentHandlers.loadRoleOptions();
                 }
                 return true;
             } else {
-                window.showNotification?.('创建失败: ' + (result.error || '未知错误'), 'error');
+                window.showNotification?.('Create failed: ' + (result.error || 'Unknown error'), 'error');
                 return false;
             }
         } catch (error) {
-            window.showNotification?.('创建失败: ' + error.message, 'error');
+            window.showNotification?.('Create failed: ' + error.message, 'error');
             return false;
         }
     },
@@ -432,18 +436,18 @@ const RoleManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('角色更新成功', 'success');
+                window.showNotification?.('Role updated', 'success');
                 // Notify main UI to refresh role options
                 if (window.agentHandlers && window.agentHandlers.loadRoleOptions) {
                     window.agentHandlers.loadRoleOptions();
                 }
                 return true;
             } else {
-                window.showNotification?.('更新失败: ' + (result.error || '未知错误'), 'error');
+                window.showNotification?.('Update failed: ' + (result.error || 'Unknown error'), 'error');
                 return false;
             }
         } catch (error) {
-            window.showNotification?.('更新失败: ' + error.message, 'error');
+            window.showNotification?.('Update failed: ' + error.message, 'error');
             return false;
         }
     },
@@ -456,9 +460,42 @@ const RoleManagementPage = {
     },
 
     async deleteRole(roleId) {
-        if (!confirm('确定要删除这个角色配置吗？')) {
-            return;
-        }
+        const confirmed = await (async () => {
+            try {
+                if (window.Toast && typeof window.Toast.confirm === 'function') {
+                    return await window.Toast.confirm('Delete this role configuration?', {
+                        title: 'Delete Role',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel',
+                        type: 'warning'
+                    });
+                }
+
+                if (window.Modal && typeof window.Modal.show === 'function') {
+                    return await new Promise((resolve) => {
+                        window.Modal.show({
+                            title: 'Delete Role',
+                            content: '<p>Delete this role configuration?</p>',
+                            confirmText: 'Delete',
+                            cancelText: 'Cancel',
+                            onConfirm: () => {
+                                resolve(true);
+                                return true;
+                            },
+                            onCancel: () => {
+                                resolve(false);
+                                return true;
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to show delete role confirmation dialog:', e);
+            }
+            return false;
+        })();
+
+        if (!confirmed) return;
 
         try {
             const response = await fetch(this.resolve(`/api/agent/role-configs/${roleId}`), {
@@ -467,17 +504,17 @@ const RoleManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('角色删除成功', 'success');
+                window.showNotification?.('Role deleted', 'success');
                 await this.loadRoles();
                 // Notify main UI to refresh role options
                 if (window.agentHandlers && window.agentHandlers.loadRoleOptions) {
                     window.agentHandlers.loadRoleOptions();
                 }
             } else {
-                window.showNotification?.('删除失败: ' + result.detail, 'error');
+                window.showNotification?.('Delete failed: ' + result.detail, 'error');
             }
         } catch (error) {
-            window.showNotification?.('删除失败: ' + error.message, 'error');
+            window.showNotification?.('Delete failed: ' + error.message, 'error');
         }
     },
 
@@ -496,10 +533,10 @@ const RoleManagementPage = {
                 a.click();
                 URL.revokeObjectURL(url);
 
-                window.showNotification?.('导出成功', 'success');
+                window.showNotification?.('Exported successfully', 'success');
             }
         } catch (error) {
-            window.showNotification?.('导出失败: ' + error.message, 'error');
+            window.showNotification?.('Export failed: ' + error.message, 'error');
         }
     },
 
@@ -508,12 +545,12 @@ const RoleManagementPage = {
             <div class="modal-overlay" id="importModal">
                 <div class="modal-dialog">
                     <div class="modal-header">
-                        <h3>导入角色配置</h3>
+                        <h3>Import role configurations</h3>
                         <button class="modal-close" id="closeImportModal">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="import-dialog">
-                            <p>选择要导入的配置文件 (JSON 格式)</p>
+                            <p>Select a configuration file to import (JSON)</p>
                             <input type="file" id="importFileInput" accept=".json">
                             <div class="import-preview" id="importPreview"></div>
                         </div>
@@ -538,10 +575,10 @@ const RoleManagementPage = {
                     const text = await file.text();
                     const configs = JSON.parse(text);
                     const preview = modal.querySelector('#importPreview');
-                    preview.innerHTML = `<p>将导入 ${configs.length} 个配置</p>`;
+                    preview.innerHTML = `<p>Will import ${configs.length} configuration(s)</p>`;
                 } catch (error) {
                     const preview = modal.querySelector('#importPreview');
-                    preview.innerHTML = `<p class="error">文件格式错误</p>`;
+                    preview.innerHTML = `<p class="error">Invalid file format</p>`;
                 }
             }
         });
@@ -554,7 +591,7 @@ const RoleManagementPage = {
         modal.querySelector('#confirmImportBtn').addEventListener('click', async () => {
             const file = modal.querySelector('#importFileInput').files[0];
             if (!file) {
-                window.showNotification?.('请选择文件', 'warning');
+                window.showNotification?.('Please select a file', 'warning');
                 return;
             }
 
@@ -570,14 +607,14 @@ const RoleManagementPage = {
                 const result = await response.json();
 
                 if (result.success) {
-                    window.showNotification?.(`成功导入 ${result.data.created} 个配置`, 'success');
+                    window.showNotification?.(`Imported ${result.data.created} configuration(s)`, 'success');
                     modal.remove();
                     await this.loadRoles();
                 } else {
-                    window.showNotification?.('导入失败', 'error');
+                    window.showNotification?.('Import failed', 'error');
                 }
             } catch (error) {
-                window.showNotification?.('导入失败: ' + error.message, 'error');
+                window.showNotification?.('Import failed: ' + error.message, 'error');
             }
         });
     },

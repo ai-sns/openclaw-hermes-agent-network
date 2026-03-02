@@ -275,8 +275,7 @@ async def submit_system_init(
         if not record or not record.get("avatar"):
             raise HTTPException(status_code=400, detail="Avatar not set")
 
-        map_name_without_ext = record["avatar"].rsplit('.', 1)[0]
-        avatar_map_filename = f"{map_name_without_ext}_map.png"
+        avatar_map_filename = service._generate_avatar_map(record["avatar"])
 
         register_data = {
             "nation_id": "",

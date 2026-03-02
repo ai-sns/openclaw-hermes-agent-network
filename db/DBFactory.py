@@ -2,9 +2,10 @@ import os
 
 import sqlite3
 
-from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy import create_engine, Column, Integer, String, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from pathlib import Path
 
 from datetime import datetime
@@ -17,7 +18,36 @@ Base = declarative_base()
 DBPath = os.path.join(Path(__file__).resolve().parent, "db.sqlite")
 print("DBPath", DBPath)
 SQL_DATABASE_URL = fr"sqlite:///{DBPath}"
-engine = create_engine(SQL_DATABASE_URL)
+engine = create_engine(
+    SQL_DATABASE_URL,
+    connect_args={"check_same_thread": False, "timeout": 30},
+    poolclass=NullPool,
+)
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_on_connect(dbapi_connection, connection_record):
+    try:
+        cursor = dbapi_connection.cursor()
+        try:
+            cursor.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA synchronous=NORMAL")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA busy_timeout=30000")
+        except Exception:
+            pass
+        try:
+            cursor.execute("PRAGMA foreign_keys=ON")
+        except Exception:
+            pass
+        cursor.close()
+    except Exception:
+        pass
 
 Session = sessionmaker(bind=engine)
 

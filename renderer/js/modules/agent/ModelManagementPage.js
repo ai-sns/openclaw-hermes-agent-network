@@ -17,7 +17,7 @@ const ModelManagementPage = {
             { value: 'openai', label: 'OpenAI' },
             { value: 'claude', label: 'Claude (Anthropic)' },
             { value: 'gemini', label: 'Gemini (Google)' },
-            { value: 'custom', label: '类 OpenAI (自定义)' }
+            { value: 'custom', label: 'OpenAI-like (Custom)' }
         ]
     },
 
@@ -37,7 +37,7 @@ const ModelManagementPage = {
             }
         } catch (error) {
             console.error('Failed to load models:', error);
-            window.showNotification?.('加载模型配置失败', 'error');
+            window.showNotification?.('Failed to load model configurations', 'error');
         }
     },
 
@@ -100,7 +100,7 @@ const ModelManagementPage = {
 
     renderModelsList() {
         if (!this.state.models.length) {
-            return '<div class="empty-state">暂无模型配置，点击"添加模型"开始配置</div>';
+            return '<div class="empty-state">No model configurations yet. Click "New LLM" to get started.</div>';
         }
 
         const modelsHtml = this.state.models.map(model => this.renderModelCard(model)).join('');
@@ -123,27 +123,27 @@ const ModelManagementPage = {
                     <div class="model-info">
                         <h3 class="model-name">${model.name}</h3>
                         <span class="model-provider ${model.provider}">${providerLabel}</span>
-                        ${model.is_default ? '<span class="badge badge-primary">默认</span>' : ''}
+                        ${model.is_default ? '<span class="badge badge-primary">Default</span>' : ''}
                     </div>
                     <div class="model-actions">
-                        <button class="btn-icon" data-action="test" data-id="${model.config_id}" title="测试连接">
+                        <button class="btn-icon" data-action="test" data-id="${model.config_id}" title="Test connection">
                             🔍
                         </button>
-                        <button class="btn-icon" data-action="edit" data-id="${model.config_id}" title="编辑">
+                        <button class="btn-icon" data-action="edit" data-id="${model.config_id}" title="Edit">
                             ✏️
                         </button>
-                        <button class="btn-icon" data-action="delete" data-id="${model.config_id}" title="删除">
+                        <button class="btn-icon" data-action="delete" data-id="${model.config_id}" title="Delete">
                             🗑️
                         </button>
                     </div>
                 </div>
                 <div class="model-card-body">
                     <div class="model-detail">
-                        <span class="detail-label">模型名称:</span>
+                        <span class="detail-label">Model ID:</span>
                         <span class="detail-value">${model.model_name || 'N/A'}</span>
                     </div>
                     <div class="model-detail">
-                        <span class="detail-label">API端点:</span>
+                        <span class="detail-label">API Endpoint:</span>
                         <span class="detail-value">${model.api_endpoint || 'N/A'}</span>
                     </div>
                     ${model.description ? `<div class="model-description">${model.description}</div>` : ''}
@@ -192,7 +192,7 @@ const ModelManagementPage = {
 
     showModelDialog(model = null) {
         const isEdit = !!model;
-        const title = isEdit ? '编辑模型' : '添加模型';
+        const title = isEdit ? 'Edit Model' : 'Add Model';
 
         const modalHtml = `
             <div class="modal-overlay" id="modelModal">
@@ -260,22 +260,22 @@ const ModelManagementPage = {
         return `
             <form id="modelForm" class="model-form">
                 <div class="form-tabs">
-                    <button type="button" class="tab-btn active" data-tab="basic">基础配置</button>
-                    <button type="button" class="tab-btn" data-tab="advanced">高级参数</button>
+                    <button type="button" class="tab-btn active" data-tab="basic">Basic</button>
+                    <button type="button" class="tab-btn" data-tab="advanced">Advanced</button>
                 </div>
 
                 <!-- Basic Config -->
                 <div class="tab-content active" data-tab-content="basic">
                     <div class="dialog-section">
-                        <h4>基本信息</h4>
+                        <h4>Basic</h4>
                         <div class="form-group">
-                            <label>显示名称 *</label>
+                            <label>Display Name *</label>
                             <input type="text" name="name" class="form-control"
-                                   value="${model?.name || ''}" required placeholder="例如: GPT-4o Production">
+                                   value="${model?.name || ''}" required placeholder="e.g. GPT-4o Production">
                         </div>
 
                         <div class="form-group">
-                            <label>接口类型 *</label>
+                            <label>Provider *</label>
                             <select name="provider" class="form-control" required>
                                 ${this.state.providers.map(p => `
                                     <option value="${p.value}" ${model?.provider === p.value ? 'selected' : ''}>
@@ -286,25 +286,25 @@ const ModelManagementPage = {
                         </div>
 
                         <div class="form-group">
-                            <label>模型名称 (Model ID) *</label>
+                            <label>Model ID *</label>
                             <input type="text" name="model_name" class="form-control"
                                    value="${model?.model_name || ''}"
-                                   placeholder="例如: gpt-4o, claude-3-5-sonnet-20240620" required>
+                                   placeholder="e.g. gpt-4o, claude-3-5-sonnet-20240620" required>
                         </div>
                         
                         <div class="form-group">
-                            <label>描述</label>
-                            <textarea name="description" class="form-control" rows="2" placeholder="可选: 描述此模型的用途或特点">${model?.description || ''}</textarea>
+                            <label>Description</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Optional: describe the model's purpose or characteristics">${model?.description || ''}</textarea>
                         </div>
                     </div>
 
                     <div class="dialog-section">
-                        <h4>连接设置</h4>
+                        <h4>Connection</h4>
                         <div class="form-group">
-                            <label>API 端点 (Base URL) *</label>
+                            <label>API Endpoint (Base URL) *</label>
                             <input type="url" name="api_endpoint" class="form-control"
                                    value="${model?.api_endpoint || ''}"
-                                   placeholder="例如: https://api.openai.com/v1/chat/completions" required>
+                                   placeholder="e.g. https://api.openai.com/v1/chat/completions" required>
                         </div>
 
                         <div class="form-group">
@@ -314,22 +314,22 @@ const ModelManagementPage = {
                                        value="${model?.api_key || ''}"
                                        placeholder="sk-..." required>
                                 <button type="button" class="btn btn-secondary test-connection-btn">
-                                    测试连接
+                                    Test connection
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div class="dialog-section">
-                        <h4>状态</h4>
+                        <h4>Status</h4>
                         <div class="checkbox-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" name="is_default" ${model?.is_default ? 'checked' : ''}>
-                                设为默认模型
+                                Set as default
                             </label>
                             <label class="checkbox-label">
                                 <input type="checkbox" name="is_active" ${model?.is_active !== false ? 'checked' : ''}>
-                                启用此配置
+                                Enable this configuration
                             </label>
                         </div>
                     </div>
@@ -338,21 +338,21 @@ const ModelManagementPage = {
                 <!-- Advanced Config -->
                 <div class="tab-content" data-tab-content="advanced">
                     <div class="dialog-section">
-                        <h4>生成参数</h4>
+                        <h4>Generation</h4>
                         <div class="form-row">
                             <div class="form-group" style="flex: 1;">
                                 <label>Temperature (0-2)</label>
                                 <input type="number" name="temperature" class="form-control"
                                        value="${model?.temperature ?? 0.7}"
                                        min="0" max="2" step="0.1">
-                                <small class="form-hint">控制输出随机性</small>
+                                <small class="form-hint">Controls randomness</small>
                             </div>
                             <div class="form-group" style="flex: 1;">
                                 <label>Top P (0-1)</label>
                                 <input type="number" name="top_p" class="form-control"
                                        value="${model?.top_p ?? 1.0}"
                                        min="0" max="1" step="0.1">
-                                <small class="form-hint">核采样阈值</small>
+                                <small class="form-hint">Nucleus sampling threshold</small>
                             </div>
                         </div>
 
@@ -361,7 +361,7 @@ const ModelManagementPage = {
                             <input type="number" name="max_tokens" class="form-control"
                                    value="${model?.max_tokens ?? 2048}"
                                    min="1">
-                            <small class="form-hint">单次生成的最大令牌数</small>
+                            <small class="form-hint">Maximum tokens per response</small>
                         </div>
 
                         <div class="form-row">
@@ -381,11 +381,11 @@ const ModelManagementPage = {
                     </div>
 
                     <div class="dialog-section">
-                        <h4>其他选项</h4>
+                        <h4>Other</h4>
                         <div class="checkbox-group">
                             <label class="checkbox-label">
                                 <input type="checkbox" name="stream" ${model?.stream !== false ? 'checked' : ''}>
-                                启用流式输出 (Stream)
+                                Enable streaming output
                             </label>
                         </div>
                     </div>
@@ -423,18 +423,18 @@ const ModelManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('模型创建成功', 'success');
+                window.showNotification?.('Model created', 'success');
                 // Notify main UI to refresh model options
                 if (window.agentHandlers && window.agentHandlers.loadModelOptions) {
                     window.agentHandlers.loadModelOptions();
                 }
                 return true;
             } else {
-                window.showNotification?.('创建失败: ' + (result.error || '未知错误'), 'error');
+                window.showNotification?.('Create failed: ' + (result.error || 'Unknown error'), 'error');
                 return false;
             }
         } catch (error) {
-            window.showNotification?.('创建失败: ' + error.message, 'error');
+            window.showNotification?.('Create failed: ' + error.message, 'error');
             return false;
         }
     },
@@ -449,18 +449,18 @@ const ModelManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('模型更新成功', 'success');
+                window.showNotification?.('Model updated', 'success');
                 // Notify main UI to refresh model options
                 if (window.agentHandlers && window.agentHandlers.loadModelOptions) {
                     window.agentHandlers.loadModelOptions();
                 }
                 return true;
             } else {
-                window.showNotification?.('更新失败: ' + (result.error || '未知错误'), 'error');
+                window.showNotification?.('Update failed: ' + (result.error || 'Unknown error'), 'error');
                 return false;
             }
         } catch (error) {
-            window.showNotification?.('更新失败: ' + error.message, 'error');
+            window.showNotification?.('Update failed: ' + error.message, 'error');
             return false;
         }
     },
@@ -473,9 +473,42 @@ const ModelManagementPage = {
     },
 
     async deleteModel(configId) {
-        if (!confirm('确定要删除这个模型配置吗？')) {
-            return;
-        }
+        const confirmed = await (async () => {
+            try {
+                if (window.Toast && typeof window.Toast.confirm === 'function') {
+                    return await window.Toast.confirm('Delete this model configuration?', {
+                        title: 'Delete Model',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel',
+                        type: 'warning'
+                    });
+                }
+
+                if (window.Modal && typeof window.Modal.show === 'function') {
+                    return await new Promise((resolve) => {
+                        window.Modal.show({
+                            title: 'Delete Model',
+                            content: '<p>Delete this model configuration?</p>',
+                            confirmText: 'Delete',
+                            cancelText: 'Cancel',
+                            onConfirm: () => {
+                                resolve(true);
+                                return true;
+                            },
+                            onCancel: () => {
+                                resolve(false);
+                                return true;
+                            }
+                        });
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to show delete model confirmation dialog:', e);
+            }
+            return false;
+        })();
+
+        if (!confirmed) return;
 
         try {
             const response = await fetch(this.resolve(`/api/agent/llm-configs/${configId}`), {
@@ -484,17 +517,17 @@ const ModelManagementPage = {
             const result = await response.json();
 
             if (result.success) {
-                window.showNotification?.('模型删除成功', 'success');
+                window.showNotification?.('Model deleted', 'success');
                 await this.loadModels();
                 // Notify main UI to refresh model options
                 if (window.agentHandlers && window.agentHandlers.loadModelOptions) {
                     window.agentHandlers.loadModelOptions();
                 }
             } else {
-                window.showNotification?.('删除失败', 'error');
+                window.showNotification?.('Delete failed', 'error');
             }
         } catch (error) {
-            window.showNotification?.('删除失败: ' + error.message, 'error');
+            window.showNotification?.('Delete failed: ' + error.message, 'error');
         }
     },
 
@@ -512,7 +545,7 @@ const ModelManagementPage = {
         }
 
         try {
-            window.showNotification?.('正在测试连接...', 'info');
+            window.showNotification?.('Testing connection...', 'info');
             const response = await fetch(this.resolve('/api/agent/llm-configs/test'), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -520,12 +553,12 @@ const ModelManagementPage = {
             });
             const result = await response.json();
             if (result.success) {
-                window.showNotification?.('连接测试成功！', 'success');
+                window.showNotification?.('Connection test succeeded!', 'success');
             } else {
-                window.showNotification?.('连接测试失败: ' + (result.error || '未知错误'), 'error');
+                window.showNotification?.('Connection test failed: ' + (result.error || 'Unknown error'), 'error');
             }
         } catch (error) {
-            window.showNotification?.('连接测试失败: ' + error.message, 'error');
+            window.showNotification?.('Connection test failed: ' + error.message, 'error');
         }
     },
 
@@ -544,10 +577,10 @@ const ModelManagementPage = {
                 a.click();
                 URL.revokeObjectURL(url);
 
-                window.showNotification?.('导出成功', 'success');
+                window.showNotification?.('Exported successfully', 'success');
             }
         } catch (error) {
-            window.showNotification?.('导出失败: ' + error.message, 'error');
+            window.showNotification?.('Export failed: ' + error.message, 'error');
         }
     },
 
@@ -556,12 +589,12 @@ const ModelManagementPage = {
             <div class="modal-overlay" id="importModal">
                 <div class="modal-dialog">
                     <div class="modal-header">
-                        <h3>导入模型配置</h3>
+                        <h3>Import model configurations</h3>
                         <button class="modal-close" id="closeImportModal">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="import-dialog">
-                            <p>选择要导入的配置文件 (JSON 格式)</p>
+                            <p>Select a configuration file to import (JSON)</p>
                             <input type="file" id="importFileInput" accept=".json">
                             <div class="import-preview" id="importPreview"></div>
                         </div>
@@ -586,10 +619,10 @@ const ModelManagementPage = {
                     const text = await file.text();
                     const configs = JSON.parse(text);
                     const preview = modal.querySelector('#importPreview');
-                    preview.innerHTML = `<p>将导入 ${configs.length} 个配置</p>`;
+                    preview.innerHTML = `<p>Will import ${configs.length} configuration(s)</p>`;
                 } catch (error) {
                     const preview = modal.querySelector('#importPreview');
-                    preview.innerHTML = `<p class="error">文件格式错误</p>`;
+                    preview.innerHTML = `<p class="error">Invalid file format</p>`;
                 }
             }
         });
@@ -602,7 +635,7 @@ const ModelManagementPage = {
         modal.querySelector('#confirmImportBtn').addEventListener('click', async () => {
             const file = modal.querySelector('#importFileInput').files[0];
             if (!file) {
-                window.showNotification?.('请选择文件', 'warning');
+                window.showNotification?.('Please select a file', 'warning');
                 return;
             }
 
@@ -618,14 +651,14 @@ const ModelManagementPage = {
                 const result = await response.json();
 
                 if (result.success) {
-                    window.showNotification?.(`成功导入 ${result.data.created} 个配置`, 'success');
+                    window.showNotification?.(`Imported ${result.data.created} configuration(s)`, 'success');
                     modal.remove();
                     await this.loadModels();
                 } else {
-                    window.showNotification?.('导入失败', 'error');
+                    window.showNotification?.('Import failed', 'error');
                 }
             } catch (error) {
-                window.showNotification?.('导入失败: ' + error.message, 'error');
+                window.showNotification?.('Import failed: ' + error.message, 'error');
             }
         });
     },

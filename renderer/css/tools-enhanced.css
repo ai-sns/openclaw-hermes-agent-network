@@ -1,9 +1,9 @@
 /**
  * Tools Module Enhanced Styles
- * 增强的工具管理样式
+ * Enhanced tool management styles
  */
 
-/* 加载状态 */
+/* Loading state */
 .loading-spinner {
     display: flex;
     justify-content: center;
@@ -39,7 +39,7 @@
     to { transform: rotate(360deg); }
 }
 
-/* 空状态 */
+/* Empty state */
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -93,7 +93,7 @@
     transform: translateY(0);
 }
 
-/* 错误状态 */
+/* Error state */
 .error-state {
     display: flex;
     flex-direction: column;
@@ -132,7 +132,7 @@
     background: #2563eb;
 }
 
-/* 工具卡片指令 */
+/* Tool card instructions */
 .plugin-instruction {
     padding: 12px;
     margin-top: 12px;
@@ -153,7 +153,7 @@
     color: #92400e;
 }
 
-/* 工具卡片操作按钮 */
+/* Tool card action buttons */
 .plugin-actions {
     display: flex;
     gap: 8px;
@@ -222,7 +222,7 @@
     transform: scale(0.95);
 }
 
-/* 工具卡片网格布局 */
+/* Tool card grid layout */
 .plugin-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -230,7 +230,7 @@
     padding: 24px;
 }
 
-/* 工具卡片基础样式增强 */
+/* Enhanced base styles for tool cards */
 .tool-card {
     background: white;
     border: 1px solid #e4e7eb;
@@ -245,7 +245,7 @@
     transform: translateY(-4px);
 }
 
-/* Modal样式 */
+/* Modal styles */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -372,7 +372,7 @@
     background: #e2e8f0;
 }
 
-/* 测试结果对话框 */
+/* Test results dialog */
 .test-result-dialog {
     max-width: 800px;
 }
@@ -413,7 +413,7 @@
     }
 }
 
-/* 深色主题支持 */
+/* Dark theme support */
 body.theme-dark .empty-state h3,
 body.theme-dark .tool-card {
     color: #f9fafb;
@@ -496,7 +496,7 @@ body.theme-dark .modal-close:hover {
     color: #f3f4f6;
 }
 
-/* 响应式设计 */
+/* Responsive design */
 @media (max-width: 768px) {
     .plugin-grid {
         grid-template-columns: 1fr;
@@ -521,7 +521,7 @@ body.theme-dark .modal-close:hover {
     }
 }
 
-/* 过渡动画 */
+/* Transition animations */
 .tool-card {
     animation: fadeInUp 0.3s ease-out;
 }
@@ -537,7 +537,7 @@ body.theme-dark .modal-close:hover {
     }
 }
 
-/* 工具徽章样式优化 */
+/* Tool badge style tweaks */
 .plugin-badge-connector {
     display: inline-block;
     padding: 4px 10px;
@@ -561,7 +561,7 @@ body.theme-dark .modal-close:hover {
 
 
 
-/* 插件列表头部样式 */
+/* Plugin list header styles */
 .plugin-list-header {
     display: flex;
     justify-content: space-between;
@@ -602,7 +602,7 @@ body.theme-dark .modal-close:hover {
     transform: translateY(0) scale(0.98);
 }
 
-/* 深色主题支持 */
+/* Dark theme support */
 body.theme-dark .plugin-list-title {
     color: #f9fafb;
 }

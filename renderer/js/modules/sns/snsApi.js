@@ -14,6 +14,25 @@ export default {
         return urlOrPath;
     },
 
+    async getEngineStatus() {
+        try {
+            const response = await fetch(this.resolve('/api/sns/engine-status'), {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to fetch AI social engine status:', error);
+            return {
+                success: false,
+                message: error.message,
+                running: false
+            };
+        }
+    },
+
     async getUserStats() {
         try {
             const response = await fetch(this.resolve('/api/sns/user-stats'), {
@@ -26,6 +45,29 @@ export default {
         } catch (error) {
             console.error('Failed to fetch user stats:', error);
             return null;
+        }
+    },
+
+    /**
+     * Restart AI social engine
+     */
+    async restartEngine() {
+        try {
+            const response = await fetch(this.resolve('/api/sns/restart-engine'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            console.error('Failed to restart AI social engine:', error);
+            return {
+                success: false,
+                message: error.message
+            };
         }
     },
 
@@ -84,7 +126,7 @@ export default {
                 data: []
             };
         } catch (error) {
-            console.error('获取节点列表失败:', error);
+            console.error('Failed to fetch node list:', error);
             return {
                 success: false,
                 error: error.message
@@ -98,12 +140,12 @@ export default {
     async updateLocation(location) {
         try {
             // TODO: Implement actual API call
-            console.log('更新位置:', location);
+            console.log('Update location:', location);
             return {
                 success: true
             };
         } catch (error) {
-            console.error('更新位置失败:', error);
+            console.error('Failed to update location:', error);
             return {
                 success: false,
                 error: error.message
@@ -122,7 +164,7 @@ export default {
                 data: []
             };
         } catch (error) {
-            console.error('获取附近用户失败:', error);
+            console.error('Failed to fetch nearby users:', error);
             return {
                 success: false,
                 error: error.message
@@ -136,12 +178,12 @@ export default {
     async sendMessage(targetId, message) {
         try {
             // TODO: Implement actual API call
-            console.log('发送消息:', targetId, message);
+            console.log('Send message:', targetId, message);
             return {
                 success: true
             };
         } catch (error) {
-            console.error('发送消息失败:', error);
+            console.error('Failed to send message:', error);
             return {
                 success: false,
                 error: error.message
@@ -174,7 +216,7 @@ export default {
     connectWebSocket(userId, onMessage, onError) {
         try {
             // TODO: Implement WebSocket connection
-            console.log('建立WebSocket连接:', userId);
+            console.log('Establish WebSocket connection:', userId);
 
             // Simulate successful connection
             setTimeout(() => {
@@ -189,11 +231,11 @@ export default {
             return {
                 success: true,
                 close: () => {
-                    console.log('关闭WebSocket连接');
+                    console.log('Close WebSocket connection');
                 }
             };
         } catch (error) {
-            console.error('WebSocket连接失败:', error);
+            console.error('WebSocket connection failed:', error);
             if (onError) {
                 onError(error);
             }
@@ -219,7 +261,7 @@ export default {
                 }
             };
         } catch (error) {
-            console.error('获取在线统计失败:', error);
+            console.error('Failed to fetch online stats:', error);
             return {
                 success: false,
                 error: error.message
@@ -238,7 +280,7 @@ export default {
                 data: []
             };
         } catch (error) {
-            console.error('获取POI数据失败:', error);
+            console.error('Failed to fetch POI data:', error);
             return {
                 success: false,
                 error: error.message
@@ -257,7 +299,7 @@ export default {
                 data: []
             };
         } catch (error) {
-            console.error('获取任务列表失败:', error);
+            console.error('Failed to fetch task list:', error);
             return {
                 success: false,
                 error: error.message
@@ -271,12 +313,12 @@ export default {
     async acceptTask(taskId) {
         try {
             // TODO: Implement actual API call
-            console.log('接受任务:', taskId);
+            console.log('Accept task:', taskId);
             return {
                 success: true
             };
         } catch (error) {
-            console.error('接受任务失败:', error);
+            console.error('Failed to accept task:', error);
             return {
                 success: false,
                 error: error.message
@@ -290,12 +332,12 @@ export default {
     async completeTask(taskId) {
         try {
             // TODO: Implement actual API call
-            console.log('完成任务:', taskId);
+            console.log('Complete task:', taskId);
             return {
                 success: true
             };
         } catch (error) {
-            console.error('完成任务失败:', error);
+            console.error('Failed to complete task:', error);
             return {
                 success: false,
                 error: error.message
@@ -323,7 +365,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('AI对话失败:', error);
+            console.error('AI chat failed:', error);
             return {
                 success: false,
                 error: error.message
@@ -346,7 +388,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('启动AI社交引擎失败:', error);
+            console.error('Failed to start AI social engine:', error);
             return {
                 success: false,
                 message: error.message
@@ -369,7 +411,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('停止AI社交引擎失败:', error);
+            console.error('Failed to stop AI social engine:', error);
             return {
                 success: false,
                 message: error.message
@@ -389,7 +431,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('暂停AI社交引擎失败:', error);
+            console.error('Failed to pause AI social engine:', error);
             return {
                 success: false,
                 message: error.message
@@ -409,7 +451,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('恢复AI社交引擎失败:', error);
+            console.error('Failed to resume AI social engine:', error);
             return {
                 success: false,
                 message: error.message
@@ -432,7 +474,7 @@ export default {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('获取模型信息失败:', error);
+            console.error('Failed to fetch model info:', error);
             return {
                 success: false,
                 error: error.message

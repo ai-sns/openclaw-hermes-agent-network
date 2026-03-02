@@ -245,7 +245,7 @@ async def update_agent_tools(
         # Reload agent instance to apply the new tool configuration
         agent_manager = AgentManager()
         agent_manager.reload_agent(agent_id)
-        logger.info(f"Agent {agent_id} 工具配置已更新并重新加载")
+        logger.info(f"Agent {agent_id} tool configuration updated and reloaded")
 
         return {"success": True}
     except Exception as e:

@@ -444,7 +444,7 @@ function createWindow() {
 
         if (isDev) {
 
-            console.log('开发模式：打开开发者工具');
+            console.log('Development mode: opening DevTools');
 
             mainWindow.webContents.openDevTools({
 
@@ -474,7 +474,7 @@ function createWindow() {
 
                     title: 'AI-SNS',
 
-                    content: '应用已最小化到托盘，点击托盘图标可恢复窗口'
+                    content: 'The app has been minimized to the tray. Click the tray icon to restore the window.'
 
                 });
 
@@ -539,57 +539,74 @@ async function createMapWindow() {
         const { cfg, apiBaseUrl } = refreshApiBaseUrlFromConfigSync();
         const aiSnsServer = normalizeHttpUrl(cfg.ai_sns_server);
 
-        const response = await fetch(`${apiBaseUrl}/api/sns/map-config`);
-
-        const result = await response.json();
-
-
-
-        const qs = new URLSearchParams();
-        qs.set('agent_server', apiBaseUrl);
-        if (aiSnsServer) {
-            qs.set('ai_sns_server', aiSnsServer);
-        }
-
-        let mapUrl = `${apiBaseUrl}/scripts/map.html?${qs.toString()}`; // Default: Baidu Map
-
-
-
-        console.log('Map config API response:', JSON.stringify(result, null, 2));
-
-
-
-        if (result.success && result.data) {
-
-            const mapType = String(result.data.map_type).trim();
-
-            console.log('Map type value:', mapType, 'Type:', typeof mapType);
-
-
-
-            if (mapType === '0') {
-
-                mapUrl = `${apiBaseUrl}/scripts/googlemap3d.html?${qs.toString()}`;
-
-                console.log('Loading Google Map');
-
-            } else {
-
-                console.log('Loading Baidu Map (default)');
-
+        const buildMapUrlByType = (mapType) => {
+            const t = String(mapType || '').trim();
+            const qs = new URLSearchParams();
+            qs.set('agent_server', apiBaseUrl);
+            if (aiSnsServer) {
+                qs.set('ai_sns_server', aiSnsServer);
             }
+            if (t === '0') {
+                return `${apiBaseUrl}/scripts/googlemap3d.html?${qs.toString()}`;
+            }
+            return `${apiBaseUrl}/scripts/map.html?${qs.toString()}`;
+        };
 
-        } else {
-
-            console.log('API call failed or no data, using default Baidu map');
-
+        let cachedMapType = '';
+        try {
+            cachedMapType = String(cfg.map_type || '').trim();
+        } catch (e) {
         }
 
-
-
-        console.log('Final map URL:', mapUrl);
-
+        // Start loading immediately (do not block on map-config)
+        let mapUrl = buildMapUrlByType(cachedMapType);
+        console.log('Initial map URL (non-blocking):', mapUrl);
         mapWindow.loadURL(mapUrl);
+
+        // Fetch config asynchronously and switch if needed
+        Promise.resolve().then(async () => {
+            try {
+                const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timeoutMs = 1200;
+                let timeoutId = null;
+                if (controller) {
+                    timeoutId = setTimeout(() => {
+                        try {
+                            controller.abort();
+                        } catch (e) {
+                        }
+                    }, timeoutMs);
+                }
+
+                const response = await fetch(
+                    `${apiBaseUrl}/api/sns/map-config`,
+                    controller ? { signal: controller.signal } : undefined
+                );
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                const result = await response.json();
+
+                console.log('Map config API response:', JSON.stringify(result, null, 2));
+
+                if (result && result.success && result.data) {
+                    const mapType = String(result.data.map_type).trim();
+                    const desiredUrl = buildMapUrlByType(mapType);
+                    if (desiredUrl && desiredUrl !== mapUrl) {
+                        console.log('Switching map URL after config fetch:', desiredUrl);
+                        mapUrl = desiredUrl;
+                        try {
+                            if (mapWindow && !mapWindow.isDestroyed()) {
+                                mapWindow.loadURL(mapUrl);
+                            }
+                        } catch (e) {
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to fetch map config (non-blocking):', error);
+            }
+        });
 
     } catch (error) {
 
@@ -650,7 +667,7 @@ function createTray() {
 
         {
 
-            label: '显示',
+            label: 'Show',
 
             click: () => {
 
@@ -668,7 +685,7 @@ function createTray() {
 
         {
 
-            label: '隐藏',
+            label: 'Hide',
 
             click: () => {
 
@@ -684,7 +701,7 @@ function createTray() {
 
         {
 
-            label: '地图',
+            label: 'Map',
 
             click: () => {
 
@@ -698,7 +715,7 @@ function createTray() {
 
         {
 
-            label: '退出',
+            label: 'Exit',
 
             click: () => {
 
@@ -2015,7 +2032,7 @@ process.on('uncaughtException', (error) => {
 
     console.error('Uncaught Exception:', error);
 
-    dialog.showErrorBox('错误', `发生未捕获的异常: ${error.message}`);
+    dialog.showErrorBox('Error', `An uncaught exception occurred: ${error.message}`);
 
 });
 

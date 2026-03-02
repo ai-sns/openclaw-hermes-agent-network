@@ -158,7 +158,7 @@ class UIDisplayMixin:
             else:
                 return "🧠 OpenAI gpt-4o-mini"  # Default
         except Exception as e:
-            print(f"获取AI模型名称时出错: {e}")
+            print(f"Error while getting AI model name: {e}")
             return "🧠 OpenAI gpt-4o-mini"  # Default on error
 
     def update_resource_display(self):
@@ -185,7 +185,7 @@ class UIDisplayMixin:
 
         # Format tool list
         if service_list:
-            content += f"🌐 服务列表（共 {len(service_list)} 项）\n"
+            content += f"🌐 Service List (total {len(service_list)} items)\n"
             content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             for i, service in enumerate(service_list):
@@ -200,17 +200,17 @@ class UIDisplayMixin:
                     # Format coordinates (up to 8 digits), trim trailing zeros
                     formatted_lng = f"{lng:.8g}"
                     formatted_lat = f"{lat:.8g}"
-                    content += f"📍 坐标：{formatted_lng}, {formatted_lat}\n"
+                    content += f"📍 Coordinates: {formatted_lng}, {formatted_lat}\n"
                 elif 'place' in service and service['place']:
-                    content += f"🌍 位置：{service['place']}\n"
+                    content += f"🌍 Location: {service['place']}\n"
 
                 # Description
                 if 'description' in service and service['description']:
-                    content += f"💬 描述：{service['description']}\n"
+                    content += f"💬 Description: {service['description']}\n"
 
                 # Address
                 if 'address' in service and service['address'] and service['address'] != "Not needed":
-                    content += f"🔗 地址：{service['address']}\n"
+                    content += f"🔗 Address: {service['address']}\n"
 
                 # Type and method
                 type_info = service.get('type', '')
@@ -225,7 +225,7 @@ class UIDisplayMixin:
                     else:
                         param_info = f"({service['parameter']})" if service['parameter'] != "None" else ""
 
-                content += f"⚙️ 类型：{type_info} ｜ 方法：{method_info}{param_info}\n"
+                content += f"⚙️ Type: {type_info} ｜ Method: {method_info}{param_info}\n"
 
                 # Separator line (except for the last tool)
                 if i < len(service_list) - 1:
@@ -235,7 +235,7 @@ class UIDisplayMixin:
 
         # Format people list
         if people_list:
-            content += f"🧑‍🤝‍🧑 人员名单（共 {len(people_list)} 位）\n"
+            content += f"🧑‍🤝‍🧑 People List (total {len(people_list)} people)\n"
             content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             for i, person in enumerate(people_list):
@@ -253,7 +253,7 @@ class UIDisplayMixin:
                     # Format lng/lat (up to 8 decimals), no padding zeros
                     formatted_lng = f"{lng:.8f}".rstrip('0').rstrip('.')
                     formatted_lat = f"{lat:.8f}".rstrip('0').rstrip('.')
-                    content += f"📍 位置：{formatted_lng}, {formatted_lat}\n"
+                    content += f"📍 Location: {formatted_lng}, {formatted_lat}\n"
 
                 # Account
                 account = person.get('account', '')
@@ -283,7 +283,7 @@ class UIDisplayMixin:
 
         # Format place list
         if place_list:
-            content += f"🗺️ 地址列表（共 {len(place_list)} 处）\n"
+            content += f"🗺️ Place List (total {len(place_list)} places)\n"
             content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             for i, place in enumerate(place_list):
@@ -447,15 +447,15 @@ class UIDisplayMixin:
 
     def send_msg_to_map(self, command):
         """
-        将命令发送到地图系统。
+        Send a command to the map system.
         """
         action, param_1, param_2 = command
         if action == "Use skills":
-            print(f"执行技能：{param_1}")
+            print(f"Executing skill: {param_1}")
 
             self.send_command_to_map(action, param_1, param_2)
         else:
-            print(f"执行行动：{action}")
+            print(f"Executing action: {action}")
 
             self.send_command_to_map(action, param_1, param_2)
 
@@ -475,19 +475,19 @@ class UIDisplayMixin:
             self.aichatcfg_record.exp_point
         ]
         radar_categories = [
-            f'{lt("IQ", "智力")}:{self.aichatcfg_record.iq_point}',
-            f'{lt("Energy", "体力")}:{self.aichatcfg_record.energy_point}',
-            f'{lt("Life", "生命")}:{self.aichatcfg_record.life_point}',
-            f'{lt("Move", "行动")}:{self.aichatcfg_record.move_point}',
-            f'{lt("Exp", "经验")}:{self.aichatcfg_record.exp_point}'
+            f'{lt("IQ", "IQ")}:{self.aichatcfg_record.iq_point}',
+            f'{lt("Energy", "Energy")}:{self.aichatcfg_record.energy_point}',
+            f'{lt("Life", "Life")}:{self.aichatcfg_record.life_point}',
+            f'{lt("Move", "Move")}:{self.aichatcfg_record.move_point}',
+            f'{lt("Exp", "Exp")}:{self.aichatcfg_record.exp_point}'
         ]
 
         # Prepare bar chart data
         formatted_number = f"{self.aichatcfg_record.money:,.2f}"
         bar_indicators = [
-            f'{lt("Money", "资金")}:{formatted_number}',
-            f'{lt("Credit", "信用")}:{self.aichatcfg_record.credit}',
-            f'{lt("Level", "等级")}{self.aichatcfg_record.level}'
+            f'{lt("Money", "Money")}:{formatted_number}',
+            f'{lt("Credit", "Credit")}:{self.aichatcfg_record.credit}',
+            f'{lt("Level", "Level")}{self.aichatcfg_record.level}'
         ]
         bar_values = [100, self.aichatcfg_record.credit, self.aichatcfg_record.level * 10]
         bar_colors = ['#ffb676', '#c3f1d7', '#99d4ff']
@@ -511,10 +511,10 @@ class UIDisplayMixin:
 
     async def _send_chart_update(self, user_stats: dict):
         """
-        发送图表更新数据到前端
+        Send chart update data to the frontend.
 
         Args:
-            user_stats: 用户统计数据字典
+            user_stats: User stats dictionary
         """
         try:
             message = {

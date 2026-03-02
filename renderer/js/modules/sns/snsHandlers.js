@@ -9,9 +9,145 @@ import { SNSAvatarDialog } from './SNSAvatarDialog.js';
 import { SNSProfessionDialog } from './SNSProfessionDialog.js';
 import { SNSSocialRoleDialog } from './SNSSocialRoleDialog.js';
 import { SNSMapConfigDialog } from './SNSMapConfigDialog.js';
+import { SNSPluginDialog } from './SNSPluginDialog.js';
 
 export default {
     lastPlaceIntroUrl: '',
+    _snsLoadedRendererPlugins: new Map(),
+    _suppressSnsUpdates: false,
+
+    initSNSUserInfoUpdateListener() {
+        if (this._snsUserInfoUpdateListenerInitialized) return;
+        this._snsUserInfoUpdateListenerInitialized = true;
+
+        window.addEventListener('sns-user-info-updated', async (event) => {
+            const detail = event && event.detail ? event.detail : {};
+            if (!detail || typeof detail !== 'object') return;
+            if (!('profession' in detail)) return;
+            try {
+                await this.refreshCurrentStatusSection();
+            } catch (e) {
+                console.warn('[snsHandlers] refreshCurrentStatusSection failed:', e);
+            }
+        });
+    },
+
+    async refreshCurrentStatusSection() {
+        const processPane = document.querySelector('.tab-pane[data-tab="process"]');
+        if (!processPane) return;
+
+        const statusSection = processPane.querySelector('.status-section:nth-child(1) .status-rows');
+        if (!statusSection) return;
+
+        const overviewResp = await snsApi.getCurrentStatusOverview();
+        if (overviewResp && overviewResp.success && (overviewResp.content || '').trim()) {
+            this.updateCurrentStatusSection(processPane, overviewResp.content);
+            return;
+        }
+
+        const userInfoResp = await snsApi.getUserInfo();
+        const userStatsResp = await snsApi.getUserStats();
+        const userInfo = userInfoResp && userInfoResp.success ? (userInfoResp.data || {}) : {};
+        const userStats = userStatsResp && typeof userStatsResp === 'object' ? userStatsResp : {};
+
+        const money = (userStats.money !== undefined && userStats.money !== null)
+            ? Number(userStats.money)
+            : Number(userInfo.money);
+        const life = userStats.life;
+        const energy = userStats.energy;
+        const profession = userInfo.profession;
+
+        const lines = [];
+        if (Number.isFinite(money)) {
+            lines.push(`💰 Money      : ${money.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        }
+        if (life !== undefined && life !== null) lines.push(`❤️ Life           : ${life}`);
+        if (energy !== undefined && energy !== null) lines.push(`⚡ Energy      : ${energy}`);
+        lines.push(`🧑‍️ Profession: ${profession || 'N/A'}`);
+        const content = lines.join('\n');
+        if (content) this.updateCurrentStatusSection(processPane, content);
+    },
+
+    resetSNSStartButtonToStart() {
+        const startBtn = document.getElementById('snsStartBtn');
+        if (!startBtn) return;
+
+        try {
+            startBtn.disabled = false;
+        } catch (e) {
+        }
+
+        try {
+            startBtn.classList.remove('running');
+        } catch (e) {
+        }
+
+        try {
+            startBtn.title = '';
+        } catch (e) {
+        }
+
+        try {
+            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Start</span>`;
+        } catch (e) {
+        }
+    },
+
+    async stopEngineIfActiveForMapReload(reason = '') {
+        let active = false;
+        let shouldAttemptStop = false;
+        try {
+            const status = await snsApi.getEngineStatus();
+            const taskStatus = String(status?.task_status || '').toLowerCase();
+            active = !!(
+                status &&
+                status.success &&
+                (status.running || status.started || taskStatus === 'started' || taskStatus === 'paused')
+            );
+            shouldAttemptStop = active;
+        } catch (e) {
+            console.warn('Failed to query engine status before map reload:', e);
+            // Be conservative: if we cannot determine state, still try to stop with a timeout.
+            shouldAttemptStop = true;
+        }
+
+        try {
+            if (shouldAttemptStop) {
+                console.log(`Stopping SNS engine before map reload (${reason || 'unknown'})...`);
+                const timeoutMs = 3000;
+                const timeoutPromise = new Promise((resolve) => {
+                    setTimeout(() => resolve({ success: false, message: 'timeout' }), timeoutMs);
+                });
+
+                const stopResult = await Promise.race([snsApi.stopEngine(), timeoutPromise]);
+                if (stopResult && stopResult.success === false && stopResult.message === 'timeout') {
+                    console.warn(`Stop engine request timed out after ${timeoutMs}ms; continuing map reload.`);
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to stop engine before map reload:', e);
+        } finally {
+            try {
+                // Map reload implies the engine should not be running afterwards.
+                // Reset UI regardless of whether stop succeeds or times out.
+                this._suppressSnsUpdates = true;
+                this.resetStatusPanelAfterEngineRestart('mapReloadStop');
+            } catch (e) {
+            }
+
+            try {
+                if (typeof this.resetSNSActionBarToDefault === 'function') {
+                    this.resetSNSActionBarToDefault();
+                }
+            } catch (e) {
+            }
+
+            try {
+                this.resetSNSStartButtonToStart();
+            } catch (e) {
+            }
+        }
+    },
 
     resolve(urlOrPath) {
         try {
@@ -78,12 +214,13 @@ export default {
             }
         }
     },
+
     /**
      * Initialize SNS page
      */
     init() {
         console.log('Initializing SNS controller');
-        this.loadBaiduMap();
+        this.loadMapIframe();
         this.loadSNSData();
         this.initCurrentStatusOnLoad();
         this.initResourceOnLoad();
@@ -98,6 +235,168 @@ export default {
         this.initSNSActionBar();
         this.initMapReloadListener();
         this.initSNSUpdateListener();
+        this.initSNSUserInfoUpdateListener();
+        this.initMapReloadMessageListener();
+    },
+
+    initMapReloadMessageListener() {
+        if (this._snsMapReloadMessageListenerInitialized) return;
+        this._snsMapReloadMessageListenerInitialized = true;
+
+        window.addEventListener('message', (event) => {
+            const data = event && event.data;
+            if (!data || typeof data !== 'object') return;
+            if (data.type !== 'reloadMap') return;
+
+            try {
+                window.dispatchEvent(new CustomEvent('reloadMap'));
+            } catch (e) {
+            }
+        });
+    },
+
+    resetStatusPanelAfterEngineRestart(reason = '') {
+        const statusTabs = document.getElementById('statusTabs');
+        const statusTabContent = document.getElementById('statusTabContent');
+        if (!statusTabs || !statusTabContent) return;
+
+        const keepTabs = new Set(['process', 'resource', 'think']);
+
+        statusTabs.querySelectorAll('.status-tab').forEach((tabBtn) => {
+            const key = tabBtn && tabBtn.dataset ? tabBtn.dataset.tab : '';
+            if (key && !keepTabs.has(key)) {
+                tabBtn.remove();
+            }
+        });
+
+        statusTabContent.querySelectorAll('.tab-pane').forEach((pane) => {
+            const key = pane && pane.dataset ? pane.dataset.tab : '';
+            if (key && !keepTabs.has(key)) {
+                pane.remove();
+            }
+        });
+
+        statusTabs.querySelectorAll('.status-tab').forEach((btn) => {
+            btn.classList.toggle('active', btn.dataset.tab === 'process');
+        });
+
+        statusTabContent.querySelectorAll('.tab-pane').forEach((pane) => {
+            pane.classList.toggle('active', pane.dataset.tab === 'process');
+        });
+
+        const processPane = statusTabContent.querySelector('.tab-pane[data-tab="process"]');
+        if (processPane) {
+            const sections = processPane.querySelectorAll('.status-section .status-rows');
+            sections.forEach((el) => {
+                el.innerHTML = '<span class="na">N/A</span>';
+            });
+        }
+
+        const resourcePane = statusTabContent.querySelector('.tab-pane[data-tab="resource"]');
+        if (resourcePane) {
+            const rows = resourcePane.querySelector('.status-section:nth-child(1) .status-rows');
+            if (rows) rows.innerHTML = '';
+        }
+
+        const thinkPane = statusTabContent.querySelector('.tab-pane[data-tab="think"]');
+        if (thinkPane) {
+            const agentValue = document.getElementById('agentValue');
+            const providerValue = document.getElementById('providerValue');
+            const modelValue = document.getElementById('modelValue');
+            if (agentValue) agentValue.textContent = ': Loading...';
+            if (providerValue) providerValue.textContent = ': Loading...';
+            if (modelValue) modelValue.textContent = ': Loading...';
+
+            const logRows = thinkPane.querySelector('.status-section:nth-child(2) .status-rows');
+            if (logRows) {
+                logRows.innerHTML = '';
+                logRows.textContent = '';
+            }
+            try {
+                thinkPane.querySelectorAll('.thinking-log-entry').forEach((el) => el.remove());
+            } catch (e) {
+            }
+        }
+
+        const searchBar = document.getElementById('statusSearchBar');
+        const searchInput = document.getElementById('statusSearchInput');
+        const searchResultsInfo = document.getElementById('searchResultsInfo');
+        if (searchBar) searchBar.style.display = 'none';
+        if (searchInput) searchInput.value = '';
+        if (searchResultsInfo) searchResultsInfo.style.display = 'none';
+        if (typeof this.clearSearchHighlights === 'function') {
+            try {
+                this.clearSearchHighlights();
+            } catch (e) {
+            }
+        }
+
+        this.lastPlaceIntroUrl = '';
+        try {
+            if (this._snsLoadedRendererPlugins && typeof this._snsLoadedRendererPlugins.clear === 'function') {
+                this._snsLoadedRendererPlugins.clear();
+            }
+        } catch (e) {
+        }
+
+        setTimeout(() => {
+            try {
+                this.initCurrentStatusOnLoad();
+                this.initResourceOnLoad();
+                this.refreshModelInfoAfterReset();
+            } catch (e) {
+            }
+        }, 0);
+    },
+
+    async refreshModelInfoAfterReset() {
+        try {
+            const result = await snsApi.getModelInfo();
+            const agentValue = document.getElementById('agentValue');
+            const providerValue = document.getElementById('providerValue');
+            const modelValue = document.getElementById('modelValue');
+
+            if (result && result.success && result.data) {
+                const { agent, provider, model } = result.data;
+                if (agentValue) agentValue.textContent = `: ${agent}`;
+                if (providerValue) providerValue.textContent = `: ${provider}`;
+                if (modelValue) modelValue.textContent = `: ${model}`;
+                return;
+            }
+
+            if (agentValue) agentValue.textContent = ': N/A';
+            if (providerValue) providerValue.textContent = ': N/A';
+            if (modelValue) modelValue.textContent = ': N/A';
+        } catch (e) {
+            const agentValue = document.getElementById('agentValue');
+            const providerValue = document.getElementById('providerValue');
+            const modelValue = document.getElementById('modelValue');
+            if (agentValue) agentValue.textContent = ': Error';
+            if (providerValue) providerValue.textContent = ': Error';
+            if (modelValue) modelValue.textContent = ': Error';
+        }
+    },
+
+    async restartEngineAndResetUi(reason = '') {
+        this._suppressSnsUpdates = true;
+        const result = await snsApi.restartEngine();
+        if (result && result.success) {
+            this.resetStatusPanelAfterEngineRestart(reason);
+            this._suppressSnsUpdates = false;
+        } else {
+            this._suppressSnsUpdates = false;
+        }
+        return result;
+    },
+
+    async maybeRestartEngineForMapReload(reason = '') {
+        try {
+            await this.stopEngineIfActiveForMapReload(reason);
+            return true;
+        } catch (e) {
+            console.warn('Failed to stop engine for map reload:', e);
+            return false;
+        }
     },
 
     async initCurrentStatusOnLoad() {
@@ -237,7 +536,7 @@ export default {
                         <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
                         <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
                     </svg>
-                    <span>刷新</span>
+                    <span>Refresh</span>
                 </button>
                 <button type="button" class="context-menu-item" data-action="open-browser">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -575,9 +874,13 @@ export default {
         if (this._snsMapReloadListenerInitialized) return;
         this._snsMapReloadListenerInitialized = true;
 
-        window.addEventListener('reloadMap', () => {
+        window.addEventListener('reloadMap', async () => {
             console.log('Received reloadMap event - reloading map iframe');
-            this.loadBaiduMap();
+            try {
+                await this.loadMapIframe(true);
+            } catch (e) {
+                console.warn('Failed to reload map iframe:', e);
+            }
         });
     },
 
@@ -635,10 +938,6 @@ export default {
             try {
                 const moveBtn = actionBar.querySelector('.action-btn[data-action="move"]');
                 if (moveBtn) moveBtn.classList.remove('active');
-
-                // Default state: Info(board) is active
-                const boardBtn = actionBar.querySelector('.action-btn[data-action="board"]');
-                if (boardBtn) boardBtn.classList.add('active');
             } catch (e) {
             }
 
@@ -751,8 +1050,43 @@ export default {
             }
         };
 
+        const getPreSquareInfoPanelVisibleState = () => {
+            try {
+                return !!(actionBar.dataset && actionBar.dataset.preSquareInfoPanelVisible === 'true');
+            } catch (e) {
+                return false;
+            }
+        };
+
+        const setPreSquareInfoPanelVisibleState = (visible) => {
+            try {
+                if (actionBar.dataset) {
+                    actionBar.dataset.preSquareInfoPanelVisible = visible ? 'true' : 'false';
+                }
+            } catch (e) {
+            }
+        };
+
+        const setInfoPanelStateLocked = (locked) => {
+            try {
+                if (actionBar.dataset) {
+                    actionBar.dataset.lockInfoPanelState = locked ? 'true' : 'false';
+                }
+            } catch (e) {
+            }
+        };
+
+        const resetPreSquareInfoPanelCapture = () => {
+            try {
+                if (actionBar.dataset) {
+                    actionBar.dataset.preSquareInfoPanelCaptured = 'false';
+                }
+            } catch (e) {
+            }
+        };
+
         // Action button click events
-        actionBar.addEventListener('click', (e) => {
+        actionBar.addEventListener('click', async (e) => {
             const btn = e.target.closest('.action-btn, .dropdown-item');
             if (!btn) return;
 
@@ -783,12 +1117,6 @@ export default {
                 this.showToast(msg, 'info');
             };
 
-            // Square mode guard: block Info(board) until AI is clicked again
-            if (action === 'board' && inSquareMode) {
-                warnSquareModeUnavailable();
-                return;
-            }
-
             if (action === 'help') {
                 // Close dropdowns after selection
                 if (appsDropdown) appsDropdown.style.display = 'none';
@@ -797,7 +1125,31 @@ export default {
                 return;
             }
 
-            // Update UI mode state
+            if (action === 'plugin') {
+                // Close dropdowns after selection
+                if (appsDropdown) appsDropdown.style.display = 'none';
+                if (mapDropdown) mapDropdown.style.display = 'none';
+
+                try {
+                    const dialog = new SNSPluginDialog({
+                        onLoad: async (plugin) => {
+                            await this.loadSNSRendererPlugin(plugin);
+                        },
+                        onDelete: async (pluginId) => {
+                            try {
+                                this.unloadSNSRendererPlugin(pluginId);
+                            } catch (e) {
+                            }
+                        }
+                    });
+                    await dialog.open();
+                } catch (e) {
+                    console.warn('Failed to open plugin dialog:', e);
+                }
+
+                return;
+            }
+
             try {
                 if (actionBar.dataset) {
                     if (action === 'square') actionBar.dataset.squareMode = 'true';
@@ -806,10 +1158,19 @@ export default {
             } catch (e) {
             }
 
+            if (action === 'square') {
+                setPreSquareInfoPanelVisibleState(getInfoPanelVisibleState());
+                resetPreSquareInfoPanelCapture();
+                setInfoPanelStateLocked(true);
+            }
+            if (action === 'ai') {
+                setInfoPanelStateLocked(false);
+            }
+
             // Active style rules:
             // - square/ai/help: never toggle active style
-            // - move/board: toggle active style independently, not affected by others
-            const isToggleSelf = action === 'move' || action === 'board';
+            // - move: toggle active style independently, not affected by others
+            const isToggleSelf = action === 'move';
             if (isToggleSelf) {
                 if (btn.classList.contains('action-btn')) {
                     btn.classList.toggle('active');
@@ -836,35 +1197,38 @@ export default {
                 'home': 'home',
                 'square': 'plaza',
                 'ai': 'AI',
-                'move': 'move',
-                'board': 'activity'
+                'move': 'move'
             };
 
-            // For actions like home/square/ai/move/board, post a message to the map iframe
-            const mapActions = ['home', 'square', 'ai', 'move', 'board'];
+            // For actions like home/square/ai/move, post a message to the map iframe
+            const mapActions = ['home', 'square', 'ai', 'move'];
             if (mapActions.includes(action)) {
                 const iframe = document.querySelector('#mapContainer iframe');
                 if (iframe && iframe.contentWindow) {
                     let willRestoreInfoPanel = false;
                     let captureInfoPanelState = false;
+                    let setTopInfoDisabled = null;
                     if (action === 'square') {
                         // Ask iframe to capture current info panel state before it gets hidden.
                         captureInfoPanelState = true;
+                        setTopInfoDisabled = true;
                     }
                     if (action === 'ai') {
                         // If user had info panel open before switching to Square, restore it when AI is clicked
-                        willRestoreInfoPanel = getInfoPanelVisibleState();
+                        willRestoreInfoPanel = getPreSquareInfoPanelVisibleState();
+                        setTopInfoDisabled = false;
                     }
                     const message = {
                         type: 'mapButtonAction',
                         action: actionToTitleMap[action],  // Convert to the corresponding data-title
                         meta: {
                             restoreInfoPanel: willRestoreInfoPanel,
-                            captureInfoPanelState: captureInfoPanelState
+                            captureInfoPanelState: captureInfoPanelState,
+                            setTopInfoDisabled: setTopInfoDisabled
                         }
                     };
                     try {
-                        iframe.contentWindow.postMessage(message, this.getMapIframeTargetOrigin());
+                        this.safePostMessageToMap(iframe, message, this.getMapIframeTargetOrigin());
                         console.log('Sent mapButtonAction to iframe:', message);
                     } catch (error) {
                         console.error('Failed to send message to iframe:', error);
@@ -881,76 +1245,195 @@ export default {
         // Start button
         const startBtn = document.getElementById('snsStartBtn');
         if (startBtn) {
+            const setStartButtonState = (state) => {
+                if (state === 'start') {
+                    startBtn.classList.remove('running');
+                    startBtn.title = '';
+                    startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Start</span>`;
+                    return;
+                }
+                if (state === 'pause') {
+                    startBtn.classList.add('running');
+                    startBtn.title = 'Right click to get more control';
+                    startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
+                    return;
+                }
+                if (state === 'resume') {
+                    startBtn.classList.remove('running');
+                    startBtn.title = '';
+                    startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Resume</span>`;
+                }
+            };
+
+            const pauseEngine = async () => {
+                startBtn.disabled = true;
+                startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Pausing...</span>`;
+
+                try {
+                    const result = await snsApi.pauseEngine();
+
+                    if (result.success) {
+                        setStartButtonState('resume');
+                        this.showToast('AI social engine paused', 'success');
+                    } else {
+                        setStartButtonState('pause');
+                        this.showToast(`Pause failed: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Failed to pause engine:', error);
+                    setStartButtonState('pause');
+                    this.showToast(`Pause failed: ${error.message}`, 'error');
+                } finally {
+                    startBtn.disabled = false;
+                }
+            };
+
+            const stopEngine = async () => {
+                startBtn.disabled = true;
+                startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Stopping...</span>`;
+
+                try {
+                    this._suppressSnsUpdates = true;
+                    const result = await snsApi.stopEngine();
+                    if (result.success) {
+                        setStartButtonState('start');
+                        this.resetStatusPanelAfterEngineRestart('manualStop');
+                        this.showToast('AI social engine stopped', 'success');
+                    } else {
+                        this._suppressSnsUpdates = false;
+                        setStartButtonState('pause');
+                        this.showToast(`Stop failed: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Failed to stop engine:', error);
+                    this._suppressSnsUpdates = false;
+                    setStartButtonState('pause');
+                    this.showToast(`Stop failed: ${error.message}`, 'error');
+                } finally {
+                    startBtn.disabled = false;
+                }
+            };
+
+            const restartEngine = async () => {
+                startBtn.disabled = true;
+                startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Restarting...</span>`;
+
+                try {
+                    const result = await this.restartEngineAndResetUi('manualRestart');
+                    if (result.success) {
+                        this._suppressSnsUpdates = false;
+                        setStartButtonState('pause');
+                        this.showToast('AI social engine restarted', 'success');
+                    } else {
+                        setStartButtonState('pause');
+                        this.showToast(`Restart failed: ${result.message}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Failed to restart engine:', error);
+                    setStartButtonState('pause');
+                    this.showToast(`Restart failed: ${error.message}`, 'error');
+                } finally {
+                    startBtn.disabled = false;
+                }
+            };
+
+            startBtn.addEventListener('contextmenu', (e) => {
+                const isRunning = startBtn.classList.contains('running');
+                const buttonText = startBtn.textContent.trim();
+                if (!(isRunning && buttonText === 'Pause')) return;
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (typeof Modal === 'undefined') {
+                    console.error('Modal component not loaded');
+                    return;
+                }
+
+                Modal.show({
+                    title: 'Engine Control',
+                    content: `
+                        <form>
+                            <div style="display:flex; flex-direction:column; gap:12px;">
+                                <div>
+                                    <label for="engineActionSelect" style="display:block; margin-bottom:6px;">Action</label>
+                                    <select id="engineActionSelect" name="engine_action" style="width:100%; height:34px;">
+                                        <option value="pause">Pause</option>
+                                        <option value="stop">Stop</option>
+                                        <option value="restart">Restart</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </form>
+                    `,
+                    confirmText: 'Execute',
+                    cancelText: 'Cancel',
+                    onConfirm: async (modal) => {
+                        const data = modal.getFormData();
+                        const action = String(data.engine_action || '').trim();
+                        if (action === 'stop') {
+                            await stopEngine();
+                        } else if (action === 'restart') {
+                            await restartEngine();
+                        } else {
+                            await pauseEngine();
+                        }
+                    }
+                });
+            });
+
             startBtn.addEventListener('click', async () => {
                 const isRunning = startBtn.classList.contains('running');
                 const buttonText = startBtn.textContent.trim();
 
                 if (!isRunning && buttonText === 'Start') {
                     // Start engine
+                    this._suppressSnsUpdates = false;
                     startBtn.disabled = true;
+                    startBtn.title = '';
                     startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Starting...</span>`;
 
                     try {
                         const result = await snsApi.startEngine();
 
                         if (result.success) {
-                            startBtn.classList.add('running');
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
-                            this.showToast('AI社交引擎已启动', 'success');
+                            this._suppressSnsUpdates = false;
+                            setStartButtonState('pause');
+                            this.showToast('AI social engine started', 'success');
                         } else {
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Start</span>`;
-                            this.showToast(`启动失败: ${result.message}`, 'error');
+                            setStartButtonState('start');
+                            this.showToast(`Start failed: ${result.message}`, 'error');
                         }
                     } catch (error) {
-                        console.error('启动引擎失败:', error);
-                        startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Start</span>`;
-                        this.showToast(`启动失败: ${error.message}`, 'error');
+                        console.error('Failed to start engine:', error);
+                        setStartButtonState('start');
+                        this.showToast(`Start failed: ${error.message}`, 'error');
                     } finally {
                         startBtn.disabled = false;
                     }
                 } else if (isRunning && buttonText === 'Pause') {
-                    // Pause engine
-                    startBtn.disabled = true;
-                    startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Pausing...</span>`;
-
-                    try {
-                        const result = await snsApi.pauseEngine();
-
-                        if (result.success) {
-                            startBtn.classList.remove('running');
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Resume</span>`;
-                            this.showToast('AI社交引擎已暂停', 'success');
-                        } else {
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
-                            this.showToast(`暂停失败: ${result.message}`, 'error');
-                        }
-                    } catch (error) {
-                        console.error('暂停引擎失败:', error);
-                        startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
-                        this.showToast(`暂停失败: ${error.message}`, 'error');
-                    } finally {
-                        startBtn.disabled = false;
-                    }
+                    await pauseEngine();
                 } else if (!isRunning && buttonText === 'Resume') {
                     // Resume engine
                     startBtn.disabled = true;
+                    startBtn.title = '';
                     startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" opacity="0.3"/></svg><span>Resuming...</span>`;
 
                     try {
                         const result = await snsApi.resumeEngine();
 
                         if (result.success) {
-                            startBtn.classList.add('running');
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
-                            this.showToast('AI社交引擎已恢复', 'success');
+                            this._suppressSnsUpdates = false;
+                            setStartButtonState('pause');
+                            this.showToast('AI social engine resumed', 'success');
                         } else {
-                            startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Resume</span>`;
-                            this.showToast(`恢复失败: ${result.message}`, 'error');
+                            setStartButtonState('resume');
+                            this.showToast(`Resume failed: ${result.message}`, 'error');
                         }
                     } catch (error) {
-                        console.error('恢复引擎失败:', error);
-                        startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg><span>Resume</span>`;
-                        this.showToast(`恢复失败: ${error.message}`, 'error');
+                        console.error('Failed to resume engine:', error);
+                        setStartButtonState('resume');
+                        this.showToast(`Resume failed: ${error.message}`, 'error');
                     } finally {
                         startBtn.disabled = false;
                     }
@@ -1445,12 +1928,12 @@ export default {
             // Update search results info
             if (currentMatches.length > 0) {
                 searchResultsInfo.style.display = 'flex';
-                searchResultsText.textContent = `找到 ${currentMatches.length} 个结果`;
+                searchResultsText.textContent = `Found ${currentMatches.length} results`;
                 currentMatchIndex = 0;
                 this.scrollToMatch(currentMatchIndex);
             } else {
                 searchResultsInfo.style.display = 'flex';
-                searchResultsText.textContent = '未找到结果';
+                searchResultsText.textContent = 'No results found';
                 currentMatchIndex = -1;
             }
         };
@@ -1580,7 +2063,7 @@ export default {
     /**
      * Load Baidu map
      */
-    async loadBaiduMap() {
+    async loadMapIframe(forceReload = false) {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) {
             console.error('Map container not found');
@@ -1617,8 +2100,27 @@ export default {
         // Check whether the map has already been loaded
         const existingIframe = mapContainer.querySelector('iframe');
         if (existingIframe) {
-            console.log('Map iframe already exists, skipping reload');
-            return;
+            if (!forceReload) {
+                console.log('Map iframe already exists, skipping reload');
+                return;
+            }
+
+            try {
+                await this.stopEngineIfActiveForMapReload('mapIframeReload');
+            } catch (e) {
+            }
+
+            console.log('Reloading map iframe');
+            try {
+                if (existingIframe._messageListener) {
+                    window.removeEventListener('message', existingIframe._messageListener);
+                }
+            } catch (e) {
+            }
+            try {
+                existingIframe.remove();
+            } catch (e) {
+            }
         }
 
         // Ensure we do not leak window message listeners across iframe reloads
@@ -1641,30 +2143,28 @@ export default {
             qs.set('ai_sns_server', aiSnsBaseUrl);
         }
 
-        // Get map configuration
-        let mapUrl = agentBaseUrl ? `${agentBaseUrl}/scripts/map.html?${qs.toString()}` : ''; // Default: Baidu map
-        try {
-            const response = await fetch(agentBaseUrl ? `${agentBaseUrl}/api/sns/map-config` : '/api/sns/map-config');
-            const result = await response.json();
-
-            console.log('Map config API response:', result);
-
-            if (result.success && result.data) {
-                const mapType = String(result.data.map_type).trim();
-                console.log('Map type:', mapType);
-
-                if (mapType === '0') {
-                    mapUrl = agentBaseUrl ? `${agentBaseUrl}/scripts/googlemap3d.html?${qs.toString()}` : '';
-                    console.log('Loading Google Map');
-                } else {
-                    console.log('Loading Baidu Map');
-                }
+        const buildMapUrlByType = (mapType) => {
+            const t = String(mapType || '').trim();
+            if (t === '0') {
+                return agentBaseUrl
+                    ? `${agentBaseUrl}/scripts/googlemap3d.html?${qs.toString()}`
+                    : `/scripts/googlemap3d.html?${qs.toString()}`;
             }
-        } catch (error) {
-            console.error('Failed to fetch map config:', error);
+            return agentBaseUrl
+                ? `${agentBaseUrl}/scripts/map.html?${qs.toString()}`
+                : `/scripts/map.html?${qs.toString()}`;
+        };
+
+        let cachedMapType = '';
+        try {
+            const v = localStorage.getItem('sns_map_type');
+            cachedMapType = (v === null || v === undefined || String(v).trim() === '') ? '0' : String(v).trim();
+        } catch (e) {
+            cachedMapType = '0';
         }
 
-        console.log('Final map URL:', mapUrl);
+        // Start loading immediately (do not block on map-config)
+        let mapUrl = buildMapUrlByType(cachedMapType);
 
         // Create iframe to load the map page
         const iframe = document.createElement('iframe');
@@ -1680,6 +2180,63 @@ export default {
         iframe.style.zIndex = '1';
 
         mapContainer.appendChild(iframe);
+
+        // Fetch map configuration asynchronously (best-effort, short timeout)
+        Promise.resolve().then(async () => {
+            try {
+                const controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timeoutMs = 1200;
+                let timeoutId = null;
+                if (controller) {
+                    timeoutId = setTimeout(() => {
+                        try {
+                            controller.abort();
+                        } catch (e) {
+                        }
+                    }, timeoutMs);
+                }
+
+                const response = await fetch(
+                    agentBaseUrl ? `${agentBaseUrl}/api/sns/map-config` : '/api/sns/map-config',
+                    controller ? { signal: controller.signal } : undefined
+                );
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                const result = await response.json();
+
+                console.log('Map config API response:', result);
+
+                if (result && result.success && result.data) {
+                    const mapType = String(result.data.map_type).trim();
+                    try {
+                        localStorage.setItem('sns_map_type', mapType);
+                    } catch (e) {
+                    }
+
+                    const desiredUrl = buildMapUrlByType(mapType);
+                    if (desiredUrl && desiredUrl !== mapUrl) {
+                        console.log('Switching map URL after config fetch:', desiredUrl);
+                        try {
+                            await this.stopEngineIfActiveForMapReload('mapTypeSwitch');
+                        } catch (e) {
+                        }
+                        mapUrl = desiredUrl;
+                        try {
+                            if (iframe && !iframe.isConnected) {
+                                return;
+                            }
+                            iframe.src = mapUrl;
+                        } catch (e) {
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Failed to fetch map config (non-blocking):', error);
+            }
+        });
+
+        console.log('Final map URL:', mapUrl);
 
         // Establish communication after iframe finishes loading
         iframe.onload = () => {
@@ -1745,11 +2302,26 @@ export default {
                     case 'received':
                         console.log('Map page receive message:', data.data);
                         break;
+                    case 'reloadMap':
+                        // Handled by the global reloadMap listener
+                        break;
                     case 'infoPanelState':
                         try {
                             const actionBar = document.querySelector('.map-action-bar');
                             if (actionBar && actionBar.dataset) {
-                                actionBar.dataset.infoPanelVisible = data.visible ? 'true' : 'false';
+                                const lock = actionBar.dataset.lockInfoPanelState === 'true';
+                                const alreadyCaptured = actionBar.dataset.preSquareInfoPanelCaptured === 'true';
+
+                                if (!lock) {
+                                    actionBar.dataset.infoPanelVisible = data.visible ? 'true' : 'false';
+                                } else {
+                                    // In Square mode we keep the "preSquare" snapshot stable, and do not allow
+                                    // map-side UI changes (which may be forced) to override the restore target.
+                                    if (!alreadyCaptured) {
+                                        actionBar.dataset.preSquareInfoPanelVisible = data.visible ? 'true' : 'false';
+                                        actionBar.dataset.preSquareInfoPanelCaptured = 'true';
+                                    }
+                                }
                             }
                         } catch (e) {
                         }
@@ -1806,9 +2378,9 @@ export default {
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/>
                 </svg>
             </div>
-            <p class="map-placeholder-text">地图加载失败</p>
-            <p class="map-placeholder-desc">请检查地图服务器是否运行${agentServer ? `在 ${agentServer}` : ''}</p>
-            <button class="map-retry-btn" id="mapRetryBtn">重试</button>
+            <p class="map-placeholder-text">Map failed to load</p>
+            <p class="map-placeholder-desc">Please check whether the map server is running${agentServer ? ` at ${agentServer}` : ''}</p>
+            <button class="map-retry-btn" id="mapRetryBtn">Retry</button>
         `;
         mapContainer.appendChild(errorDiv);
 
@@ -1822,7 +2394,7 @@ export default {
     /**
      * Retry loading map
      */
-    tryLoadMap() {
+    async tryLoadMap() {
         const mapContainer = document.getElementById('mapContainer');
         if (!mapContainer) return;
 
@@ -1836,6 +2408,8 @@ export default {
             }
             existingIframe.remove();
         }
+
+        await this.maybeRestartEngineForMapReload('retryLoadMap');
 
         if (this._mapMessageListener) {
             try {
@@ -1860,7 +2434,7 @@ export default {
                     <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/>
                 </svg>
             </div>
-            <p class="map-placeholder-text">正在加载地图...</p>
+            <p class="map-placeholder-text">Loading map...</p>
             <div class="map-placeholder-loader">
                 <div class="loader-dot"></div>
                 <div class="loader-dot"></div>
@@ -1869,9 +2443,9 @@ export default {
         `;
         mapContainer.appendChild(loadingDiv);
 
-        // Delay calling loadBaiduMap
+        // Delay calling loadMapIframe
         setTimeout(() => {
-            this.loadBaiduMap();
+            this.loadMapIframe();
         }, 500);
     },
 
@@ -1879,7 +2453,7 @@ export default {
      * Handle location update
      */
     handleLocationUpdate(data) {
-        console.log('位置更新:', data);
+        console.log('Location update:', data);
         const lngElement = document.querySelector('.status-row.sub span[class="value"]');
         const latElement = document.querySelectorAll('.status-row.sub span[class="value"]')[1];
         if (lngElement && data.lng) {
@@ -1894,14 +2468,14 @@ export default {
      * Handle map click event
      */
     handleMapClick(data) {
-        console.log('地图点击:', data);
+        console.log('Map click:', data);
     },
 
     /**
      * Handle marker add event
      */
     handleMarkerAdd(data) {
-        console.log('添加标记:', data);
+        console.log('Marker added:', data);
     },
 
     /**
@@ -2033,6 +2607,10 @@ export default {
     handleSNSUpdate(data) {
         console.log('Handling SNS update:', data);
         const { tab, content, section } = data;
+
+        if (this._suppressSnsUpdates && (tab === 'think' || tab === 'process' || tab === 'resource')) {
+            return;
+        }
 
         if (tab === 'think') {
             console.log('Updating Think tab with content:', content);
@@ -2482,7 +3060,7 @@ export default {
             new URL(url);
         } catch (e) {
             console.error('Invalid URL format after normalization:', url, e);
-            this.showToast('无效的 URL 格式: ' + url, 'error');
+            this.showToast('Invalid URL format: ' + url, 'error');
             return;
         }
 
@@ -2503,7 +3081,7 @@ export default {
             profileTab = document.createElement('button');
             profileTab.className = 'status-tab';
             profileTab.dataset.tab = 'profile';
-            profileTab.innerHTML = `Profile <span class="tab-close-btn" title="关闭">×</span>`;
+            profileTab.innerHTML = `Profile <span class="tab-close-btn" title="Close">×</span>`;
             statusTabs.appendChild(profileTab);
 
             // Bind close button event
@@ -2594,6 +3172,218 @@ export default {
 
     ,
 
+    async loadSNSRendererPlugin(plugin) {
+        const statusTabs = document.getElementById('statusTabs');
+        const statusTabContent = document.getElementById('statusTabContent');
+        if (!statusTabs || !statusTabContent) {
+            console.warn('Status tabs container not found');
+            return;
+        }
+
+        const pluginKey = plugin && (plugin.plugin_id || plugin.id) ? String(plugin.plugin_id || plugin.id) : '';
+        if (!pluginKey) {
+            console.warn('[snsHandlers] Invalid plugin data:', plugin);
+            return;
+        }
+
+        const tabId = `plugin-${pluginKey}`;
+        const existingTab = statusTabs.querySelector(`.status-tab[data-tab="${tabId}"]`);
+        const existingPane = statusTabContent.querySelector(`.tab-pane[data-tab="${tabId}"]`);
+        if (existingTab && existingPane) {
+            existingTab.click();
+            return;
+        }
+
+        const pluginName = (plugin && plugin.name) ? String(plugin.name) : pluginKey;
+        const entryRaw = (plugin && plugin.filename) ? String(plugin.filename) : '';
+        if (!entryRaw) {
+            this.showToast('Plugin entry is empty', 'error');
+            return;
+        }
+
+        const entryUrl = this.resolve(entryRaw);
+
+        let mod;
+        try {
+            const urlObj = new URL(entryUrl, window.location.href);
+            urlObj.searchParams.set('t', String(Date.now()));
+            mod = await import(urlObj.toString());
+        } catch (e) {
+            console.warn('[snsHandlers] Failed to import plugin module:', entryUrl, e);
+            this.showToast(`Failed to load plugin: ${pluginName}`, 'error');
+            return;
+        }
+
+        const pluginInstance = (mod && mod.default) ? mod.default : null;
+        if (!pluginInstance || typeof pluginInstance.render !== 'function') {
+            this.showToast(`Invalid plugin module: ${pluginName}`, 'error');
+            return;
+        }
+
+        const tabBtn = document.createElement('button');
+        tabBtn.className = 'status-tab';
+        tabBtn.dataset.tab = tabId;
+        tabBtn.innerHTML = `${pluginName} <span class="tab-close-btn" title="Close">×</span>`;
+        statusTabs.appendChild(tabBtn);
+
+        const pane = document.createElement('div');
+        pane.className = 'tab-pane';
+        pane.dataset.tab = tabId;
+        pane.innerHTML = `<div class="status-section"><div class="status-rows"><div class="sns-plugin-host" style="min-height: 120px;"></div></div></div>`;
+        statusTabContent.appendChild(pane);
+
+        const hostEl = pane.querySelector('.sns-plugin-host');
+        const api = this._createSNSPluginApi();
+
+        try {
+            await pluginInstance.render(hostEl, api);
+        } catch (e) {
+            console.warn('[snsHandlers] Plugin render failed:', pluginName, e);
+            this.showToast(`Plugin render failed: ${pluginName}`, 'error');
+        }
+
+        this._snsLoadedRendererPlugins.set(pluginKey, {
+            plugin: pluginInstance,
+            tabId
+        });
+
+        const closeBtn = tabBtn.querySelector('.tab-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.unloadSNSRendererPlugin(pluginKey);
+            });
+        }
+
+        tabBtn.click();
+    }
+
+    ,
+
+    unloadSNSRendererPlugin(pluginKey) {
+        const rec = this._snsLoadedRendererPlugins.get(String(pluginKey));
+        const tabId = rec && rec.tabId ? String(rec.tabId) : `plugin-${String(pluginKey)}`;
+
+        const statusTabs = document.getElementById('statusTabs');
+        const statusTabContent = document.getElementById('statusTabContent');
+        if (!statusTabs || !statusTabContent) return;
+
+        try {
+            if (rec && rec.plugin && typeof rec.plugin.dispose === 'function') {
+                rec.plugin.dispose();
+            }
+        } catch (e) {
+        }
+
+        const tab = statusTabs.querySelector(`.status-tab[data-tab="${tabId}"]`);
+        const pane = statusTabContent.querySelector(`.tab-pane[data-tab="${tabId}"]`);
+        const wasActive = !!(tab && tab.classList.contains('active'));
+
+        if (tab) tab.remove();
+        if (pane) pane.remove();
+
+        this._snsLoadedRendererPlugins.delete(String(pluginKey));
+
+        if (wasActive) {
+            const firstTab = statusTabs.querySelector('.status-tab');
+            const firstTabKey = firstTab ? String(firstTab.dataset.tab || '') : '';
+            statusTabs.querySelectorAll('.status-tab').forEach(btn => {
+                btn.classList.toggle('active', btn === firstTab);
+            });
+            statusTabContent.querySelectorAll('.tab-pane').forEach(p => {
+                p.classList.toggle('active', firstTabKey && p.dataset.tab === firstTabKey);
+            });
+        }
+    }
+
+    ,
+
+    _createSNSPluginApi() {
+        const resolveBaseUrl = async () => {
+            try {
+                if (window.electronAPI && typeof window.electronAPI.getApiUrl === 'function') {
+                    const raw = await window.electronAPI.getApiUrl();
+                    return raw ? String(raw).replace(/\/+$/, '') : '';
+                }
+            } catch (e) {
+            }
+
+            const raw = (window.appConfig && window.appConfig.agent_server) ? String(window.appConfig.agent_server) : '';
+            return raw ? raw.replace(/\/+$/, '') : '';
+        };
+
+        const ui = {
+            toast: (type, message) => {
+                const msg = (message === undefined || message === null) ? '' : String(message);
+                const t = type ? String(type) : 'info';
+                if (window.Toast && typeof window.Toast[t] === 'function') {
+                    window.Toast[t](msg);
+                    return;
+                }
+                this.showToast(msg, t);
+            },
+            openUrl: (url) => {
+                const u = url ? String(url) : '';
+                if (!u) return;
+                try {
+                    if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                        window.electronAPI.openUrl(u);
+                        return;
+                    }
+                } catch (e) {
+                }
+                try {
+                    window.open(u, '_blank', 'noopener');
+                } catch (e) {
+                }
+            }
+        };
+
+        const sns = {
+            getJson: async (path) => {
+                const base = await resolveBaseUrl();
+                const resp = await fetch(`${base}${path}`);
+                return await resp.json();
+            },
+            postJson: async (path, body) => {
+                const base = await resolveBaseUrl();
+                const resp = await fetch(`${base}${path}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body || {})
+                });
+                return await resp.json();
+            },
+            jsonrpc: async (method, params) => {
+                const base = await resolveBaseUrl();
+                const payload = {
+                    jsonrpc: '2.0',
+                    id: Date.now(),
+                    method: String(method || ''),
+                    params: (params && typeof params === 'object') ? params : {}
+                };
+                const resp = await fetch(`${base}/jsonrpc`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                return await resp.json();
+            }
+        };
+
+        const map = {
+            postMessage: (payload) => {
+                const iframe = document.querySelector('#mapContainer iframe');
+                if (!iframe || !iframe.contentWindow) return false;
+                return this.safePostMessageToMap(iframe, payload, this.getMapIframeTargetOrigin());
+            }
+        };
+
+        return { ui, sns, map };
+    }
+
+    ,
+
     /**
      * Handle open Place intro tab request
      */
@@ -2635,7 +3425,7 @@ export default {
             new URL(url);
         } catch (e) {
             console.error('Invalid URL format after normalization:', url, e);
-            this.showToast('无效的 URL 格式: ' + url, 'error');
+            this.showToast('Invalid URL format: ' + url, 'error');
             return;
         }
 
@@ -2680,7 +3470,7 @@ export default {
             placeTab = document.createElement('button');
             placeTab.className = 'status-tab';
             placeTab.dataset.tab = 'placeIntro';
-            placeTab.innerHTML = `Place intro <span class="tab-close-btn" title="关闭">×</span>`;
+            placeTab.innerHTML = `Place intro <span class="tab-close-btn" title="Close">×</span>`;
             statusTabs.appendChild(placeTab);
 
             // Bind close button event

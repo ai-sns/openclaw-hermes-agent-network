@@ -127,6 +127,49 @@ async def resume_social_engine(db: AsyncSession = Depends(get_db)):
         }
 
 
+@router.post("/stop-engine")
+async def stop_social_engine(db: AsyncSession = Depends(get_db)):
+    """Stop the AI social engine"""
+    try:
+        service = SNSService(db)
+        result = await service.stop_social_engine()
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to stop social engine: {str(e)}"
+        }
+
+
+@router.post("/restart-engine")
+async def restart_social_engine(db: AsyncSession = Depends(get_db)):
+    """Restart the AI social engine"""
+    try:
+        service = SNSService(db)
+        result = await service.restart_social_engine()
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to restart social engine: {str(e)}"
+        }
+
+
+@router.get("/engine-status")
+async def get_social_engine_status(db: AsyncSession = Depends(get_db)):
+    """Get the current AI social engine status"""
+    try:
+        service = SNSService(db)
+        result = await service.get_social_engine_status()
+        return result
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to get social engine status: {str(e)}",
+            "running": False,
+        }
+
+
 @router.get("/config", response_model=AIChatConfigResponse)
 async def get_ai_chat_config(user_id: str = None, db: AsyncSession = Depends(get_db)):
     """Get AI chat configuration"""
@@ -154,6 +197,26 @@ async def upload_avatar(
     """Upload avatar image"""
     service = SNSService(db)
     return await service.upload_avatar(user_id, file)
+
+
+@router.post("/avatar-dialog/upload-avatar")
+async def upload_avatar_dialog(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload avatar for SNS avatar dialog and generate composed avatar map image."""
+    service = SNSService(db)
+    return await service.upload_avatar_dialog(file)
+
+
+@router.post("/avatar-dialog/submit")
+async def submit_avatar_dialog(
+    request: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """Submit avatar/profile updates and forward to remote server."""
+    service = SNSService(db)
+    return await service.submit_avatar_dialog(request)
 
 
 @router.get("/avatars3d", response_model=List[Avatar3DItem])
@@ -268,6 +331,15 @@ async def update_user_info(
     """Update user information in aichat_cfg"""
     service = SNSService(db)
     return await service.update_user_info(request)
+
+
+@router.post("/change-nationpassword")
+async def change_nationpassword(
+    request: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    service = SNSService(db)
+    return await service.change_nationpassword(request)
 
 
 @router.get("/map-config")

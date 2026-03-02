@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from PIL import Image
+from PIL import Image, ImageChops, ImageDraw, ImageOps
 
 from db.DBFactory import query_SystemCfg, update_SystemCfg, Session, SystemCfg as DBSystemCfg
 from backend.config.settings import get_settings
@@ -314,21 +314,60 @@ class SystemInitWizardService:
         if not avatar_path.exists():
             raise FileNotFoundError(str(avatar_path))
 
-        pin_path = Path("images") / "pin.png"
+        pin_path = Path("pin.png")
         if not pin_path.exists():
-            pin_path = Path("pin.png")
+            pin_path = Path("images") / "pin.png"
         if not pin_path.exists():
             raise FileNotFoundError(str(pin_path))
 
-        pin = Image.open(pin_path).convert("RGBA")
-        avatar = Image.open(avatar_path).convert("RGBA")
+        pin = ImageOps.exif_transpose(Image.open(pin_path)).convert("RGBA")
+        avatar = ImageOps.exif_transpose(Image.open(avatar_path)).convert("RGBA")
 
-        avatar = avatar.resize((70, 70), Image.LANCZOS)
+        size = 70
+        if avatar.width <= 0 or avatar.height <= 0:
+            raise ValueError("Invalid avatar image")
+
+        scale = max(size / float(avatar.width), size / float(avatar.height))
+        resized_w = max(size, int(round(avatar.width * scale)))
+        resized_h = max(size, int(round(avatar.height * scale)))
+        avatar_resized = avatar.resize((resized_w, resized_h), Image.LANCZOS)
+
+        left = max(0, (avatar_resized.width - size) // 2)
+        top = max(0, (avatar_resized.height - size) // 2)
+        avatar_square = avatar_resized.crop((left, top, left + size, top + size))
+
+        oversample = 4
+        hi = size * oversample
+
+        clip_mask_hi = Image.new("L", (hi, hi), 0)
+        clip_draw = ImageDraw.Draw(clip_mask_hi)
+        clip_draw.ellipse((2 * oversample, 2 * oversample, hi - 2 * oversample, hi - 2 * oversample), fill=255)
+        clip_mask = clip_mask_hi.resize((size, size), Image.LANCZOS)
+
+        alpha = avatar_square.split()[-1]
+        avatar_square.putalpha(ImageChops.multiply(alpha, clip_mask))
+
+        border_hi = Image.new("RGBA", (hi, hi), (0, 0, 0, 0))
+        border_draw_hi = ImageDraw.Draw(border_hi)
+        border_draw_hi.ellipse(
+            (1 * oversample, 1 * oversample, hi - 2 * oversample, hi - 2 * oversample),
+            outline=(255, 255, 255, 255),
+            width=2 * oversample,
+        )
+        border = border_hi.resize((size, size), Image.LANCZOS)
+
+        avatar_marker = Image.alpha_composite(avatar_square, border)
+
         composite = Image.new("RGBA", pin.size, (0, 0, 0, 0))
         composite.paste(pin, (0, 0), pin)
-        composite.paste(avatar, (1, 2), avatar)
+        composite.paste(avatar_marker, (1, 2), avatar_marker)
 
-        scaled = composite.resize((pin.size[0] // 2, pin.size[1] // 2), Image.LANCZOS)
+        target_w = max(1, pin.size[0] // 2)
+        target_h = max(1, pin.size[1] // 2)
+        factor = min(target_w / float(composite.size[0]), target_h / float(composite.size[1]))
+        next_w = max(1, int(round(composite.size[0] * factor)))
+        next_h = max(1, int(round(composite.size[1] * factor)))
+        scaled = composite.resize((next_w, next_h), Image.LANCZOS)
         name_without_ext, _ext = os.path.splitext(avatar_filename)
         map_filename = f"{name_without_ext}_map.png"
         out_path = avatars_dir / map_filename
@@ -354,16 +393,16 @@ class SystemInitWizardService:
         llm_server = (llm_server or "").strip()
         api_key = (api_key or "").strip()
         if not llm_server:
-            return {"success": False, "message": "LLM Server 不能为空"}
+            return {"success": False, "message": "LLM Server cannot be empty"}
         if not api_key:
-            return {"success": False, "message": "API Key 不能为空"}
+            return {"success": False, "message": "API Key cannot be empty"}
 
         try:
             parsed = urlparse(llm_server)
             if parsed.scheme not in ("http", "https") or not parsed.netloc:
-                return {"success": False, "message": "LLM Server 格式不正确"}
+                return {"success": False, "message": "Invalid LLM Server format"}
         except Exception:
-            return {"success": False, "message": "LLM Server 格式不正确"}
+            return {"success": False, "message": "Invalid LLM Server format"}
 
         headers = {
             "Authorization": f"Bearer {api_key}",
@@ -380,34 +419,34 @@ class SystemInitWizardService:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(models_url, headers=headers)
                 if resp.status_code in (200, 201):
-                    return {"success": True, "message": "LLM 配置测试通过", "data": {"status": resp.status_code}}
+                    return {"success": True, "message": "LLM configuration test passed", "data": {"status": resp.status_code}}
                 if resp.status_code in (401, 403):
-                    return {"success": False, "message": "API Key 无效或无权限", "data": {"status": resp.status_code}}
+                    return {"success": False, "message": "Invalid API Key or insufficient permissions", "data": {"status": resp.status_code}}
 
                 fallback = await client.request("HEAD", llm_server, headers=headers)
                 if fallback.status_code < 500:
-                    return {"success": True, "message": f"LLM Server 可访问(HTTP {fallback.status_code})，但无法验证 API Key 或模型列表", "data": {"status": fallback.status_code}}
-                return {"success": False, "message": f"LLM Server 响应异常(HTTP {fallback.status_code})", "data": {"status": fallback.status_code}}
+                    return {"success": True, "message": f"LLM Server is reachable (HTTP {fallback.status_code}), but API Key or model list could not be verified", "data": {"status": fallback.status_code}}
+                return {"success": False, "message": f"LLM Server returned an unexpected response (HTTP {fallback.status_code})", "data": {"status": fallback.status_code}}
         except httpx.RequestError as e:
-            return {"success": False, "message": f"无法连接 LLM Server: {str(e)}"}
+            return {"success": False, "message": f"Failed to connect to LLM Server: {str(e)}"}
         except Exception as e:
-            return {"success": False, "message": str(e) or "LLM 测试失败"}
+            return {"success": False, "message": str(e) or "LLM test failed"}
 
     async def test_xmpp(self, account: str, account_password: str) -> Dict[str, Any]:
         account = (account or "").strip()
         account_password_raw = account_password or ""
         account_password = account_password_raw
         if not account:
-            return {"success": False, "message": "XMPP账号 不能为空"}
+            return {"success": False, "message": "XMPP account cannot be empty"}
         if not (account_password or "").strip():
-            return {"success": False, "message": "XMPP密码 不能为空"}
+            return {"success": False, "message": "XMPP password cannot be empty"}
         if "@" not in account:
-            return {"success": False, "message": "XMPP账号 格式不正确"}
+            return {"success": False, "message": "Invalid XMPP account format"}
 
         try:
             import slixmpp
         except Exception as e:
-            return {"success": False, "message": f"slixmpp 未安装或不可用: {str(e)}"}
+            return {"success": False, "message": f"slixmpp is not installed or unavailable: {str(e)}"}
 
         account_no_resource = account.split("/", 1)[0]
 
@@ -429,7 +468,7 @@ class SystemInitWizardService:
             jid = f"{local_part}@{host}"
 
         if not host:
-            return {"success": False, "message": "XMPP账号 格式不正确"}
+            return {"success": False, "message": "Invalid XMPP account format"}
 
         logger.info(
             "[InitWizard][XMPP Test] Prepared credentials | raw_account=%s | sanitized_jid=%s | host=%s | port_override=%s | password=%s",
@@ -474,7 +513,7 @@ class SystemInitWizardService:
                 except Exception:
                     pass
 
-                msg = "XMPP 登录成功"
+                msg = "XMPP login succeeded"
                 if self._connected_target:
                     msg = f"{msg}({self._connected_target})"
                 logger.info(
@@ -499,7 +538,7 @@ class SystemInitWizardService:
                     try:
                         await asyncio.sleep(3)
                         if not self._done_future.done():
-                            await self._resolve({"success": False, "message": "XMPP 认证失败(账号或密码错误)"})
+                            await self._resolve({"success": False, "message": "XMPP authentication failed (invalid account or password)"})
                             self.disconnect(wait=False)
                     except asyncio.CancelledError:
                         return
@@ -507,7 +546,7 @@ class SystemInitWizardService:
 
             async def _on_connection_failed(self, event):
                 detail = (str(event) or "").strip()
-                msg = "XMPP 连接失败"
+                msg = "XMPP connection failed"
                 if self._connected_target:
                     msg = f"{msg}({self._connected_target})"
                 if detail:
@@ -516,7 +555,7 @@ class SystemInitWizardService:
 
             async def _on_socket_error(self, event):
                 detail = (str(event) or "").strip()
-                msg = "XMPP Socket 错误"
+                msg = "XMPP socket error"
                 if self._connected_target:
                     msg = f"{msg}({self._connected_target})"
                 if detail:
@@ -525,7 +564,7 @@ class SystemInitWizardService:
 
             async def _on_disconnected(self, _event):
                 if not self._done_future.done():
-                    msg = "XMPP 连接断开"
+                    msg = "XMPP disconnected"
                     if self._connected_target:
                         msg = f"{msg}({self._connected_target})"
                     self._done_future.set_result({"success": False, "message": msg})
@@ -556,13 +595,13 @@ class SystemInitWizardService:
                 xmpp.disconnect(wait=False)
             except Exception:
                 pass
-            return {"success": False, "message": f"无法连接 XMPP 服务器: {str(e)}"}
+            return {"success": False, "message": f"Failed to connect to XMPP server: {str(e)}"}
 
         try:
             try:
                 result = await asyncio.wait_for(fut, timeout=12.0)
             except asyncio.TimeoutError:
-                result = {"success": False, "message": f"XMPP 登录超时(12s)({xmpp._connected_target})"}
+                result = {"success": False, "message": f"XMPP login timed out (12s) ({xmpp._connected_target})"}
         finally:
             try:
                 xmpp.disconnect(wait=False)
@@ -576,7 +615,7 @@ class SystemInitWizardService:
 
         if isinstance(result, dict) and "success" in result:
             return result
-        return {"success": False, "message": "XMPP 测试失败"}
+        return {"success": False, "message": "XMPP test failed"}
 
     async def test_map(self, map_type: str, map_api_key: str, map_id: str) -> Dict[str, Any]:
         map_type = (map_type or "").strip() or "Google"
@@ -584,10 +623,10 @@ class SystemInitWizardService:
         map_id = (map_id or "").strip()
 
         if not map_api_key:
-            return {"success": False, "message": "地图 API Key 不能为空"}
+            return {"success": False, "message": "Map API Key cannot be empty"}
 
         if map_type == "Google" and not map_id:
-            return {"success": False, "message": "地图 ID 不能为空"}
+            return {"success": False, "message": "Map ID cannot be empty"}
 
         if map_type == "Baidu":
             url = f"https://api.map.baidu.com/api?v=3.0&ak={map_api_key}"
@@ -601,14 +640,14 @@ class SystemInitWizardService:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(url)
                 if resp.status_code == 200:
-                    return {"success": True, "message": "地图配置测试通过", "data": {"status": resp.status_code}}
+                    return {"success": True, "message": "Map configuration test passed", "data": {"status": resp.status_code}}
                 if resp.status_code in (401, 403):
-                    return {"success": False, "message": "地图 Key 无效或无权限", "data": {"status": resp.status_code}}
-                return {"success": False, "message": f"地图服务响应异常(HTTP {resp.status_code})", "data": {"status": resp.status_code}}
+                    return {"success": False, "message": "Invalid map key or insufficient permissions", "data": {"status": resp.status_code}}
+                return {"success": False, "message": f"Map service returned an unexpected response (HTTP {resp.status_code})", "data": {"status": resp.status_code}}
         except httpx.RequestError as e:
-            return {"success": False, "message": f"无法连接地图服务: {str(e)}"}
+            return {"success": False, "message": f"Failed to connect to map service: {str(e)}"}
         except Exception as e:
-            return {"success": False, "message": str(e) or "地图测试失败"}
+            return {"success": False, "message": str(e) or "Map test failed"}
 
     async def fetch_captcha(self) -> Dict[str, Any]:
         cfg = query_SystemCfg(is_delete=False)

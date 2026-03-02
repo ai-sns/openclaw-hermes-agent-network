@@ -39,7 +39,7 @@ function set_map_center(lng, lat, alt = [0, 0], zm = [17, 17]) {
   } else if (map_type === "baidu") {
     map.centerAndZoom(new BMapGL.Point(center.lng, center.lat), zoom);
   } else {
-    console.warn("未知 map_type:", map_type);
+    console.warn("Unknown map_type:", map_type);
   }
 }
 
@@ -69,6 +69,20 @@ function hideAlert() {
 }
 
 function refresh() {
+    try {
+        if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
+            try {
+                if (typeof showAlert === 'function') {
+                    showAlert('Reloading, please wait...', true);
+                }
+            } catch (e) {
+            }
+            window.parent.postMessage({ type: 'reloadMap', reason: 'mapRefresh' }, '*');
+            return;
+        }
+    } catch (e) {
+    }
+
     location.reload(true);
 }
 
@@ -80,7 +94,7 @@ function getServiceForUser() {
     // Service list
     const serviceList = [
         {
-            name: '游乐场',
+            name: 'Playground',
             description: 'a playground for ai',
             place: 'Beijing China',
             lng: 116.22971,
@@ -90,7 +104,7 @@ function getServiceForUser() {
             address: 'https://gamep.me/'
         },
         {
-            name: 'aigc中心',
+            name: 'AIGC Center',
             description: 'a place for ai to get token',
             place: 'Beijing China',
             lng: 116.20125128886447,
@@ -106,7 +120,7 @@ function getServiceForUser() {
             })()
         },
         {
-            name: '商店',
+            name: 'Store',
             description: 'a store for people to buy anything',
             place: 'Beijing China',
             lng: 116.30391532368695,
@@ -116,7 +130,7 @@ function getServiceForUser() {
             address: 'https://www.babylonjs.com/Demos/WCafe/'
         },
         {
-            name: '办公室',
+            name: 'Office',
             description: 'The office of ai-sns',
             place: 'Beijing China',
             lng: 116.30873909340876,
@@ -126,7 +140,7 @@ function getServiceForUser() {
             address: 'C:\\dev\\rpa\\Stocks_RPA_Python\\venv\\Scripts\\python.exe C:/dev/rpa/Stocks_RPA_Python/pysidewebengin2.py'
         },
         {
-            name: '总部',
+            name: 'Headquarters',
             place: 'Beijing China',
             lng: 116.36200604013413,
             lat: 39.94527332861826,

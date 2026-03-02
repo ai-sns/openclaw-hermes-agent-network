@@ -1,4 +1,4 @@
-if (!map) throw new Error('百度地图实例未初始化');
+if (!map) throw new Error('Baidu map instance is not initialized');
 
 // Layer manager
 const layerManager = {
@@ -107,7 +107,7 @@ function loadFacilityModel(threeLayer, config) {
             threeLayer.render();
         },
         undefined,
-        error => console.error(`模型加载失败: ${config.modelUrl}`, error)
+        error => console.error(`Model load failed: ${config.modelUrl}`, error)
     );
 }
 
@@ -119,9 +119,9 @@ function loadFacilityModel(threeLayer, config) {
 function loadCubeModel(threeLayer) {
     const texture = new THREE.TextureLoader().load(
         'https://i.ibb.co/PtWsXLY/three-Layer.png',
-        () => console.log('立方体纹理加载成功'),
+        () => console.log('Cube texture loaded successfully'),
         undefined,
-        error => console.error('立方体纹理加载失败:', error)
+        error => console.error('Failed to load cube texture:', error)
     );
     texture.minFilter = THREE.LinearFilter;
 
@@ -150,11 +150,11 @@ function load_all_facility(layerId) {
 
     // Ensure threeLayer and view are initialized
     if (typeof threeLayer === 'undefined' || !threeLayer) {
-        console.error('threeLayer 未初始化');
+        console.error('threeLayer is not initialized');
         return;
     }
     if (typeof view === 'undefined' || !view) {
-        console.error('view 未初始化');
+        console.error('view is not initialized');
         return;
     }
 
@@ -177,12 +177,12 @@ function load_all_facility(layerId) {
             const intersects = raycaster.intersectObjects(threeLayer.scene.children, true);
 
             if (intersects.length > 0) {
-                console.log('点击检测到模型', intersects[0]);
-                alert(`点击检测到模型${intersects[0].object.name || '未命名模型'}`);
+                console.log('Click detected a model', intersects[0]);
+                alert(`Model detected on click: ${intersects[0].object.name || 'Unnamed model'}`);
             }
         });
     } else {
-        console.warn('threeLayer 不支持 addEventListener 方法');
+        console.warn('threeLayer does not support addEventListener');
     }
 
     layerManager.threeLayers.set(layerId, threeLayer);
@@ -193,9 +193,9 @@ function load_all_facility(layerId) {
 /* 6. Unified event binding */
 function bindOverlayEvents() {
     const eventHandlers = {
-        click: e => console.log(`${e.target} 被单击`),
-        dblclick: e => alert(`${e.target} 被双击`),
-        rightclick: e => alert(`${e.target} 被右击`)
+        click: e => console.log(`${e.target} clicked`),
+        dblclick: e => alert(`${e.target} double-clicked`),
+        rightclick: e => alert(`${e.target} right-clicked`)
     };
 
     layerManager.overlays.forEach(overlay => {

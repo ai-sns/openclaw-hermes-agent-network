@@ -41,7 +41,7 @@ class AgentManager:
         """Initialize the manager."""
         if not hasattr(self, '_initialized'):
             self._initialized = True
-            logger.info("AgentManager 已初始化")
+            logger.info("AgentManager initialized")
 
     def _load_llm_config(self, config_id: str, db: Session) -> Optional[Dict]:
         """
@@ -79,7 +79,7 @@ class AgentManager:
                 'stream': llm_config.stream
             }
         except Exception as e:
-            logger.error(f"加载LLM配置失败: {e}")
+            logger.error(f"Failed to load LLM config: {e}")
             return None
 
     def _load_role_config(self, role_id: str, db: Session) -> Optional[Dict]:
@@ -114,7 +114,7 @@ class AgentManager:
                 'description': role_config.description
             }
         except Exception as e:
-            logger.error(f"加载角色配置失败: {e}")
+            logger.error(f"Failed to load role config: {e}")
             return None
 
     def _load_tools(self, agent_cfg: AgentCfg) -> list:
@@ -152,7 +152,7 @@ class AgentManager:
                     session.close()
 
         except Exception as e:
-            logger.error(f"加载工具列表失败: {e}")
+            logger.error(f"Failed to load tools list: {e}")
 
         return tools
 
@@ -175,7 +175,7 @@ class AgentManager:
                 "required": []
             }
         except Exception as e:
-            logger.error(f"解析工具参数失败: {e}")
+            logger.error(f"Failed to parse tool parameters: {e}")
             return {"type": "object", "properties": {}, "required": []}
 
     def _load_knowledge_bases(self, agent_cfg: AgentCfg) -> list:
@@ -183,7 +183,7 @@ class AgentManager:
         Load the agent's knowledge base list.
 
         Args:
-            agent_cfg: Agent配置对象
+            agent_cfg: Agent config object
 
         Returns:
             Knowledge base list
@@ -209,7 +209,7 @@ class AgentManager:
                         })
 
         except Exception as e:
-            logger.error(f"加载知识库列表失败: {e}")
+            logger.error(f"Failed to load knowledge base list: {e}")
 
         return kbs
 
@@ -226,7 +226,7 @@ class AgentManager:
         """
         # Check cache
         if not force_reload and agent_id in self._agents_cache:
-            logger.info(f"从缓存获取Agent: {agent_id}")
+            logger.info(f"Get agent from cache: {agent_id}")
             return self._agents_cache[agent_id]
 
         try:
@@ -238,7 +238,7 @@ class AgentManager:
             ).first()
 
             if not agent_cfg:
-                logger.error(f"Agent {agent_id} 不存在")
+                logger.error(f"Agent {agent_id} does not exist")
                 return None
 
             # Parse extra data from memo
@@ -258,8 +258,10 @@ class AgentManager:
 
             # If no config is found, log a warning and use defaults
             if not llm_config:
-                logger.warning(f"Agent {agent_id} 没有配置LLM模型，将使用默认配置。"
-                             f"请在前端为该Agent选择一个模型配置。")
+                logger.warning(
+                    f"Agent {agent_id} has no LLM config; default settings will be used."
+                    f" Please select a model configuration for this agent in the frontend."
+                )
                 llm_config = {
                     'config_id': model_config_id or 'default',
                     'api_endpoint': 'https://api.openai.com/v1',
@@ -312,11 +314,11 @@ class AgentManager:
             self._agents_cache[agent_id] = agent_instance
             self._name_to_id[agent_cfg.name] = agent_id
 
-            logger.info(f"Agent {agent_cfg.name} (ID: {agent_id}) 已加载")
+            logger.info(f"Agent {agent_cfg.name} (ID: {agent_id}) loaded")
             return agent_instance
 
         except Exception as e:
-            logger.error(f"加载Agent失败: {e}", exc_info=True)
+            logger.error(f"Failed to load agent: {e}", exc_info=True)
             return None
 
     def get_agent_by_id(self, agent_id: int) -> Optional[AgentInstance]:
@@ -355,13 +357,13 @@ class AgentManager:
             ).first()
 
             if not agent_cfg:
-                logger.error(f"Agent {name} 不存在")
+                logger.error(f"Agent {name} does not exist")
                 return None
 
             return self.load_agent(agent_cfg.id)
 
         except Exception as e:
-            logger.error(f"按名称获取Agent失败: {e}")
+            logger.error(f"Failed to get agent by name: {e}")
             return None
 
     def reload_agent(self, agent_id: int) -> Optional[AgentInstance]:
@@ -372,7 +374,7 @@ class AgentManager:
             agent_id: Agent ID
 
         Returns:
-            AgentInstance对象
+            AgentInstance object
         """
         # Clear cache
         if agent_id in self._agents_cache:
@@ -387,7 +389,7 @@ class AgentManager:
         """Clear all caches."""
         self._agents_cache.clear()
         self._name_to_id.clear()
-        logger.info("Agent缓存已清除")
+        logger.info("Agent cache cleared")
 
     def get_all_cached_agents(self) -> list:
         """Get all cached agents."""

@@ -1,0 +1,7 @@
+{
+  "id": "person-messenger",
+  "name": "Person Messenger",
+  "version": "1.0.0",
+  "description": "Send a map chat message to a person.",
+  "entry": "index.js"
+}

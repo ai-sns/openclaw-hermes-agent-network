@@ -5,6 +5,7 @@ from i18n import lt
 from typing import Dict, Any, Optional
 from util import generate_random_id
 import logging
+from backend.shared.utils import robust_json_loads
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +77,13 @@ class MapTaskManager:
         # Add sequence numbers for each item in the process info list
         process_info_list_str = "\n".join(f"{index + 1}. {info}" for index, info in enumerate(self.process_info_list))
         command_status = self.parent.command_status
-        result = f"""### 任务说明
-#### **背景**
-我正在参加一个基于Google地图的虚拟社交游戏。玩家需要扮演角色在虚拟地图上探索、社交并完成任务。
+        result = f"""### Task Description
+#### **Background**
+I am participating in a virtual social game based on Google Maps. Players role-play characters to explore, socialize, and complete tasks on a virtual map.
 
 ---
 
-#### **任务执行过程记录**
+#### **Task Execution Process Log**
 {process_info_list_str}
 
 ---
@@ -177,7 +178,7 @@ class MapTaskManager:
             self.init_task_mng()
 
         if action_requested == "process_activity":
-            self.parent.write_on_going_process_to_pane(lt("Agent is thinking how to proceed current action.", "Agent正在思考如何开展当前行动。"))
+            self.parent.write_on_going_process_to_pane(lt("Agent is thinking how to proceed current action.", "Agent is thinking how to proceed with the current action."))
             ask_content = kwargs.get("ask_content", self.get_current_objective())
             stop_review = True
             if not self.parent.human_take_over:
@@ -192,7 +193,7 @@ class MapTaskManager:
             if ask_content:
                 item_to_achieved = ask_content
 
-            self.js_task_manager.show_information(lt(f"Agent is thinking how to proceed:{item_to_achieved}", f"Agent正在思考如何进展:{item_to_achieved}"))
+            self.js_task_manager.show_information(lt(f"Agent is thinking how to proceed:{item_to_achieved}", f"Agent is thinking how to proceed:{item_to_achieved}"))
             self.set_command_status("ask_agent_instruction_to_process_activity")
 
             asyncio.create_task(self.parent.ask_agent_instruction_to_process_activity(ask_content))
@@ -216,7 +217,7 @@ class MapTaskManager:
             # Use dict.get() safely to avoid KeyError
             function_str = activity_mapping.get(function, 'Unknown function:' + function)
 
-            self.js_task_manager.show_information(lt(f"Agent return instruction:{function_str}.The target is:{objective_to_achieve}", f"Agent返回指令:{function_str}。目标是:{objective_to_achieve}"))
+            self.js_task_manager.show_information(lt(f"Agent return instruction:{function_str}.The target is:{objective_to_achieve}", f"Agent return instruction:{function_str}. The target is:{objective_to_achieve}"))
             self.set_command_status("")
             self.parent.parse_agent_instruction_for_process_activity(instruction)
 
@@ -234,13 +235,16 @@ class MapTaskManager:
         elif event == "ask_agent_start_to_talk_to_a_people_returned":
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
-            people_dict = json.loads(result)
+            people_dict = robust_json_loads(result, default=None)
+            if not isinstance(people_dict, dict):
+                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
             if people_dict:
                 nick_name = people_dict["nick_name"]
             else:
                 nick_name = ""
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
-            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent选择{result}进行交谈"))
+            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
             self.last_param = {}
             self.last_param["people_list_picked"] = result
@@ -249,13 +253,16 @@ class MapTaskManager:
         elif event == "ask_agent_start_to_sell_to_a_people_returned":
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
-            people_dict = json.loads(result)
+            people_dict = robust_json_loads(result, default=None)
+            if not isinstance(people_dict, dict):
+                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
             if people_dict:
                 nick_name = people_dict["nick_name"]
             else:
                 nick_name = ""
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
-            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent选择{result}进行交谈"))
+            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
             self.last_param = {}
             self.last_param["people_list_picked"] = result
@@ -264,13 +271,16 @@ class MapTaskManager:
         elif event == "ask_agent_start_to_buy_from_a_people_returned":
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
-            people_dict = json.loads(result)
+            people_dict = robust_json_loads(result, default=None)
+            if not isinstance(people_dict, dict):
+                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
             if people_dict:
                 nick_name = people_dict["nick_name"]
             else:
                 nick_name = ""
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
-            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent选择{result}进行交谈"))
+            self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
             self.last_param = {}
             self.last_param["people_list_picked"] = result

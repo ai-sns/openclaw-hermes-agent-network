@@ -9,6 +9,7 @@ from typing import Dict, List, Optional, Any
 from fastapi import WebSocket
 import logging
 import json
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,42 @@ class ConnectionManager:
         # Client metadata: {client_id: metadata}
         self.client_metadata: Dict[str, dict] = {}
 
+        self._on_zero_clients_callbacks = []
+        self._zero_clients_task: Optional[asyncio.Task] = None
+
+    def add_on_zero_clients_callback(self, callback):
+        if callable(callback):
+            self._on_zero_clients_callbacks.append(callback)
+
+    def _schedule_zero_clients_callbacks(self):
+        try:
+            if self._zero_clients_task and not self._zero_clients_task.done():
+                self._zero_clients_task.cancel()
+        except Exception:
+            pass
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        async def _runner():
+            try:
+                await asyncio.sleep(2.0)
+                if self.get_client_count() != 0:
+                    return
+                for cb in list(self._on_zero_clients_callbacks):
+                    try:
+                        res = cb()
+                        if asyncio.iscoroutine(res):
+                            await res
+                    except Exception as e:
+                        logger.warning(f"on_zero_clients callback failed: {e}")
+            except asyncio.CancelledError:
+                return
+
+        self._zero_clients_task = loop.create_task(_runner())
+
     async def connect(self, websocket: WebSocket, client_id: str, metadata: Optional[dict] = None):
         """
         Accept and register a new WebSocket connection
@@ -51,6 +88,12 @@ class ConnectionManager:
 
         logger.info(f"Client {client_id} connected (total: {len(self.active_connections)})")
 
+        try:
+            if self._zero_clients_task and not self._zero_clients_task.done():
+                self._zero_clients_task.cancel()
+        except Exception:
+            pass
+
     def disconnect(self, client_id: str):
         """
         Remove a client from active connections
@@ -61,6 +104,9 @@ class ConnectionManager:
         if client_id in self.active_connections:
             del self.active_connections[client_id]
             logger.info(f"Client {client_id} disconnected (remaining: {len(self.active_connections)})")
+
+        if len(self.active_connections) == 0:
+            self._schedule_zero_clients_callbacks()
 
         # Remove from all rooms
         for room_id in list(self.rooms.keys()):

@@ -736,7 +736,7 @@ async def agent_chat_stream_with_files(
                     except Exception:
                         text = ''
                 if text:
-                    attachments_text_parts.append(f"[文件: {filename}]\n{text}")
+                    attachments_text_parts.append(f"[File: {filename}]\n{text}")
                 meta = {
                     'id': attachment_id,
                     'name': safe_name,
@@ -755,7 +755,7 @@ async def agent_chat_stream_with_files(
 
             extracted = DocumentLoader.load_document(file_path)
             if extracted:
-                attachments_text_parts.append(f"[文件: {filename}]\n{extracted}")
+                attachments_text_parts.append(f"[File: {filename}]\n{extracted}")
             meta = {
                 'id': attachment_id,
                 'name': safe_name,
@@ -814,7 +814,7 @@ async def agent_chat_stream_with_files(
                     yield f"data: {json.dumps({'content': chunk})}\n\n"
                 yield f"data: {json.dumps({'done': True, 'attachments': attachments_public})}\n\n"
             except Exception as e:
-                logger.error(f"流式生成失败: {e}", exc_info=True)
+                logger.error(f"Streaming generation failed: {e}", exc_info=True)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return StreamingResponse(
@@ -830,7 +830,7 @@ async def agent_chat_stream_with_files(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Agent流式问答失败: {e}", exc_info=True)
+        logger.error(f"Agent streaming chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -902,7 +902,7 @@ async def agent_chat_stream_by_id(
                 yield f"data: {json.dumps({'done': True})}\n\n"
 
             except Exception as e:
-                logger.error(f"流式生成失败: {e}", exc_info=True)
+                logger.error(f"Streaming generation failed: {e}", exc_info=True)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return StreamingResponse(
@@ -918,7 +918,7 @@ async def agent_chat_stream_by_id(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Agent流式问答失败: {e}", exc_info=True)
+        logger.error(f"Agent streaming chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -986,7 +986,7 @@ async def agent_chat_by_name(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Agent问答失败: {e}", exc_info=True)
+        logger.error(f"Agent chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1053,7 +1053,7 @@ async def agent_chat_stream_by_name(
                 yield f"data: {json.dumps({'done': True})}\n\n"
 
             except Exception as e:
-                logger.error(f"流式生成失败: {e}", exc_info=True)
+                logger.error(f"Streaming generation failed: {e}", exc_info=True)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return StreamingResponse(
@@ -1069,7 +1069,7 @@ async def agent_chat_stream_by_name(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Agent流式问答失败: {e}", exc_info=True)
+        logger.error(f"Agent streaming chat failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1105,7 +1105,7 @@ async def clear_agent_memory(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"清除记忆失败: {e}")
+        logger.error(f"Failed to clear memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1142,7 +1142,7 @@ async def get_agent_memory(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取记忆失败: {e}")
+        logger.error(f"Failed to get memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1172,7 +1172,7 @@ async def get_agent_info(agent_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"获取Agent信息失败: {e}")
+        logger.error(f"Failed to get agent info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1201,7 +1201,7 @@ async def reload_agent(agent_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"重新加载Agent失败: {e}")
+        logger.error(f"Failed to reload agent: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1222,5 +1222,5 @@ async def get_cached_agents():
         }
 
     except Exception as e:
-        logger.error(f"获取缓存Agent失败: {e}")
+        logger.error(f"Failed to get cached agents: {e}")
         raise HTTPException(status_code=500, detail=str(e))

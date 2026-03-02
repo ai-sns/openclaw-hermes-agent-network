@@ -167,11 +167,11 @@ const kmHandlers = {
             const noteId = this.currentNoteId;
             const kmId = this.currentKmId;
             if (!noteId || !kmId) {
-                Toast.warning('请先选择一个已保存的笔记');
+                Toast.warning('Please select a saved note first');
                 return;
             }
 
-            const loading = Toast.loading('向量化中...');
+            const loading = Toast.loading('Vectorizing...');
             const response = await fetch(this.resolve(`/api/km/notes/${encodeURIComponent(String(noteId))}/vectorize`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -180,7 +180,7 @@ const kmHandlers = {
             loading.close();
 
             if (!response.ok) {
-                let message = '向量化失败';
+                let message = 'Vectorization failed';
                 try {
                     const data = await response.json();
                     if (data && data.detail) message = data.detail;
@@ -192,44 +192,44 @@ const kmHandlers = {
 
             const result = await response.json();
             const chunks = (result && result.data && typeof result.data.chunks !== 'undefined') ? result.data.chunks : 0;
-            Toast.success(`向量化完成（chunks: ${chunks}）`);
+            Toast.success(`Vectorization completed (chunks: ${chunks})`);
         } catch (e) {
             console.error('[kmHandlers] vectorizeCurrentNote failed:', e);
-            Toast.error('向量化失败: ' + (e && e.message ? e.message : String(e)));
+            Toast.error('Vectorization failed: ' + (e && e.message ? e.message : String(e)));
         }
     },
 
     showNoteVectorSearchDialog() {
         const kmId = this.currentKmId;
         if (!kmId) {
-            Toast.warning('请先选择一个知识库');
+            Toast.warning('Please select a knowledge base first');
             return;
         }
 
         if (!window.Modal || typeof window.Modal.show !== 'function') {
-            Toast.error('Modal组件未就绪');
+            Toast.error('Modal component is not ready');
             return;
         }
 
         window.Modal.show({
-            title: '向量查询',
+            title: 'Vector search',
             width: '720px',
             content: `
                 <div class="form-group">
-                    <label class="form-label">查询内容</label>
-                    <input type="text" id="noteVectorQueryInput" class="form-input" placeholder="输入自然语言问题..." autofocus>
+                    <label class="form-label">Query</label>
+                    <input type="text" id="noteVectorQueryInput" class="form-input" placeholder="Type a natural-language question..." autofocus>
                 </div>
                 <div class="form-group" style="margin-top: 10px;">
                     <div id="noteVectorSearchResults" style="max-height: 50vh; overflow-y: auto;"></div>
                 </div>
             `,
-            confirmText: '搜索',
+            confirmText: 'Search',
             onConfirm: async (modal) => {
                 const input = modal.element.querySelector('#noteVectorQueryInput');
                 const resultsEl = modal.element.querySelector('#noteVectorSearchResults');
                 const query = input ? input.value.trim() : '';
                 if (!query) {
-                    Toast.warning('请输入查询内容');
+                    Toast.warning('Please enter a query');
                     return false;
                 }
                 if (resultsEl) {
@@ -301,11 +301,11 @@ const kmHandlers = {
             const url = this.resolve(path);
             const result = await window.electronAPI.downloadAndOpen(url, filename || 'file');
             if (result) {
-                Toast.error(`打开文件失败: ${result}`);
+                Toast.error(`Failed to open file: ${result}`);
             }
         } catch (e) {
             console.error('[kmHandlers] downloadAndOpenKmFile failed:', e);
-            Toast.error('打开文件失败: ' + (e && e.message ? e.message : String(e)));
+            Toast.error('Failed to open file: ' + (e && e.message ? e.message : String(e)));
         }
     },
 
@@ -849,8 +849,8 @@ const kmHandlers = {
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="#ddd">
                         <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
                     </svg>
-                    <p>暂无文件</p>
-                    <p style="font-size: 12px; color: #aaa; margin-top: 8px;">点击"添加文件"上传文档</p>
+                    <p>No files</p>
+                    <p style="font-size: 12px; color: #aaa; margin-top: 8px;">Click "Add file" to upload documents</p>
                 </div>
             `;
             return;
@@ -869,13 +869,6 @@ const kmHandlers = {
                     <div class="km-file-info">
                         <div class="km-file-name">${this.escapeHtml(file.filename)}</div>
                         <div class="km-file-meta">${file.file_size ? this.formatFileSize(file.file_size) : ''} ${file.create_time ? '• ' + this.formatDate(file.create_time) : ''}</div>
-                    </div>
-                    <div class="km-file-actions">
-                        <button class="km-file-action-btn delete" data-action="delete" title="删除">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
-                            </svg>
-                        </button>
                     </div>
                 </div>
             `;
@@ -913,7 +906,7 @@ const kmHandlers = {
     formatDate(dateStr) {
         if (!dateStr) return '';
         const date = new Date(dateStr);
-        return date.toLocaleDateString('zh-CN');
+        return date.toLocaleDateString('en-US');
     },
 
     bindFileListEvents(kbId) {
@@ -922,17 +915,6 @@ const kmHandlers = {
 
         // Click file item
         fileTree.addEventListener('click', (e) => {
-            const deleteBtn = e.target.closest('.km-file-action-btn.delete');
-            if (deleteBtn) {
-                e.stopPropagation();
-                const item = deleteBtn.closest('.km-file-item');
-                if (item) {
-                    const fileId = parseInt(item.dataset.fileId);
-                    this.confirmDeleteFile(kbId, fileId);
-                }
-                return;
-            }
-
             const item = e.target.closest('.km-file-item[data-file-id]');
             if (item) {
                 const fileId = parseInt(item.dataset.fileId);
@@ -992,18 +974,16 @@ const kmHandlers = {
         if (existingMenu) existingMenu.remove();
 
         const menu = document.createElement('div');
-        menu.className = 'file-context-menu';
-        menu.style.cssText = `
-            position: fixed; left: ${event.clientX}px; top: ${event.clientY}px;
-            background: white; border: 1px solid #ddd; border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10001;
-            min-width: 160px; padding: 6px 0;
-        `;
+        menu.className = 'status-context-menu file-context-menu';
+        menu.style.left = `${event.clientX}px`;
+        menu.style.top = `${event.clientY}px`;
+        menu.style.display = 'block';
+        menu.style.zIndex = '10001';
 
         menu.innerHTML = `
-            <div class="context-menu-item" data-action="delete" style="color: #f44336; padding: 10px 16px; cursor: pointer;">
-                Delete
-            </div>
+            <button type="button" class="context-menu-item" data-action="delete" style="color: var(--color-danger, #f44336);">
+                <span>Delete</span>
+            </button>
         `;
 
         document.body.appendChild(menu);
@@ -1013,29 +993,7 @@ const kmHandlers = {
             if (!item) return;
 
             if (item.dataset.action === 'delete') {
-                const confirmed = await Toast.confirm(`Delete file "${file.filename}"?`, {
-                    title: 'Delete File',
-                    confirmText: 'Delete',
-                    cancelText: 'Cancel',
-                    type: 'warning'
-                });
-
-                if (confirmed) {
-                    try {
-                        const response = await fetch(this.resolve(`/api/km/${kbId}/files/${fileId}`), {
-                            method: 'DELETE'
-                        });
-                        if (!response.ok) throw new Error('Delete failed');
-
-                        this.files[kbId] = this.files[kbId].filter(f => f.id !== fileId);
-                        this.renderFileList(kbId);
-                        this.bindFileListEvents(kbId);
-                        Toast.success('File deleted successfully');
-                    } catch (error) {
-                        console.error('Delete failed:', error);
-                        Toast.error('Delete failed: ' + error.message);
-                    }
-                }
+                await this.confirmDeleteFile(kbId, fileId);
             }
             menu.remove();
         });
@@ -1132,8 +1090,8 @@ const kmHandlers = {
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="#ddd">
                         <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
                     </svg>
-                    <p>暂无键值对</p>
-                    <p style="font-size: 12px; color: #aaa; margin-top: 8px;">点击"新建"添加</p>
+                    <p>No key-value items</p>
+                    <p style="font-size: 12px; color: #aaa; margin-top: 8px;">Click "New" to add</p>
                 </div>
             `;
             return;
@@ -1197,10 +1155,12 @@ const kmHandlers = {
         if (deleteBtn) deleteBtn.style.display = 'inline-flex';
         if (titleEl) {
             titleEl.innerHTML = `
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--color-primary)" style="vertical-align: middle; margin-right: 8px;">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                </svg>
-                编辑键值对
+                <div class="dialog-title">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--color-primary)" style="vertical-align: middle; margin-right: 8px;">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                    </svg>
+                    Edit key-value item
+                </div>
             `;
         }
 
@@ -1304,18 +1264,16 @@ const kmHandlers = {
         if (existingMenu) existingMenu.remove();
 
         const menu = document.createElement('div');
-        menu.className = 'kv-context-menu';
-        menu.style.cssText = `
-            position: fixed; left: ${event.clientX}px; top: ${event.clientY}px;
-            background: white; border: 1px solid #ddd; border-radius: 6px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10001;
-            min-width: 160px; padding: 6px 0;
-        `;
+        menu.className = 'status-context-menu kv-context-menu';
+        menu.style.left = `${event.clientX}px`;
+        menu.style.top = `${event.clientY}px`;
+        menu.style.display = 'block';
+        menu.style.zIndex = '10001';
 
         menu.innerHTML = `
-            <div class="context-menu-item" data-action="delete" style="color: #f44336; padding: 10px 16px; cursor: pointer;">
-                Delete
-            </div>
+            <button type="button" class="context-menu-item" data-action="delete" style="color: var(--color-danger, #f44336);">
+                <span>Delete</span>
+            </button>
         `;
 
         document.body.appendChild(menu);
@@ -1461,10 +1419,12 @@ const kmHandlers = {
         if (deleteBtn) deleteBtn.style.display = 'none';
         if (titleEl) {
             titleEl.innerHTML = `
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--color-primary)" style="vertical-align: middle; margin-right: 8px;">
-                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                </svg>
-                新建键值对
+                <div class="dialog-title">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="var(--color-primary)" style="vertical-align: middle; margin-right: 8px;">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                    </svg>
+                    New key-value item
+                </div>
             `;
         }
 

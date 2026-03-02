@@ -1,0 +1,7 @@
+{
+  "id": "agent-jsonrpc-tester",
+  "name": "Agent JSON-RPC Tester",
+  "version": "1.0.0",
+  "description": "Call backend /jsonrpc from the Agent UI and inspect the response.",
+  "entry": "index.js"
+}

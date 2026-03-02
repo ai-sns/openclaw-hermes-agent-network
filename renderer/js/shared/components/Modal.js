@@ -179,13 +179,13 @@ class Modal {
 
     static confirm(message, onConfirm) {
         return Modal.show({
-            title: '确认',
+            title: 'Confirm',
             content: `<p>${message}</p>`,
             onConfirm
         });
     }
 
-    static alert(message, title = '提示') {
+    static alert(message, title = 'Notice') {
         return Modal.show({
             title,
             content: `<p>${message}</p>`,

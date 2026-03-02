@@ -45,7 +45,7 @@ class CodeExecutor:
         # Ensure work directory exists
         Path(self.work_dir).mkdir(parents=True, exist_ok=True)
 
-        logger.info(f"代码执行器已初始化: work_dir={self.work_dir}, timeout={self.timeout}s")
+        logger.info(f"Code executor initialized: work_dir={self.work_dir}, timeout={self.timeout}s")
 
     def execute_python(self, code: str, **kwargs) -> Dict[str, Any]:
         """
@@ -96,7 +96,7 @@ class CodeExecutor:
             }
 
         except subprocess.TimeoutExpired:
-            logger.error(f"代码执行超时: {self.timeout}s")
+            logger.error(f"Code execution timed out: {self.timeout}s")
             return {
                 'success': False,
                 'output': '',
@@ -105,7 +105,7 @@ class CodeExecutor:
             }
 
         except Exception as e:
-            logger.error(f"代码执行失败: {e}", exc_info=True)
+            logger.error(f"Code execution failed: {e}", exc_info=True)
             return {
                 'success': False,
                 'output': '',
@@ -153,7 +153,7 @@ class CodeExecutor:
             }
 
         except Exception as e:
-            logger.error(f"Shell命令执行失败: {e}")
+            logger.error(f"Shell command execution failed: {e}")
             return {
                 'success': False,
                 'output': '',
@@ -167,6 +167,6 @@ class CodeExecutor:
             import shutil
             if os.path.exists(self.work_dir) and self.work_dir.startswith(tempfile.gettempdir()):
                 shutil.rmtree(self.work_dir)
-                logger.info(f"工作目录已清理: {self.work_dir}")
+                logger.info(f"Work directory cleaned: {self.work_dir}")
         except Exception as e:
-            logger.error(f"清理工作目录失败: {e}")
+            logger.error(f"Failed to clean work directory: {e}")

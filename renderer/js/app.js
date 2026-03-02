@@ -7,6 +7,7 @@ const App = {
     currentPage: null,  // Initially null to ensure first navigation runs
     initialized: false,
     sidebarCollapsed: false,
+    _snsEngineStartupStopAttempted: false,
 
     async init() {
         if (this.initialized) return;
@@ -66,11 +67,38 @@ const App = {
         Promise.resolve().then(async () => {
             try {
                 await this.checkApiConnection();
+                await this.ensureSnsEngineStoppedOnStartup();
                 await this.initWebSocket();
             } catch (error) {
                 console.warn('API initialization failed:', error);
             }
         });
+    },
+
+    async ensureSnsEngineStoppedOnStartup() {
+        if (this._snsEngineStartupStopAttempted) return;
+        this._snsEngineStartupStopAttempted = true;
+
+        try {
+            if (!window.api || typeof window.api.get !== 'function') {
+                return;
+            }
+
+            const status = await window.api.get('/api/sns/engine-status');
+            const taskStatus = String(status?.task_status || '').toLowerCase();
+            const shouldStop = !!(
+                status &&
+                status.success &&
+                (status.running || status.started || taskStatus === 'started' || taskStatus === 'paused')
+            );
+
+            if (!shouldStop) return;
+
+            console.log('[App] Backend SNS engine is active on startup, stopping it...');
+            await window.api.post('/api/sns/stop-engine', {});
+        } catch (e) {
+            console.warn('[App] Failed to stop SNS engine on startup:', e);
+        }
     },
 
     async getInitialPage() {
@@ -529,13 +557,13 @@ const App = {
 
     async bindAgentSidebarEvents() {
         // Agent page sidebar events - re-initialize AgentSidebar
-        console.log('[App] 初始化Agent侧边栏...');
+        console.log('[App] Initializing Agent sidebar...');
 
         // Reload agent list (fix: agent list disappears after page switch)
         if (window.AgentSidebar && typeof window.AgentSidebar.init === 'function') {
             await window.AgentSidebar.init();
         } else {
-            console.error('[App] AgentSidebar未找到或init方法不存在');
+            console.error('[App] AgentSidebar not found or init() is not available');
         }
 
         document.querySelectorAll('.chat-tab').forEach(tab => {
@@ -620,15 +648,15 @@ const App = {
         }
     },
     initPageController(page) {
-        console.log('开始初始化页面控制器:', page);
+        console.log('Initializing page controller:', page);
         switch (page) {
             case 'home':
                 PageControllers.initHomePage();
                 break;
             case 'sns':
-                console.log('初始化 SNS 页面');
+                console.log('Initializing SNS page');
                 PageControllers.initSNSPage();
-                console.log('SNS 页面初始化完成');
+                console.log('SNS page initialized');
                 break;
             case 'agent':
                 PageControllers.initAgentPage();
@@ -647,15 +675,15 @@ const App = {
 
     showSearchModal() {
         Modal.show({
-            title: '搜索',
+            title: 'Search',
             content: `
                 <div class="search-modal">
-                    <input type="text" class="search-input-field" placeholder="搜索Agent、聊天、知识库..." autofocus>
+                    <input type="text" class="search-input-field" placeholder="Search agents, chats, knowledge bases..." autofocus>
                     <div class="search-results"></div>
                 </div>
             `,
             showCancel: false,
-            confirmText: '关闭'
+            confirmText: 'Close'
         });
     },
 
@@ -665,48 +693,48 @@ const App = {
         const apiServer = localStorage.getItem('apiServer') || 'http://localhost:8000';
 
         Modal.show({
-            title: '设置',
+            title: 'Settings',
             content: `
                 <div class="settings-modal">
                     <div class="setting-group">
-                        <label>外观主题</label>
+                        <label>Theme</label>
                         <div class="theme-switcher">
                             <button class="theme-option ${currentTheme === 'light' ? 'active' : ''}" data-theme="light">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="5"/>
                                     <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
                                 </svg>
-                                <span>亮色</span>
+                                <span>Light</span>
                             </button>
                             <button class="theme-option ${currentTheme === 'dark' ? 'active' : ''}" data-theme="dark">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                                 </svg>
-                                <span>暗色</span>
+                                <span>Dark</span>
                             </button>
                         </div>
                     </div>
                     <div class="setting-group">
-                        <label>语言</label>
+                        <label>Language</label>
                         <select class="setting-select" id="languageSelect">
-                            <option value="zh" ${currentLang === 'zh' ? 'selected' : ''}>中文</option>
+                            <option value="zh" ${currentLang === 'zh' ? 'selected' : ''}>Chinese</option>
                             <option value="en" ${currentLang === 'en' ? 'selected' : ''}>English</option>
                         </select>
                     </div>
                     <div class="setting-group">
-                        <label>API 服务器地址</label>
+                        <label>API Server URL</label>
                         <input type="text" class="setting-input" id="apiServerInput" value="${apiServer}">
                     </div>
                 </div>
             `,
-            confirmText: '保存',
+            confirmText: 'Save',
             onConfirm: () => {
                 const lang = document.getElementById('languageSelect').value;
                 const apiUrl = document.getElementById('apiServerInput').value;
                 localStorage.setItem('language', lang);
                 localStorage.setItem('apiServer', apiUrl);
                 if (typeof Notification !== 'undefined' && Notification.success) {
-                    Notification.success('设置已保存');
+                    Notification.success('Settings saved');
                 }
             }
         });
@@ -765,7 +793,7 @@ const App = {
 
     showAboutModal() {
         Modal.show({
-            title: '关于 AI-SNS',
+            title: 'About AI-SNS',
             content: `
                 <div class="about-modal">
                     <div class="about-logo">
@@ -775,51 +803,51 @@ const App = {
                     </div>
                     <h2>AI-SNS</h2>
                     <p class="about-subtitle">AI Agent Social Network</p>
-                    <p class="about-version">版本: 1.0.0</p>
-                    <p class="about-desc">智能社交网络平台，支持AI与AI、AI与人的通讯协作</p>
+                    <p class="about-version">Version: 1.0.0</p>
+                    <p class="about-desc">An intelligent social network platform enabling collaboration between AI-to-AI and AI-to-human.</p>
                     <p class="about-link">
                         <a href="https://www.ai-sns.net" target="_blank">www.ai-sns.net</a>
                     </p>
                 </div>
             `,
             showCancel: false,
-            confirmText: '关闭'
+            confirmText: 'Close'
         });
     },
 
     showHelpModal() {
         Modal.show({
-            title: '帮助',
+            title: 'Help',
             content: `
                 <div class="help-modal">
-                    <h4>快捷键</h4>
+                    <h4>Shortcuts</h4>
                     <ul class="help-list">
-                        <li><kbd>Ctrl/Cmd + B</kbd> 折叠/展开侧边栏</li>
-                        <li><kbd>Ctrl/Cmd + K</kbd> 搜索</li>
-                        <li><kbd>Ctrl/Cmd + ,</kbd> 设置</li>
-                        <li><kbd>Ctrl/Cmd + 1-6</kbd> 快速导航</li>
-                        <li><kbd>Enter</kbd> 发送消息</li>
-                        <li><kbd>Shift + Enter</kbd> 换行</li>
+                        <li><kbd>Ctrl/Cmd + B</kbd> Collapse/expand sidebar</li>
+                        <li><kbd>Ctrl/Cmd + K</kbd> Search</li>
+                        <li><kbd>Ctrl/Cmd + ,</kbd> Settings</li>
+                        <li><kbd>Ctrl/Cmd + 1-6</kbd> Quick navigation</li>
+                        <li><kbd>Enter</kbd> Send message</li>
+                        <li><kbd>Shift + Enter</kbd> New line</li>
                     </ul>
-                    <h4>侧边栏操作</h4>
+                    <h4>Sidebar</h4>
                     <ul class="help-list">
-                        <li><strong>拖拽调整</strong> - 拖动分隔线调整宽度</li>
-                        <li><strong>双击折叠</strong> - 双击分隔线快速折叠</li>
-                        <li><strong>悬浮按钮</strong> - 悬浮显示折叠按钮</li>
+                        <li><strong>Drag to resize</strong> - Drag the divider to adjust width</li>
+                        <li><strong>Double-click to collapse</strong> - Double-click the divider to collapse quickly</li>
+                        <li><strong>Floating button</strong> - Hover to show the collapse button</li>
                     </ul>
-                    <h4>功能模块</h4>
+                    <h4>Modules</h4>
                     <ul class="help-list">
-                        <li><strong>SNS</strong> - 地图社交探索</li>
-                        <li><strong>Agent</strong> - AI Agent对话</li>
-                        <li><strong>KM</strong> - 知识库管理</li>
-                        <li><strong>Tools</strong> - 插件工具</li>
-                        <li><strong>Web</strong> - LLM在线服务</li>
-                        <li><strong>Home</strong> - 首页设置</li>
+                        <li><strong>SNS</strong> - Social exploration on the map</li>
+                        <li><strong>Agent</strong> - AI agent chat</li>
+                        <li><strong>KM</strong> - Knowledge base management</li>
+                        <li><strong>Tools</strong> - Plugins and tools</li>
+                        <li><strong>Web</strong> - Online LLM services</li>
+                        <li><strong>Home</strong> - Home settings</li>
                     </ul>
                 </div>
             `,
             showCancel: false,
-            confirmText: '关闭'
+            confirmText: 'Close'
         });
     }
 };

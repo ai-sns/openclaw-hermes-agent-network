@@ -6,10 +6,10 @@ function initializeMapCenter() {
     if (typeof window.current_position !== 'undefined' && window.current_position !== null &&
         typeof window.current_position.lng !== 'undefined' && typeof window.current_position.lat !== 'undefined') {
         centerPoint = new BMapGL.Point(window.current_position.lng, window.current_position.lat);
-        console.log("使用配置的位置初始化地图:", window.current_position);
+        console.log("Initialize the map using the configured location:", window.current_position);
     } else {
         centerPoint = new BMapGL.Point(116.28882, 39.71164);
-        console.log("使用默认位置初始化地图");
+        console.log("Initialize the map using the default location.");
     }
 
     map.centerAndZoom(centerPoint, 16);
@@ -20,7 +20,7 @@ if (typeof window.current_position !== 'undefined' && window.current_position !=
     initializeMapCenter();
 } else {
     // Delay execution until current_position is set (set in interact_python)
-    console.log("等待 current_position 初始化...");
+    console.log("Waiting for current_position to initialize...");
 }
 map.setHeading(90);
 map.setTilt(80);
@@ -36,16 +36,16 @@ driving = new BMapGL.DrivingRouteLine(map, {
     },
     onSearchComplete: function (result) {
         if (driving.getStatus() === BMAP_STATUS_SUCCESS || driving.getStatus() === 5) {
-            alert("规划成功，坐标数:");
+            alert("Planning successful, number of coordinates:");
             alert(result);
-            console.log("规划成功，坐标数:", result);
+            console.log("Planning successful, number of coordinates:", result);
 
             // Get the route plan
             const plan = result.getPlan(0);
             if (plan) {
-                alert("距离时长");
-                distance = plan.getDistance(true); // 获取距离，true表示返回数值
-                duration = plan.getDuration(true); // 获取时间，true表示返回数值
+                alert("Distance and duration");
+                distance = plan.getDistance(true);
+                duration = plan.getDuration(true);
                 alert(distance);
                 alert(duration);
 
@@ -58,7 +58,7 @@ driving = new BMapGL.DrivingRouteLine(map, {
             }
 
             gpsPositions = getAllGpsPositions(result);
-            console.log("规划成功，坐标数:", gpsPositions.length);
+            console.log("Planning successful, number of coordinates:", gpsPositions.length);
 
             const start = document.getElementById("start").value.trim();
             const end = document.getElementById("end").value.trim();
@@ -98,9 +98,9 @@ driving = new BMapGL.DrivingRouteLine(map, {
                 for (let i = 0; i < buttons.length; i++) {
                     const button = buttons[i];
                     const buttonText = button.textContent.trim();
-                    if (buttonText === '确定') {
+                    if (buttonText === 'Confirm') {
                         button.style.display = 'none';
-                    } else if (buttonText === '查看' || buttonText === '重设') {
+                    } else if (buttonText === 'View' || buttonText === 'Reset') {
                         button.style.display = 'inline-block';
                     }
                 }
@@ -124,7 +124,7 @@ driving = new BMapGL.DrivingRouteLine(map, {
             }
         } else {
             // Route planning failed; do not update status or UI
-            alert("路线规划失败，状态码: " + driving.getStatus());
+            alert("Route planning failed, status code:" + driving.getStatus());
         }
     }
 });
@@ -137,7 +137,7 @@ const REQUEST_TIMEOUT = 80000;
 async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIAL_RETRY_DELAY) {
     // Validate input parameters
     if (typeof url !== 'string' || !url.trim()) {
-        throw new Error('无效的URL参数');
+        throw new Error('Invalid URL parameter');
     }
 
     // Inner function that performs the request
@@ -146,7 +146,7 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
         const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
         try {
-            console.log(`剩余重试次数: ${retriesLeft}`);
+            console.log(`Remaining retry attempts: ${retriesLeft}`);
 
             // Add random query param to avoid caching
             const fetchUrl = new URL(url);
@@ -160,7 +160,7 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
             clearTimeout(timeoutId);
 
             if (!response.ok) {
-                throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+                throw new Error(`Request failed: ${response.status} ${response.statusText}`);
             }
 
             // Try parsing JSON response
@@ -173,21 +173,21 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
 
             // Check whether it is a timeout error
             if (error.name === 'AbortError') {
-                console.error('请求超时被取消');
-                showAlert('请求超时被取消');
-                throw new Error('请求超时');
+                console.error('Request timed out and was aborted');
+                showAlert('Request timed out and was aborted');
+                throw new Error('Request timed out');
             }
 
             // Retry logic
             if (retriesLeft > 0) {
-                console.warn(`请求失败，错误: ${error.message}. 剩余重试次数: ${retriesLeft}。将在 ${delay}ms 后重试...`);
-                showAlert(`请求数据失败，剩余重试次数: ${retriesLeft}。将在 ${delay}ms 后重试...`);
+                console.warn(`Request failed, error: ${error.message}. Remaining retries: ${retriesLeft}. Retrying in ${delay} ms...`);
+                showAlert(`Failed to fetch data, remaining retries: ${retriesLeft}. Retrying in ${delay} ms...`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return fetchData(retriesLeft - 1, delay * 1);
             }
 
-            console.error('最终请求失败:', error.message);
-            showAlert(`最终请求失败: ${error.message}`);
+            console.error('Final request failed:', error.message);
+            showAlert(`Final request failed: ${error.message}`);
             throw error;
         }
     }
@@ -205,8 +205,8 @@ async function load_persons_data_and_show() {
     const nation_id = nation_id_me;
     try {
         const data = await loadPersonsData(dataUrl); // Load person data
-        console.log("成功加载人员数据:", data);
-        showAlert(`用户数据已加载成功。`);
+        console.log("Successfully loaded personnel data:", data);
+        showAlert(`User data loaded successfully.`);
 
         // Filter out items whose nation_id equals the input value
         personsdata = data.filter(person => {
@@ -217,10 +217,10 @@ async function load_persons_data_and_show() {
         // Show updated data points
         showpoints();
     } catch (error) {
-        console.error("人员数据加载失败，建议:",
+        console.error("Failed to load personnel data, suggestion:",
             error.name === 'AbortError'
-                ? '检查网络连接或稍后重试'
-                : '联系系统管理员');
+                ? 'Check your network connection or try again later'
+                : 'Check your computer.');
     }
 }
 
@@ -271,7 +271,7 @@ function parseModelFilename(filename) {
     const params = paramString.split('_').filter(s => s !== '');
 
     if (params.length < 6) {
-        console.warn(`文件名参数不足6个: ${filename}, 找到 ${params.length} 个参数`);
+        console.warn(`Filename has fewer than 6 parameters: ${filename}, found ${params.length} parameters`);
         return null;
     }
 
@@ -323,11 +323,11 @@ function loadModel(persondata) {
         // Parse params from filename
         modelParams = parseModelFilename(url);
         if (modelParams) {
-            console.log(`解析到模型参数:`, modelParams);
+            console.log(`Parsed model parameters:`, modelParams);
         }
         // Add directory prefix
         url = '/scripts/avatar3d/' + url;
-        console.log(`模型完整路径: ${url}`);
+        console.log(`Full model path: ${url}`);
     }
 
     person_gltfLoader.load(url, function (obj) {
@@ -353,7 +353,7 @@ function loadModel(persondata) {
         // If filename params exist, apply scale multiplier
         if (modelParams && modelParams.scaleMultiplier) {
             scale = scale * modelParams.scaleMultiplier;
-            console.log(`应用缩放乘数 ${modelParams.scaleMultiplier}, 最终缩放比例: ${scale}`);
+            console.log(`Applied scale multiplier ${modelParams.scaleMultiplier}, final scale: ${scale}`);
         } else {
             console.log("scale", scale);
         }
@@ -369,7 +369,7 @@ function loadModel(persondata) {
         let altitude = 0;
         if (modelParams && modelParams.altitude) {
             altitude = modelParams.altitude;
-            console.log(`应用海拔高度: ${altitude}`);
+            console.log(`Applied altitude: ${altitude}`);
         }
         geoGroup.position.set(mcpoint.lng, mcpoint.lat, altitude);
 
@@ -380,7 +380,7 @@ function loadModel(persondata) {
             model.rotation.x += THREE.MathUtils.degToRad(modelParams.rotationX) - Math.PI / 30;
             model.rotation.y = THREE.MathUtils.degToRad(modelParams.rotationY);
             model.rotation.z = THREE.MathUtils.degToRad(modelParams.rotationZ);
-            console.log(`应用旋转: x=${modelParams.rotationX}°, y=${modelParams.rotationY}°, z=${modelParams.rotationZ}°`);
+            console.log(`Applied rotation: x=${modelParams.rotationX}°, y=${modelParams.rotationY}°, z=${modelParams.rotationZ}°`);
         } else {
             // Default rotation: tilt the head slightly upward
             model.rotation.x -= Math.PI / 30;
@@ -403,7 +403,7 @@ function loadModel(persondata) {
                 animIndex = modelParams.animationIndex;
                 // Ensure index is within bounds
                 if (animIndex >= obj.animations.length) {
-                    console.warn(`动画索引 ${animIndex} 超出范围，使用索引 0`);
+                    console.warn(`Animation index ${animIndex} is out of range, using index 0`);
                     animIndex = 0;
                 }
             }
@@ -413,7 +413,7 @@ function loadModel(persondata) {
             const duration = obj.animations[animIndex].duration || 1;
             action.setDuration(duration).play();
             mixers.push(mixer); // Add mixer to array
-            console.log(`模型动画已启动, 播放动画索引: ${animIndex}`);
+            console.log(`Model animation started, playing animation index: ${animIndex}`);
         }
 
         let modelMeshes = findMeshes(model); // Find all Mesh
@@ -489,24 +489,24 @@ map.addEventListener('click', function (e) {
 
         my_point = getPersonPointByNationId(nation_id_me);
 
-        alert('我当前位置经纬度：' + my_point.lng + ',' + my_point.lat);
+        alert('My current coordinates: ' + my_point.lng + ',' + my_point.lat);
 
-        alert('点击位置经纬度：' + e.latlng.lng + ',' + e.latlng.lat);
+        alert('Clicked coordinates: ' + e.latlng.lng + ',' + e.latlng.lat);
 
 
         last_click_point = new BMapGL.Point(e.latlng.lng, e.latlng.lat);
 
         distance = map.getDistance(my_point, last_click_point);
-        alert('当前位置到点击位置相距：' + distance);
+        alert('Distance from current location to clicked point: ' + distance);
 
 
         centerpoint = map.getCenter();
-        alert('地图中心点位置经纬度：' + centerpoint.lng + ',' + centerpoint.lat);
+        alert('Map center coordinates: ' + centerpoint.lng + ',' + centerpoint.lat);
 
 
         Viewport = map.getViewport();
         viewcenter = Viewport.center;
-        alert('视野中心点位置经纬度：' + viewcenter.lng + ',' + viewcenter.lat);
+        alert('Viewport center coordinates: ' + viewcenter.lng + ',' + viewcenter.lat);
 
         // var list = cusLayer.getCustomOverlays();
         // console.log(list[0]);
@@ -536,9 +536,9 @@ map.addEventListener('click', function (e) {
 
         service = getServiceForUser();
         if (service !== null) {
-            const userConfirmed = confirm("此处有相应的应用服务，要继续吗？");
+            const userConfirmed = confirm("There is an associated app service here. Do you want to continue?");
             if (userConfirmed) {
-                alert("您选择了确定！");
+                alert("You clicked OK.");
                 open_place_web_address(service.address);
             } else {
                 return;
@@ -581,7 +581,7 @@ function checkAnimationStart() {
 
         animate(0);
         animationStarted = true;
-        console.log("所有模型加载完成，启动动画");
+        console.log("All models finished loading, starting animation");
     }
 }
 
@@ -671,7 +671,7 @@ function updateHouseModel(position, scale, rotation) {
         // Check model matrix
         console.log('Model matrix:', houseModelGroup.matrix);
     } else {
-        console.warn('未找到houseModel模型Group');
+        console.warn('houseModel group not found');
 
         // List all objects for confirmation
         console.log('All objects in scene:');
@@ -718,21 +718,21 @@ function set_move_status() {
         alert(map.getDefaultCursor());
         map.getDefaultCursor();
         map.setDefaultCursor("crosshair");
-        showAlert("请点击地图来指定要移动的目标位置。");
+        showAlert("Please click on the map to select the destination to move to.");
     }
 
 }
 
 var opts = {
-    width: 200,     // 信息窗口宽度200
-    height: 100,     // 信息窗口高度100
-    title: "", // 信息窗口标题
+    width: 200,     // Info window width 200
+    height: 100,     // Info window height 100
+    title: "", // Info window title
     offset: new BMapGL.Size(30, -50),
 }
 
-var infoWindow = new BMapGL.InfoWindow("你好呀，我是Y宝", opts);  // 创建信息窗口对象
+var infoWindow = new BMapGL.InfoWindow("Hi, I'm YBot", opts);  // Create info window object
 
-var infoWindow2 = new BMapGL.InfoWindow("hello,你好！", opts);  // 创建信息窗口对象
+var infoWindow2 = new BMapGL.InfoWindow("Hello!", opts);  // Create info window object
 
 function start_talk_to_it(nation_id, content) {
     // div = hiddenPoints[nation_id];
@@ -806,15 +806,15 @@ function talk_to_it(nation_id, content) {
     let point = my_new_point;
 
     let opts = {
-        width: 200,     // 信息窗口宽度200
-        height: 100,     // 信息窗口高度100
-        title: person_data_me["nick_name"], // 信息窗口标题
+        width: 200,     // Info window width 200
+        height: 100,     // Info window height 100
+        title: person_data_me["nick_name"], // Info window title
         offset: new BMapGL.Size(30, -70),
     }
     let hello_msg = "Hello";
-    let infoWindow_me = new BMapGL.InfoWindow(hello_msg, opts);  // 创建信息窗口对象
+    let infoWindow_me = new BMapGL.InfoWindow(hello_msg, opts);  // Create info window object
 
-    map.openInfoWindow(infoWindow_me, point); //开启信息窗口
+    map.openInfoWindow(infoWindow_me, point); // Open info window
     if (content != "__no_info_window__") {
 
         send_im(person_data_me["account"], person_target["account"], hello_msg);
@@ -823,15 +823,15 @@ function talk_to_it(nation_id, content) {
     point2 = person_target_point;
 
     let opts2 = {
-        width: 200,     // 信息窗口宽度200
-        height: 100,     // 信息窗口高度100
-        title: person_target["nick_name"], // 信息窗口标题
+        width: 200,     // Info window width 200
+        height: 100,     // Info window height 100
+        title: person_target["nick_name"], // Info window title
         offset: new BMapGL.Size(30, -70),
     }
 
 
     // Use setTimeout to delay opening the second info window by 1.5s
-    let infoWindow_person_target = new BMapGL.InfoWindow("Nice to meet you.", opts2);  // 创建信息窗口对象
+    let infoWindow_person_target = new BMapGL.InfoWindow("Nice to meet you.", opts2);  // Create info window object
 
 
         setTimeout(function () {
@@ -846,10 +846,34 @@ function talk_to_it(nation_id, content) {
 }
 
 function stop_talk_to_it(nation_id) {
-    removeModel(nation_id);
-    div = hiddenPoints[nation_id];
-    div.style.display = 'block';
-    map.closeInfoWindow();
+    try {
+        if (typeof removeModel === 'function') {
+            removeModel(nation_id);
+        }
+    } catch (e) {
+    }
+
+    try {
+        if (typeof hiddenPoints === 'undefined' || !hiddenPoints) {
+            console.warn('stop_talk_to_it skipped: hiddenPoints not ready');
+            return;
+        }
+        const div = hiddenPoints[nation_id];
+        if (!div || !div.style) {
+            console.warn('stop_talk_to_it skipped: hidden point not ready');
+            return;
+        }
+        div.style.display = 'block';
+    } catch (e) {
+        console.warn('stop_talk_to_it restore failed:', e);
+    }
+
+    try {
+        if (typeof map !== 'undefined' && map && typeof map.closeInfoWindow === 'function') {
+            map.closeInfoWindow();
+        }
+    } catch (e) {
+    }
 }
 
 
@@ -859,7 +883,7 @@ let showing_info_flag = false;
 function send_chat_msg(lng, lat, msg,send_person_name="") {
     // Check whether an info window is currently being shown
     if (showing_info_flag) {
-        console.log("信息窗口仍在显示。请稍后...");
+        console.log("The info window is still showing. Please wait...");
 
         // Retry later
         setTimeout(() => send_chat_msg(lng, lat, msg,send_person_name), 1000);
@@ -874,13 +898,13 @@ function send_chat_msg(lng, lat, msg,send_person_name="") {
 
 
     let opts = {
-    width: 200,     // 信息窗口宽度200
-    height: 100,     // 信息窗口高度100
-    title: send_person_name, // 信息窗口标题
+    width: 200,     // Info window width 200
+    height: 100,     // Info window height 100
+    title: send_person_name, // Info window title
     offset: new BMapGL.Size(30, -50),
 }
 
-let infoWindow_chat = new BMapGL.InfoWindow(msg, opts);  // 创建信息窗口对象
+let infoWindow_chat = new BMapGL.InfoWindow(msg, opts);  // Create info window object
 
 
 
@@ -895,7 +919,7 @@ let infoWindow_chat = new BMapGL.InfoWindow(msg, opts);  // 创建信息窗口�
     }, 3000);
 
     // Debug output
-    console.log("信息窗口已打开。");
+    console.log("Info window opened.");
 }
 
 
@@ -911,13 +935,13 @@ function showprofile(nation_id) {
     var sContent = `
     <p style='margin:0;line-height:1.5;font-size:13px;text-indent:2em'>
     ${person["profile"]}
-    <a href="#" onclick="talk_to_it('${nation_id}','');return false;">和Ta聊天</a>
+    <a href="#" onclick="talk_to_it('${nation_id}','');return false;">Chat</a>
     </p></div>`;
     alert("showprofile22");
     var opts = {
-        width: 200,     // 信息窗口宽度200
-        height: 100,     // 信息窗口高度100
-        title: `<h4 style='margin:0 0 5px 0;'>${person["nick_name"]}</h4>`, // 信息窗口标题
+        width: 200,     // Info window width 200
+        height: 100,     // Info window height 100
+        title: `<h4 style='margin:0 0 5px 0;'>${person["nick_name"]}</h4>`, // Info window title
         offset: new BMapGL.Size(30, -50),
     }
     let profile_info_window = new BMapGL.InfoWindow(sContent, opts);
@@ -954,13 +978,13 @@ function showprofile3d(geoGroup) {
     var sContent = `<h4 style='margin:0 0 5px 0;'>${person["nick_name"]}</h4>
     <p style='margin:0;line-height:1.5;font-size:13px;text-indent:2em'>
     ${person["profile"]}
-    <a href="#" onclick="stop_talk_to_it('${nation_id}');return false;">结束聊天</a>
+    <a href="#" onclick="stop_talk_to_it('${nation_id}');return false;">End chat</a>
     </p></div>`;
 
     var opts = {
-        width: 200,     // 信息窗口宽度200
-        height: 100,     // 信息窗口高度100
-        title: "", // 信息窗口标题
+        width: 200,     // Info window width 200
+        height: 100,     // Info window height 100
+        title: "", // Info window title
         offset: new BMapGL.Size(30, -50),
     }
     var infoWindow3 = new BMapGL.InfoWindow(sContent, opts);

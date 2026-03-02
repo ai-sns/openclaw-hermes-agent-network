@@ -4,6 +4,20 @@
     var hiddenMarkers = {};
     var markers;
 
+    function _aiSnsUrl(p) {
+        try {
+            const baseRaw = (typeof window !== 'undefined' && window.__AI_SNS_SERVER__) ? String(window.__AI_SNS_SERVER__) : '';
+            const base = baseRaw.endsWith('/') ? baseRaw.slice(0, -1) : baseRaw;
+            if (!base) return '';
+            const path = String(p || '');
+            if (!path) return base;
+            if (path.startsWith('/')) return base + path;
+            return base + '/' + path;
+        } catch (e) {
+            return '';
+        }
+    }
+
     function showpoints() {
         // 2. Generate coordinate points
 
@@ -22,14 +36,14 @@
                 title: data.nick_name, // Marker title
                 nation_id: data.nation_id,
                 icon: {
-                    url: "mapavartar.png", // Custom icon URL
+                    url: _aiSnsUrl('/avatars/' + data.nation_id + '_avatar.png'), // Custom icon URL
                     scaledSize: iconSize // Scaled icon size
                 }
             });
 
             // Add click handler for each marker
             marker.addListener('click', () => {
-                alert(`坐标: (${data.location[0]}, ${data.location[1]})\n名称: ${data.nick_name}`);
+                alert(`Coordinates: (${data.location[0]}, ${data.location[1]})\nName: ${data.nick_name}`);
                 hiddenMarkers[data.nation_id] = marker;
                 showprofile(data.nation_id);
                 // hideMarker(marker); // Hide marker and move to hidden list

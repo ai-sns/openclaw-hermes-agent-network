@@ -36,7 +36,7 @@ class ToolsEditDialog {
         this.onSaveCallback = onSave;
 
         const isEdit = tool !== null;
-        const title = isEdit ? `编辑 ${this.getCategoryName(category)}` : `添加 ${this.getCategoryName(category)}`;
+        const title = isEdit ? `Edit ${this.getCategoryName(category)}` : `Add ${this.getCategoryName(category)}`;
 
         const dialogHTML = `
             <div class="modal-overlay" id="toolEditDialog">
@@ -85,126 +85,126 @@ class ToolsEditDialog {
     renderFormFields(category, tool) {
         const baseFields = `
             <div class="tool-edit-section">
-                <h4>基本信息</h4>
+                <h4>Basic</h4>
                 <div class="form-group">
-                    <label for="toolName">名称 *</label>
-                    <input type="text" id="toolName" name="name" class="form-control" required placeholder="输入工具名称">
+                    <label for="toolName">Name *</label>
+                    <input type="text" id="toolName" name="name" class="form-control" required placeholder="Enter tool name">
                 </div>
                 <div class="form-group">
-                    <label for="toolDescription">描述</label>
-                    <textarea id="toolDescription" name="description" class="form-control" rows="2" placeholder="输入工具描述"></textarea>
+                    <label for="toolDescription">Description</label>
+                    <textarea id="toolDescription" name="description" class="form-control" rows="2" placeholder="Enter tool description"></textarea>
                 </div>
                 <div class="form-group">
-                    <label for="toolInstruction">使用说明</label>
-                    <textarea id="toolInstruction" name="instruction" class="form-control" rows="3" placeholder="输入使用说明，告诉AI如何使用这个工具"></textarea>
+                    <label for="toolInstruction">Instructions</label>
+                    <textarea id="toolInstruction" name="instruction" class="form-control" rows="3" placeholder="Describe how the AI should use this tool"></textarea>
                 </div>
             </div>
         `;
 
         let specificFields = '';
-        let configTitle = '配置详情';
+        let configTitle = 'Configuration';
 
         switch(category) {
             case 'tools-plugin':
-                configTitle = '插件配置';
+                configTitle = 'Plugin Configuration';
                 specificFields = `
                     <div class="form-group">
-                        <label for="pluginType">插件类型</label>
+                        <label for="pluginType">Plugin Type</label>
                         <select id="pluginType" name="plugin_type" class="form-control">
-                            <option value="tool">通用工具</option>
-                            <option value="api">API接口</option>
-                            <option value="data">数据处理</option>
-                            <option value="ai">AI模型</option>
-                            <option value="custom">自定义</option>
+                            <option value="tool">General Tool</option>
+                            <option value="api">API</option>
+                            <option value="data">Data Processing</option>
+                            <option value="ai">AI Model</option>
+                            <option value="custom">Custom</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="filePath">文件路径</label>
+                        <label for="filePath">File Path</label>
                         <input type="text" id="filePath" name="file_path" class="form-control" placeholder="/path/to/plugin.py">
-                        <small class="form-text">Python或JavaScript文件路径</small>
+                        <small class="form-text">Python or JavaScript file path</small>
                     </div>
                     <div class="form-group">
-                        <label for="runtimeMain">运行代码 (Python)</label>
-                        <textarea id="runtimeMain" name="runtime_main" class="form-control code-editor" rows="8" placeholder="import sys&#10;import json&#10;&#10;# 从stdin读取参数&#10;params = json.loads(sys.stdin.read())&#10;&#10;# 处理逻辑&#10;result = {'output': 'Hello'}&#10;&#10;# 输出结果&#10;print(json.dumps(result))"></textarea>
-                        <small class="form-text">留空则使用文件路径执行</small>
+                        <label for="runtimeMain">Runtime Code (Python)</label>
+                        <textarea id="runtimeMain" name="runtime_main" class="form-control code-editor" rows="8" placeholder="import sys&#10;import json&#10;&#10;# Read params from stdin&#10;params = json.loads(sys.stdin.read())&#10;&#10;# Business logic&#10;result = {'output': 'Hello'}&#10;&#10;# Print result&#10;print(json.dumps(result))"></textarea>
+                        <small class="form-text">Leave empty to run from the file path</small>
                     </div>
                     <div class="form-group">
-                        <label for="parameter">参数配置 (JSON)</label>
+                        <label for="parameter">Parameters (JSON)</label>
                         <textarea id="parameter" name="parameter" class="form-control code-editor" rows="4" placeholder='{"arg1": "value1", "arg2": "value2"}'></textarea>
                     </div>
                 `;
                 break;
 
             case 'mcp':
-                configTitle = 'MCP 服务器配置';
+                configTitle = 'MCP Server Configuration';
                 specificFields = `
                     <div class="form-group">
-                        <label for="mcpType">MCP类型</label>
+                        <label for="mcpType">MCP Type</label>
                         <select id="mcpType" name="mcp_type" class="form-control">
                             <option value="stdio">stdio</option>
                             <option value="sse">SSE</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="filePath">服务器文件路径 *</label>
+                        <label for="filePath">Server File Path *</label>
                         <input type="text" id="filePath" name="file_path" class="form-control" required placeholder="/path/to/mcp_server.py">
-                        <small class="form-text">MCP服务器脚本路径</small>
+                        <small class="form-text">Path to the MCP server script</small>
                     </div>
                     <div class="form-group">
-                        <label for="parameter">启动参数 (JSON)</label>
+                        <label for="parameter">Launch Parameters (JSON)</label>
                         <textarea id="parameter" name="parameter" class="form-control code-editor" rows="4" placeholder='{"arg": "value"}'></textarea>
                     </div>
                     <div class="form-group">
-                        <label for="requirement">依赖要求</label>
+                        <label for="requirement">Requirements</label>
                         <textarea id="requirement" name="requirement" class="form-control" rows="2" placeholder="mcp==1.0.0&#10;other-package==2.0.0"></textarea>
                     </div>
                 `;
                 break;
 
             case 'function':
-                configTitle = '函数配置';
+                configTitle = 'Function Configuration';
                 specificFields = `
                     <div class="form-group">
-                        <label for="functionType">函数类型</label>
+                        <label for="functionType">Language</label>
                         <select id="functionType" name="function_type" class="form-control">
                             <option value="python">Python</option>
                             <option value="javascript">JavaScript</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="filePath">函数文件路径 *</label>
+                        <label for="filePath">Script File Path *</label>
                         <input type="text" id="filePath" name="file_path" class="form-control" required placeholder="/path/to/function.py">
-                        <small class="form-text">函数脚本文件路径</small>
+                        <small class="form-text">Path to the function script file</small>
                     </div>
                     <div class="form-group">
-                        <label for="parameter">函数参数 (JSON)</label>
-                        <textarea id="parameter" name="parameter" class="form-control code-editor" rows="5" placeholder='{"param1": {"type": "string", "description": "参数说明"}}'></textarea>
-                        <small class="form-text">定义函数接受的参数</small>
+                        <label for="parameter">Function Arguments (JSON)</label>
+                        <textarea id="parameter" name="parameter" class="form-control code-editor" rows="5" placeholder='{"param1": {"type": "string", "description": "Parameter description"}}'></textarea>
+                        <small class="form-text">Define parameters accepted by the function</small>
                     </div>
                 `;
                 break;
 
             case 'computer-use':
-                configTitle = '技能配置';
+                configTitle = 'Skill Configuration';
                 specificFields = `
                     <div class="form-group">
-                        <label for="skillType">技能类型</label>
+                        <label for="skillType">Skill Type</label>
                         <select id="skillType" name="skill_type" class="form-control">
-                            <option value="screenshot">屏幕截图</option>
-                            <option value="mouse_click">鼠标点击</option>
-                            <option value="keyboard_input">键盘输入</option>
-                            <option value="custom">自定义脚本</option>
+                            <option value="screenshot">Screenshot</option>
+                            <option value="mouse_click">Mouse Click</option>
+                            <option value="keyboard_input">Keyboard Input</option>
+                            <option value="custom">Custom Script</option>
                         </select>
                     </div>
                     <div class="form-group" id="filePathGroup">
-                        <label for="filePath">脚本文件路径</label>
+                        <label for="filePath">Script File Path</label>
                         <input type="text" id="filePath" name="file_path" class="form-control" placeholder="/path/to/skill.py">
-                        <small class="form-text">自定义脚本路径（仅自定义类型需要）</small>
+                        <small class="form-text">Custom script path (only required for Custom)</small>
                     </div>
                     <div class="form-group">
-                        <label for="parameter">执行参数 (JSON)</label>
+                        <label for="parameter">Execution Parameters (JSON)</label>
                         <textarea id="parameter" name="parameter" class="form-control code-editor" rows="5" placeholder='{"x": 100, "y": 200}'></textarea>
-                        <small class="form-text">根据技能类型提供对应参数</small>
+                        <small class="form-text">Provide parameters based on the selected skill type</small>
                     </div>
                 `;
                 break;
@@ -219,12 +219,12 @@ class ToolsEditDialog {
 
         const confirmField = `
             <div class="tool-edit-section">
-                <h4>安全选项</h4>
+                <h4>Safety</h4>
                 <div class="form-group">
                     <div class="form-check">
                         <input type="checkbox" id="confirmNeeded" name="confirm_needed" class="form-check-input" checked>
                         <label for="confirmNeeded" class="form-check-label">
-                            执行前需要确认 <small class="text-muted">(建议开启以增加安全性)</small>
+                            Confirmation required before execution <small class="text-muted">(recommended for safety)</small>
                         </label>
                     </div>
                 </div>
@@ -286,7 +286,7 @@ class ToolsEditDialog {
                     endpoint = isEdit ? `/skills/${this.currentTool.skill_id}` : '/skills';
                     break;
                 default:
-                    throw new Error(`未知的工具类别: ${this.currentCategory}`);
+                    throw new Error(`Unknown tool category: ${this.currentCategory}`);
             }
 
             method = isEdit ? 'PUT' : 'POST';
@@ -307,7 +307,7 @@ class ToolsEditDialog {
             const result = await response.json();
 
             // Show success message
-            this.showMessage(isEdit ? '保存成功' : '创建成功', 'success');
+            this.showMessage(isEdit ? 'Saved successfully' : 'Created successfully', 'success');
 
             // Close dialog
             this.close();
@@ -318,7 +318,7 @@ class ToolsEditDialog {
             }
         } catch (error) {
             console.error('Save error:', error);
-            this.showMessage('保存失败: ' + error.message, 'error');
+            this.showMessage('Save failed: ' + error.message, 'error');
         }
     }
 

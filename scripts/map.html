@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
     <meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
@@ -57,10 +57,10 @@
 <div id="setroute" style="display: none; font-size: 14px; margin-top: 10px;">
     <div style="display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px; background: #f7f7f7; padding: 10px 12px; border-radius: 8px; border: 1px solid #ddd;">
 
-        <label for="start" style="color:black;font-weight: 500; margin-top: 5px;">起点:</label>
+        <label for="start" style="color:black;font-weight: 500; margin-top: 5px;">Start:</label>
         <div style="display: flex; flex-direction: column; align-items: center;">
-            <input id="start" value="北京大学" type="text"
-                   placeholder="路线规划后可移动位置图标调整位置"
+            <input id="start" value="Peking University" type="text"
+                   placeholder="After route planning, you can drag the position marker to adjust"
                    style="height: 32px; width: 170px; border: 1px solid #ccc; border-radius: 5px; padding: 0 8px; outline: none;"
                    onfocus="this.style.borderColor='#409EFF'; this.style.boxShadow='0 0 3px rgba(64,158,255,0.5)';"
                    onblur="this.style.borderColor='#ccc'; this.style.boxShadow='none';"/>
@@ -71,15 +71,15 @@
                    style="text-decoration: underline; color: #007bff; cursor: pointer;"
                    onmouseover="this.style.color='#0056b3';"
                    onmouseout="this.style.color='#007bff';">
-                    点此获取坐标
+                    Click to get coordinates
                 </a>
             </div>
         </div>
 
-        <label for="end" style="color:black;font-weight: 500; margin-top: 5px;">终点:</label>
+        <label for="end" style="color:black;font-weight: 500; margin-top: 5px;">End:</label>
         <div style="display: flex; flex-direction: column; align-items: center;">
-            <input id="end" value="清华大学" type="text"
-                   placeholder="路线规划后可移动位置图标调整位置"
+            <input id="end" value="Tsinghua University" type="text"
+                   placeholder="After route planning, you can drag the position marker to adjust"
                    style="height: 32px; width: 170px; border: 1px solid #ccc; border-radius: 5px; padding: 0 8px; outline: none;"
                    onfocus="this.style.borderColor='#409EFF'; this.style.boxShadow='0 0 3px rgba(64,158,255,0.5)';"
                    onblur="this.style.borderColor='#ccc'; this.style.boxShadow='none';"/>
@@ -90,80 +90,80 @@
                    style="text-decoration: underline; color: #007bff; cursor: pointer;"
                    onmouseover="this.style.color='#0056b3';"
                    onmouseout="this.style.color='#007bff';">
-                    点此获取坐标
+                    Click to get coordinates
                 </a>
             </div>
         </div>
 
         <select id="position_type"
                 style="height: 34px; border-radius: 5px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 14px; padding: 0 10px;">
-            <option value="address">地址</option>
-            <option value="coordinates">坐标</option>
+            <option value="address">Address</option>
+            <option value="coordinates">Coordinates</option>
         </select>
 
-        <!-- 蓝色主按钮 -->
-        <button onclick="planRoute()"
+        <!-- Primary button -->
+        <button onclick="planRoute()" data-action="route-confirm"
                 style="height: 34px; border-radius: 5px; border: none; background: #409EFF; color: white; cursor: pointer; font-size: 14px; padding: 0 12px;"
                 onmouseover="this.style.background='#66b1ff';"
-                onmouseout="this.style.background='#409EFF';">确定
+                onmouseout="this.style.background='#409EFF';">Confirm
         </button>
 
-        <!-- 灰色次按钮 -->
-        <button onclick="startTrack()"
+        <!-- Secondary button -->
+        <button onclick="startTrack()" data-action="route-simulate"
                 style="height: 34px; border-radius: 5px; border: none; background: #e0e0e0; color: #333; cursor: pointer; font-size: 14px; padding: 0 12px; display:none;"
                 onmouseover="this.style.background='#d5d5d5';"
-                onmouseout="this.style.background='#e0e0e0';">轨迹模拟
+                onmouseout="this.style.background='#e0e0e0';">Simulate
         </button>
 
-        <button onclick="stopTrack()"
+        <button onclick="stopTrack()" data-action="route-clear"
                 style="height: 34px; border-radius: 5px; border: none; background: #e0e0e0; color: #333; cursor: pointer; font-size: 14px; padding: 0 12px; display:none;"
                 onmouseover="this.style.background='#d5d5d5';"
-                onmouseout="this.style.background='#e0e0e0';">清除路线
+                onmouseout="this.style.background='#e0e0e0';">Clear
         </button>
 
-        <!-- 改为蓝色主按钮 -->
-        <button onclick="viewRoute()"
+        <!-- Primary button -->
+        <button onclick="viewRoute()" data-action="route-view"
                 style="height: 34px; border-radius: 5px; border: none; background: #409EFF; color: white; cursor: pointer; font-size: 14px; padding: 0 12px; display:none;"
                 onmouseover="this.style.background='#66b1ff';"
-                onmouseout="this.style.background='#409EFF';">查看</button>
+                onmouseout="this.style.background='#409EFF';">View</button>
 
-        <button onclick="resetRoute()"
+        <button onclick="resetRoute()" data-action="route-reset"
                 style="height: 34px; border-radius: 5px; border: none; background: #409EFF; color: white; cursor: pointer; font-size: 14px; padding: 0 12px; display:none;"
                 onmouseover="this.style.background='#66b1ff';"
-                onmouseout="this.style.background='#409EFF';">重设</button>
+                onmouseout="this.style.background='#409EFF';">Reset</button>
 
-        <!-- 灰色关闭按钮 -->
-        <button onclick="closeRouteSetting()"
+        <!-- Secondary close button -->
+        <button onclick="closeRouteSetting()" data-action="route-close"
                 style="height: 34px; border-radius: 5px; border: none; background: #e0e0e0; color: #333; cursor: pointer; font-size: 14px; padding: 0 12px;"
                 onmouseover="this.style.background='#d5d5d5';"
-                onmouseout="this.style.background='#e0e0e0';">关闭</button>
+                onmouseout="this.style.background='#e0e0e0';">Close</button>
 
     </div>
 </div>
 <div id="sethomeposition" style="display: none;">
     <div class="sethomeposition-container">
 
-        <label for="home_address">地址:</label>
+        <label for="home_address">Address:</label>
         <div class="input-group">
             <div style="display: flex; align-items: center;">
-                <input id="home_address" type="text" value="" placeholder="住址的地理位置坐标" class="form-input" style="border-radius: 5px 0 0 5px;" title="住址的地理位置坐标"/>
+                <input id="home_address" type="text" value="" placeholder="Home location coordinates" class="form-input" style="border-radius: 5px 0 0 5px;" title="Home location coordinates"/>
                 <a href="javascript:void(0)" id="home_address_coord_link_element" class="coord-link">
-                    点此获取坐标
+                    Click to get coordinates
                 </a>
             </div>
         </div>
 
-        <label for="home_scale">倍数:</label>
-        <input id="home_scale" type="text" value="" placeholder="放缩倍数" class="form-input" title="模型的放缩倍数"/>
+        <label for="home_scale">Scale:</label>
+        <input id="home_scale" type="text" value="" placeholder="Scale factor" class="form-input" title="Model scale factor"/>
 
-        <label for="home_rotation">旋转:</label>
-        <input id="home_rotation" type="text" value="" placeholder="x,y,z旋转度数" class="form-input" title="请输入模型x,y,z三个方向的旋转度数"/>
+        <label for="home_rotation">Rotation:</label>
+        <input id="home_rotation" type="text" value="" placeholder="x,y,z rotation degrees" class="form-input" title="Enter rotation degrees for x, y, z"/>
 
-        <!-- 蓝色主按钮 -->
-        <button onclick="updateHomePosition()" class="btn-primary">确定</button>
+        <!-- Primary button -->
+        <button onclick="updateHomePosition()" class="btn-primary">Confirm</button>
 
-        <!-- 灰色关闭按钮 -->
-        <button onclick="closeHomePositionSetting()" class="btn-secondary">关闭</button>
+        <!-- Secondary close button -->
+        <button onclick="closeHomePositionSetting()" class="btn-secondary">Close</button>
 
     </div>
 </div>
@@ -188,11 +188,11 @@
     <div class="logo">AI-SNS</div>
     <div class="top-buttons">
 
-        <div class="top-btn" title="通知" id="system_info_btn" style="display:none">
+        <div class="top-btn" title="Notifications" id="system_info_btn" style="display:none">
             <i class="fas fa-bell" onclick="show_inform_message_in_info_list()"></i>
         </div>
 
-        <div class="top-btn" title="聊天消息" id="message_btn" style="display:none">
+        <div class="top-btn" title="Chat messages" id="message_btn" style="display:none">
             <i class="fas fa-comment-alt" onclick="show_talk_message_in_info_list()"></i>
         </div>
 
@@ -200,6 +200,9 @@
             <i class="fas fa-cog" onclick="setInitPosition()"></i>
         </div>
 
+        <div class="top-btn" title="info" id="top_info_btn">
+            <i class="fas fa-list" onclick="toggleTopInfoPanel()"></i>
+        </div>
 
         <div class="top-btn" title="refresh">
             <i class="fas fa-refresh" onclick="refresh()"></i>
@@ -223,11 +226,11 @@
 
     <div class="map-btn" data-title="plaza">
         <i class="fas fa-landmark"></i>
-        <span>广场</span>
+        <span>Plaza</span>
     </div>
     <div class="map-btn" data-title="home">
         <i class="fas fa-house-user"></i>
-        <span>家</span>
+        <span>Home</span>
     </div>
     <div class="map-btn active" data-title="AI">
         <i class="fas fa-robot"></i>
@@ -236,11 +239,11 @@
 
     <div class="map-btn" data-title="move">
         <i class="fas fa-map-marked-alt"></i>
-        <span>移动</span>
+        <span>Move</span>
     </div>
     <div class="map-btn" data-title="activity" id="process_btn">
         <i class="fas fa-scroll"></i>
-        <span>信息板</span>
+        <span>Board</span>
     </div>
 
 </div>
@@ -252,15 +255,15 @@
     <div class="menu-section" id="menu-plaza-top" style="display: none">
         <div class="menu-title">
             <i class="fas fa-arrows-up-to-line"></i>
-            <span>置顶信息</span>
+            <span>Pinned</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1.免费token领取</span>
+            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1. Free token claim</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="stopTrack()">2.申请模型使用</span>
+            <span onclick="stopTrack()">2. Request model access</span>
         </div>
         <div class="menu-item">
 
@@ -268,22 +271,22 @@
         </div>
         <div class="menu-item">
 
-            <span>4.Claude新发布</span>
+            <span>4. Claude new release</span>
         </div>
     </div>
 
     <div class="menu-section" id="menu-plaza-middle" style="display: none">
         <div class="menu-title">
             <i class="fas fa-fire"></i>
-            <span>热点信息</span>
+            <span>Trending</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1.免费token领取</span>
+            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1. Free token claim</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="stopTrack()">2.申请模型使用</span>
+            <span onclick="stopTrack()">2. Request model access</span>
         </div>
         <div class="menu-item">
 
@@ -291,22 +294,22 @@
         </div>
         <div class="menu-item">
 
-            <span>4.Claude新发布</span>
+            <span>4. Claude new release</span>
         </div>
     </div>
 
     <div class="menu-section" id="menu-plaza" style="display: none">
         <div class="menu-title">
             <i class="fas fa-newspaper"></i>
-            <span>最新信息</span>
+            <span>Latest</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1.免费token领取</span>
+            <span onclick="startTrack()" onclick2="pauseTrack()" onclick3="continueTrack()">1. Free token claim</span>
         </div>
         <div class="menu-item">
 
-            <span onclick="stopTrack()">2.申请模型使用</span>
+            <span onclick="stopTrack()">2. Request model access</span>
         </div>
         <div class="menu-item">
 
@@ -314,7 +317,7 @@
         </div>
         <div class="menu-item">
 
-            <span>4.Claude新发布</span>
+            <span>4. Claude new release</span>
         </div>
 
     </div>
@@ -395,16 +398,16 @@
 
 </body>
 <script src="js/baidu/global.js?001"></script>
-<script src="js/common_function.js?0012"></script>
+<script src="js/common_function.js?005"></script>
 <script src="js/plaza_message.js?003"></script>
 <script src="js/status_indicator.js?001"></script>
-<script src="js/page_ui_menu.js?005"></script>
-<script src="js/interact_python.js?003"></script>
-<script src="js/baidu/map_common.js?0012"></script>
+<script src="js/page_ui_menu.js?006"></script>
+<script src="js/interact_python.js?004"></script>
+<script src="js/baidu/map_common.js?0015"></script>
 <script src="js/baidu/aisns_building.js?002"></script>
 <script src="js/baidu/aisns_service.js?001"></script>
 <script src="js/baidu/person_data.js?004"></script>
-<script src="js/baidu/cluster_marker.js?001"></script>
+<script src="js/baidu/cluster_marker.js?007"></script>
 <script src="js/baidu/route_planner.js?001"></script>
 <script src="js/init_setting.js?0011"></script>
 </html>

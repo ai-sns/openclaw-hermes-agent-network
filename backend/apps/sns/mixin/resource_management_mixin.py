@@ -214,12 +214,12 @@ class ResourceManagementMixin:
     def format_resource_display(self):
         """Format resource display."""
         return f"""
-* 资金值: {float(self.aichatcfg_record.money or 0):.2f}元
-* 生命值: {self.aichatcfg_record.life_point}%
-* 体力值: {self.aichatcfg_record.energy_point}%
-* 行动力: {self.aichatcfg_record.move_point}%
-* 经验值: {self.aichatcfg_record.exp_point}
-* 智力值: {self.aichatcfg_record.iq_point}
-* 信用值: {self.aichatcfg_record.credit}
-* 等级: {self.aichatcfg_record.level}
+* Funds: {float(self.aichatcfg_record.money or 0):.2f} CNY
+* Health: {self.aichatcfg_record.life_point}%
+* Energy: {self.aichatcfg_record.energy_point}%
+* Action points: {self.aichatcfg_record.move_point}%
+* Experience: {self.aichatcfg_record.exp_point}
+* Intelligence: {self.aichatcfg_record.iq_point}
+* Credit: {self.aichatcfg_record.credit}
+* Level: {self.aichatcfg_record.level}
         """.strip()

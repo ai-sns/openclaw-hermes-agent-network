@@ -210,7 +210,7 @@ class ToolsMixin:
     def handle_service_called_result(self, response_text):
         action_result = response_text
         self.action_result = action_result
-        self.taskmng.add_process_info_to_list(f"system:调用了Web Service获得如下结果:{action_result}")
+        self.taskmng.add_process_info_to_list(f"system: Web service called and returned: {action_result}")
         self.write_task_process_to_pane(action_result + "\n\n")
         self.show_alert_on_map(action_result)
         ask_content = ""
@@ -294,7 +294,7 @@ class ToolsMixin:
             reply = (reply or "").strip()
             if reply:
                 return reply
-            return "（未生成内容）"
+            return "(No content generated)"
         finally:
             agent.db_tools = original_db_tools
             agent.tools = original_tools
@@ -378,7 +378,7 @@ class ToolsMixin:
                                         tool_schema = t
                                         break
                     except Exception as parse_error:
-                        logger.warning(f"解析MCP parameter失败: {parse_error}")
+                        logger.warning(f"Failed to parse MCP parameters: {parse_error}")
 
                 input_schema = None
                 if isinstance(tool_schema, dict):

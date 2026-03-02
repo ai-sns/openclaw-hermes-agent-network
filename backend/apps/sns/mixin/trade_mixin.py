@@ -268,7 +268,7 @@ class TradeMixin:
             self.talk_to_a_people(message, nation_id, account, nick_name)
 
         else:
-            description = "我未找到目标人员。"
+            description = "I could not find the target person."
 
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
 
@@ -304,20 +304,20 @@ class TradeMixin:
             self.talk_to_a_people(message, nation_id, account, nick_name)
 
         else:
-            description = "我未找到目标人员。"
+            description = "I could not find the target person."
 
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
 
     async def ask_agent_to_review_conversation_sell(self, conversation_target, messages_history):
         role_prompt = get_prompt_by_title("__review_conversation_sell__")
         role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "请严格遵照要求评估，并严格按照格式输出。\n## 聊天记录 \n" + (messages_history or "")
+        question = "Please evaluate strictly according to the requirements and output strictly in the required format.\n## Chat history \n" + (messages_history or "")
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     async def ask_agent_to_review_conversation_buy(self, conversation_target, messages_history):
         role_prompt = get_prompt_by_title("__review_conversation_buy__")
         role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "请严格遵照要求评估，并严格按照格式输出。\n## 聊天记录 \n" + (messages_history or "")
+        question = "Please evaluate strictly according to the requirements and output strictly in the required format.\n## Chat history \n" + (messages_history or "")
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     def handle_agent_review_conversation_sell_result(self, content):
@@ -334,7 +334,7 @@ class TradeMixin:
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
                 role_prompt = get_prompt_by_title("__review_conversation_sell__")
                 role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = "请只输出一个JSON对象，不要输出任何解释或额外文字。"
+                question = "Only output a single JSON object. Do not output any explanations or extra text."
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
                 setattr(self, "_review_sell_retry_count", 0)
@@ -345,10 +345,10 @@ class TradeMixin:
         message = result["next_message"]
 
         if not continue_chat:
-            self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-            self.write_task_process_to_pane(f"和朋友沟通后得到如下情况：{current_chat_summary}\n\n")
-            self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-            resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+            self.taskmng.add_process_info_to_list(f"After talking with a friend, the situation is: {current_chat_summary}")
+            self.write_task_process_to_pane(f"After talking with a friend, the situation is: {current_chat_summary}\n\n")
+            self.taskmng.current_situation = f"After talking with someone else, the situation is: {current_chat_summary}"
+            resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter talking with someone else, the situation is: {current_chat_summary}"
             self.end_active_conversation(
                 reason="completed",
                 message="Sell conversation completed.",
@@ -361,9 +361,9 @@ class TradeMixin:
                 self.taskmng.current_process["rounds_current_person"] = self.taskmng.current_process["rounds_current_person"] + 1
                 self.talk_to_a_people(message, self.current_talk_people["nation_id"], self.current_talk_people["account"], self.current_talk_people["nick_name"])
             else:
-                self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-                self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-                resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+                self.taskmng.add_process_info_to_list(f"After talking with a friend, the situation is: {current_chat_summary}")
+                self.taskmng.current_situation = f"After talking with someone else, the situation is: {current_chat_summary}"
+                resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter talking with someone else, the situation is: {current_chat_summary}"
                 self.end_active_conversation(
                     reason="max_rounds",
                     message="Sell conversation reached max rounds.",
@@ -385,7 +385,7 @@ class TradeMixin:
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
                 role_prompt = get_prompt_by_title("__review_conversation_buy__")
                 role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = "请只输出一个JSON对象，不要输出任何解释或额外文字。"
+                question = "Only output a single JSON object. Do not output any explanations or extra text."
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
                 setattr(self, "_review_buy_retry_count", 0)
@@ -409,10 +409,10 @@ class TradeMixin:
             return
 
         if not continue_chat:
-            self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-            self.write_task_process_to_pane(f"和朋友沟通后得到如下情况：{current_chat_summary}\n\n")
-            self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-            resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+            self.taskmng.add_process_info_to_list(f"After talking with a friend, the situation is: {current_chat_summary}")
+            self.write_task_process_to_pane(f"After talking with a friend, the situation is: {current_chat_summary}\n\n")
+            self.taskmng.current_situation = f"After talking with someone else, the situation is: {current_chat_summary}"
+            resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter talking with someone else, the situation is: {current_chat_summary}"
             self.end_active_conversation(
                 reason="completed",
                 message="Buy conversation completed.",
@@ -431,10 +431,10 @@ class TradeMixin:
                         116.30690718139134,
                         40.06259235539735
                     ],
-                    "nick_name": "W宝",
+                    "nick_name": "W Bao",
                     "avatar": "img_woman_hi",
                     "avatar_3d": "smallofficewoman_0_0_0_0_1_0.glb",
-                    "profile": "我是个医生",
+                    "profile": "I am a doctor",
                     "sns_url": "x.com"
                 }
 
@@ -442,9 +442,9 @@ class TradeMixin:
                 self.taskmng.current_process["rounds_current_person"] = self.taskmng.current_process["rounds_current_person"] + 1
                 self.talk_to_a_people(message, self.current_talk_people["nation_id"], self.current_talk_people["account"], self.current_talk_people["nick_name"])
             else:
-                self.taskmng.add_process_info_to_list(f"和朋友沟通后得到如下情况：{current_chat_summary}")
-                self.taskmng.current_situation = f"和别人沟通后，得到如下情况:{current_chat_summary}"
-                resume_ask_content = f"- 当前目标\n{self.taskmng.current_objective}\n- 当前进展\n和别人沟通后，得到如下情况:{current_chat_summary}"
+                self.taskmng.add_process_info_to_list(f"After talking with a friend, the situation is: {current_chat_summary}")
+                self.taskmng.current_situation = f"After talking with someone else, the situation is: {current_chat_summary}"
+                resume_ask_content = f"- Current objective\n{self.taskmng.current_objective}\n- Current progress\nAfter talking with someone else, the situation is: {current_chat_summary}"
                 self.end_active_conversation(
                     reason="max_rounds",
                     message="Buy conversation reached max rounds.",
@@ -582,16 +582,16 @@ class TradeMixin:
                 self.handle_send_goods(handle_content, trade_id)
                 return
 
-            if handle_after_trade == "发送消息":
+            if handle_after_trade in {"发送消息", "Send message"}:
                 self.handle_send_goods(handle_content, trade_id)
                 return
 
             tool_name = handle_content
             what_to_do = (
-                "你已确认收到买家付款，现在需要向买家交付商品/服务内容。\n"
-                "请根据下面聊天记录推断买家购买了什么，并生成交付内容。\n"
-                "输出要求：只输出交付内容本身，不要解释；如果无法推断，输出一个简短的默认交付内容（例如：已收到付款，稍后补发详细内容）。\n\n"
-                "## 聊天记录 \n" + talk_history_str
+                "You have confirmed that the buyer's payment has been received, and now you need to deliver the goods/service content to the buyer.\n"
+                "Please infer what the buyer purchased based on the chat history below, and generate the delivery content.\n"
+                "Output requirements: only output the delivery content itself, do not explain; if you cannot infer, output a short default delivery message (e.g., Payment received; detailed content will be sent later).\n\n"
+                "## Chat history \n" + talk_history_str
             )
             tool_task = self.run_configured_tool_text_generation_sync(
                 tool_name,

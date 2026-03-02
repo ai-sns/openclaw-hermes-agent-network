@@ -10,6 +10,56 @@ import AgentPage from './AgentPage.js';
 import Toast from '../../utils/toast.js';
 
 const multiAgentHandlers = {
+    matchesToolbarTitle(el, titles) {
+        if (!el) return false;
+        const t = String(el.getAttribute('title') || '').trim();
+        return (titles || []).some(x => String(x).trim() === t);
+    },
+
+    async _deleteRendererPlugin(pluginId, agentId) {
+        const base = await this._getApiBaseUrl();
+        if (!base) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error('API base URL not available');
+            }
+            return false;
+        }
+
+        const id = pluginId ? String(pluginId).trim() : '';
+        if (!id) return false;
+
+        try {
+            const resp = await fetch(`${base}/api/tools/plugins/${encodeURIComponent(id)}`, {
+                method: 'DELETE'
+            });
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error(text || `HTTP ${resp.status}`);
+            }
+
+            // Unload if currently loaded for this agent
+            try {
+                this.unloadRendererPluginForAgent(id, agentId);
+            } catch (e) {
+            }
+
+            if (typeof Notification !== 'undefined') {
+                Notification.success('Plugin deleted');
+            }
+            return true;
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Delete failed: ${e && e.message ? e.message : String(e)}`);
+            }
+            return false;
+        }
+    },
+    matchesToolbarAction(el, actions) {
+        if (!el || !el.dataset) return false;
+        const a = String(el.dataset.action || '').trim();
+        if (!a) return false;
+        return (actions || []).some(x => String(x).trim() === a);
+    },
     resolve(urlOrPath) {
         try {
             if (typeof window !== 'undefined' && typeof window.resolveAgentServerUrl === 'function') {
@@ -19,11 +69,288 @@ const multiAgentHandlers = {
         }
         return urlOrPath;
     },
+
+    async _getApiBaseUrl() {
+        try {
+            if (window.electronAPI && typeof window.electronAPI.getApiUrl === 'function') {
+                const raw = await window.electronAPI.getApiUrl();
+                return raw ? String(raw).replace(/\/+$/, '') : '';
+            }
+        } catch (e) {
+        }
+
+        try {
+            const raw = (window.appConfig && window.appConfig.agent_server) || '';
+            return raw ? String(raw).replace(/\/+$/, '') : '';
+        } catch (e) {
+        }
+
+        try {
+            const u = new URL(this.resolve('/'));
+            return u.origin;
+        } catch (e) {
+        }
+
+        return '';
+    },
+
+    async _fetchRendererPlugins() {
+        const base = await this._getApiBaseUrl();
+        if (!base) return [];
+
+        try {
+            const resp = await fetch(`${base}/api/tools/plugins?used_in_sns=false`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            const list = Array.isArray(data) ? data : [];
+            return list.filter(p => {
+                const pluginType = (p && p.plugin_type) ? String(p.plugin_type) : '';
+                return pluginType.toLowerCase() === 'renderer';
+            });
+        } catch (e) {
+            console.warn('[MultiAgentHandlers] Failed to fetch renderer plugins:', e);
+            return [];
+        }
+    },
+
+    async _importRendererPluginZip(file) {
+        const base = await this._getApiBaseUrl();
+        if (!base) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error('API base URL not available');
+            }
+            return false;
+        }
+
+        try {
+            const form = new FormData();
+            form.append('file', file, file.name || 'plugin.zip');
+            const resp = await fetch(`${base}/api/tools/plugins/import?used_in_sns=false`, {
+                method: 'POST',
+                body: form
+            });
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error(text || `HTTP ${resp.status}`);
+            }
+            if (typeof Notification !== 'undefined') {
+                Notification.success('Plugin imported');
+            }
+            return true;
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Import failed: ${e && e.message ? e.message : String(e)}`);
+            }
+            return false;
+        }
+    },
+
+    _getLoadedRendererPluginsMap(agentId) {
+        if (!this._loadedRendererPluginsByAgent || typeof this._loadedRendererPluginsByAgent !== 'object') {
+            this._loadedRendererPluginsByAgent = new Map();
+        }
+        const key = String(agentId || '');
+        if (!this._loadedRendererPluginsByAgent.has(key)) {
+            this._loadedRendererPluginsByAgent.set(key, new Map());
+        }
+        return this._loadedRendererPluginsByAgent.get(key);
+    },
+
+    async loadRendererPluginForAgent(plugin, agentId) {
+        const pluginKey = plugin && (plugin.plugin_id || plugin.id) ? String(plugin.plugin_id || plugin.id) : '';
+        const agentKey = String(agentId || '');
+        if (!pluginKey || !agentKey) return;
+
+        const settingsTabs = document.getElementById(`settingsTabs-${agentKey}`);
+        const tabContent = document.getElementById(`settingsTabContent-${agentKey}`);
+        if (!settingsTabs || !tabContent) {
+            console.warn('[MultiAgentHandlers] Settings panel not found for renderer plugin');
+            return;
+        }
+
+        const tabId = `plugin-ext-${pluginKey}`;
+        const existingTab = settingsTabs.querySelector(`.settings-tab[data-tab="${CSS.escape(tabId)}"]`);
+        const existingPane = tabContent.querySelector(`.tab-pane[data-tab="${CSS.escape(tabId)}"]`);
+        if (existingTab && existingPane) {
+            existingTab.click();
+            return;
+        }
+
+        const entryRaw = plugin.filename;
+        const entryUrl = this.resolve(entryRaw);
+        let mod;
+        try {
+            mod = await import(entryUrl + '?t=' + Date.now());
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Failed to load plugin: ${plugin.name || pluginKey}`);
+            }
+            return;
+        }
+
+        const pluginInstance = mod && mod.default ? mod.default : null;
+        if (!pluginInstance || typeof pluginInstance.render !== 'function') {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Invalid plugin module: ${plugin.name || pluginKey}`);
+            }
+            return;
+        }
+
+        const name = plugin.name ? String(plugin.name) : pluginKey;
+
+        const tabButton = document.createElement('button');
+        tabButton.className = 'settings-tab';
+        tabButton.dataset.tab = tabId;
+        tabButton.dataset.agentId = agentKey;
+        tabButton.innerHTML = `
+            <span>${name}</span>
+            <span class="tab-close-btn" title="Close">×</span>
+        `;
+        const closeBtn = tabButton.querySelector('.tab-close-btn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.unloadRendererPluginForAgent(pluginKey, agentKey);
+            });
+        }
+        settingsTabs.appendChild(tabButton);
+
+        const pane = document.createElement('div');
+        pane.className = 'tab-pane';
+        pane.dataset.tab = tabId;
+        pane.innerHTML = `
+            <div class="settings-section">
+                <div class="settings-section-title">
+                    <span>${name}</span>
+                </div>
+                <div class="plugin-content" id="plugin-content-ext-${pluginKey}-${agentKey}"></div>
+            </div>
+        `;
+        tabContent.appendChild(pane);
+
+        tabButton.click();
+
+        const container = pane.querySelector(`#plugin-content-ext-${CSS.escape(pluginKey)}-${CSS.escape(agentKey)}`);
+        if (!container) return;
+
+        const api = {
+            ui: {
+                toast: (type, message) => {
+                    const t = type ? String(type) : 'info';
+                    const msg = (message === undefined || message === null) ? '' : String(message);
+                    if (typeof Notification !== 'undefined' && typeof Notification[t] === 'function') {
+                        Notification[t](msg);
+                        return;
+                    }
+                    if (typeof Notification !== 'undefined' && typeof Notification.info === 'function') {
+                        Notification.info(msg);
+                    }
+                },
+                openUrl: (url) => {
+                    const u = url ? String(url) : '';
+                    if (!u) return;
+                    try {
+                        if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                            window.electronAPI.openUrl(u);
+                            return;
+                        }
+                    } catch (e) {
+                    }
+                    try {
+                        window.open(u, '_blank', 'noopener');
+                    } catch (e) {
+                    }
+                }
+            },
+            sns: {
+                getJson: async (path) => {
+                    const base = await this._getApiBaseUrl();
+                    const resp = await fetch(`${base}${path}`);
+                    return await resp.json();
+                },
+                postJson: async (path, body) => {
+                    const base = await this._getApiBaseUrl();
+                    const resp = await fetch(`${base}${path}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body || {})
+                    });
+                    return await resp.json();
+                },
+                jsonrpc: async (method, params) => {
+                    const base = await this._getApiBaseUrl();
+                    const payload = {
+                        jsonrpc: '2.0',
+                        id: Date.now(),
+                        method: String(method || ''),
+                        params: (params && typeof params === 'object') ? params : {}
+                    };
+                    const resp = await fetch(`${base}/jsonrpc`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    return await resp.json();
+                }
+            }
+        };
+
+        try {
+            await pluginInstance.render(container, api);
+        } catch (e) {
+            if (typeof Notification !== 'undefined') {
+                Notification.error(`Plugin render failed: ${name}`);
+            }
+            try {
+                container.textContent = `Render failed: ${e && e.message ? e.message : String(e)}`;
+            } catch (_) {
+            }
+        }
+
+        this._getLoadedRendererPluginsMap(agentKey).set(pluginKey, { tabId, pluginInstance });
+    },
+
+    unloadRendererPluginForAgent(pluginKey, agentId) {
+        const key = String(pluginKey || '');
+        const agentKey = String(agentId || '');
+        if (!key || !agentKey) return;
+
+        const loaded = this._getLoadedRendererPluginsMap(agentKey);
+        const item = loaded.get(key);
+        if (!item) return;
+
+        try {
+            if (item.pluginInstance && typeof item.pluginInstance.dispose === 'function') {
+                item.pluginInstance.dispose();
+            }
+        } catch (e) {
+            console.warn('[MultiAgentHandlers] Plugin dispose failed:', e);
+        }
+
+        const settingsTabs = document.getElementById(`settingsTabs-${agentKey}`);
+        const tabContent = document.getElementById(`settingsTabContent-${agentKey}`);
+        if (settingsTabs) {
+            const tab = settingsTabs.querySelector(`.settings-tab[data-tab="${CSS.escape(item.tabId)}"]`);
+            const wasActive = !!(tab && tab.classList && tab.classList.contains('active'));
+            if (tab) tab.remove();
+
+            if (wasActive) {
+                const fallback = settingsTabs.querySelector('.settings-tab[data-tab="param"]');
+                if (fallback) fallback.click();
+            }
+        }
+        if (tabContent) {
+            const pane = tabContent.querySelector(`.tab-pane[data-tab="${CSS.escape(item.tabId)}"]`);
+            if (pane) pane.remove();
+        }
+
+        loaded.delete(key);
+    },
     /**
      * Initialize multi-agent system
      */
     async init() {
-        console.log('[MultiAgentHandlers] 开始初始化多Agent系统...');
+        console.log('[MultiAgentHandlers] Starting multi-agent system initialization...');
 
         // 1. Load agent list from API
         const response = await fetch(this.resolve('/api/agent'));
@@ -31,13 +358,13 @@ const multiAgentHandlers = {
         const agents = result.success ? (result.data || []) : [];
 
         if (agents.length === 0) {
-            console.warn('[MultiAgentHandlers] 没有可用的Agent');
+            console.warn('[MultiAgentHandlers] No available agents');
             return;
         }
 
         // 2. Save to state
         agentState.setAgents(agents);
-        console.log('[MultiAgentHandlers] 已加载agents:', agents.length);
+        console.log('[MultiAgentHandlers] Loaded agents:', agents.length);
 
         // 3. Initialize AgentSidebar
         await AgentSidebar.init();
@@ -48,7 +375,7 @@ const multiAgentHandlers = {
         // 5. Set current agent to the first one
         if (agents.length > 0) {
             agentState.setCurrentAgent(agents[0].id);
-            console.log('[MultiAgentHandlers] 当前agent:', agents[0].id);
+            console.log('[MultiAgentHandlers] Current agent:', agents[0].id);
         }
 
         // 6. Bind global events
@@ -71,7 +398,7 @@ const multiAgentHandlers = {
         // 10. Initialize stream listeners
         this.initChatStreamListeners();
 
-        console.log('[MultiAgentHandlers] 多Agent系统初始化完成');
+        console.log('[MultiAgentHandlers] Multi-agent system initialization completed');
     },
 
     forceActivateSettingsTabForAgent(agentId, targetTab) {
@@ -96,16 +423,16 @@ const multiAgentHandlers = {
                 const url = this.resolve(path);
                 const result = await window.electronAPI.downloadAndOpen(url, filename || 'file');
                 if (result) {
-                    console.error('[MultiAgentHandlers] downloadAndOpen失败:', result);
+                    console.error('[MultiAgentHandlers] downloadAndOpen failed:', result);
                     if (typeof Notification !== 'undefined' && Notification.error) {
-                        Notification.error(`打开附件失败: ${result}`);
+                        Notification.error(`Failed to open attachment: ${result}`);
                     }
                 }
             }
         } catch (e) {
-            console.error('[MultiAgentHandlers] downloadAndOpen异常:', e);
+            console.error('[MultiAgentHandlers] downloadAndOpen error:', e);
             if (typeof Notification !== 'undefined' && Notification.error) {
-                Notification.error(`打开附件失败: ${e && e.message ? e.message : String(e)}`);
+                Notification.error(`Failed to open attachment: ${e && e.message ? e.message : String(e)}`);
             }
         }
     },
@@ -153,7 +480,7 @@ const multiAgentHandlers = {
 
     extractTextFromA2AResponse(rpcResponse) {
         if (!rpcResponse) {
-            throw new Error('A2A 响应为空');
+            throw new Error('A2A response is empty');
         }
 
         if (rpcResponse.error) {
@@ -163,7 +490,7 @@ const multiAgentHandlers = {
 
         const result = rpcResponse.result;
         if (!result) {
-            throw new Error('A2A 响应缺少 result');
+            throw new Error('A2A response is missing result');
         }
 
         const message = result?.status?.message;
@@ -230,8 +557,9 @@ const multiAgentHandlers = {
         }
 
         document.querySelectorAll(`button.toolbar-icon-btn[data-agent-id="${agentId}"]`).forEach(btn => {
-            const title = (btn.getAttribute('title') || '').trim();
-            if (title === '配置知识库' || title === '附件') {
+            const shouldRemainEnabled = this.matchesToolbarAction(btn, ['kb-config', 'attachment'])
+                || this.matchesToolbarTitle(btn, ['配置知识库', 'Configure knowledge base', '附件', 'Attachment', 'Attachments']);
+            if (shouldRemainEnabled) {
                 btn.disabled = false;
                 if (isRemote) {
                     btn.style.opacity = '0.6';
@@ -300,12 +628,12 @@ const multiAgentHandlers = {
      * Bind global events
      */
     bindGlobalEvents() {
-        console.log('[MultiAgentHandlers] 绑定全局事件...');
+        console.log('[MultiAgentHandlers] Binding global events...');
 
         // Listen for agent switch events
         window.addEventListener('agent-switched', (e) => {
             const { agentId } = e.detail;
-            console.log('[MultiAgentHandlers] Agent切换:', agentId);
+            console.log('[MultiAgentHandlers] Agent switched:', agentId);
 
             // Update state
             agentState.setCurrentAgent(agentId);
@@ -392,7 +720,7 @@ const multiAgentHandlers = {
      * Bind UI events for all agents
      */
     bindAllAgentEvents() {
-        console.log('[MultiAgentHandlers] 绑定所有agent的UI事件...');
+        console.log('[MultiAgentHandlers] Binding UI events for all agents...');
 
         if (!this._agentTabReloadMenuInitialized) {
             this._agentTabReloadMenuInitialized = true;
@@ -410,7 +738,7 @@ const multiAgentHandlers = {
                             <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
                             <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
                         </svg>
-                        <span>刷新</span>
+                        <span>Refresh</span>
                     </button>
                     <button type="button" class="context-menu-item" data-action="open-browser">
                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -703,7 +1031,7 @@ const multiAgentHandlers = {
 
                 // Check whether "Please Select" was chosen
                 if (!configId) {
-                    console.log('[MultiAgentHandlers] 模型选择器：未选择有效配置');
+                    console.log('[MultiAgentHandlers] Model selector: no valid config selected');
                     return;
                 }
 
@@ -715,11 +1043,11 @@ const multiAgentHandlers = {
 
                 try {
                     await this.loadAndApplyModelConfig(configId, agentId);
-                    console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已更新`);
+                    console.log(`[MultiAgentHandlers] Agent ${agentId} model config updated`);
                 } catch (error) {
-                    console.error(`[MultiAgentHandlers] Agent ${agentId} 更新模型配置失败:`, error);
+                    console.error(`[MultiAgentHandlers] Agent ${agentId} failed to update model config:`, error);
                     if (typeof Notification !== 'undefined') {
-                        Notification.error('更新模型配置失败: ' + error.message);
+                        Notification.error('Failed to update model config: ' + error.message);
                     }
                 } finally {
                     // Re-enable selector
@@ -737,7 +1065,7 @@ const multiAgentHandlers = {
 
                 // Check whether "Please Select" was chosen
                 if (!roleId) {
-                    console.log('[MultiAgentHandlers] 角色选择器：未选择有效配置');
+                    console.log('[MultiAgentHandlers] Role selector: no valid config selected');
                     return;
                 }
 
@@ -749,11 +1077,11 @@ const multiAgentHandlers = {
 
                 try {
                     await this.loadAndApplyRoleConfig(roleId, agentId);
-                    console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已更新`);
+                    console.log(`[MultiAgentHandlers] Agent ${agentId} role config updated`);
                 } catch (error) {
-                    console.error(`[MultiAgentHandlers] Agent ${agentId} 更新角色配置失败:`, error);
+                    console.error(`[MultiAgentHandlers] Agent ${agentId} failed to update role config:`, error);
                     if (typeof Notification !== 'undefined') {
-                        Notification.error('更新角色配置失败: ' + error.message);
+                        Notification.error('Failed to update role config: ' + error.message);
                     }
                 } finally {
                     // Re-enable selector
@@ -850,10 +1178,10 @@ const multiAgentHandlers = {
 
         // 8. Plugin selection button (toolbar "Add" button)
         document.addEventListener('click', (e) => {
-            const addBtn = e.target.closest('.toolbar-icon-btn[title="添加"][data-agent-id]');
-            if (addBtn) {
+            const addBtn = e.target.closest('.toolbar-icon-btn[data-agent-id]');
+            if (addBtn && (this.matchesToolbarAction(addBtn, ['add-plugin']) || this.matchesToolbarTitle(addBtn, ['添加', 'Add']))) {
                 const agentId = parseInt(addBtn.dataset.agentId);
-                console.log('[MultiAgentHandlers] 点击添加按钮（插件选择）for agent:', agentId);
+                console.log('[MultiAgentHandlers] Clicked Add button (plugin selection) for agent:', agentId);
                 this.handleAddPlugin(agentId);
             }
         });
@@ -877,8 +1205,8 @@ const multiAgentHandlers = {
         });
 
         document.addEventListener('click', (e) => {
-            const attachBtn = e.target.closest('.toolbar-icon-btn[title="附件"][data-agent-id]');
-            if (attachBtn) {
+            const attachBtn = e.target.closest('.toolbar-icon-btn[data-agent-id]');
+            if (attachBtn && (this.matchesToolbarAction(attachBtn, ['attachment']) || this.matchesToolbarTitle(attachBtn, ['附件', 'Attachment', 'Attachments']))) {
                 const agentId = parseInt(attachBtn.dataset.agentId);
                 if (this.isRemoteAgentById(agentId)) {
                     e.preventDefault();
@@ -920,7 +1248,7 @@ const multiAgentHandlers = {
                 const filePath = (chip.dataset && chip.dataset.filePath) ? chip.dataset.filePath : '';
                 const filename = (chip.textContent || '').trim();
 
-                console.log('[MultiAgentHandlers] 点击气泡附件chip:', {
+                console.log('[MultiAgentHandlers] Clicked attachment chip bubble:', {
                     outerHTML: chip.outerHTML,
                     dataset: { ...chip.dataset },
                     conversationId,
@@ -939,17 +1267,17 @@ const multiAgentHandlers = {
 
                 // New logic: download and open from backend by attachment_id
                 if (!conversationId || !attachmentId) {
-                    console.warn('[MultiAgentHandlers] 附件缺少conversationId或attachmentId，无法下载打开');
+                    console.warn('[MultiAgentHandlers] Attachment missing conversationId or attachmentId; cannot download/open');
                     if (typeof Notification !== 'undefined' && Notification.error) {
-                        Notification.error('附件信息不完整，请重新加载对话或重新发送后再点击');
+                        Notification.error('Attachment info is incomplete. Please reload the conversation or resend, then click again.');
                     }
                     return;
                 }
 
                 if (!window.electronAPI || typeof window.electronAPI.downloadAndOpen !== 'function') {
-                    console.error('[MultiAgentHandlers] electronAPI.downloadAndOpen 不可用（请重启Electron或检查preload）');
+                    console.error('[MultiAgentHandlers] electronAPI.downloadAndOpen is unavailable (restart Electron or check preload)');
                     if (typeof Notification !== 'undefined' && Notification.error) {
-                        Notification.error('打开附件失败：Electron能力未就绪，请重启应用');
+                        Notification.error('Failed to open attachment: Electron capability is not ready. Please restart the app.');
                     }
                     return;
                 }
@@ -958,7 +1286,7 @@ const multiAgentHandlers = {
             }
         }, true);
 
-        console.log('[MultiAgentHandlers] 所有事件绑定完成');
+        console.log('[MultiAgentHandlers] All events bound');
     },
 
     openAttachmentPicker(agentId) {
@@ -1004,7 +1332,7 @@ const multiAgentHandlers = {
         this.showFileTab(agentId);
 
         if (typeof Notification !== 'undefined' && Notification.success) {
-            Notification.success(`已添加 ${files.length} 个附件`);
+            Notification.success(`Added ${files.length} attachment(s)`);
         }
     },
 
@@ -1114,7 +1442,7 @@ const multiAgentHandlers = {
                     <svg viewBox="0 0 24 24" width="48" height="48" fill="#ccc">
                         <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
                     </svg>
-                    <p>暂无附件</p>
+                    <p>No attachments</p>
                 </div>
             `;
             return;
@@ -1135,7 +1463,7 @@ const multiAgentHandlers = {
                         <div class="file-size">${this.formatFileSize(att.size)}</div>
                     </div>
                     ${isPending ? `
-                        <button class="file-remove-btn" title="移除文件" data-attachment-id="${this.escapeHtml(att.id || '')}" data-agent-id="${agentId}">
+                        <button class="file-remove-btn" title="Remove file" data-attachment-id="${this.escapeHtml(att.id || '')}" data-agent-id="${agentId}">
                             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
                                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                             </svg>
@@ -1169,11 +1497,11 @@ const multiAgentHandlers = {
      * Load chat list for a specific agent
      */
     async loadChatListForAgent(agentId, query = '') {
-        console.log(`[MultiAgentHandlers] 开始加载Agent ${agentId} 的chat list`);
+        console.log(`[MultiAgentHandlers] Start loading chat list for Agent ${agentId}`);
 
         const chatList = document.getElementById(`chatList-${agentId}`);
         if (!chatList) {
-            console.warn(`[MultiAgentHandlers] 找不到元素 chatList-${agentId}，可能DOM还未准备好`);
+            console.warn(`[MultiAgentHandlers] Cannot find element chatList-${agentId}. DOM may not be ready yet.`);
             return;
         }
 
@@ -1182,17 +1510,17 @@ const multiAgentHandlers = {
             // If backend supports per-agent filtering, it returns filtered results
             // Otherwise, we filter on the client
             const url = this.resolve(`/api/chat/conversations?limit=50&agent_id=${encodeURIComponent(agentId)}`);
-            console.log(`[MultiAgentHandlers] 调用API: ${url}`);
+            console.log(`[MultiAgentHandlers] Calling API: ${url}`);
             const response = await fetch(url);
             const result = await response.json();
             let conversations = result.data || [];
-            console.log(`[MultiAgentHandlers] API返回了 ${conversations.length} 条对话`);
+            console.log(`[MultiAgentHandlers] API returned ${conversations.length} conversations`);
 
             // Client-side filtering: only show conversations for current agent
             // If conversation has agent_id field, filter; otherwise show all (backwards compatible)
             if (conversations.length > 0 && conversations[0].agent_id !== undefined) {
                 conversations = conversations.filter(conv => conv.agent_id == agentId);
-                console.log(`[MultiAgentHandlers] 过滤后剩余 ${conversations.length} 条对话`);
+                console.log(`[MultiAgentHandlers] After filtering: ${conversations.length} conversations`);
             }
 
             const q = String(query || '').trim().toLowerCase();
@@ -1207,7 +1535,7 @@ const multiAgentHandlers = {
 
             const treeChildren = chatList.querySelector('.tree-children');
             if (!treeChildren) {
-                console.warn(`[MultiAgentHandlers] 找不到 .tree-children 元素在 chatList-${agentId} 中`);
+                console.warn(`[MultiAgentHandlers] Cannot find .tree-children inside chatList-${agentId}`);
                 return;
             }
 
@@ -1246,9 +1574,9 @@ const multiAgentHandlers = {
                 });
             });
 
-            console.log(`[MultiAgentHandlers] Agent ${agentId} 聊天列表已加载，共 ${conversations.length} 条`);
+            console.log(`[MultiAgentHandlers] Agent ${agentId} chat list loaded. Total: ${conversations.length}`);
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载聊天列表失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load chat list:`, error);
         }
     },
 
@@ -1477,7 +1805,7 @@ const multiAgentHandlers = {
      * Send message for a specific agent
      */
     async sendMessageForAgent(agentId) {
-        console.log(`[MultiAgentHandlers] Agent ${agentId} 发送消息`);
+        console.log(`[MultiAgentHandlers] Agent ${agentId} sending message`);
 
         // Set current agent
         agentState.setCurrentAgent(agentId);
@@ -1499,9 +1827,9 @@ const multiAgentHandlers = {
         // Get current agent info
         const currentAgent = agentState.getCurrentAgent();
         if (!currentAgent) {
-            console.error('[MultiAgentHandlers] 没有选中的Agent');
+            console.error('[MultiAgentHandlers] No agent selected');
             if (typeof Notification !== 'undefined') {
-                Notification.error('请先选择一个Agent');
+                Notification.error('Please select an agent first');
             }
             return;
         }
@@ -1509,7 +1837,7 @@ const multiAgentHandlers = {
         const agentType = String(currentAgent.agent_type || 'local').toLowerCase();
         const isRemoteAgent = this.isRemoteAgentType(agentType);
 
-        console.log('[MultiAgentHandlers] 使用Agent发送消息:', currentAgent.name, 'ID:', agentId);
+        console.log('[MultiAgentHandlers] Sending message with agent:', currentAgent.name, 'ID:', agentId);
 
         // Disable send button
         if (sendBtn) {
@@ -1564,8 +1892,8 @@ const multiAgentHandlers = {
         if (!conversationId) {
             conversationId = agentState.generateConversationId();
             agentState.setConversationId(conversationId);
-            console.log(`[MultiAgentHandlers] Agent ${agentId} 发送消息, conversation_id=${conversationId}`);
-            console.log('[MultiAgentHandlers] 生成新对话ID:', conversationId);
+            console.log(`[MultiAgentHandlers] Agent ${agentId} sending message, conversation_id=${conversationId}`);
+            console.log('[MultiAgentHandlers] Generated new conversation ID:', conversationId);
         }
 
         // Add AI reply container (with thinking animation, show agent name)
@@ -1583,7 +1911,7 @@ const multiAgentHandlers = {
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
                         <div class="thinking-dot"></div>
-                        <span class="thinking-text">思考中...</span>
+                        <span class="thinking-text">Thinking...</span>
                     </div>
                 </div>
             </div>
@@ -1608,11 +1936,11 @@ const multiAgentHandlers = {
         try {
             if (isRemoteAgent) {
                 if (!currentAgent.url) {
-                    throw new Error('Remote agent 未配置 A2A 端点 URL');
+                    throw new Error('Remote agent A2A endpoint URL is not configured');
                 }
 
                 if (attachments && attachments.length > 0) {
-                    throw new Error('Remote agent 暂不支持附件');
+                    throw new Error('Remote agents do not support attachments yet');
                 }
             }
 
@@ -1641,7 +1969,7 @@ const multiAgentHandlers = {
             };
 
             // Call agent-specific streaming API
-            console.log('[MultiAgentHandlers] 调用Agent专属接口:', `/api/agent/${agentId}/chat/stream`);
+            console.log('[MultiAgentHandlers] Calling agent-specific endpoint:', `/api/agent/${agentId}/chat/stream`);
             const uploadFiles = (attachments || []).filter(a => a && a.file).map(a => a.file);
             if (uploadFiles.length > 0) {
                 await agentApi.agentChatStreamWithFiles(
@@ -1671,14 +1999,14 @@ const multiAgentHandlers = {
             // Setup timeout handling
             setTimeout(() => {
                 if (agentState.getRequestId() === requestId) {
-                    this.showStreamErrorForAgent('请求超时，请重试', agentId);
+                    this.showStreamErrorForAgent('Request timed out. Please try again.', agentId);
                     agentState.clearRequestId();
                     enableSendBtn();
                 }
             }, 120000); // 2 minute timeout
 
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 发送消息失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to send message:`, error);
             this.showStreamErrorForAgent(error.message, agentId);
             agentState.clearRequestId();
             enableSendBtn();
@@ -1740,7 +2068,7 @@ const multiAgentHandlers = {
             streamingMsg.classList.add('error-message');
             const streamingBody = streamingMsg.querySelector('.message-body');
             if (streamingBody) {
-                streamingBody.innerHTML = `<div class="error-content"><svg viewBox="0 0 24 24" width="16" height="16" fill="#d93025"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>请求失败: ${this.escapeHtml(error)}</span></div>`;
+                streamingBody.innerHTML = `<div class="error-content"><svg viewBox="0 0 24 24" width="16" height="16" fill="#d93025"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg><span>Request failed: ${this.escapeHtml(error)}</span></div>`;
             }
         }
     },
@@ -1782,7 +2110,7 @@ const multiAgentHandlers = {
             });
         }
 
-        console.log(`[MultiAgentHandlers] Agent ${agentId} 新建对话:`, newConversationId);
+        console.log(`[MultiAgentHandlers] Agent ${agentId} new chat:`, newConversationId);
     },
 
     /**
@@ -1790,7 +2118,7 @@ const multiAgentHandlers = {
      */
     async loadConversationForAgent(conversationId, agentId) {
         try {
-            console.log(`[MultiAgentHandlers] Agent ${agentId} 加载对话:`, conversationId);
+            console.log(`[MultiAgentHandlers] Agent ${agentId} loading conversation:`, conversationId);
 
             agentState.setCurrentAgent(agentId);
 
@@ -1837,9 +2165,9 @@ const multiAgentHandlers = {
 
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-            console.log(`[MultiAgentHandlers] Agent ${agentId} 对话加载完成，消息数:`, messages.length);
+            console.log(`[MultiAgentHandlers] Agent ${agentId} conversation loaded. Message count:`, messages.length);
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载对话失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load conversation:`, error);
         }
     },
 
@@ -1916,7 +2244,7 @@ const multiAgentHandlers = {
                 }
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载模型列表失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load model list:`, error);
         }
     },
 
@@ -1993,7 +2321,7 @@ const multiAgentHandlers = {
                 }
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载角色列表失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load role list:`, error);
         }
     },
 
@@ -2012,7 +2340,7 @@ const multiAgentHandlers = {
                 const modelConfig = result.data;
                 agentState.currentModelConfig = modelConfig;
                 this.populateParamTabForAgent(modelConfig, agentId);
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已加载:`, modelConfig.name);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} model config loaded:`, modelConfig.name);
 
                 // If needed, update agent config in database
                 if (saveToDatabase) {
@@ -2020,7 +2348,7 @@ const multiAgentHandlers = {
                 }
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载模型配置失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load model config:`, error);
         }
     },
 
@@ -2039,7 +2367,7 @@ const multiAgentHandlers = {
                 const roleConfig = result.data;
                 agentState.currentRoleConfig = roleConfig;
                 this.populatePromptTabForAgent(roleConfig, agentId);
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已加载:`, roleConfig.name);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} role config loaded:`, roleConfig.name);
 
                 // If needed, update agent config in database
                 if (saveToDatabase) {
@@ -2047,7 +2375,7 @@ const multiAgentHandlers = {
                 }
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 加载角色配置失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to load role config:`, error);
         }
     },
 
@@ -2077,14 +2405,14 @@ const multiAgentHandlers = {
             }
 
             if (result.success) {
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 模型配置已更新到数据库:`, configId);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} model config updated in database:`, configId);
                 // Reload agent instance to apply the new config
                 await this.reloadAgentInstance(agentId);
             } else {
-                console.error(`[MultiAgentHandlers] 更新Agent模型配置失败:`, result.error);
+                console.error(`[MultiAgentHandlers] Failed to update agent model config:`, result.error);
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] 更新Agent模型配置失败:`, error);
+            console.error(`[MultiAgentHandlers] Failed to update agent model config:`, error);
             throw error;
         }
     },
@@ -2115,14 +2443,14 @@ const multiAgentHandlers = {
             }
 
             if (result.success) {
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 角色配置已更新到数据库:`, roleId);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} role config updated in database:`, roleId);
                 // Reload agent instance to apply the new config
                 await this.reloadAgentInstance(agentId);
             } else {
-                console.error(`[MultiAgentHandlers] 更新Agent角色配置失败:`, result.error);
+                console.error(`[MultiAgentHandlers] Failed to update agent role config:`, result.error);
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] 更新Agent角色配置失败:`, error);
+            console.error(`[MultiAgentHandlers] Failed to update agent role config:`, error);
             throw error;
         }
     },
@@ -2138,10 +2466,10 @@ const multiAgentHandlers = {
             });
             const result = await response.json();
             if (result.success) {
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 实例已重新加载`);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} instance reloaded`);
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] 重新加载Agent实例失败:`, error);
+            console.error(`[MultiAgentHandlers] Failed to reload agent instance:`, error);
         }
     },
 
@@ -2199,7 +2527,7 @@ const multiAgentHandlers = {
         const currentConfig = agentState.currentRoleConfig;
         if (!currentConfig || !currentConfig.role_id) {
             if (typeof Notification !== 'undefined') {
-                Notification.error('没有选择角色配置');
+                Notification.error('No role config selected');
             }
             return;
         }
@@ -2215,18 +2543,18 @@ const multiAgentHandlers = {
             if (result.success) {
                 agentState.currentRoleConfig.system_prompt = prompt;
                 if (typeof Notification !== 'undefined') {
-                    Notification.success('System Prompt 已保存');
+                    Notification.success('System prompt saved');
                 }
-                console.log(`[MultiAgentHandlers] Agent ${agentId} 角色提示词已保存`);
+                console.log(`[MultiAgentHandlers] Agent ${agentId} role prompt saved`);
             } else {
                 if (typeof Notification !== 'undefined') {
-                    Notification.error('保存失败: ' + (result.error || '未知错误'));
+                    Notification.error('Save failed: ' + (result.error || 'Unknown error'));
                 }
             }
         } catch (error) {
-            console.error(`[MultiAgentHandlers] Agent ${agentId} 保存角色提示词失败:`, error);
+            console.error(`[MultiAgentHandlers] Agent ${agentId} failed to save role prompt:`, error);
             if (typeof Notification !== 'undefined') {
-                Notification.error('保存失败: ' + error.message);
+                Notification.error('Save failed: ' + error.message);
             }
         }
     },
@@ -2237,7 +2565,7 @@ const multiAgentHandlers = {
     initChatStreamListeners() {
         if (window.electronAPI && window.electronAPI.onChatStreamData) {
             // Streaming listener in Electron environment
-            console.log('[MultiAgentHandlers] 初始化Electron流式监听');
+            console.log('[MultiAgentHandlers] Initializing Electron streaming listeners');
             // TODO: Implement streaming listener in Electron environment
         }
     },
@@ -2311,115 +2639,246 @@ const multiAgentHandlers = {
         }
 
         Modal.show({
-            title: '添加插件',
+            title: 'Agent Plugins',
             content: `
-                <div class="form-group">
-                    <label>选择插件</label>
-                    <select class="form-input" id="pluginSelect">
-                        <option value="">请选择插件...</option>
-                        <option value="mindmap">思维导图插件</option>
-                        <option value="code">代码执行插件</option>
-                        <option value="calendar">日历插件</option>
-                        <option value="chart">图表插件</option>
-                        <option value="avatar3d">3D Avatar</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>插件说明</label>
-                    <p style="font-size: 12px; color: #666;" id="pluginDescription">请先选择一个插件</p>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                    <div class="form-group">
+                        <label>Select plugin</label>
+                        <select class="form-input" id="agentPluginSelect">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <p style="font-size: 12px; color: var(--text-secondary, #666);" id="agentPluginDescription">Select a plugin to view details</p>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                        <button type="button" class="btn btn-secondary" id="agentPluginRefreshBtn">Refresh</button>
+                        <button type="button" class="btn btn-secondary" id="agentPluginImportBtn">Import zip</button>
+                        <button type="button" class="btn btn-secondary" id="agentPluginDeleteBtn" disabled>Delete</button>
+                        <input type="file" id="agentPluginImportFile" accept=".zip" style="display:none" />
+                    </div>
                 </div>
             `,
-            confirmText: '添加',
+            confirmText: 'Load',
             showCancel: true,
-            onConfirm: () => {
-                const select = document.getElementById('pluginSelect');
-                const pluginId = select.value;
+            width: '560px',
+            onOpen: async () => {
+                const select = document.getElementById('agentPluginSelect');
+                const desc = document.getElementById('agentPluginDescription');
+                const refreshBtn = document.getElementById('agentPluginRefreshBtn');
+                const importBtn = document.getElementById('agentPluginImportBtn');
+                const deleteBtn = document.getElementById('agentPluginDeleteBtn');
+                const importFile = document.getElementById('agentPluginImportFile');
 
-                if (!pluginId) {
-                    if (typeof Notification !== 'undefined') {
-                        Notification.error('请选择一个插件');
+                const builtin = [
+                    { id: 'mindmap', name: 'Mind map plugin', description: 'Convert Markdown mindmap syntax in chat messages into a visual mind map' },
+                    { id: 'code', name: 'Code execution plugin', description: 'Extract code blocks from chat messages and provide edit/run features (supports JavaScript, Python, HTML/CSS/JS)' },
+                    { id: 'calendar', name: 'Calendar plugin', description: 'Display and manage calendar events in chat' },
+                    { id: 'chart', name: 'Chart plugin', description: 'Visualize data into charts' },
+                    { id: 'avatar3d', name: '3D Avatar', description: 'Open the 3D Avatar page in the right settings panel' }
+                ];
+
+                const loadIntoUi = async () => {
+                    if (!select) return;
+                    select.innerHTML = '<option value="">Please select a plugin...</option>';
+                    if (desc) desc.textContent = 'Select a plugin to view details';
+
+                    for (const b of builtin) {
+                        const opt = document.createElement('option');
+                        opt.value = `builtin:${b.id}`;
+                        opt.textContent = b.name;
+                        opt.dataset.description = b.description;
+                        select.appendChild(opt);
                     }
-                    return false; // Prevent modal from closing
+
+                    const plugins = await this._fetchRendererPlugins();
+                    window.__multiAgentRendererPlugins__ = plugins;
+                    if (plugins.length) {
+                        const group = document.createElement('optgroup');
+                        group.label = 'Imported plugins';
+                        for (const p of plugins) {
+                            const opt = document.createElement('option');
+                            opt.value = `renderer:${p.plugin_id}`;
+                            opt.textContent = p.name ? String(p.name) : String(p.plugin_id);
+                            group.appendChild(opt);
+                        }
+                        select.appendChild(group);
+                    }
+                };
+
+                await loadIntoUi();
+
+                if (select && desc) {
+                    select.addEventListener('change', () => {
+                        const value = String(select.value || '').trim();
+                        if (!value) {
+                            desc.textContent = 'Select a plugin to view details';
+                            if (deleteBtn) deleteBtn.disabled = true;
+                            return;
+                        }
+
+                        if (value.startsWith('builtin:')) {
+                            const selectedOpt = select.options[select.selectedIndex];
+                            const detail = selectedOpt && selectedOpt.dataset && selectedOpt.dataset.description
+                                ? String(selectedOpt.dataset.description)
+                                : '';
+                            desc.textContent = detail || 'Select a plugin to view details';
+
+                            if (deleteBtn) deleteBtn.disabled = true;
+                            return;
+                        }
+
+                        if (value.startsWith('renderer:')) {
+                            const id = value.slice('renderer:'.length);
+                            const plugins = Array.isArray(window.__multiAgentRendererPlugins__) ? window.__multiAgentRendererPlugins__ : [];
+                            const plugin = plugins.find(p => String(p.plugin_id) === String(id));
+                            if (!plugin) {
+                                desc.textContent = 'Select a plugin to view details';
+                                if (deleteBtn) deleteBtn.disabled = true;
+                                return;
+                            }
+                            const name = plugin.name ? String(plugin.name) : 'Unnamed plugin';
+                            const version = plugin.version ? String(plugin.version) : '';
+                            const detail = plugin.description ? String(plugin.description) : '';
+                            desc.textContent = `${name}${version ? ` v${version}` : ''}${detail ? ` - ${detail}` : ''}`;
+
+                            if (deleteBtn) deleteBtn.disabled = false;
+                        }
+                    });
                 }
 
-                this.loadPluginForAgent(pluginId, agentId);
+                if (refreshBtn) {
+                    refreshBtn.addEventListener('click', async () => {
+                        await loadIntoUi();
+                    });
+                }
+
+                if (importBtn && importFile) {
+                    importBtn.addEventListener('click', () => {
+                        try {
+                            importFile.value = '';
+                        } catch (e) {
+                        }
+                        importFile.click();
+                    });
+
+                    importFile.addEventListener('change', async () => {
+                        const file = importFile.files && importFile.files[0] ? importFile.files[0] : null;
+                        if (!file) return;
+                        await this._importRendererPluginZip(file);
+                        await loadIntoUi();
+                    });
+                }
+
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', async () => {
+                        const value = select ? String(select.value || '').trim() : '';
+                        if (!value.startsWith('renderer:')) return;
+                        const id = value.slice('renderer:'.length);
+                        const ok = window.confirm('Delete selected plugin?');
+                        if (!ok) return;
+                        const deleted = await this._deleteRendererPlugin(id, agentId);
+                        if (deleted) {
+                            await loadIntoUi();
+                            if (desc) desc.textContent = 'Select a plugin to view details';
+                            deleteBtn.disabled = true;
+                        }
+                    });
+                }
+            },
+            onConfirm: async () => {
+                const select = document.getElementById('agentPluginSelect');
+                const value = select ? String(select.value || '').trim() : '';
+                if (!value) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Please select a plugin');
+                    }
+                    return false;
+                }
+
+                if (value.startsWith('builtin:')) {
+                    const pluginId = value.slice('builtin:'.length);
+                    this.loadPluginForAgent(pluginId, agentId);
+                    return;
+                }
+
+                if (value.startsWith('renderer:')) {
+                    const id = value.slice('renderer:'.length);
+                    const plugins = Array.isArray(window.__multiAgentRendererPlugins__) ? window.__multiAgentRendererPlugins__ : [];
+                    const plugin = plugins.find(p => String(p.plugin_id) === String(id));
+                    if (!plugin) {
+                        if (typeof Notification !== 'undefined') {
+                            Notification.error('Plugin not found');
+                        }
+                        return false;
+                    }
+
+                    await this.loadRendererPluginForAgent(plugin, agentId);
+                    return;
+                }
+
+                if (typeof Notification !== 'undefined') {
+                    Notification.error('Unsupported plugin selection');
+                }
+                return false;
             }
         });
-
-        // Bind plugin selection change event
-        setTimeout(() => {
-            const select = document.getElementById('pluginSelect');
-            const descriptionEl = document.getElementById('pluginDescription');
-
-            if (select && descriptionEl) {
-                select.addEventListener('change', (e) => {
-                    const descriptions = {
-                        'mindmap': '将聊天内容中的 Markdown mindmap 语法转换为可视化的思维导图',
-                        'code': '从聊天中提取代码块，提供编辑和运行功能（支持 JavaScript、Python、HTML/CSS/JS）',
-                        'calendar': '在聊天中显示和管理日历事件',
-                        'chart': '将数据可视化为各种图表',
-                        'avatar3d': '在右侧设置面板中打开 3D Avatar 页面'
-                    };
-
-                    descriptionEl.textContent = descriptions[e.target.value] || '请先选择一个插件';
-                });
-            }
-        }, 100);
     },
 
     /**
      * Load plugin for a specific agent
      */
     loadPluginForAgent(pluginId, agentId) {
-        console.log(`[MultiAgentHandlers] 为Agent ${agentId} 加载插件:`, pluginId);
+        console.log(`[MultiAgentHandlers] Loading plugin for Agent ${agentId}:`, pluginId);
 
         // Plugin config
         const pluginConfigs = {
             'mindmap': {
-                name: '思维导图',
-                fullName: '思维导图插件',
-                description: '将 Markdown mindmap 转换为可视化思维导图',
+                name: 'Mind map',
+                fullName: 'Mind map plugin',
+                description: 'Convert Markdown mindmap into a visual mind map',
                 icon: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>'
             },
             'code': {
-                name: '代码执行',
-                fullName: '代码执行插件',
-                description: '从聊天中提取代码并在浏览器中运行',
+                name: 'Code execution',
+                fullName: 'Code execution plugin',
+                description: 'Extract code from chat messages and run it in the browser',
                 icon: '<path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>'
             },
             'calendar': {
-                name: '日历',
-                fullName: '日历插件',
-                description: '在聊天中显示和管理日历事件',
+                name: 'Calendar',
+                fullName: 'Calendar plugin',
+                description: 'Display and manage calendar events in chat',
                 icon: '<path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>'
             },
             'chart': {
-                name: '图表',
-                fullName: '图表插件',
-                description: '将数据可视化为各种图表',
+                name: 'Charts',
+                fullName: 'Chart plugin',
+                description: 'Visualize data into charts',
                 icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/>'
             },
             'avatar3d': {
                 name: '3D Avatar',
                 fullName: '3D Avatar',
-                description: '在右侧设置面板中打开 3D Avatar 页面',
+                description: 'Open the 3D Avatar page in the right settings panel',
                 icon: '<path d="M12 2a4 4 0 0 1 4 4c0 1.1-.45 2.1-1.17 2.83A6 6 0 0 1 18 14v2h-2v-2a4 4 0 0 0-8 0v2H6v-2a6 6 0 0 1 3.17-5.17A3.98 3.98 0 0 1 8 6a4 4 0 0 1 4-4zm0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>'
             }
         };
 
         const config = pluginConfigs[pluginId];
         if (!config) {
-            console.error('[MultiAgentHandlers] 未知的插件ID:', pluginId);
+            console.error('[MultiAgentHandlers] Unknown plugin ID:', pluginId);
             return;
         }
 
         // Check whether the plugin is already loaded
         const existingTab = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="plugin-${pluginId}"]`);
         if (existingTab) {
-            console.log('[MultiAgentHandlers] 插件已存在，切换到该页签');
+            console.log('[MultiAgentHandlers] Plugin already exists; switching to its tab');
             existingTab.click();
             if (typeof Notification !== 'undefined') {
-                Notification.info(`${config.fullName} 已加载`);
+                Notification.info(`${config.fullName} loaded`);
             }
             return;
         }
@@ -2427,7 +2886,7 @@ const multiAgentHandlers = {
         // 1. Create tab button
         const settingsTabs = document.getElementById(`settingsTabs-${agentId}`);
         if (!settingsTabs) {
-            console.error('[MultiAgentHandlers] 未找到设置页签容器');
+            console.error('[MultiAgentHandlers] Settings tabs container not found');
             return;
         }
 
@@ -2437,7 +2896,7 @@ const multiAgentHandlers = {
         tabButton.dataset.agentId = agentId;
         tabButton.innerHTML = `
             <span>${config.name}</span>
-            <span class="tab-close-btn" title="关闭">×</span>
+            <span class="tab-close-btn" title="Close">×</span>
         `;
 
         // Bind close button event
@@ -2448,12 +2907,12 @@ const multiAgentHandlers = {
         });
 
         settingsTabs.appendChild(tabButton);
-        console.log('[MultiAgentHandlers] ✓ 已创建页签按钮');
+        console.log('[MultiAgentHandlers] ✓ Tab button created');
 
         // 2. Create tab content
         const tabContent = document.getElementById(`settingsTabContent-${agentId}`);
         if (!tabContent) {
-            console.error('[MultiAgentHandlers] 未找到页签内容容器');
+            console.error('[MultiAgentHandlers] Tab content container not found');
             return;
         }
 
@@ -2463,7 +2922,7 @@ const multiAgentHandlers = {
         if (pluginId === 'avatar3d') {
             tabPane.innerHTML = `
                 <div class="plugin-content" id="plugin-content-${pluginId}-${agentId}">
-                    <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">正在加载插件...</p>
+                    <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">Loading plugin...</p>
                 </div>
             `;
         } else {
@@ -2476,14 +2935,14 @@ const multiAgentHandlers = {
                         <span>${config.fullName}</span>
                     </div>
                     <div class="plugin-content" id="plugin-content-${pluginId}-${agentId}">
-                        <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">正在加载插件...</p>
+                        <p style="font-size: 11px; color: #999; text-align: center; padding: 20px;">Loading plugin...</p>
                     </div>
                 </div>
             `;
         }
 
         tabContent.appendChild(tabPane);
-        console.log('[MultiAgentHandlers] ✓ 已创建页签内容');
+        console.log('[MultiAgentHandlers] ✓ Tab content created');
 
         // 3. Activate the newly created tab
         tabButton.click();
@@ -2492,17 +2951,17 @@ const multiAgentHandlers = {
         this.loadPluginContentForAgent(pluginId, agentId);
 
         if (typeof Notification !== 'undefined') {
-            Notification.success(`${config.fullName} 已加载`);
+            Notification.success(`${config.fullName} loaded`);
         }
 
-        console.log('[MultiAgentHandlers] ✓ 插件加载完成');
+        console.log('[MultiAgentHandlers] ✓ Plugin loaded');
     },
 
     /**
      * Remove plugin tab for a specific agent
      */
     removePluginTabForAgent(pluginId, agentId) {
-        console.log(`[MultiAgentHandlers] 为Agent ${agentId} 移除插件:`, pluginId);
+        console.log(`[MultiAgentHandlers] Removing plugin for Agent ${agentId}:`, pluginId);
 
         // Remove tab button
         const tabButton = document.querySelector(`#settingsTabs-${agentId} .settings-tab[data-tab="plugin-${pluginId}"]`);
@@ -2530,10 +2989,10 @@ const multiAgentHandlers = {
         }
 
         if (typeof Notification !== 'undefined') {
-            Notification.info('插件已移除');
+            Notification.info('Plugin removed');
         }
 
-        console.log('[MultiAgentHandlers] ✓ 插件已移除');
+        console.log('[MultiAgentHandlers] ✓ Plugin removed');
     },
 
     /**
@@ -2542,7 +3001,7 @@ const multiAgentHandlers = {
     loadPluginContentForAgent(pluginId, agentId) {
         const container = document.getElementById(`plugin-content-${pluginId}-${agentId}`);
         if (!container) {
-            console.error('[MultiAgentHandlers] 未找到插件内容容器:', `plugin-content-${pluginId}-${agentId}`);
+            console.error('[MultiAgentHandlers] Plugin content container not found:', `plugin-content-${pluginId}-${agentId}`);
             return;
         }
 
@@ -2552,19 +3011,19 @@ const multiAgentHandlers = {
                 container.innerHTML = `
                     <div style="padding: 12px;">
                         <p style="font-size: 11px; color: var(--text-secondary, #666); margin-bottom: 12px;">
-                            思维导图插件已激活。在聊天中发送包含 mindmap 格式的代码块，将自动转换为可视化思维导图。
+                            The mind map plugin is active. Send a code block with the mindmap format in chat, and it will be automatically converted into a visual mind map.
                         </p>
                         <div style="margin-bottom: 12px;">
-                            <p style="font-size: 10px; color: var(--text-secondary, #999); margin-bottom: 6px;">语法格式：</p>
+                            <p style="font-size: 10px; color: var(--text-secondary, #999); margin-bottom: 6px;">Syntax:</p>
                             <pre style="background: var(--bg-secondary, #f5f5f5); padding: 8px; border-radius: 4px; font-size: 10px; overflow-x: auto; margin-bottom: 8px;">\`\`\`mindmap
-- 根节点
-  - 子节点1
-    - 孙节点1.1
-  - 子节点2
+- Root node
+  - Child node 1
+    - Grandchild node 1.1
+  - Child node 2
 \`\`\`</pre>
                         </div>
-                        <button class="preset-use-btn" style="width: 100%; margin-bottom: 6px;" onclick="multiAgentHandlers.showMindmapExample(${agentId})">填充示例代码</button>
-                        <button class="preset-use-btn" style="width: 100%;" onclick="multiAgentHandlers.askAIForMindmap(${agentId})">让 AI 生成思维导图</button>
+                        <button class="preset-use-btn" style="width: 100%; margin-bottom: 6px;" onclick="multiAgentHandlers.showMindmapExample(${agentId})">Fill example code</button>
+                        <button class="preset-use-btn" style="width: 100%;" onclick="multiAgentHandlers.askAIForMindmap(${agentId})">Ask AI to generate a mind map</button>
                     </div>
                 `;
                 break;
@@ -2572,8 +3031,8 @@ const multiAgentHandlers = {
                 if (window.CodePlugin) {
                     window.CodePlugin.render(container);
                 } else {
-                    container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">代码执行插件未加载，请刷新页面</p>';
-                    console.error('[MultiAgentHandlers] CodePlugin 未找到');
+                    container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Code execution plugin is not loaded. Please refresh the page.</p>';
+                    console.error('[MultiAgentHandlers] CodePlugin not found');
                 }
                 break;
             case 'avatar3d':
@@ -2584,13 +3043,13 @@ const multiAgentHandlers = {
                 `;
                 break;
             case 'calendar':
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">日历插件开发中...</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Calendar plugin is under development...</p>';
                 break;
             case 'chart':
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">图表插件开发中...</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Chart plugin is under development...</p>';
                 break;
             default:
-                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">未知插件</p>';
+                container.innerHTML = '<p style="text-align: center; padding: 20px; color: var(--text-secondary, #666);">Unknown plugin</p>';
         }
     },
 
@@ -2600,9 +3059,9 @@ const multiAgentHandlers = {
     showMindmapExample(agentId) {
         const input = document.getElementById(`chatInput-${agentId}`);
         if (input) {
-            input.value = '```mindmap\n- 学习编程\n  - 基础知识\n    - 数据类型\n    - 控制流程\n    - 函数\n  - 实践项目\n    - Web开发\n    - 移动应用\n    - 数据分析\n  - 进阶学习\n    - 算法与数据结构\n    - 设计模式\n    - 系统架构\n```';
+            input.value = '```mindmap\n- Learning to Program\n  - Fundamentals\n    - Data types\n    - Control flow\n    - Functions\n  - Projects\n    - Web development\n    - Mobile apps\n    - Data analysis\n  - Advanced topics\n    - Algorithms & data structures\n    - Design patterns\n    - System architecture\n```';
             if (typeof Notification !== 'undefined') {
-                Notification.info('已填充示例代码，点击发送按钮即可看到思维导图效果');
+                Notification.info('Example code filled. Send it to see the mind map result.');
             }
             input.focus();
         }
@@ -2614,9 +3073,9 @@ const multiAgentHandlers = {
     askAIForMindmap(agentId) {
         const input = document.getElementById(`chatInput-${agentId}`);
         if (input) {
-            input.value = '请帮我生成一个关于"人工智能发展历程"的思维导图。\n\n请严格使用以下格式：\n```mindmap\n- 根节点\n  - 子节点（用2个空格缩进）\n    - 孙节点（用4个空格缩进）\n```\n\n注意：\n1. 代码块语言必须是 mindmap\n2. 每个节点用 "- " 开头\n3. 子节点用2个空格缩进\n4. 不要使用 Tab 键';
+            input.value = 'Please generate a mind map about the "History of AI".\n\nPlease strictly follow this format:\n```mindmap\n- Root node\n  - Child node (indent with 2 spaces)\n    - Grandchild node (indent with 4 spaces)\n```\n\nNotes:\n1. The code block language must be mindmap\n2. Each node must start with "- "\n3. Child nodes must be indented with 2 spaces\n4. Do not use the Tab key';
             if (typeof Notification !== 'undefined') {
-                Notification.info('已填充 AI 请求，发送后等待 AI 按照正确格式回复');
+                Notification.info('AI request filled. Send it and wait for the AI to reply in the correct format.');
             }
             input.focus();
         }

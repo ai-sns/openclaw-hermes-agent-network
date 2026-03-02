@@ -5,8 +5,10 @@ import os
 import uuid
 import base64
 import requests
+import httpx
 from datetime import datetime
 from pathlib import Path
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import Session
@@ -29,6 +31,7 @@ AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 
 _social_engine_instance = None
 _social_engine_running = False
+_social_engine_op_lock = asyncio.Lock()
 
 
 def apply_runtime_system_config(payload: dict) -> bool:
@@ -438,39 +441,111 @@ class SNSService:
         """Start the AI social engine"""
         global _social_engine_instance, _social_engine_running
 
-        try:
-            if _social_engine_running:
+        async with _social_engine_op_lock:
+            try:
+                if _social_engine_running:
+                    return {
+                        "success": True,
+                        "message": "AI Social Engine is already running",
+                        "running": True
+                    }
+
+                from backend.apps.sns.ai_social_engine import AISocialEngine
+
+                if _social_engine_instance is None:
+                    # Create a sync Session for AISocialEngine
+                    db_sync = get_db_sync()
+                    _social_engine_instance = AISocialEngine(db_sync)
+                    await _social_engine_instance.async_init()
+
+                await _social_engine_instance.start_engine()
+                _social_engine_running = True
+
+                logger.info("AI Social Engine started successfully")
                 return {
                     "success": True,
-                    "message": "AI Social Engine is already running",
+                    "message": "AI Social Engine started successfully",
                     "running": True
                 }
+            except Exception as e:
+                logger.error(f"Error starting AI social engine: {e}")
+                _social_engine_running = False
+                return {
+                    "success": False,
+                    "message": f"Failed to start AI Social Engine: {str(e)}",
+                    "running": False
+                }
 
-            from backend.apps.sns.ai_social_engine_adapter import AISocialEngine
 
-            if _social_engine_instance is None:
-                # Create a sync Session for AISocialEngine
-                db_sync = get_db_sync()
-                _social_engine_instance = AISocialEngine(db_sync)
-                await _social_engine_instance.async_init()
+    async def stop_social_engine(self) -> dict:
+        """Stop the AI social engine"""
+        global _social_engine_instance, _social_engine_running
 
-            await _social_engine_instance.start_engine()
-            _social_engine_running = True
+        async with _social_engine_op_lock:
+            try:
+                if _social_engine_instance is None:
+                    _social_engine_running = False
+                    return {
+                        "success": True,
+                        "message": "AI Social Engine is already stopped",
+                        "running": False
+                    }
 
-            logger.info("AI Social Engine started successfully")
-            return {
-                "success": True,
-                "message": "AI Social Engine started successfully",
-                "running": True
-            }
-        except Exception as e:
-            logger.error(f"Error starting AI social engine: {e}")
-            _social_engine_running = False
-            return {
-                "success": False,
-                "message": f"Failed to start AI Social Engine: {str(e)}",
-                "running": False
-            }
+                result = await _social_engine_instance.stop_engine()
+                _social_engine_running = False
+
+                payload = {
+                    "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
+                    "message": result.get("message") if isinstance(result, dict) else "AI Social Engine stopped",
+                    "running": False,
+                }
+                if isinstance(result, dict):
+                    payload.update({k: v for k, v in result.items() if k not in payload})
+                return payload
+
+            except Exception as e:
+                logger.error(f"Error stopping AI social engine: {e}")
+                _social_engine_running = False
+                return {
+                    "success": False,
+                    "message": f"Failed to stop AI Social Engine: {str(e)}",
+                    "running": False
+                }
+
+
+    async def restart_social_engine(self) -> dict:
+        """Restart the AI social engine"""
+        global _social_engine_instance, _social_engine_running
+
+        async with _social_engine_op_lock:
+            try:
+                from backend.apps.sns.ai_social_engine import AISocialEngine
+
+                if _social_engine_instance is None:
+                    db_sync = get_db_sync()
+                    _social_engine_instance = AISocialEngine(db_sync)
+                    await _social_engine_instance.async_init()
+
+                result = await _social_engine_instance.restart_engine()
+                _social_engine_running = True
+
+                payload = {
+                    "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
+                    "message": result.get("message") if isinstance(result, dict) else "AI Social Engine restarted",
+                    "running": True,
+                }
+                if isinstance(result, dict):
+                    payload.update({k: v for k, v in result.items() if k not in payload})
+                return payload
+
+            except Exception as e:
+                logger.error(f"Error restarting AI social engine: {e}")
+                _social_engine_running = False
+                return {
+                    "success": False,
+                    "message": f"Failed to restart AI Social Engine: {str(e)}",
+                    "running": False
+                }
 
 
     async def pause_social_engine(self) -> dict:
@@ -518,6 +593,27 @@ class SNSService:
                 "message": f"Failed to resume AI Social Engine: {str(e)}",
                 "status": "error"
             }
+
+
+    async def get_social_engine_status(self) -> dict:
+        global _social_engine_instance, _social_engine_running
+
+        started_flag = False
+        task_status = None
+        try:
+            if _social_engine_instance is not None:
+                started_flag = bool(getattr(_social_engine_instance, "started_flag", False))
+                task_status = getattr(_social_engine_instance, "map_task_status", None)
+        except Exception:
+            started_flag = False
+            task_status = None
+
+        return {
+            "success": True,
+            "running": bool(_social_engine_running),
+            "started": started_flag,
+            "task_status": task_status,
+        }
 
 
     async def set_human_control_state(self, human_take_over: bool, human_talk_type: int = None) -> dict:
@@ -655,6 +751,24 @@ class SNSService:
                 self.db.add(config)
 
             config.avatar = avatar_data
+
+            memo_raw = getattr(config, 'memo', None)
+            memo_obj = {}
+            if isinstance(memo_raw, str) and memo_raw.strip():
+                try:
+                    memo_obj = json.loads(memo_raw)
+                except Exception:
+                    memo_obj = {}
+            if not isinstance(memo_obj, dict):
+                memo_obj = {}
+            memo_obj['avatar_file'] = filename
+            memo_obj['avatar_map'] = avatar_map_filename
+            try:
+                config.memo = json.dumps(memo_obj, ensure_ascii=False)
+            except Exception:
+                # Keep avatar update even if memo serialization fails.
+                pass
+
             await self.db.commit()
             await self.db.refresh(config)
 
@@ -667,6 +781,171 @@ class SNSService:
         except Exception as e:
             logger.error(f"Error uploading avatar: {e}")
             return {"success": False, "message": str(e)}
+
+    async def upload_avatar_dialog(self, file) -> dict:
+        try:
+            from backend.modules.system.service import SystemInitWizardService
+
+            file_ext = Path(file.filename or '').suffix.lower()
+            if file_ext not in ('.png', '.jpg', '.jpeg', '.bmp', '.webp'):
+                file_ext = '.png'
+
+            file_id = str(uuid.uuid4())
+            filename = f"{file_id}{file_ext}"
+
+            content = await file.read()
+            SystemInitWizardService._save_uploaded_avatar(content, filename)
+            avatar_map_filename = SystemInitWizardService._generate_avatar_map(filename)
+
+            avatar_data = f"data:image/{file_ext[1:]};base64,{base64.b64encode(content).decode()}"
+
+            stmt = (
+                select(AiChatCfg)
+                .where(AiChatCfg.is_delete == False)
+                .order_by(AiChatCfg.id.desc())
+                .limit(1)
+            )
+            result = await self.db.execute(stmt)
+            config = result.scalars().first()
+            if not config:
+                config = AiChatCfg(user_id=None)
+                self.db.add(config)
+
+            config.avatar = avatar_data
+            await self.db.commit()
+            await self.db.refresh(config)
+
+            return {
+                'success': True,
+                'data': {
+                    'avatar': filename,
+                    'avatar_map': avatar_map_filename,
+                    'avatar_data': avatar_data,
+                }
+            }
+        except Exception as e:
+            logger.error("Avatar dialog upload failed: %s", e)
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return {'success': False, 'message': str(e)}
+
+    async def submit_avatar_dialog(self, payload: dict) -> dict:
+        try:
+            avatar_map = (payload.get('avatar_map') or '').strip()
+            avatar3d = (payload.get('avatar3d') or payload.get('avatar_3d') or '').strip()
+            nickname = (payload.get('nickname') or payload.get('nick_name') or '').strip()
+            profile = (payload.get('profile') or '').strip()
+            sns_url = (payload.get('sns_url') or '').strip()
+
+            if not avatar3d:
+                return {'success': False, 'message': 'avatar3d is required'}
+
+            stmt = (
+                select(AiChatCfg)
+                .where(AiChatCfg.is_delete == False)
+                .order_by(AiChatCfg.id.desc())
+                .limit(1)
+            )
+            result = await self.db.execute(stmt)
+            config = result.scalars().first()
+            if not config:
+                return {'success': False, 'message': 'No user config found'}
+
+            if not avatar_map:
+                memo_raw = getattr(config, 'memo', None)
+                if isinstance(memo_raw, str) and memo_raw.strip():
+                    try:
+                        memo_obj = json.loads(memo_raw)
+                        if isinstance(memo_obj, dict) and memo_obj.get('avatar_map'):
+                            avatar_map = str(memo_obj.get('avatar_map')).strip()
+                    except Exception:
+                        pass
+
+            if not avatar_map:
+                return {'success': False, 'message': 'avatar_map is required'}
+
+            nationid = (getattr(config, 'nationid', None) or '').strip()
+            nationpassword = (getattr(config, 'nationpassword', None) or '').strip()
+            if not nationid:
+                return {'success': False, 'message': 'nationid is not configured'}
+            if not nationpassword:
+                return {'success': False, 'message': 'nationpassword is not configured'}
+
+            nickname = nickname or (getattr(config, 'nickname', None) or '')
+            profile = profile or (getattr(config, 'sign', None) or '')
+            sns_url = sns_url or (getattr(config, 'sns_url', None) or '')
+
+            config.avatar3d = avatar3d
+            if nickname:
+                config.nickname = nickname
+            if profile:
+                config.sign = profile
+            config.sns_url = sns_url
+            await self.db.commit()
+
+            cfg_stmt = (
+                select(SystemCfg)
+                .where(SystemCfg.is_delete == False)
+                .order_by(SystemCfg.id.asc())
+                .limit(1)
+            )
+            cfg_result = await self.db.execute(cfg_stmt)
+            system_cfg = cfg_result.scalars().first()
+            base = (getattr(system_cfg, 'ai_sns_server', None) or '').strip().rstrip('/') if system_cfg else ''
+            if not base:
+                return {'success': False, 'message': 'ai_sns_server is not configured'}
+
+            avatar_map_path = Path('images') / 'avatars' / avatar_map
+            if not avatar_map_path.exists():
+                return {'success': False, 'message': f'avatar_map file not found: {avatar_map}'}
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                files = {
+                    'avatar_file': (avatar_map_path.name, avatar_map_path.read_bytes(), 'image/png')
+                }
+                upload_resp = await client.post(
+                    f"{base}/api/upload_avatar/",
+                    data={'nation_id': nationid},
+                    files=files,
+                )
+                if upload_resp.status_code not in (200, 201):
+                    return {
+                        'success': False,
+                        'message': f"Remote avatar upload failed: {upload_resp.status_code} - {upload_resp.text}",
+                    }
+
+                update_resp = await client.post(
+                    f"{base}/api/update-user/",
+                    data={
+                        'nation_id': nationid,
+                        'password': nationpassword,
+                        'nick_name': nickname,
+                        'avatar_3d': avatar3d,
+                        'profile': profile,
+                        'sns_url': sns_url,
+                    },
+                )
+                if update_resp.status_code not in (200, 201):
+                    return {
+                        'success': False,
+                        'message': f"Remote profile update failed: {update_resp.status_code} - {update_resp.text}",
+                    }
+
+            return {
+                'success': True,
+                'data': {
+                    'nationid': nationid,
+                }
+            }
+        except Exception as e:
+            logger.error("Avatar dialog submit failed: %s", e)
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            return {'success': False, 'message': str(e)}
 
     async def get_social_roles(self):
         """Get social roles (prompts with SNS tag)"""
@@ -894,6 +1173,97 @@ class SNSService:
             logger.error(f"Error building current status overview: {e}")
             return {"success": False, "message": str(e), "content": ""}
 
+    async def _sync_profession_to_remote(self, nationid: str, nationpassword: str, profession: str) -> Optional[str]:
+        try:
+            cfg_stmt = (
+                select(SystemCfg)
+                .where(SystemCfg.is_delete == False)
+                .order_by(SystemCfg.id.asc())
+                .limit(1)
+            )
+            cfg_result = await self.db.execute(cfg_stmt)
+            system_cfg = cfg_result.scalars().first()
+            base = (getattr(system_cfg, 'ai_sns_server', None) or '').strip().rstrip('/') if system_cfg else ''
+            if not base:
+                return 'ai_sns_server is not configured'
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{base}/api/update-profession/",
+                    data={
+                        'nation_id': nationid,
+                        'password': nationpassword,
+                        'profession': profession,
+                    },
+                )
+                if resp.status_code not in (200, 201):
+                    return f"Remote profession update failed: {resp.status_code} - {resp.text}"
+            return None
+        except Exception as e:
+            return str(e)
+
+    async def change_nationpassword(self, data: dict) -> dict:
+        try:
+            new_password = (data.get('new_password') if isinstance(data, dict) else None) or ''
+            new_password = str(new_password).strip()
+            if not new_password:
+                return {"success": False, "message": "new_password is required"}
+
+            config = await self._get_latest_user_config()
+            if not config:
+                return {"success": False, "message": "No user config found"}
+
+            nationid = (getattr(config, 'nationid', None) or '').strip()
+            old_password = (getattr(config, 'nationpassword', None) or '').strip()
+            if not nationid:
+                return {"success": False, "message": "nationid is not configured"}
+            if not old_password:
+                return {"success": False, "message": "nationpassword is not configured"}
+
+            cfg_stmt = (
+                select(SystemCfg)
+                .where(SystemCfg.is_delete == False)
+                .order_by(SystemCfg.id.asc())
+                .limit(1)
+            )
+            cfg_result = await self.db.execute(cfg_stmt)
+            system_cfg = cfg_result.scalars().first()
+            base = (getattr(system_cfg, 'ai_sns_server', None) or '').strip().rstrip('/') if system_cfg else ''
+            if not base:
+                return {"success": False, "message": "ai_sns_server is not configured"}
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    f"{base}/api/change-password/",
+                    data={
+                        'nation_id': nationid,
+                        'old_password': old_password,
+                        'new_password': new_password,
+                    },
+                )
+                if resp.status_code not in (200, 201):
+                    await self.db.rollback()
+                    return {
+                        "success": False,
+                        "message": f"Remote password change failed: {resp.status_code} - {resp.text}",
+                    }
+
+                try:
+                    body = resp.json()
+                    if isinstance(body, dict) and body.get('success') is False:
+                        await self.db.rollback()
+                        return {"success": False, "message": str(body.get('message') or 'Remote password change failed')}
+                except Exception:
+                    pass
+
+            config.nationpassword = new_password
+            await self.db.commit()
+            return {"success": True, "message": "Nation password updated successfully"}
+        except Exception as e:
+            logger.error(f"Error changing nation password: {e}")
+            await self.db.rollback()
+            return {"success": False, "message": str(e)}
+
     async def update_user_info(self, data: dict):
         """Update user information in aichat_cfg"""
         try:
@@ -918,11 +1288,14 @@ class SNSService:
             }
 
             deducted = 0.0
+            profession_changed = False
+            new_profession = None
             if 'profession' in data:
                 new_profession = data.get('profession')
                 old_profession = getattr(config, 'profession', None)
 
                 if new_profession != old_profession:
+                    profession_changed = True
                     cost = float(profession_costs.get(new_profession, 0) or 0)
                     if cost > 0:
                         current_money = float(getattr(config, 'money', 0) or 0)
@@ -946,6 +1319,19 @@ class SNSService:
                 config.goods_or_service_description = data.get('goods_or_service_description')
             if 'goods_or_service_price' in data and hasattr(config, 'goods_or_service_price'):
                 config.goods_or_service_price = data.get('goods_or_service_price')
+
+            if profession_changed and new_profession:
+                nationid = (getattr(config, 'nationid', None) or '').strip()
+                nationpassword = (getattr(config, 'nationpassword', None) or '').strip()
+                if not nationid:
+                    return {"success": False, "message": "nationid is not configured"}
+                if not nationpassword:
+                    return {"success": False, "message": "nationpassword is not configured"}
+
+                remote_error = await self._sync_profession_to_remote(nationid, nationpassword, str(new_profession))
+                if remote_error:
+                    await self.db.rollback()
+                    return {"success": False, "message": remote_error}
 
             await self.db.commit()
             return {

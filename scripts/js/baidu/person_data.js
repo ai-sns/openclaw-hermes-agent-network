@@ -20,7 +20,7 @@ function getPersonModelByNationId(nation_id) {
 function getPersonPointByNationId(nation_id) {
     let persondata = getPersonDataByNationId(nation_id);
     if (!persondata || !persondata["location"]) {
-        console.error("无法获取用户数据或位置信息，nation_id:", nation_id);
+        console.error("Unable to get user data or location info, nation_id:", nation_id);
         // Return a default position, e.g. the map center
         return new BMapGL.Point(116.397428, 39.90923);
     }
@@ -33,7 +33,7 @@ function getPersonPointByNationId(nation_id) {
 function setPersonPointByNationId(nation_id, lng, lat) {
     let persondata = getPersonDataByNationId(nation_id);
     if (!persondata) {
-        console.error("无法获取用户数据，nation_id:", nation_id);
+        console.error("Unable to get user data, nation_id:", nation_id);
         return;
     }
     let location = persondata["location"];

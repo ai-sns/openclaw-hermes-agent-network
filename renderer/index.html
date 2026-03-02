@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://api.map.baidu.com https://*.bdimg.com; style-src 'self' 'unsafe-inline' https://*.bdimg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: http: https: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://*.baidu.com https://*.bdimg.com; frame-src 'self' https://*.baidu.com http: https:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: http: https: https://api.map.baidu.com https://*.bdimg.com; style-src 'self' 'unsafe-inline' https://*.bdimg.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: http: https: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:* https://*.baidu.com https://*.bdimg.com; frame-src 'self' https://*.baidu.com http: https:;">
     <title>AI-SNS</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,24 +23,24 @@
 </head>
 <body>
     <div id="app">
-        <!-- 自定义标题栏 -->
+        <!-- Custom title bar -->
         <header class="titlebar" id="titlebar">
             <div class="titlebar-drag-region"></div>
-            <!-- macOS 风格窗口按钮 (左侧) -->
+            <!-- macOS-style window controls (left) -->
             <div class="window-controls macos-style">
-                <button class="window-btn close" id="windowClose" title="关闭">
+                <button class="window-btn close" id="windowClose" title="Close">
                     <svg viewBox="0 0 12 12"><path d="M3.5 3.5l5 5M8.5 3.5l-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <button class="window-btn minimize" id="windowMinimize" title="最小化">
+                <button class="window-btn minimize" id="windowMinimize" title="Minimize">
                     <svg viewBox="0 0 12 12"><path d="M2 6h8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
-                <button class="window-btn maximize" id="windowMaximize" title="最大化">
+                <button class="window-btn maximize" id="windowMaximize" title="Maximize">
                     <svg viewBox="0 0 12 12"><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
                 </button>
             </div>
             <div class="titlebar-title">AI-SNS</div>
             <div class="titlebar-actions">
-                <button class="titlebar-btn theme-toggle-btn" id="themeToggleBtn" title="切换主题">
+                <button class="titlebar-btn theme-toggle-btn" id="themeToggleBtn" title="Toggle theme">
                     <svg class="icon-sun" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="12" cy="12" r="5"/>
                         <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
@@ -53,9 +53,9 @@
             <div class="titlebar-spacer"></div>
         </header>
 
-        <!-- 主体内容区 -->
+        <!-- Main content area -->
         <div class="app-body">
-            <!-- 左侧图标导航栏 -->
+            <!-- Left icon navigation bar -->
             <nav class="icon-nav" id="iconNav">
                 <div class="nav-logo">
                     <svg viewBox="0 0 32 32" width="28" height="28">
@@ -70,14 +70,14 @@
                     </svg>
                 </div>
                 <div class="icon-nav-main">
-                    <div class="nav-icon-item active" data-page="sns" title="SNS 社交网络">
+                    <div class="nav-icon-item active" data-page="sns" title="SNS Social Network">
                         <div class="nav-icon-wrapper">
 
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                              <!-- 中间的主用户 -->
+                              <!-- Primary user (center) -->
                               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
                               <circle cx="9" cy="7" r="4"></circle>
-                              <!-- 后面的人影 -->
+                              <!-- Secondary user (background) -->
                               <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
                               <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                             </svg>
@@ -96,7 +96,7 @@
                         </div>
                         <span class="nav-label">Agent</span>
                     </div>
-                    <div class="nav-icon-item" data-page="km" title="知识库">
+                    <div class="nav-icon-item" data-page="km" title="Knowledge Base">
                         <div class="nav-icon-wrapper">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
@@ -107,7 +107,7 @@
                         </div>
                         <span class="nav-label">KM</span>
                     </div>
-                    <div class="nav-icon-item" data-page="tools" title="工具插件">
+                    <div class="nav-icon-item" data-page="tools" title="Tools & Plugins">
                         <div class="nav-icon-wrapper">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
@@ -117,7 +117,7 @@
                     </div>
                 </div>
                 <div class="icon-nav-bottom">
-                    <div class="nav-icon-item" data-page="web" title="Web 服务">
+                    <div class="nav-icon-item" data-page="web" title="Web Services">
                         <div class="nav-icon-wrapper">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <circle cx="12" cy="12" r="10"/>
@@ -127,7 +127,7 @@
                         </div>
                         <span class="nav-label">Web</span>
                     </div>
-                    <div class="nav-icon-item" data-page="home" title="首页设置">
+                    <div class="nav-icon-item" data-page="home" title="Home Settings">
                         <div class="nav-icon-wrapper">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
@@ -139,48 +139,48 @@
                 </div>
             </nav>
 
-            <!-- 二级侧边栏 -->
+            <!-- Secondary sidebar -->
             <aside class="secondary-sidebar" id="secondarySidebar">
-                <!-- 根据不同页面动态切换内容 -->
+                <!-- Content switches dynamically based on the current page -->
             </aside>
 
-            <!-- 侧边栏分隔拖拽条 -->
+            <!-- Sidebar resizer -->
             <div class="sidebar-resizer" id="sidebarResizer">
                 <div class="resizer-handle">
                     <div class="resizer-line"></div>
                 </div>
-                <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="折叠侧边栏">
+                <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
                         <polyline points="15,18 9,12 15,6"/>
                     </svg>
                 </button>
             </div>
 
-            <!-- 主内容区 -->
+            <!-- Main content -->
             <main class="main-content" id="mainContent">
-                <!-- 页面内容由 JS 动态加载 -->
+                <!-- Page content is loaded dynamically by JS -->
             </main>
         </div>
     </div>
 
-    <!-- 模态框容器 -->
+    <!-- Modal container -->
     <div id="modalContainer"></div>
 
-    <!-- 通知容器 -->
+    <!-- Notification container -->
     <div id="notificationContainer" class="notification-container"></div>
 
-    <!-- 加载脚本 -->
-    <!-- 旧版脚本 (向后兼容，待完全迁移后移除) -->
+    <!-- Scripts -->
+    <!-- Legacy scripts (backward compatibility; remove after full migration) -->
     <script src="js/api.js"></script>
     <script src="js/components.js"></script>
     <script src="js/tools-manager.js"></script>
     <script src="js/pages.js"></script>
 
-    <!-- 插件系统 -->
+    <!-- Plugin system -->
     <script type="module" src="js/plugins/mindmapPlugin.js"></script>
     <script type="module" src="js/plugins/codePlugin.js"></script>
 
-    <!-- 新模块系统 (ES6 Modules) -->
+    <!-- New module system (ES6 Modules) -->
     <script type="module" src="js/core/eventBus.js"></script>
     <script type="module" src="js/core/storage.js"></script>
     <script type="module" src="js/core/router.js"></script>
@@ -198,7 +198,7 @@
     <script src="js/modules/agent/AgentKnowledgeBaseDialog.js"></script>
     <script src="js/modules/agent/agentKnowledgeBaseConfig.js"></script>
 
-    <!-- 主应用入口 (必须最后加载) -->
+    <!-- App entry (must be loaded last) -->
     <script src="js/app.js"></script>
 </body>
 </html>

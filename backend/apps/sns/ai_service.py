@@ -41,9 +41,9 @@ class SNSAIService:
 
             # Update system prompt based on mode
             if mode == "ai":
-                modified_prompt = "我是你的AI助手。" + original_prompt
+                modified_prompt = "I am your AI assistant. " + original_prompt
             else:  # friends
-                modified_prompt = "我是你的朋友。" + original_prompt
+                modified_prompt = "I am your friend. " + original_prompt
 
             # Temporarily override system prompt
             agent.role_config['system_prompt'] = modified_prompt

@@ -1,0 +1,7 @@
+{
+  "id": "nearest-place",
+  "name": "Nearest Place",
+  "version": "1.0.0",
+  "description": "Query the nearest place by coordinates and open the URL.",
+  "entry": "index.js"
+}

@@ -32,16 +32,16 @@ export default {
      * Initialize module (multi-agent version)
      */
     async init() {
-        console.log('[AgentModule] 初始化多Agent系统...');
+        console.log('[AgentModule] Initializing multi-agent system...');
 
         try {
             // Initialize using multi-agent handlers
             await multiAgentHandlers.init();
-            console.log('[AgentModule] 多Agent系统初始化完成');
+            console.log('[AgentModule] Multi-agent system initialized');
         } catch (error) {
-            console.error('[AgentModule] 初始化失败:', error);
+            console.error('[AgentModule] Initialization failed:', error);
             // Fallback to legacy mode
-            console.warn('[AgentModule] 降级到传统单Agent模式');
+            console.warn('[AgentModule] Falling back to legacy single-agent mode');
             agentHandlers.init();
         }
     },

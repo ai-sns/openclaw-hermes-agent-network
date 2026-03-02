@@ -212,15 +212,15 @@ export default {
             <div class="sidebar-section">
                 <div class="sidebar-header-row">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-  <!-- 地图轮廓 -->
+  <!-- Map outline -->
   <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-  <!-- 内部折痕 -->
+  <!-- Inner folds -->
   <line x1="8" y1="2" x2="8" y2="18"></line>
   <line x1="16" y1="6" x2="16" y2="22"></line>
 </svg>
                     <span class="sidebar-section-title" id="snsExploreTitle">Explore the Earth</span>
                 </div>
-                <!-- 用户属性面板 -->
+                <!-- User stats panel -->
                 <div class="user-stats-panel">
                     <div class="user-stats-charts">
                         <div class="user-stat-bars">

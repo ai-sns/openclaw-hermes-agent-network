@@ -542,8 +542,8 @@ const loadFontWithRetry = async (url) => {
                 );
             });
         } catch (error) {
-            console.error(`字体加载失败 (尝试 ${attempt + 1}/${retries}):`, error.message);
-            if (attempt === retries - 1) throw new Error(`字体加载最终失败: ${url}`);
+            console.error(`Font load failed (attempt ${attempt + 1}/${retries}):`, error.message);
+            if (attempt === retries - 1) throw new Error(`Font load failed after all retries: ${url}`);
             await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, attempt)));
         }
     }

@@ -54,7 +54,7 @@ const toolsHandlers = {
                 <div class="modal-overlay" id="${dialogId}">
                     <div class="modal-dialog" style="max-width: 520px;">
                         <div class="modal-header">
-                            <h2>${title || '确认操作'}</h2>
+                            <h2>${title || 'Confirm action'}</h2>
                             <button class="modal-close doc-skill-modal__close" data-confirm-close="1">
                                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                                     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -127,7 +127,7 @@ const toolsHandlers = {
                     </div>
                     <div class="modal-body">
                         <div style="margin-bottom: 10px; color: var(--text-secondary); font-size: 13px;">
-                            输入参数（JSON），将作为请求体传给 /api/skills/${skillKey}/run。
+                            Enter parameters (JSON) and they will be sent as the request body to /api/skills/${skillKey}/run.
                         </div>
                         <textarea id="docSkillRunParamsEditor" style="width: 100%; min-height: 240px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.4; padding: 12px; border: 1px solid var(--border-color); border-radius: 10px;"></textarea>
                     </div>
@@ -156,17 +156,17 @@ const toolsHandlers = {
                 try {
                     params = raw && raw.trim() ? JSON.parse(raw) : {};
                 } catch (e) {
-                    this.showMessage('参数 JSON 解析失败: ' + e.message, 'error');
+                    this.showMessage('Failed to parse params JSON: ' + e.message, 'error');
                     return;
                 }
                 if (params === null || typeof params !== 'object' || Array.isArray(params)) {
-                    this.showMessage('参数必须是 JSON Object（例如 {}）', 'error');
+                    this.showMessage('Params must be a JSON object (e.g. {})', 'error');
                     return;
                 }
 
                 runBtn.disabled = true;
                 const originalText = runBtn.textContent;
-                runBtn.textContent = '运行中...';
+                runBtn.textContent = 'Running...';
 
                 try {
                     const response = await fetch(`${this.skillsApiBaseUrl}/${encodeURIComponent(skillKey)}/run`, {
@@ -183,7 +183,7 @@ const toolsHandlers = {
                     this.showTestResult(result.result || result);
                 } catch (e) {
                     console.error('Run doc-skill error:', e);
-                    this.showMessage('运行失败: ' + e.message, 'error');
+                    this.showMessage('Run failed: ' + e.message, 'error');
                 } finally {
                     runBtn.disabled = false;
                     runBtn.textContent = originalText;
@@ -277,7 +277,7 @@ const toolsHandlers = {
                     endpoint = '/list';
                     break;
                 default:
-                    pluginGrid.innerHTML = '<div class="empty-state">未知分类</div>';
+                    pluginGrid.innerHTML = '<div class="empty-state">Unknown category</div>';
                     return;
             }
 
@@ -320,10 +320,10 @@ const toolsHandlers = {
             console.error('Error loading tools:', error);
             pluginGrid.innerHTML = `
                 <div class="error-state">
-                    <h3>加载失败</h3>
+                    <h3>Load failed</h3>
                     <p>${error.message}</p>
                     <button onclick="toolsHandlers.loadCategoryContent('${category}')" class="retry-btn">
-                        重试
+                        Retry
                     </button>
                 </div>
             `;
@@ -381,15 +381,15 @@ const toolsHandlers = {
         const actionsHTML = category === 'doc-skill'
             ? `
                 <div class="plugin-actions tools-card-ref__actions">
-                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="运行">
+                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="Run">
                         <span class="material-icons-round">play_arrow</span>
                         Run
                     </button>
-                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="编辑 SKILL.md">
+                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="Edit SKILL.md">
                         <span class="material-icons-round">edit</span>
                         Edit
                     </button>
-                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="删除（仅 workspace skills/）">
+                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="Delete (workspace skills/ only)">
                         <span class="material-icons-round">delete</span>
                         Delete
                     </button>
@@ -397,15 +397,15 @@ const toolsHandlers = {
             `
             : `
                 <div class="plugin-actions tools-card-ref__actions">
-                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="测试运行">
+                    <button class="plugin-test-btn tools-card-ref__btn tools-card-ref__btn--test" data-id="${id}" data-category="${category}" title="Test run">
                         <span class="material-icons-round">play_arrow</span>
                         Test
                     </button>
-                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="编辑">
+                    <button class="plugin-edit-btn tools-card-ref__btn tools-card-ref__btn--edit" data-id="${id}" data-category="${category}" title="Edit">
                         <span class="material-icons-round">edit</span>
                         Edit
                     </button>
-                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="删除">
+                    <button class="plugin-delete-btn tools-card-ref__btn tools-card-ref__btn--delete" data-id="${id}" data-category="${category}" title="Delete">
                         <span class="material-icons-round">delete</span>
                         Delete
                     </button>
@@ -460,14 +460,14 @@ const toolsHandlers = {
                     <line x1="9" y1="9" x2="15" y2="15"/>
                     <line x1="15" y1="9" x2="9" y2="15"/>
                 </svg>
-                <h3>暂无${typeName}</h3>
-                <p>点击下方按钮创建第一个${typeName}</p>
+                <h3>No ${typeName} yet</h3>
+                <p>Click the button below to create the first ${typeName}</p>
                 <button onclick="toolsHandlers.showAddDialog('${category}')" class="add-tool-btn">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="12" y1="5" x2="12" y2="19"/>
                         <line x1="5" y1="12" x2="19" y2="12"/>
                     </svg>
-                    添加${typeName}
+                    Add ${typeName}
                 </button>
             </div>
         `;
@@ -513,7 +513,7 @@ const toolsHandlers = {
 
         // Show running state
         const originalText = btn.innerHTML;
-        btn.innerHTML = '<span class="spinner-small"></span> 运行中...';
+        btn.innerHTML = '<span class="spinner-small"></span> Running...';
         btn.disabled = true;
 
         try {
@@ -556,7 +556,7 @@ const toolsHandlers = {
 
         } catch (error) {
             console.error('Test error:', error);
-            this.showMessage('测试失败: ' + error.message, 'error');
+            this.showMessage('Test failed: ' + error.message, 'error');
         } finally {
             btn.innerHTML = originalText;
             btn.disabled = false;
@@ -569,7 +569,7 @@ const toolsHandlers = {
             <div class="modal-overlay" id="testResultDialog">
                 <div class="modal-dialog test-result-dialog">
                     <div class="modal-header">
-                        <h2>测试结果</h2>
+                        <h2>Test result</h2>
                         <button class="modal-close" onclick="document.getElementById('testResultDialog').remove()">
                             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -582,7 +582,7 @@ const toolsHandlers = {
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-primary" onclick="document.getElementById('testResultDialog').remove()">
-                            关闭
+                            Close
                         </button>
                     </div>
                 </div>
@@ -637,7 +637,7 @@ const toolsHandlers = {
 
         } catch (error) {
             console.error('Edit error:', error);
-            this.showMessage('加载工具数据失败: ' + error.message, 'error');
+            this.showMessage('Failed to load tool data: ' + error.message, 'error');
         }
     },
 
@@ -657,18 +657,29 @@ const toolsHandlers = {
                 });
                 if (!response.ok) {
                     const text = await response.text();
-                    throw new Error(text || `删除失败: ${response.status}`);
+                    throw new Error(text || `Delete failed: ${response.status}`);
                 }
-                this.showMessage('删除成功', 'success');
+                this.showMessage('Deleted successfully', 'success');
                 await this.loadCategoryContent(category);
             } catch (error) {
                 console.error('Delete doc-skill error:', error);
-                this.showMessage('删除失败: ' + error.message, 'error');
+                this.showMessage('Delete failed: ' + error.message, 'error');
             }
             return;
         }
 
-        if (!confirm('确定要删除这个工具吗？')) return;
+        const tool = (this.currentData || []).find((t) => {
+            const tid = t.plugin_id || t.mcp_id || t.function_id || t.skill_id || '';
+            return String(tid) === String(id);
+        });
+        const toolName = tool && tool.name ? `"${tool.name}"` : 'this tool';
+        const ok = await this.showConfirmDialog({
+            title: 'Delete Tool',
+            message: `Delete ${toolName}?`,
+            confirmText: 'Delete',
+            cancelText: 'Cancel'
+        });
+        if (!ok) return;
 
         try {
             let endpoint = '';
@@ -692,20 +703,20 @@ const toolsHandlers = {
             });
 
             if (!response.ok) {
-                throw new Error(`删除失败: ${response.status}`);
+                throw new Error(`Delete failed: ${response.status}`);
             }
 
-            this.showMessage('删除成功', 'success');
+            this.showMessage('Deleted successfully', 'success');
             await this.loadCategoryContent(category);
         } catch (error) {
             console.error('Delete error:', error);
-            this.showMessage('删除失败: ' + error.message, 'error');
+            this.showMessage('Delete failed: ' + error.message, 'error');
         }
     },
 
     showAddDialog(category) {
         if (category === 'doc-skill') {
-            this.showMessage('Doc Skills 暂不支持在界面新建/导入（后续会加导入/刷新）', 'info');
+            this.showMessage('Doc Skills does not currently support creating/importing in the UI (import/refresh will be added later).', 'info');
             return;
         }
         this.editDialog.show(category, null, () => {
@@ -741,8 +752,8 @@ const toolsHandlers = {
                         <textarea id="docSkillMarkdownEditor" style="width: 100%; min-height: 60vh; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 12px; line-height: 1.4; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;"></textarea>
                     </div>
                     <div class="modal-footer" style="display:flex; justify-content:flex-end; gap: 8px; padding: 12px 16px;">
-                        <button type="button" class="btn btn-primary" id="docSkillSaveBtn">保存</button>
-                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('docSkillMarkdownDialog').remove()">关闭</button>
+                        <button type="button" class="btn btn-primary" id="docSkillSaveBtn">Save</button>
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('docSkillMarkdownDialog').remove()">Close</button>
                     </div>
                 </div>
             </div>
@@ -761,7 +772,7 @@ const toolsHandlers = {
                 const newMd = editor ? editor.value : '';
                 saveBtn.disabled = true;
                 const originalText = saveBtn.textContent;
-                saveBtn.textContent = '保存中...';
+                saveBtn.textContent = 'Saving...';
                 try {
                     const resp = await fetch(`${this.skillsApiBaseUrl}/edit`, {
                         method: 'PUT',
@@ -770,13 +781,13 @@ const toolsHandlers = {
                     });
                     if (!resp.ok) {
                         const text = await resp.text();
-                        throw new Error(text || `保存失败: ${resp.status}`);
+                        throw new Error(text || `Save failed: ${resp.status}`);
                     }
-                    this.showMessage('保存成功', 'success');
+                    this.showMessage('Saved successfully', 'success');
                     await this.loadCategoryContent('doc-skill');
                 } catch (e) {
                     console.error('Save doc-skill error:', e);
-                    this.showMessage('保存失败: ' + e.message, 'error');
+                    this.showMessage('Save failed: ' + e.message, 'error');
                 } finally {
                     saveBtn.disabled = false;
                     saveBtn.textContent = originalText;

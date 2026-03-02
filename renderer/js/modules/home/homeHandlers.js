@@ -245,29 +245,29 @@ const homeHandlers = {
         }
 
         Modal.show({
-            title: '帮助',
+            title: 'Help',
             content: `
                 <div class="help-modal">
-                    <h4>快捷键</h4>
+                    <h4>Keyboard shortcuts</h4>
                     <ul class="help-list">
-                        <li><kbd>Ctrl/Cmd + B</kbd> 折叠/展开侧边栏</li>
-                        <li><kbd>Ctrl/Cmd + K</kbd> 搜索</li>
-                        <li><kbd>Ctrl/Cmd + ,</kbd> 设置</li>
-                        <li><kbd>Ctrl/Cmd + 1-6</kbd> 快速导航</li>
+                        <li><kbd>Ctrl/Cmd + B</kbd> Collapse/expand sidebar</li>
+                        <li><kbd>Ctrl/Cmd + K</kbd> Search</li>
+                        <li><kbd>Ctrl/Cmd + ,</kbd> Settings</li>
+                        <li><kbd>Ctrl/Cmd + 1-6</kbd> Quick navigation</li>
                     </ul>
-                    <h4>功能模块</h4>
+                    <h4>Modules</h4>
                     <ul class="help-list">
-                        <li><strong>SNS</strong> - 地图社交探索</li>
-                        <li><strong>Agent</strong> - AI Agent对话</li>
-                        <li><strong>KM</strong> - 知识库管理</li>
-                        <li><strong>Tools</strong> - 插件工具</li>
-                        <li><strong>Web</strong> - LLM在线服务</li>
-                        <li><strong>Home</strong> - 首页设置</li>
+                        <li><strong>SNS</strong> - Social exploration on the map</li>
+                        <li><strong>Agent</strong> - AI agent chat</li>
+                        <li><strong>KM</strong> - Knowledge base management</li>
+                        <li><strong>Tools</strong> - Tools & plugins</li>
+                        <li><strong>Web</strong> - LLM online services</li>
+                        <li><strong>Home</strong> - Home settings</li>
                     </ul>
                 </div>
             `,
             showCancel: false,
-            confirmText: '关闭'
+            confirmText: 'Close'
         });
     },
 

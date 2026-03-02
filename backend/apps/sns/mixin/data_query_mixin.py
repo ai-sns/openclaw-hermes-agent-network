@@ -158,17 +158,17 @@ class DataQueryMixin:
             elif method == "POST":
                 response = requests.post(url, data=params)
             else:
-                raise ValueError(f"不支持的请求方法: {method}")
+                raise ValueError(f"Unsupported request method: {method}")
 
             response.raise_for_status()  # Check HTTP status code
             return response.json()
 
         except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP错误发生: {http_err}")
+            print(f"HTTP error occurred: {http_err}")
         except requests.exceptions.RequestException as req_err:
-            print(f"请求错误发生: {req_err}")
+            print(f"Request error occurred: {req_err}")
         except ValueError as json_err:
-            print(f"JSON解析错误: {json_err}")
+            print(f"JSON parse error: {json_err}")
 
         return None
 
