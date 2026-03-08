@@ -1185,9 +1185,10 @@ function talk_to_it(nation_id, content) {
 
     try {
         const account = (person_target && person_target["account"]) ? String(person_target["account"]).trim() : '';
+        const nick_name = (person_target && person_target["nick_name"]) ? String(person_target["nick_name"]).trim() : '';
         if (account) {
             __snsPostJson('/api/sns/agent-instruction', {
-                instruction: `【3_COMMUNICATE】${account}`
+                instruction: `I will communicate with ${nick_name},it's account is ${account},\n\n**Action Command:**\n\n**【3_COMMUNICATE】**:communicate with ${account}`
             });
         }
     } catch (e) {

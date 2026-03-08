@@ -168,12 +168,16 @@ class TradeMixin:
     def sell_to_a_people(self, action_str, instrunction):
         human_object = ""
         self.talk_type = "sell"
+        # Reset talk state so talk_round starts fresh for the new conversation
+        self.current_talk_people = None
         self._pending_talk_objective = f"{human_object}{action_str}".strip()
         self.ask_agent_start_to_sell_to_a_people_sync(action_str, human_object)
 
     def buy_from_a_people(self, action_str, instrunction):
         human_object = ""
         self.talk_type = "buy"
+        # Reset talk state so talk_round starts fresh for the new conversation
+        self.current_talk_people = None
         self._pending_talk_objective = f"{human_object}{action_str}".strip()
         self.ask_agent_start_to_buy_from_a_people_sync(action_str, human_object)
 
@@ -260,6 +264,8 @@ class TradeMixin:
                 self._pick_person_retry_count["sell"] = 0
 
             self.current_talk_people = result
+            # Explicitly reset talk_round for the new conversation
+            result["talk_round"] = 0
             self.start_active_conversation(talk_type="sell", person=result, objective=self._pending_talk_objective)
 
             self.taskmng.current_process["people_communicated_list"].append(nation_id)
@@ -295,6 +301,8 @@ class TradeMixin:
                 self._pick_person_retry_count["buy"] = 0
 
             self.current_talk_people = result
+            # Explicitly reset talk_round for the new conversation
+            result["talk_round"] = 0
             self.start_active_conversation(talk_type="buy", person=result, objective=self._pending_talk_objective)
 
             self.taskmng.current_process["people_communicated_list"].append(nation_id)

@@ -581,7 +581,8 @@ var handle_command = function (command, param_1, param_2) {
         }
 
         if (map_type == "google") {
-            findHim();
+            // findHim();
+            map.panTo(new google.maps.LatLng(newLat, newLng));
         } else {
             map.setCenter(new BMapGL.Point(newLng, newLat));
         }

@@ -302,10 +302,24 @@ talk_to_a_people
             round = current_talk_people.get("talk_round", 0) + 1
             self.current_talk_people["talk_round"] = round
         except Exception:
-            pass
+            round = 1
+
+        # First round of a new conversation: delay 3s so frontend has time to
+        # move the 3D person model before the chat bubble appears.
+        # Subsequent rounds (review replies) send immediately.
         command = ("start_talk_to_it", nationid, content)
         self.send_msg_to_map(command)
-        self.sendMessage(content, False, account, user_name)
+        if round <= 1:
+            logger.info("First round of conversation with %s, delaying send_msg_to_map and sendMessage by 5s", account)
+
+            async def _delayed_first_message():
+                await asyncio.sleep(5)
+                self.sendMessage(content, False, account, user_name)
+
+            asyncio.create_task(_delayed_first_message())
+        else:
+
+            self.sendMessage(content, False, account, user_name)
 
         if account not in self.talk_history:
             self.talk_history[account] = []
@@ -315,6 +329,8 @@ talk_to_a_people
     def communicate_with_a_people(self, action_str, instrunction):
         human_object = ""
         self.talk_type = "communication"
+        # Reset talk state so talk_round starts fresh for the new conversation
+        self.current_talk_people = None
         self.ask_agent_start_to_talk_to_a_people_sync(action_str, human_object)
 
         # self.taskmng.process_task(action="process_activity", ask_content=ask_content)
@@ -372,6 +388,8 @@ talk_to_a_people
                 self._pick_person_retry_count["communication"] = 0
 
             self.current_talk_people = result
+            # Explicitly reset talk_round for the new conversation
+            result["talk_round"] = 0
             self.start_active_conversation(talk_type="communication", person=result, objective=self._pending_talk_objective)
 
             self.taskmng.current_process["people_communicated_list"].append(nation_id)

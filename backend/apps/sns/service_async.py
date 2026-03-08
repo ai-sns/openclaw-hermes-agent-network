@@ -443,12 +443,22 @@ class SNSService:
 
         async with _social_engine_op_lock:
             try:
-                if _social_engine_running:
-                    return {
-                        "success": True,
-                        "message": "AI Social Engine is already running",
-                        "running": True
-                    }
+                # _social_engine_running may become stale (e.g. instance not started or status not 'started').
+                # Only treat as running if the instance exists and is actually started.
+                if _social_engine_running and _social_engine_instance is not None:
+                    try:
+                        started_flag = bool(getattr(_social_engine_instance, "started_flag", False))
+                        map_task_status = getattr(_social_engine_instance, "map_task_status", "")
+                    except Exception:
+                        started_flag = False
+                        map_task_status = ""
+
+                    if started_flag and map_task_status in ("started", "paused"):
+                        return {
+                            "success": True,
+                            "message": "AI Social Engine is already running",
+                            "running": True
+                        }
 
                 from backend.apps.sns.ai_social_engine import AISocialEngine
 
@@ -459,6 +469,23 @@ class SNSService:
                     await _social_engine_instance.async_init()
 
                 await _social_engine_instance.start_engine()
+
+                try:
+                    started_flag = bool(getattr(_social_engine_instance, "started_flag", False))
+                    map_task_status = getattr(_social_engine_instance, "map_task_status", "")
+                except Exception:
+                    started_flag = False
+                    map_task_status = ""
+
+                if not started_flag:
+                    _social_engine_running = False
+                    return {
+                        "success": False,
+                        "message": "AI Social Engine failed to start (started_flag is False)",
+                        "running": False,
+                        "task_status": map_task_status,
+                    }
+
                 _social_engine_running = True
 
                 logger.info("AI Social Engine started successfully")
@@ -654,7 +681,12 @@ class SNSService:
         }
 
     async def send_human_message(self, message: str) -> dict:
-        global _social_engine_instance
+        global _social_engine_instance, _social_engine_running
+
+        # Auto-start engine if not initialized or not running
+        if _social_engine_instance is None or not _social_engine_running:
+            logger.info("Human message received but engine not running, auto-starting engine")
+            await self.start_social_engine()
 
         if _social_engine_instance is None:
             return {
@@ -662,11 +694,44 @@ class SNSService:
                 "message": "AI Social Engine is not initialized"
             }
 
+        # Ensure engine is in started state (handle paused/stopped)
+        await self._ensure_engine_running_for_priority_action()
+
         _social_engine_instance.human_message_received(message)
         return {
             "success": True,
             "message": "Human message received"
         }
+
+    async def _ensure_engine_running_for_priority_action(self):
+        """Ensure engine is in started state for priority actions.
+
+        Handles paused/stopped/not-started states by resuming or starting
+        the engine, then delegates to the engine's own method to cancel
+        competing background tasks.
+        """
+        global _social_engine_instance, _social_engine_running
+
+        if _social_engine_instance is None:
+            return
+
+        try:
+            status = getattr(_social_engine_instance, "map_task_status", "")
+            started = getattr(_social_engine_instance, "started_flag", False)
+
+            if status == "paused":
+                logger.info("Priority action: resuming paused engine via service")
+                await self.resume_social_engine()
+            elif status == "stopped" or not started:
+                logger.info("Priority action: starting engine via service")
+                _social_engine_running = False  # reset so start_social_engine proceeds
+                await self.start_social_engine()
+
+            # Delegate task interruption to the engine instance
+            if hasattr(_social_engine_instance, "_ensure_engine_ready_for_priority_action"):
+                await _social_engine_instance._ensure_engine_ready_for_priority_action()
+        except Exception as e:
+            logger.error(f"Failed to ensure engine running for priority action: {e}")
 
     async def submit_agent_instruction(self, instruction: str) -> dict:
         global _social_engine_instance, _social_engine_running
@@ -679,12 +744,22 @@ class SNSService:
             }
 
         try:
+            logger.info("submit_agent_instruction received: %s", raw_instruction[:200])
+        except Exception:
+            pass
+
+        try:
             started_flag = bool(getattr(_social_engine_instance, "started_flag", False)) if _social_engine_instance is not None else False
         except Exception:
             started_flag = False
 
         if (not _social_engine_running) or (_social_engine_instance is None) or (not started_flag):
-            await self.start_social_engine()
+            start_result = await self.start_social_engine()
+            if not isinstance(start_result, dict) or not start_result.get("success", False):
+                return {
+                    "success": False,
+                    "message": f"Failed to start AI Social Engine for instruction: {start_result}",
+                }
 
         if _social_engine_instance is None:
             return {
@@ -692,9 +767,28 @@ class SNSService:
                 "message": "AI Social Engine is not initialized"
             }
 
+        # Ensure engine is fully ready and interrupt current tasks for priority execution
+        await self._ensure_engine_running_for_priority_action()
+
+        try:
+            started_flag_after = bool(getattr(_social_engine_instance, "started_flag", False))
+            map_task_status_after = getattr(_social_engine_instance, "map_task_status", "")
+        except Exception:
+            started_flag_after = False
+            map_task_status_after = ""
+
+        if not started_flag_after:
+            return {
+                "success": False,
+                "message": "AI Social Engine is not started after ensure step",
+                "task_status": map_task_status_after,
+            }
+
         formatted_instruction = raw_instruction
         try:
-            if raw_instruction.startswith("【3_COMMUNICATE】") and "###" not in raw_instruction:
+            # Frontend talk_to_it sends instructions with 【3_COMMUNICATE】 embedded
+            # (not at the start), so use 'in' instead of startswith.
+            if "【3_COMMUNICATE】" in raw_instruction and "### Next Action" not in raw_instruction:
                 formatted_instruction = f"### Current Task List\n\n### Next Action\n{raw_instruction}\n"
         except Exception:
             formatted_instruction = raw_instruction

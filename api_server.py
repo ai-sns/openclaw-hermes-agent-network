@@ -24,6 +24,7 @@ os.chdir(app_directory)
 sys.path.insert(0, str(app_directory / 'backend'))
 
 import logging
+import copy
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,8 +39,41 @@ from backend.config.database import init_db
 from backend.shared.websocket_manager import ConnectionManager, manager as ws_manager
 
 # Configure logging (must run before the logger is used)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s:%(name)s:%(message)s",
+    datefmt="%H:%M:%S",
+)
 logger = logging.getLogger(__name__)
+
+
+def _build_uvicorn_log_config() -> dict:
+    """Build a uvicorn log config without ANSI colors and with time-only prefix."""
+    cfg = copy.deepcopy(getattr(uvicorn.config, "LOGGING_CONFIG", {}))
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    formatters = cfg.setdefault("formatters", {})
+    formatters["default"] = {
+        "()": "uvicorn.logging.DefaultFormatter",
+        "fmt": "%(asctime)s %(levelname)s:%(name)s:%(message)s",
+        "datefmt": "%H:%M:%S",
+        "use_colors": False,
+    }
+    formatters["access"] = {
+        "()": "uvicorn.logging.AccessFormatter",
+        "fmt": "%(asctime)s %(levelname)s:%(client_addr)s - \"%(request_line)s\" %(status_code)s",
+        "datefmt": "%H:%M:%S",
+        "use_colors": False,
+    }
+
+    handlers = cfg.setdefault("handlers", {})
+    if isinstance(handlers.get("default"), dict):
+        handlers["default"]["formatter"] = "default"
+    if isinstance(handlers.get("access"), dict):
+        handlers["access"]["formatter"] = "access"
+
+    return cfg
 
 # Import all module routers (use try-except to gracefully handle dependency issues)
 # Tools module (must be loaded)
@@ -838,7 +872,9 @@ def main():
             host=settings.server.host,
             port=settings.server.port,
             reload=reload,
-            log_level="info"
+            log_level="info",
+            log_config=_build_uvicorn_log_config(),
+            use_colors=False,
         )
     except KeyboardInterrupt:
         logger.info("Server stopped by user")

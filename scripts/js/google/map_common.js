@@ -3496,7 +3496,7 @@ function start_talk_to_it(nation_id, content) {
     }, 100);
     setTimeout(function () {
 
-        map.setZoom(17.2);
+        map.setZoom(16.9);
 
     }, 2000);
     setTimeout(function () {
@@ -3786,7 +3786,7 @@ function talk_to_it(nation_id, content) {
     }, 100);
     setTimeout(function () {
 
-        map.setZoom(17.2);
+        map.setZoom(16.9);
 
     }, 2000);
     setTimeout(function () {
@@ -3806,18 +3806,24 @@ function talk_to_it(nation_id, content) {
 
         const account = (person_target && person_target["account"]) ? String(person_target["account"]).trim() : '';
 
+        const nick_name = (person_target && person_target["nick_name"]) ? String(person_target["nick_name"]).trim() : '';
+
         if (account) {
 
             __snsPostJson('/api/sns/agent-instruction', {
 
-                instruction: `【3_COMMUNICATE】${account}`
+                instruction: `I will communicate with ${nick_name},it's account is ${account},\n\n**Action Command:**\n\n**【3_COMMUNICATE】**:communicate with ${account}`
 
             });
 
+        } else {
+
+            console.warn('talk_to_it skipped: target account is empty', person_target);
         }
 
     } catch (e) {
 
+        console.warn('talk_to_it failed to send agent instruction:', e);
     }
 
     loadModel(person_target);

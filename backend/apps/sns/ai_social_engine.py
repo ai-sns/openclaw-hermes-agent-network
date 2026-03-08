@@ -759,6 +759,7 @@ class AISocialEngine(
     async def ask_agent_instruction_to_process_human_instruction(self, ask_content):
         self.show_status_on_map("thinking")
         if not self.started_flag:
+            logger.warning("Engine not started when processing human instruction, skipping")
             return
 
         role_prompt = get_prompt_by_title("__human_instruction_to_process_activity_role__")
@@ -780,6 +781,45 @@ class AISocialEngine(
         self.parse_agent_instruction_for_process_activity(instruction)
         return
 
+    async def _ensure_engine_ready_for_priority_action(self):
+        """Ensure engine is in started state and cancel current background tasks.
+
+        Used when a priority action (human instruction, talk_to_it from frontend)
+        needs to execute immediately. This method will:
+        1. Resume if paused, or start if stopped / not started.
+        2. Cancel all running background tasks so the priority action is not blocked.
+        3. Reset flags that might prevent the new action from executing.
+        """
+        status = getattr(self, "map_task_status", "")
+        started = getattr(self, "started_flag", False)
+
+        # --- bring engine to 'started' state ---
+        if status == "paused":
+            logger.info("Priority action: resuming paused engine")
+            await self.resume_engine()
+        elif status == "stopped" or not started:
+            logger.info("Priority action: starting engine from stopped/uninitialised state")
+            self.map_task_status = ""
+            await self.start_engine()
+
+        # --- cancel running background tasks so they don't compete ---
+        try:
+            for t in list(getattr(self, "_background_tasks", set()) or set()):
+                try:
+                    if t and not t.done():
+                        t.cancel()
+                except Exception:
+                    pass
+            self._background_tasks.clear()
+        except Exception:
+            pass
+
+        # --- reset blocking flags ---
+        self.stopping_ai_process_flag = False
+        self.agent_replying_flag = False
+        self.command_status = ""
+        logger.info("Engine ready for priority action")
+
     def handle_human_instruction(self, human_instruction):
         if human_instruction:
             if human_instruction.startswith("@Memory:"):
@@ -789,6 +829,9 @@ class AISocialEngine(
                 ]
                 add_memory_list(messages)
                 return
+
+            # Ensure engine is running and interrupt current tasks for priority execution
+            asyncio.create_task(self._ensure_engine_ready_for_priority_action())
 
             # Merge human instructions into full_ask_content
             self.human_instruction = human_instruction

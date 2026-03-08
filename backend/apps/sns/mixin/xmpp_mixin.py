@@ -154,10 +154,16 @@ class XmppMixin:
 
                 if is_active_peer or not active_account:
                     # Process general conversation message only for active peer (or when no active session).
-                    asyncio.create_task(self.taskmng.process_task(
-                        event="conversation_message_received",
-                        talk_history_str=json.dumps(self.current_talk_history, ensure_ascii=False)
-                    ))
+                    if self.human_take_over:
+                        logger.info(
+                            "Human takeover is enabled, skipping automated conversation review for %s",
+                            account,
+                        )
+                    else:
+                        asyncio.create_task(self.taskmng.process_task(
+                            event="conversation_message_received",
+                            talk_history_str=json.dumps(self.current_talk_history, ensure_ascii=False)
+                        ))
                 else:
                     logger.info(
                         "Message from %s queued to inbox because active conversation is with %s",
