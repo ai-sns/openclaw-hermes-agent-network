@@ -468,6 +468,19 @@ var show_talk_message = function (from, to, msg) {
     console.log(to);
     from_point = getPersonPointByAccount(from);
     person_data = getPersonDataByAccount(from);
+
+    // Only hide status indicator when person_me is the sender
+    const isMe = (typeof person_data_me !== 'undefined' && person_data_me &&
+                  person_data_me.account && from === person_data_me.account);
+    if (isMe && typeof aimodel_status !== 'undefined' && aimodel_status &&
+        typeof aimodel_status.setBubbleHidden === 'function') {
+        aimodel_status.setBubbleHidden(true);
+        // Restore after bubble closes (3s matches send_chat_msg timeout)
+        setTimeout(function () {
+            aimodel_status.setBubbleHidden(false);
+        }, 3100);
+    }
+
     if (map_type == "google") {
         send_chat_msg(from_point.lng(), from_point.lat(), msg, person_data["nick_name"]);
     } else {
@@ -487,10 +500,10 @@ var handle_command = function (command, param_1, param_2) {
         } else {
             div = document.getElementById(param_1);
             if (!div) {
-                console.warn(`Element with ID ${param_1} not found on map`);
-                return;
+                console.warn(`Element with ID ${param_1} not found on map, proceeding anyway`);
+            } else {
+                hiddenPoints[param_1] = div;
             }
-            hiddenPoints[param_1] = div;
         }
         talk_to_it(param_1, param_2)
     } else if (command == "start_talk_to_it") {
@@ -500,10 +513,10 @@ var handle_command = function (command, param_1, param_2) {
         } else {
             div = document.getElementById(param_1);
             if (!div) {
-                console.warn(`Element with ID ${param_1} not found on map`);
-                // return;
+                console.warn(`Element with ID ${param_1} not found on map, proceeding anyway`);
+            } else {
+                hiddenPoints[param_1] = div;
             }
-            hiddenPoints[param_1] = div;
         }
         start_talk_to_it(param_1, param_2)
     } else if (command == "stop_talk_to_it") {
@@ -513,23 +526,65 @@ var handle_command = function (command, param_1, param_2) {
             console.error("stop_talk_to_it failed:", e);
         }
     } else if (command == "move_to_a_place") {
-        if (map_type == "google") {
-            setPersonModelPointByNationId(nation_id_me, new google.maps.LatLng(parseFloat(param_2), parseFloat(param_1)));
-        } else {
-            alert("Moving");
-            alert(param_2);
-            setPersonModelPointByNationId(nation_id_me, new BMapGL.Point(parseFloat(param_1), parseFloat(param_2)));
+        // Capture old position before moving so we can compute direction
+        var oldLng = null, oldLat = null;
+        try {
+            var oldPoint = getPersonPointByNationId(nation_id_me);
+            if (oldPoint) {
+                if (map_type == "google") {
+                    oldLng = (typeof oldPoint.lng === 'function') ? oldPoint.lng() : oldPoint.lng;
+                    oldLat = (typeof oldPoint.lat === 'function') ? oldPoint.lat() : oldPoint.lat;
+                } else {
+                    oldLng = oldPoint.lng;
+                    oldLat = oldPoint.lat;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not read old position for bearing calculation:', e);
         }
-        setPersonPointByNationId(nation_id_me, parseFloat(param_1), parseFloat(param_2));
+
+        var newLng = parseFloat(param_1);
+        var newLat = parseFloat(param_2);
+
+        if (map_type == "google") {
+            setPersonModelPointByNationId(nation_id_me, new google.maps.LatLng(newLat, newLng));
+        } else {
+            setPersonModelPointByNationId(nation_id_me, new BMapGL.Point(newLng, newLat));
+        }
+        setPersonPointByNationId(nation_id_me, newLng, newLat);
+
+        // Rotate model to face the movement direction
+        try {
+            if (oldLng !== null && oldLat !== null && Number.isFinite(oldLng) && Number.isFinite(oldLat)) {
+                var dLng = newLng - oldLng;
+                var dLat = newLat - oldLat;
+                // Only rotate if there is meaningful displacement
+                if (Math.abs(dLng) > 1e-9 || Math.abs(dLat) > 1e-9) {
+                    // Geographic bearing: 0=N, 90=E, 180=S, 270=W
+                    var bearingRad = Math.atan2(dLng, dLat);
+                    var bearingDeg = ((bearingRad * 180 / Math.PI) + 360) % 360;
+                    if (typeof rotateMyModelTowardDirection === 'function') {
+                        rotateMyModelTowardDirection(bearingDeg);
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to rotate model toward movement direction:', e);
+        }
 
         try {
             if (typeof sync_current_position === 'function') {
-                sync_current_position(parseFloat(param_1), parseFloat(param_2), { throttleMs: 0 });
+                sync_current_position(newLng, newLat, { throttleMs: 0 });
             }
         } catch (e) {
             console.warn('Failed to persist current position for move_to_a_place:', e);
         }
-        findHim();
+
+        if (map_type == "google") {
+            findHim();
+        } else {
+            map.setCenter(new BMapGL.Point(newLng, newLat));
+        }
     } else if (command == "route_move_action") {
         route_move_action_from_python();
     } else if (command == "route_mode_free") {

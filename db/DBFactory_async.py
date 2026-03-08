@@ -1,5 +1,5 @@
 """
-异步数据库操作函数
+Async database operation helpers.
 """
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update, delete
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 async def query_AiChatCfg_map():
-    """异步查询 AiChatCfg 记录"""
+    """Asynchronously query the AiChatCfg record."""
     async with AsyncSessionLocal() as session:
         stmt = select(AiChatCfg)
         result = await session.execute(stmt)
@@ -19,7 +19,7 @@ async def query_AiChatCfg_map():
 
 
 async def query_AiChatCfg_map_setting(**kwargs):
-    """异步查询 AiChatCfg 地图设置"""
+    """Asynchronously query AiChatCfg map settings."""
     async with AsyncSessionLocal() as session:
         query = select(AiChatCfg)
         if kwargs:
@@ -59,7 +59,7 @@ async def query_AiChatCfg_map_setting(**kwargs):
 
 
 async def update_AiChatCfg_map(**kwargs):
-    """异步更新 AiChatCfg 记录"""
+    """Asynchronously update the AiChatCfg record."""
     async with AsyncSessionLocal() as session:
         stmt = select(AiChatCfg)
         result = await session.execute(stmt)
@@ -74,7 +74,7 @@ async def update_AiChatCfg_map(**kwargs):
 
 
 async def query_tool_list():
-    """异步查询工具列表"""
+    """Asynchronously query the tool list."""
     async with AsyncSessionLocal() as session:
         stmt = select(Tool)
         result = await session.execute(stmt)
@@ -83,7 +83,7 @@ async def query_tool_list():
 
 
 async def query_single_tool(tool_id):
-    """异步查询单个工具"""
+    """Asynchronously query a single tool."""
     async with AsyncSessionLocal() as session:
         stmt = select(Tool).where(Tool.id == tool_id)
         result = await session.execute(stmt)
@@ -92,7 +92,7 @@ async def query_single_tool(tool_id):
 
 
 async def update_map_task(task_id, **kwargs):
-    """异步更新地图任务"""
+    """Asynchronously update a map task."""
     from db.database import MapTask
     async with AsyncSessionLocal() as session:
         stmt = select(MapTask).where(MapTask.id == task_id)
@@ -108,7 +108,7 @@ async def update_map_task(task_id, **kwargs):
 
 
 async def add_map_visit(**kwargs):
-    """异步添加地图访问记录"""
+    """Asynchronously add a map visit record."""
     from db.database import MapVisit
     async with AsyncSessionLocal() as session:
         visit = MapVisit(**kwargs)
@@ -119,7 +119,7 @@ async def add_map_visit(**kwargs):
 
 
 async def add_map_trade(**kwargs):
-    """异步添加地图交易记录"""
+    """Asynchronously add a map trade record."""
     from db.database import MapTrade
     async with AsyncSessionLocal() as session:
         trade = MapTrade(**kwargs)
@@ -130,7 +130,7 @@ async def add_map_trade(**kwargs):
 
 
 async def add_map_tool(**kwargs):
-    """异步添加地图工具记录"""
+    """Asynchronously add a map tool record."""
     from db.database import MapTool
     async with AsyncSessionLocal() as session:
         tool = MapTool(**kwargs)
@@ -141,7 +141,7 @@ async def add_map_tool(**kwargs):
 
 
 async def query_single_map_trade(trade_id):
-    """异步查询单个地图交易"""
+    """Asynchronously query a single map trade."""
     from db.database import MapTrade
     async with AsyncSessionLocal() as session:
         stmt = select(MapTrade).where(MapTrade.trade_id == trade_id)
@@ -151,7 +151,7 @@ async def query_single_map_trade(trade_id):
 
 
 async def add_AIChatMessages(**kwargs):
-    """异步添加聊天消息"""
+    """Asynchronously add a chat message."""
     async with AsyncSessionLocal() as session:
         message = AIChatMessages(**kwargs)
         session.add(message)
@@ -161,7 +161,7 @@ async def add_AIChatMessages(**kwargs):
 
 
 async def query_mcp_mng(name=None):
-    """异步查询MCP管理"""
+    """Asynchronously query MCP management records."""
     from db.database import McpMng
     async with AsyncSessionLocal() as session:
         stmt = select(McpMng)
@@ -173,7 +173,7 @@ async def query_mcp_mng(name=None):
 
 
 async def add_mcp_mng(**kwargs):
-    """异步添加MCP管理"""
+    """Asynchronously add an MCP management record."""
     from db.database import McpMng
     async with AsyncSessionLocal() as session:
         mcp = McpMng(**kwargs)
@@ -184,7 +184,7 @@ async def add_mcp_mng(**kwargs):
 
 
 async def delete_map_preset_msg(msg_id):
-    """异步删除地图预设消息"""
+    """Asynchronously delete a map preset message."""
     from db.database import MapPresetMsg
     async with AsyncSessionLocal() as session:
         stmt = delete(MapPresetMsg).where(MapPresetMsg.id == msg_id)
@@ -194,7 +194,7 @@ async def delete_map_preset_msg(msg_id):
 
 
 async def query_map_preset_msg_all():
-    """异步查询所有地图预设消息"""
+    """Asynchronously query all map preset messages."""
     from db.database import MapPresetMsg
     async with AsyncSessionLocal() as session:
         stmt = select(MapPresetMsg)
@@ -204,7 +204,7 @@ async def query_map_preset_msg_all():
 
 
 async def add_map_preset_msg(**kwargs):
-    """异步添加地图预设消息"""
+    """Asynchronously add a map preset message."""
     from db.database import MapPresetMsg
     async with AsyncSessionLocal() as session:
         msg = MapPresetMsg(**kwargs)
@@ -215,7 +215,7 @@ async def add_map_preset_msg(**kwargs):
 
 
 async def update_AiChatCfg_by_user_id(user_id, **kwargs):
-    """异步根据用户ID更新AiChatCfg"""
+    """Asynchronously update AiChatCfg by user ID."""
     async with AsyncSessionLocal() as session:
         stmt = select(AiChatCfg).where(AiChatCfg.user_id == user_id)
         result = await session.execute(stmt)
@@ -230,7 +230,7 @@ async def update_AiChatCfg_by_user_id(user_id, **kwargs):
 
 
 async def add_function_mng(**kwargs):
-    """异步添加函数管理"""
+    """Asynchronously add a function management record."""
     from db.database import FunctionMng
     async with AsyncSessionLocal() as session:
         func = FunctionMng(**kwargs)
@@ -241,7 +241,7 @@ async def add_function_mng(**kwargs):
 
 
 async def query_function_mng():
-    """异步查询函数管理"""
+    """Asynchronously query function management records."""
     from db.database import FunctionMng
     async with AsyncSessionLocal() as session:
         stmt = select(FunctionMng)
@@ -251,7 +251,7 @@ async def query_function_mng():
 
 
 async def get_key_value(key):
-    """异步获取键值"""
+    """Asynchronously get a key value."""
     from db.database import KeyValue
     async with AsyncSessionLocal() as session:
         stmt = select(KeyValue).where(KeyValue.key == key)

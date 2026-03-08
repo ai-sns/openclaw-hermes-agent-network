@@ -133,7 +133,7 @@ export default {
         this._exploreNickname = formatted;
         const titleEl = document.getElementById('snsExploreTitle');
         if (!titleEl) return;
-        titleEl.textContent = formatted ? `Explore the Earth-${formatted}` : 'Explore the Earth';
+        titleEl.textContent = formatted ? `${formatted}` : 'Explore the Earth';
     },
 
     async loadExploreNickname() {
@@ -244,14 +244,8 @@ export default {
         return `
             <div class="sidebar-section">
                 <div class="sidebar-header-row">
-                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#1a73e8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
-  <!-- Map outline -->
-  <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-  <!-- Inner folds -->
-  <line x1="8" y1="2" x2="8" y2="18"></line>
-  <line x1="16" y1="6" x2="16" y2="22"></line>
-</svg>
-                    <span class="sidebar-section-title" id="snsExploreTitle">Explore the Earth</span>
+<svg height="26" viewBox="0 -960 960 960" width="26" fill="#1a73e8"><path d="M572-405.5q43-21.5 68-63.5-35-27-75.5-43T480-528q-44 0-84.5 16T320-469q25 42 68 63.5t92 21.5q49 0 92-21.5ZM480-576q30 0 51-21t21-51q0-30-21-51t-51-21q-30 0-51 21t-21 51q0 30 21 51t51 21Zm0 385q119-107 179.5-197T720-549q0-105-68.5-174T480-792q-103 0-171.5 69T240-549q0 71 60.5 161T480-191Zm0 95Q323-227 245.5-339.5T168-549q0-134 89-224.5T480-864q133 0 222.5 90.5T792-549q0 97-77 209T480-96Zm0-456Z"/></svg>
+                    <span class="sidebar-section-title" id="snsExploreTitle"></span>
                 </div>
                 <!-- User stats panel -->
                 <div class="user-stats-panel">

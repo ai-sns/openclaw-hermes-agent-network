@@ -12,10 +12,50 @@ function lt(...args) {
   return txt;
 }
 
+// Baidu map.flyTo — sets center, zoom, heading, tilt in one atomic call
+// Falls back to centerAndZoom + setHeading + setTilt if flyTo fails
+function _baiduFlyTo(point, zoom, heading, tilt, noAnimation) {
+    if (noAnimation === undefined) noAnimation = false;
+
+
+    var targetPoint = null;
+    if (point && !isNaN(parseFloat(point.lng)) && !isNaN(parseFloat(point.lat))) {
+        targetPoint = new BMapGL.Point(parseFloat(point.lng), parseFloat(point.lat));
+    } else {
+        console.error('[_baiduFlyTo] Invalid point data:', point);
+        return;
+    }
+
+    try {
+
+        var opts = {
+            center: targetPoint,
+            zoom: zoom,
+            noAnimation: noAnimation
+        };
+
+
+        if (heading !== undefined && heading !== null) opts.heading = heading;
+        if (tilt !== undefined && tilt !== null) opts.tilt = tilt;
+
+
+        map.flyTo(opts);
+
+    } catch (e) {
+        console.warn('[_baiduFlyTo] flyTo failed, falling back to centerAndZoom:', e);
+
+
+        map.centerAndZoom(targetPoint, zoom);
+
+        setTimeout(function() {
+             if (heading !== undefined && heading !== null) map.setHeading(heading);
+             if (tilt !== undefined && tilt !== null) map.setTilt(tilt);
+        }, 100);
+    }
+}
 function set_map_center(lng, lat, alt = [0, 0], zm = [17, 17]) {
   // Determine index by map_type: google -> 0, baidu -> 1
   const idx = (map_type === "google") ? 0 : 1;
-
   // Default centers (google / baidu)
   const defaultCenters = [
     { lng: 121.5064029910149, lat: 31.29900523154034, altitude: 0 }, // google
@@ -31,12 +71,12 @@ function set_map_center(lng, lat, alt = [0, 0], zm = [17, 17]) {
 
   const zoom = zm[idx];
 
-
   // Execute map-specific logic
   if (map_type === "google") {
     map.setCenter(center);
     map.setZoom(zoom);
   } else if (map_type === "baidu") {
+
     map.centerAndZoom(new BMapGL.Point(center.lng, center.lat), zoom);
   } else {
     console.warn("Unknown map_type:", map_type);

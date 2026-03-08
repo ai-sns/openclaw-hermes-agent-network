@@ -239,23 +239,11 @@ export class SNSMapConfigDialog {
     }
 
     reloadMap() {
-        // Remove existing iframe
-        const mapContainer = document.getElementById('mapContainer');
-        if (mapContainer) {
-            const existingIframe = mapContainer.querySelector('iframe');
-            if (existingIframe) {
-                try {
-                    if (existingIframe._messageListener) {
-                        window.removeEventListener('message', existingIframe._messageListener);
-                    }
-                } catch (e) {
-                }
-                existingIframe.remove();
-                console.log('Removed existing map iframe');
-            }
-
-            // Trigger map reload by dispatching a custom event
-            window.dispatchEvent(new CustomEvent('reloadMap'));
-        }
+        // Dispatch reloadMap event and let loadMapIframe(true) handle
+        // stopping the engine, removing the old iframe, and creating a new one.
+        // Do NOT remove the iframe here — loadMapIframe needs to find it
+        // so it can call stopEngineIfActiveForMapReload before removal.
+        console.log('Map config changed - dispatching reloadMap event');
+        window.dispatchEvent(new CustomEvent('reloadMap'));
     }
 }

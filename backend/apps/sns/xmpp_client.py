@@ -23,21 +23,33 @@ class XMPPClient(slixmpp.ClientXMPP):
         self.add_event_handler("message", self.on_message)
         self.add_event_handler("presence_subscribe", self.on_presence_subscribe)
         self.add_event_handler("roster_update", self.on_roster_update)
+        self.add_event_handler("disconnected", self.on_disconnected)
+        self.add_event_handler("connection_failed", self.on_connection_failed)
 
         # Register plugins
         self.register_plugin('xep_0030')  # Service Discovery
-        self.register_plugin('xep_0199')  # XMPP Ping
+        self.register_plugin('xep_0199', {'keepalive': False})  # XMPP Ping (we manage our own heartbeat)
         self.register_plugin('xep_0363')  # HTTP File Upload
 
-        # Heartbeat
-        self.heartbeat_interval = 3  # 3 seconds like ConnectorThread
+        # Heartbeat configuration
+        self.heartbeat_interval = 30  # seconds between pings
+        self.ping_timeout = 10  # seconds to wait for pong reply
         self.heartbeat_task = None
+        self._consecutive_failures = 0
+        self._max_failures = 3  # trigger reconnect after this many consecutive failures
 
     async def on_session_start(self, event):
         """Handle session start"""
         logger.info(f"XMPP session started for {self.jid_str}")
         self.send_presence()
         await self.get_roster()
+
+        # Reset reconnect backoff on successful session
+        try:
+            manager = XMPPClientManager.get_instance()
+            manager.on_session_start_reset()
+        except Exception:
+            pass
 
         # Start heartbeat
         self.heartbeat_task = asyncio.create_task(self.heartbeat())
@@ -222,14 +234,41 @@ class XMPPClient(slixmpp.ClientXMPP):
         except Exception as e:
             logger.error(f"Error updating roster for {jid}: {e}")
 
+    async def on_disconnected(self, event):
+        """Handle disconnection event"""
+        logger.warning(f"XMPP client disconnected for {self.jid_str}")
+        if self.heartbeat_task and not self.heartbeat_task.done():
+            self.heartbeat_task.cancel()
+            self.heartbeat_task = None
+        self._consecutive_failures = 0
+
+    async def on_connection_failed(self, event):
+        """Handle connection failure event"""
+        logger.error(f"XMPP connection failed for {self.jid_str}")
+
     async def heartbeat(self):
         """Send periodic pings to keep connection alive"""
+        logger.info(f"Heartbeat started for {self.jid_str} (interval={self.heartbeat_interval}s, timeout={self.ping_timeout}s)")
         while True:
             try:
-                await self['xep_0199'].ping()
+                await asyncio.sleep(self.heartbeat_interval)
+                await self['xep_0199'].ping(timeout=self.ping_timeout)
+                if self._consecutive_failures > 0:
+                    logger.info(f"Heartbeat recovered after {self._consecutive_failures} failure(s)")
+                self._consecutive_failures = 0
+            except asyncio.CancelledError:
+                logger.info("Heartbeat task cancelled")
+                return
             except Exception as e:
-                logger.error(f"Heartbeat failed: {e}")
-            await asyncio.sleep(self.heartbeat_interval)
+                self._consecutive_failures += 1
+                logger.warning(f"Heartbeat failed ({self._consecutive_failures}/{self._max_failures}): {e}")
+                if self._consecutive_failures >= self._max_failures:
+                    logger.error(f"Heartbeat failed {self._max_failures} consecutive times, triggering reconnect")
+                    try:
+                        self.disconnect()
+                    except Exception:
+                        pass
+                    return
 
     def send_message_to_jid(self, to_jid: str, content: str):
         """Send a message"""
@@ -276,11 +315,18 @@ class XMPPClient(slixmpp.ClientXMPP):
 
 
 class XMPPClientManager:
-    """Singleton manager for XMPP client"""
+    """Singleton manager for XMPP client with automatic reconnection"""
 
     _instance = None
     _client: Optional[XMPPClient] = None
     _loop: Optional[asyncio.AbstractEventLoop] = None
+    _stopping: bool = False
+    _reconnect_task: Optional[asyncio.Task] = None
+
+    # Reconnection parameters
+    _initial_reconnect_delay = 5    # seconds
+    _max_reconnect_delay = 300      # 5 minutes cap
+    _current_reconnect_delay = 5
 
     @classmethod
     def get_instance(cls):
@@ -293,8 +339,13 @@ class XMPPClientManager:
         """Get XMPP client"""
         return self._client
 
+    def _reset_reconnect_delay(self):
+        """Reset reconnect delay after a successful connection"""
+        self._current_reconnect_delay = self._initial_reconnect_delay
+
     async def start(self):
         """Start XMPP client"""
+        self._stopping = False
         try:
             # Get database session
             db = get_db_sync()
@@ -332,21 +383,63 @@ class XMPPClientManager:
 
             # Connect (non-blocking, connect() returns None)
             self._client.connect()
-            # Create background task for processing
-            loop.create_task(self._run_client())
+            # Create background task for processing with auto-reconnect
+            self._reconnect_task = loop.create_task(self._run_client())
             logger.info("XMPP client connect initiated")
         except Exception as e:
             logger.error(f"Error starting XMPP client: {e}")
 
     async def _run_client(self):
-        """Run XMPP client processing loop"""
-        try:
-            await self._client.disconnected
-        except Exception as e:
-            logger.error(f"Error in XMPP client processing: {e}")
+        """Run XMPP client processing loop with automatic reconnection"""
+        while not self._stopping:
+            try:
+                await self._client.disconnected
+            except Exception as e:
+                logger.error(f"XMPP client processing error: {e}")
+
+            if self._stopping:
+                logger.info("XMPP manager stopping, skip reconnect")
+                break
+
+            # Attempt reconnection with exponential backoff
+            logger.info(f"Will attempt reconnect in {self._current_reconnect_delay}s")
+            try:
+                await asyncio.sleep(self._current_reconnect_delay)
+            except asyncio.CancelledError:
+                logger.info("Reconnect sleep cancelled")
+                return
+
+            if self._stopping:
+                break
+
+            # Increase delay for next attempt (exponential backoff)
+            next_delay = min(self._current_reconnect_delay * 2, self._max_reconnect_delay)
+
+            try:
+                logger.info(f"Reconnecting XMPP client (backoff={self._current_reconnect_delay}s)...")
+                self._current_reconnect_delay = next_delay
+                self._client.connect()
+                # Reset delay on successful session start via event callback
+            except Exception as e:
+                logger.error(f"Reconnect attempt failed: {e}")
+
+        logger.info("XMPP _run_client loop exited")
+
+    def on_session_start_reset(self):
+        """Called when a session is successfully started to reset backoff"""
+        self._reset_reconnect_delay()
+        logger.info("Reconnect backoff reset after successful session start")
 
     async def stop(self):
-        """Stop XMPP client"""
+        """Stop XMPP client gracefully"""
+        self._stopping = True
+        if self._reconnect_task and not self._reconnect_task.done():
+            self._reconnect_task.cancel()
+            try:
+                await self._reconnect_task
+            except asyncio.CancelledError:
+                pass
+            self._reconnect_task = None
         if self._client:
             self._client.disconnect()
             self._client = None

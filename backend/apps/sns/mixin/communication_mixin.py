@@ -235,7 +235,7 @@ class CommunicationMixin:
             logger.error(f"Failed to send stop_talk_to_it: {e}")
 
         try:
-            self.show_status_on_map("standby")
+            self.show_status_on_map("idle")
         except Exception:
             pass
 

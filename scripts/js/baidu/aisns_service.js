@@ -39,38 +39,6 @@ function initModelConfigs() {
             modelUrl: 'aisnsbuilding.glb',
             scale: 0.02,
             rotation: {x: Math.PI / 2}
-        },
-        {
-            id: 'houseModel',
-            layerId: 'mainLayer',
-            position: home_position ? [home_position.lng, home_position.lat] : [121.51246021573293, 31.304969368085807],//todo
-            modelUrl: 'house_red.glb',
-            scale: 2,
-            rotation: {x: Math.PI / 2, y: Math.PI / 10}
-        },
-        {
-            id: 'playerModel',
-            layerId: 'mainLayer',
-            position: [116.30391532368695, 40.04931576869293],
-            modelUrl: 'https://cdn.jsdelivr.net/gh/photonchen/photonchen.github.io/playergirl.glb',
-            scale: 150,
-            rotation: {x: Math.PI / 2}
-        },
-        {
-            id: 'officeModel',
-            layerId: 'mainLayer',
-            position: [116.30873909340876, 40.063344012305905],
-            modelUrl: 'https://cdn.jsdelivr.net/gh/photonchen/photonchen.github.io/officebuilding.glb',
-            scale: 5,
-            rotation: {x: Math.PI / 2}
-        },
-        {
-            id: 'centerModel',
-            layerId: 'mainLayer',
-            position: [116.20683342989894, 39.96289480301391],
-            modelUrl: 'http://www.ai-sns.cc/aigccentermap.glb',
-            scale: 0.1,
-            rotation: {x: Math.PI / 2}
         }
     ];
 }
@@ -197,12 +165,15 @@ function load_all_facility(layerId) {
 /* 6. Unified event binding */
 function bindOverlayEvents() {
     const eventHandlers = {
-        click: e => console.log(`${e.target} clicked`),
         dblclick: e => alert(`${e.target} double-clicked`),
         rightclick: e => alert(`${e.target} right-clicked`)
     };
 
     layerManager.overlays.forEach(overlay => {
+        if (typeof overlay.addEventListener !== 'function') {
+            console.warn('Overlay does not support addEventListener, skipping:', overlay);
+            return;
+        }
         Object.entries(eventHandlers).forEach(([event, handler]) => {
             overlay.addEventListener(event, handler);
         });

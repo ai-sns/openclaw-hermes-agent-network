@@ -294,7 +294,7 @@ function initPos() {
     }
 
     stop_plaza_message();
-    aimodel_status.setVisible(true);
+    // aimodel_status.setVisible(true);
 }
 
 // Max menu item text length
@@ -379,7 +379,7 @@ function goPlaza() {
     if (plaza_position) {
         set_map_center(plaza_position?.lng, plaza_position?.lat, [0, 0], [17, 20]);
     } else {
-        set_map_center(building_position[0], building_position[1]), [0, 0], [17, 20];
+        set_map_center(building_position[0], building_position[1], [0, 0], [17, 20]);
     }
 
     // Fetch and create menu items
@@ -407,8 +407,20 @@ function goPlaza() {
         rightMenu.style.width = '240px';
     }
 
-    aimodel_status.setVisible(false);
+    // aimodel_status.setVisible(false);
     close_info_list();
+    if (map_type === "baidu") {
+        setTimeout(function () {
+
+            map.setHeading(90);
+
+        }, 2500);
+        setTimeout(function () {
+
+            map.setTilt(60);
+
+        }, 3500);
+    }
 }
 
 function check_place(address, lng, lat) {
@@ -438,7 +450,9 @@ function findHim() {
         ? user_current_point.lat()
         : user_current_point.lat;
 
-    set_map_center(lng, lat);
+    set_map_center(lng, lat, [0, 0], [17, 16.5]);
+
+
 
     // Hide plaza-related menu items
     menu_div = document.getElementById('menu-plaza-top');
@@ -463,7 +477,15 @@ function findHim() {
     }
 
     stop_plaza_message();
-    aimodel_status.setVisible(true);
+    // aimodel_status.setVisible(true);
+
+    if (map_type === "baidu") {
+        setTimeout(function () {
+
+            map.setTilt(60);
+
+        }, 2500);
+    }
 }
 
 function hideHistory() {

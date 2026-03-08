@@ -142,8 +142,8 @@ export default {
                                         <div class="control-toggle-group">
                                             <span class="control-label">Talk to</span>
                                             <div class="control-toggle-buttons">
-                                                <button class="toggle-btn active" data-mode="ai">AI</button>
-                                                <button class="toggle-btn" data-mode="friends">Friends</button>
+                                                <button class="toggle-btn active" data-mode="ai">Self</button>
+                                                <button class="toggle-btn" data-mode="friends">Other</button>
                                             </div>
                                         </div>
                                         <div class="control-input-wrapper">

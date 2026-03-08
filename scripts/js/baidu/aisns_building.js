@@ -718,6 +718,11 @@ function animate(time) {
 
     updateVideoOverlayPosition();
 
+    // Anchor status indicator to person_me 3D model head
+    if (typeof aimodel_status !== 'undefined' && aimodel_status &&
+        typeof aimodel_status.updatePosition === 'function') {
+        aimodel_status.updatePosition();
+    }
 
 }
 

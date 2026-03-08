@@ -512,7 +512,7 @@ const PageRenderers = {
             <div class="sidebar-section">
                 <div class="sidebar-header-row">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="#1a73e8"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/></svg>
-                    <span class="sidebar-section-title">Explore the Earth - YBao</span>
+                    <span class="sidebar-section-title">Explore the Earth</span>
                 </div>
                 <!-- User attributes panel -->
                 <div class="user-stats-panel">

@@ -659,7 +659,7 @@ function startAnimation() {
 
 
 function viewRoute() {
-alert("1viewroute");
+// alert("1viewroute");
     eol = polyline.Distance();
     alert(0);
     alert(eol);

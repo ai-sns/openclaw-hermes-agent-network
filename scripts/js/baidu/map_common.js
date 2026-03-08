@@ -21,7 +21,7 @@ if (typeof window.current_position !== 'undefined' && window.current_position !=
     // Delay execution until current_position is set (set in interact_python)
     console.log("Waiting for current_position to initialize...");
 }
-map.setHeading(90);
+map.setHeading(0);
 map.setTilt(80);
 map.enableKeyboard();
 map.enableScrollWheelZoom();
@@ -61,9 +61,9 @@ driving = new BMapGL.DrivingRouteLine(map, {
 
             try {
                 if (gpsPositions && Array.isArray(gpsPositions) && gpsPositions.length >= 2) {
-                    const points = gpsPositions.map(p => ({ lng: Number(p.lng), lat: Number(p.lat) }))
+                    const points = gpsPositions.map(p => ({lng: Number(p.lng), lat: Number(p.lat)}))
                         .filter(p => Number.isFinite(p.lng) && Number.isFinite(p.lat));
-                    update_map_setting("route_points", JSON.stringify({ provider: "baidu", points: points }));
+                    update_map_setting("route_points", JSON.stringify({provider: "baidu", points: points}));
                 }
             } catch (e) {
                 console.warn("Failed to persist route_points:", e);
@@ -291,7 +291,7 @@ function parseModelFilename(filename) {
     if (scaleParam.startsWith('0') && scaleParam.length > 1) {
         // Starts with 0: convert to decimal
         scaleMultiplier = parseFloat('0.' + scaleParam.substring(1));
-        scaleMultiplier = scaleMultiplier*10;
+        scaleMultiplier = scaleMultiplier * 10;
     } else {
         scaleMultiplier = parseFloat(scaleParam);
     }
@@ -381,7 +381,7 @@ function rotateMyModel180AfterTalkMove(targetNationId, options = {}) {
 
     if (!group) {
         if (maxRetries > 0) {
-            setTimeout(() => rotateMyModel180AfterTalkMove(targetId, { maxRetries: maxRetries - 1, retryDelayMs }), retryDelayMs);
+            setTimeout(() => rotateMyModel180AfterTalkMove(targetId, {maxRetries: maxRetries - 1, retryDelayMs}), retryDelayMs);
         }
         return;
     }
@@ -397,9 +397,9 @@ function rotateMyModel180AfterTalkMove(targetNationId, options = {}) {
     }
 
     try {
-        // Baidu map 3D: x/y are Mercator plane, z is altitude, so yaw is typically around Z.
-        const baseZ = (group.userData && typeof group.userData.__talk_original_rotation_z === 'number') ? group.userData.__talk_original_rotation_z : 0;
-        const desiredZ = baseZ + Math.PI;
+        // Baidu map 3D: rotation.z is yaw in Mercator XY plane.
+        // Face north: rotation.z = PI
+        const desiredZ = Math.PI;
         const currentZ = (group.rotation && typeof group.rotation.z === 'number') ? group.rotation.z : 0;
         if (Math.abs(currentZ - desiredZ) > 1e-6) {
             group.rotation.z = desiredZ;
@@ -443,25 +443,86 @@ function resetMyModelRotationAfterTalk(options = {}) {
 
     if (!group) {
         if (maxRetries > 0) {
-            setTimeout(() => resetMyModelRotationAfterTalk({ maxRetries: maxRetries - 1, retryDelayMs }), retryDelayMs);
+            setTimeout(() => resetMyModelRotationAfterTalk({maxRetries: maxRetries - 1, retryDelayMs}), retryDelayMs);
         }
         return;
     }
 
     try {
-        const baseZ = (group.userData && typeof group.userData.__talk_original_rotation_z === 'number') ? group.userData.__talk_original_rotation_z : null;
-        if (baseZ !== null) {
-            const currentZ = (group.rotation && typeof group.rotation.z === 'number') ? group.rotation.z : 0;
-            if (Math.abs(currentZ - baseZ) > 1e-6) {
-                group.rotation.z = baseZ;
-            }
+        // Face south: rotation.z = 0
+        const desiredZ = 0;
+        const currentZ = (group.rotation && typeof group.rotation.z === 'number') ? group.rotation.z : 0;
+        if (Math.abs(currentZ - desiredZ) > 1e-6) {
+            group.rotation.z = desiredZ;
         }
         if (group.userData) {
             group.userData.__talk_is_active = false;
             group.userData.__talk_face_target_last_nation_id = '';
+            group.userData.__talk_original_rotation_z = desiredZ;
         }
     } catch (e) {
         console.warn('Failed to reset my model rotation after talk:', e);
+        return;
+    }
+
+    try {
+        if (typeof threeLayer !== 'undefined' && threeLayer && typeof threeLayer.render === 'function') {
+            threeLayer.render();
+        }
+    } catch (e) {
+    }
+}
+
+// Rotate the person model to face a given geographic bearing after movement.
+// bearingDeg: geographic bearing in degrees (0=N, 90=E, 180=S, 270=W).
+// Baidu 3D: x/y are Mercator plane, z is altitude; yaw rotation is around Z axis.
+// The model is loaded with rotateX(90deg), so the default forward direction
+// in Mercator plane corresponds to -Y (south) at rotation.z = 0. To face a bearing we set:
+//   rotation.z = bearingRad  (positive because Z-rotation is counter-clockwise from south)
+function rotateMyModelTowardDirection(bearingDeg, options) {
+    options = options || {};
+    const meNationId = (typeof nation_id_me !== 'undefined' && nation_id_me) ? String(nation_id_me).trim() : '';
+    if (!meNationId) return;
+
+    const maxRetries = (options.maxRetries !== undefined) ? Number(options.maxRetries) : 10;
+    const retryDelayMs = (options.retryDelayMs !== undefined) ? Number(options.retryDelayMs) : 200;
+
+    var group = null;
+    try {
+        group = (model_loaded_list && model_loaded_list[meNationId]) ? model_loaded_list[meNationId] : null;
+    } catch (e) {
+        group = null;
+    }
+
+    if (!group) {
+        try {
+            if (typeof threeLayer !== 'undefined' && threeLayer && threeLayer.scene && typeof threeLayer.scene.getObjectByName === 'function') {
+                group = threeLayer.scene.getObjectByName(meNationId);
+            }
+        } catch (e) {
+            group = null;
+        }
+    }
+
+    if (!group) {
+        if (maxRetries > 0) {
+            setTimeout(function () { rotateMyModelTowardDirection(bearingDeg, { maxRetries: maxRetries - 1, retryDelayMs: retryDelayMs }); }, retryDelayMs);
+        }
+        return;
+    }
+
+    try {
+        // Convert geographic bearing to radians and set rotation.z
+        // In Baidu Mercator 3D, rotation.z = 0 faces south, rotation.z = PI faces north.
+        // Bearing is CW from north, so we add PI to flip from south-based to north-based.
+        var bearingRad = bearingDeg * Math.PI / 180;
+        group.rotation.z = Math.PI - bearingRad;
+
+        // Update stored original rotation so talk-rotation logic stays consistent
+        if (!group.userData) group.userData = {};
+        group.userData.__talk_original_rotation_z = group.rotation.z;
+    } catch (e) {
+        console.warn('Failed to rotate model toward movement direction (baidu):', e);
         return;
     }
 
@@ -530,7 +591,7 @@ function loadModel(persondata) {
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const height = size.y; // Model height
-        alert(height);
+        // alert(height);
         console.log("the height33:", height);
         // Get model bounding box
 
@@ -700,8 +761,8 @@ map.addEventListener('click', function (e) {
 // map.closeInfoWindow();
         //use setTimeout to  wait for the next macrotask
         setTimeout(function () {
-        showprofile3d(currentModel);
-    }, 0);
+            showprofile3d(currentModel);
+        }, 0);
 // showprofile3d(currentModel);
 
     } else {
@@ -756,7 +817,7 @@ map.addEventListener('click', function (e) {
 
         try {
             if (typeof update_location_and_open_nearest_place === 'function') {
-                update_location_and_open_nearest_place(e.latlng.lng, e.latlng.lat, { maxDistanceM: 1000, throttleMs: 800 });
+                update_location_and_open_nearest_place(e.latlng.lng, e.latlng.lat, {maxDistanceM: 1000, throttleMs: 800});
             }
         } catch (err) {
             console.warn('Failed to sync location to backend:', err);
@@ -829,7 +890,7 @@ function updateHouseModel(position, scale, rotation) {
 
     // Debug: list all objects in the scene
     console.log('Scene objects:');
-    threeLayer.scene.traverse(function(object) {
+    threeLayer.scene.traverse(function (object) {
         console.log('Object name:', object.name, 'Type:', object.type);
     });
 
@@ -838,7 +899,7 @@ function updateHouseModel(position, scale, rotation) {
 
     // If not found by name, try alternative search
     if (!houseModelGroup) {
-        threeLayer.scene.traverse(function(object) {
+        threeLayer.scene.traverse(function (object) {
             if (object.name && object.name.includes('house')) {
                 houseModelGroup = object;
                 console.log('Found house-related object:', object.name);
@@ -909,7 +970,7 @@ function updateHouseModel(position, scale, rotation) {
 
         // List all objects for confirmation
         console.log('All objects in scene:');
-        threeLayer.scene.traverse(function(object) {
+        threeLayer.scene.traverse(function (object) {
             console.log('Name:', object.name, 'Type:', object.type);
         });
     }
@@ -938,7 +999,6 @@ function queryAddress() {
 }
 
 
-
 function set_move_status() {
 
     if (instruct_to_move_flag) {
@@ -961,12 +1021,12 @@ function set_move_status() {
 var _initialBubbleOpts = {
     body: "Hi, I'm YBot",
     showClose: false,
-    offset: { x: 30, y: -50 },
+    offset: {x: 30, y: -50},
 };
 var _initialBubbleOpts2 = {
     body: "Hello!",
     showClose: false,
-    offset: { x: 30, y: -50 },
+    offset: {x: 30, y: -50},
 };
 
 function __snsPostJson(path, payload) {
@@ -989,7 +1049,7 @@ function __snsPostJson(path, payload) {
 }
 
 function __snsHumanMessage(message) {
-    return __snsPostJson('/api/sns/human-message', { message: String(message || '') });
+    return __snsPostJson('/api/sns/human-message', {message: String(message || '')});
 }
 
 function __snsSendMessage(to_account, content) {
@@ -1000,22 +1060,40 @@ function __snsSendMessage(to_account, content) {
 }
 
 function start_talk_to_it(nation_id, content) {
-    // div = hiddenPoints[nation_id];
-    // div.style.display = 'none';
-    alert(nation_id);
-    alert(map.getZoom());
+
     person_target_point = getPersonPointByNationId(nation_id);
     person_data_me = getPersonDataByNationId(nation_id_me);
     person_target = getPersonDataByNationId(nation_id);
+
+    setTimeout(function () {
+
+        map.setCenter(new BMapGL.Point(person_target_point.lng - 0.005, person_target_point.lat - 0.005));
+        showAlert("Moving to talk.");
+
+    }, 100);
+    setTimeout(function () {
+
+        map.setZoom(16.5);
+
+    }, 3000);
+    setTimeout(function () {
+
+        map.setHeading(90);
+
+
+    }, 3500);
+    setTimeout(function () {
+
+        map.setTilt(60);
+
+    }, 4500);
+
 
     loadModel(person_target);
 
 
     let person = getPersonDataByNationId(nation_id);
-    alert(person_data_me["account"]);
-    alert(person_target["account"]);
-    map.setHeading(0);
-    // map.setTilt(0);
+
     console.log("the user point:");
     console.log(person_target_point);
     console.log(person_target_point.lng);
@@ -1027,13 +1105,13 @@ function start_talk_to_it(nation_id, content) {
     my_new_point = new BMapGL.Point(person_target_point.lng, person_target_point.lat - 0.01);
 
     setPersonModelPointByNationId(nation_id_me, my_new_point);
-    setPersonPointByNationId(nation_id_me,my_new_point.lng,my_new_point.lat);
+    setPersonPointByNationId(nation_id_me, my_new_point.lng, my_new_point.lat);
 
     try {
         if (typeof sync_current_position === 'function') {
-            sync_current_position(my_new_point.lng, my_new_point.lat, { throttleMs: 0 });
+            sync_current_position(my_new_point.lng, my_new_point.lat, {throttleMs: 0});
         } else if (typeof update_location_and_open_nearest_place === 'function') {
-            update_location_and_open_nearest_place(my_new_point.lng, my_new_point.lat, { maxDistanceM: 1000, throttleMs: 0 });
+            update_location_and_open_nearest_place(my_new_point.lng, my_new_point.lat, {maxDistanceM: 1000, throttleMs: 0});
         }
     } catch (e) {
         console.warn('Failed to sync current position after talk movement:', e);
@@ -1059,6 +1137,10 @@ function start_talk_to_it(nation_id, content) {
 }
 
 function talk_to_it(nation_id, content) {
+    setTimeout(function () {
+        closeBaiduBubble();
+    }, 0);
+
     try {
         if (typeof setSinglePointHidden === 'function') {
             setSinglePointHidden(nation_id, true);
@@ -1070,11 +1152,36 @@ function talk_to_it(nation_id, content) {
         }
     } catch (e) {
     }
-    alert(nation_id);
-    alert(map.getZoom());
+
     person_target_point = getPersonPointByNationId(nation_id);
     person_data_me = getPersonDataByNationId(nation_id_me);
     person_target = getPersonDataByNationId(nation_id);
+
+
+    setTimeout(function () {
+
+        map.setCenter(new BMapGL.Point(person_target_point.lng - 0.005, person_target_point.lat - 0.005));
+        showAlert("Moving to talk.");
+
+    }, 100);
+    setTimeout(function () {
+
+        map.setZoom(16.5);
+
+    }, 3000);
+    setTimeout(function () {
+
+
+        map.setHeading(90);
+
+    }, 3500);
+    setTimeout(function () {
+
+        map.setTilt(60);
+
+    }, 4500);
+
+
 
     try {
         const account = (person_target && person_target["account"]) ? String(person_target["account"]).trim() : '';
@@ -1090,10 +1197,8 @@ function talk_to_it(nation_id, content) {
 
 
     let person = getPersonDataByNationId(nation_id);
-    alert(person_data_me["account"]);
-    alert(person_target["account"]);
-    map.setHeading(0);
-    // map.setTilt(0);
+
+
     console.log("the user point:");
     console.log(person_target_point);
     console.log(person_target_point.lng);
@@ -1109,9 +1214,9 @@ function talk_to_it(nation_id, content) {
 
     try {
         if (typeof sync_current_position === 'function') {
-            sync_current_position(my_new_point.lng, my_new_point.lat, { throttleMs: 0 });
+            sync_current_position(my_new_point.lng, my_new_point.lat, {throttleMs: 0});
         } else if (typeof update_location_and_open_nearest_place === 'function') {
-            update_location_and_open_nearest_place(my_new_point.lng, my_new_point.lat, { maxDistanceM: 1000, throttleMs: 0 });
+            update_location_and_open_nearest_place(my_new_point.lng, my_new_point.lat, {maxDistanceM: 1000, throttleMs: 0});
         }
     } catch (e) {
         console.warn('Failed to sync current position after talk movement:', e);
@@ -1166,6 +1271,7 @@ function talk_to_it(nation_id, content) {
 function stop_talk_to_it(nation_id) {
     try {
         resetMyModelRotationAfterTalk();
+        map.setHeading(0);
     } catch (e) {
     }
 
@@ -1249,7 +1355,7 @@ function send_chat_msg(lng, lat, msg, send_person_name = "") {
         title: send_person_name || '',
         body: msg,
         showClose: false,
-        offset: { x: 30, y: -50 },
+        offset: {x: 0, y: -250},
     }, map);
 
     // Set timer to close the bubble and reset the flag
@@ -1261,7 +1367,6 @@ function send_chat_msg(lng, lat, msg, send_person_name = "") {
     // Debug output
     console.log("Chat bubble opened.");
 }
-
 
 
 function showprofile(nation_id) {
@@ -1284,7 +1389,7 @@ function showprofile(nation_id) {
         title: person["nick_name"],
         body: bodyHTML,
         showClose: true,
-        offset: { x: 30, y: -50 },
+        offset: {x: 30, y: -50},
         onClose: function () {
             closeprofile();
         },
@@ -1293,7 +1398,7 @@ function showprofile(nation_id) {
     open_sns_profile(person['sns_url']);
 }
 
-function closeprofile(){
+function closeprofile() {
     closeBaiduBubble();
     close_sns_profile();
 }
@@ -1342,7 +1447,7 @@ function showprofile3d(geoGroup) {
         title: person["nick_name"],
         body: bodyHTML,
         showClose: true,
-        offset: { x: 30, y: -50 },
+        offset: {x: 30, y: -50},
         onClose: function () {
             closeprofile();
         },
@@ -1358,9 +1463,6 @@ function showprofile3d(geoGroup) {
     console.log("retrievedGeoGroup1", retrievedGeoGroup1);
 
 }
-
-
-
 
 
 //navigate places
@@ -1445,13 +1547,13 @@ var view_opts = {
 
 var view_animation = new BMapGL.ViewAnimation(keyFrames, view_opts);
 
-var auto_navigate_flag=false;
+var auto_navigate_flag = false;
 
-function toggleNavigate(){
-    if(auto_navigate_flag){
+function toggleNavigate() {
+    if (auto_navigate_flag) {
         cancelNavigate();
-        auto_navigate_flag=false;
-    }else{
+        auto_navigate_flag = false;
+    } else {
         autoNavigate();
         auto_navigate_flag = true;
     }
@@ -1463,13 +1565,13 @@ function autoNavigate() {
     map.setTilt(50);      // Set initial tilt
     // Define keyframes
 
-    displayOptions={
-            indoor: false,
-            poiText: true,
-            poiIcon: false,
-            building: true,
-        }
-        map.setDisplayOptions(displayOptions);
+    displayOptions = {
+        indoor: false,
+        poiText: true,
+        poiIcon: false,
+        building: true,
+    }
+    map.setDisplayOptions(displayOptions);
 
 
     // Bind events
@@ -1489,15 +1591,15 @@ function autoNavigate() {
 
 }
 
-function cancelNavigate(){
-    auto_navigate_flag=false;
-        displayOptions={
-            indoor: false,
-            poiText: false,
-            poiIcon: false,
-            building: false,
-        }
-        map.setDisplayOptions(displayOptions);
+function cancelNavigate() {
+    auto_navigate_flag = false;
+    displayOptions = {
+        indoor: false,
+        poiText: false,
+        poiIcon: false,
+        building: false,
+    }
+    map.setDisplayOptions(displayOptions);
     map.cancelViewAnimation(view_animation);
     refresh();
 }

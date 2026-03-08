@@ -262,16 +262,41 @@
 }
 
 /* ============================================================
-   Baidu Maps Custom Overlay Container
+   Baidu Maps Custom Overlay Container (pure DOM, no BMapGL.Overlay)
    ============================================================ */
 
-.baidu-bubble-overlay {
-    position: absolute;
-    z-index: 999;
-    pointer-events: auto;
+#baidu-bubble-container {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    display: none;
     /* Prevent text selection on the overlay container */
     user-select: none;
     -webkit-user-select: none;
+}
+
+/* Allow interaction with the bubble content itself */
+#baidu-bubble-container .bubble-infowindow {
+    pointer-events: auto;
+}
+
+/* ============================================================
+   Google Maps Custom Overlay Container (pure DOM, no google.maps.InfoWindow)
+   ============================================================ */
+
+#google-bubble-container {
+    position: fixed;
+    z-index: 1000;
+    pointer-events: none;
+    display: none;
+    /* Prevent text selection on the overlay container */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Allow interaction with the bubble content itself */
+#google-bubble-container .bubble-infowindow {
+    pointer-events: auto;
 }
 
 /* ============================================================

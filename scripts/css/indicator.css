@@ -18,14 +18,12 @@
     top: 0.5rem;
     left: 1.5rem;
     z-index: 999;
-    transition: all 0.3s ease;
-    transform: translateY(-100%);
+    transition: opacity 0.3s ease;
     opacity: 0;
     pointer-events: none;
 }
 
 .status-indicator.visible {
-    transform: translateY(0);
     opacity: 1;
 }
 
@@ -164,7 +162,7 @@
 }
 
 /* 空闲状态 - 呼吸圆点 */
-.standby .idle-dot {
+.idle .idle-dot {
     width: 6px;
     height: 6px;
     margin: 2px;

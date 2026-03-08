@@ -879,7 +879,8 @@ const initializeBuilding = async () => {
 function animate(time) {
     requestAnimationFrame(animate);
 
-    // Check model load status
+    // Check model load status (allow 'failed' status to pass through so
+    // successfully loaded models still render when others fail to load)
     if (typeof modelLoadStatus !== 'undefined' &&
         (!modelLoadStatus.building || !modelLoadStatus.house ||
          !modelLoadStatus.girl || !modelLoadStatus.boy)) {
@@ -916,6 +917,12 @@ function animate(time) {
 
     if (overlayUiInitialized) {
         updateVideoOverlayPosition();
+    }
+
+    // Anchor status indicator to person_me 3D model head
+    if (typeof aimodel_status !== 'undefined' && aimodel_status &&
+        typeof aimodel_status.updatePosition === 'function') {
+        aimodel_status.updatePosition();
     }
 }
 
