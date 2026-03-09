@@ -66,41 +66,9 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False
 )
 
-# Sync session factory (backward compatible)
-from sqlalchemy import create_engine
+# Sync engine: reuse the single shared engine from db/DBFactory (NullPool + WAL + busy_timeout)
 from sqlalchemy.orm import sessionmaker, Session
-SYNC_SQLALCHEMY_DATABASE_URL = f"sqlite:///{settings.database.full_path}"
-sync_engine = create_engine(
-    SYNC_SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False, "timeout": 30},
-    poolclass=NullPool,
-    echo=settings.debug
-)
-
-
-@event.listens_for(sync_engine, "connect")
-def _sqlite_on_connect_sync(dbapi_connection, connection_record):
-    try:
-        cursor = dbapi_connection.cursor()
-        try:
-            cursor.execute("PRAGMA journal_mode=WAL")
-        except Exception:
-            pass
-        try:
-            cursor.execute("PRAGMA synchronous=NORMAL")
-        except Exception:
-            pass
-        try:
-            cursor.execute("PRAGMA busy_timeout=30000")
-        except Exception:
-            pass
-        try:
-            cursor.execute("PRAGMA foreign_keys=ON")
-        except Exception:
-            pass
-        cursor.close()
-    except Exception:
-        pass
+from db.DBFactory import engine as sync_engine  # unified sync engine
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
 
@@ -238,13 +206,13 @@ async def close_db():
     """Close database connections (async)."""
     try:
         await engine.dispose()
-        sync_engine.dispose()
-        logger.info("Database connection closed")
+        # Note: sync_engine is the shared DBFactory engine; disposing it affects all users
+        logger.info("Async database connection closed")
     except Exception as e:
         logger.error(f"Error closing database: {e}")
 
 
 def close_db_sync():
     """Close database connections (sync)."""
-    sync_engine.dispose()
-    logger.info("Database connection closed")
+    # Note: sync_engine is the shared DBFactory engine; only dispose on full shutdown
+    logger.info("Sync database connection close requested (shared engine)")

@@ -52,6 +52,30 @@ def _sqlite_on_connect(dbapi_connection, connection_record):
 
 Session = sessionmaker(bind=engine)
 
+import time
+import logging
+_dbfactory_logger = logging.getLogger(__name__)
+
+
+def _commit_with_retry(session, max_retries=3, base_delay=0.5):
+    """Commit a session with retry on database lock errors (exponential backoff)."""
+    for attempt in range(1, max_retries + 1):
+        try:
+            session.commit()
+            return
+        except Exception as e:
+            err_msg = str(e).lower()
+            if 'database is locked' in err_msg and attempt < max_retries:
+                wait = base_delay * (2 ** (attempt - 1))
+                _dbfactory_logger.warning(
+                    "[DBFactory] database is locked on commit (attempt %d/%d), retrying in %.1fs...",
+                    attempt, max_retries, wait
+                )
+                session.rollback()
+                time.sleep(wait)
+            else:
+                raise
+
 
 class User(Base):
     __tablename__ = 'users'
@@ -97,14 +121,16 @@ def add_AIChatMessages(conversation_id, flag, title, content, owner_name, owner_
                        is_first=False, attachment_list="", document_content="", image_json="", km_list="",
                        km_content=""):
     session = Session()
-    ai_friend = AIChatMessages(conversation_id=conversation_id, flag=flag, title=title, content=content,
-                               owner_name=owner_name, owner_account=owner_account, friend_name=friend_name,
-                               friend_account=friend_account, is_first=is_first, attachment_list=attachment_list,
-                               document_content=document_content, image_json=image_json, km_list=km_list,
-                               km_content=km_content)
-    session.add(ai_friend)
-    session.commit()
-    session.close()
+    try:
+        ai_friend = AIChatMessages(conversation_id=conversation_id, flag=flag, title=title, content=content,
+                                   owner_name=owner_name, owner_account=owner_account, friend_name=friend_name,
+                                   friend_account=friend_account, is_first=is_first, attachment_list=attachment_list,
+                                   document_content=document_content, image_json=image_json, km_list=km_list,
+                                   km_content=km_content)
+        session.add(ai_friend)
+        _commit_with_retry(session)
+    finally:
+        session.close()
 
 
 def query_map_activity_previous(last_record_id=None, count=20, type_str=None):
@@ -1324,12 +1350,14 @@ def query_AiChatCfg_map_setting(**kwargs):
 
 def update_AiChatCfg_map(**kwargs):
     session = Session()
-    record = session.query(AiChatCfg).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    try:
+        record = session.query(AiChatCfg).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+            _commit_with_retry(session)
+    finally:
+        session.close()
 
 
 def update_AiChatCfg(id, **kwargs):

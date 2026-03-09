@@ -341,7 +341,24 @@ class XmppMixin:
                     self.db.add(friend)
 
                 friend.last_message_time = datetime.now()
-                self.db.commit()
+                # Retry commit on database lock (long-lived session is prone to contention)
+                _max_retries = 3
+                for _attempt in range(1, _max_retries + 1):
+                    try:
+                        self.db.commit()
+                        break
+                    except Exception as _commit_err:
+                        if 'database is locked' in str(_commit_err).lower() and _attempt < _max_retries:
+                            _wait = 0.5 * (2 ** (_attempt - 1))
+                            logger.warning(
+                                "[XmppMixin] database is locked on self.db.commit (attempt %d/%d), retrying in %.1fs...",
+                                _attempt, _max_retries, _wait
+                            )
+                            self.db.rollback()
+                            import time as _time_mod
+                            _time_mod.sleep(_wait)
+                        else:
+                            raise
 
                 contact_payload = {
                     'account': friend.account,

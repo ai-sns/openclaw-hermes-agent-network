@@ -2726,9 +2726,9 @@ export default {
         contentDiv.className = 'thinking-log-entry';
         contentDiv.style.cssText = `
             white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
             padding: 8px;
             background: rgba(26, 115, 232, 0.05);
             border-left: 3px solid #1a73e8;
@@ -2938,9 +2938,10 @@ export default {
         const onGoingDiv = document.createElement('div');
         onGoingDiv.style.cssText = `
             white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-primary);
         `;
         onGoingDiv.textContent = content;
         onGoingSection.innerHTML = '';
@@ -2965,9 +2966,10 @@ export default {
         const historyDiv = document.createElement('div');
         historyDiv.style.cssText = `
             white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-primary);
         `;
         historyDiv.textContent = content;
         historySection.innerHTML = '';
@@ -2999,9 +3001,10 @@ export default {
         const contentDiv = document.createElement('div');
         contentDiv.style.cssText = `
             white-space: pre-wrap;
-            font-family: monospace;
-            font-size: 12px;
-            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            font-size: 13px;
+            line-height: 1.6;
+            color: var(--text-primary);
         `;
         contentDiv.textContent = content;
 
@@ -3240,13 +3243,19 @@ export default {
             profilePane.remove();
         }
 
-        // Switch to the first tab (Process)
+        // Switch to the first tab (Process) — use exclusive toggle to avoid
+        // leaving stale 'active' class on other tabs (fixes simultaneous
+        // Process + Think activation bug).
         const firstTab = statusTabs.querySelector('.status-tab');
         const firstPane = statusTabContent.querySelector('.tab-pane');
 
         if (firstTab && firstPane) {
-            firstTab.classList.add('active');
-            firstPane.classList.add('active');
+            statusTabs.querySelectorAll('.status-tab').forEach(btn => {
+                btn.classList.toggle('active', btn === firstTab);
+            });
+            statusTabContent.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.toggle('active', pane === firstPane);
+            });
         }
 
         console.log('SNS Profile tab closed');
@@ -3562,12 +3571,17 @@ export default {
                 if (placeTab) placeTab.remove();
                 if (placePane) placePane.remove();
 
-                // Switch to the first tab (Process)
+                // Switch to the first tab (Process) — use exclusive toggle
+                // to avoid leaving stale 'active' class on other tabs.
                 const firstTab = statusTabs.querySelector('.status-tab');
                 const firstPane = statusTabContent.querySelector('.tab-pane');
                 if (firstTab && firstPane) {
-                    firstTab.classList.add('active');
-                    firstPane.classList.add('active');
+                    statusTabs.querySelectorAll('.status-tab').forEach(btn => {
+                        btn.classList.toggle('active', btn === firstTab);
+                    });
+                    statusTabContent.querySelectorAll('.tab-pane').forEach(pane => {
+                        pane.classList.toggle('active', pane === firstPane);
+                    });
                 }
             });
         }

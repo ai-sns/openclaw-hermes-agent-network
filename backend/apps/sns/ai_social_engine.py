@@ -64,6 +64,8 @@ class AISocialEngine(
     Backend adapter for AI Social Engine
     Wraps the Qt-based ai_social_engine functionality for API use
     """
+    LIFE_DECLINE_INTERVAL = 10    # Decline life every N rounds
+    ENERGY_DECLINE_INTERVAL = 5   # Decline energy every N rounds
 
     def __init__(self, db: Session):
         self.db = db
@@ -205,8 +207,8 @@ class AISocialEngine(
         self.command_list = []
         self.current_command_index = -1
         self.updown_message_index = -1
-        self.temp_index = 0
-        self.temp_index_2 = 0
+        self.life_decline_counter = 0
+        self.energy_decline_counter = 0
         self.current_action = ""
         self.action_result = ""
         self.current_task_list = ""
@@ -525,11 +527,13 @@ class AISocialEngine(
         await self.ask_agent_and_get_instruction(full_ask_content, role_prompt)
 
     def compose_full_ask_content(self, task_description, question_to_llm):
-        if self.temp_index > 7:
+        if self.life_decline_counter >= self.LIFE_DECLINE_INTERVAL:
             self.decline_life()
+            self.life_decline_counter = 0
 
-        if self.temp_index_2 > 3:
+        if self.energy_decline_counter >= self.ENERGY_DECLINE_INTERVAL:
             self.decline_energy()
+            self.energy_decline_counter = 0
 
         money = float(self.aichatcfg_record.money or 0)
         life_point = int(self.aichatcfg_record.life_point or 0)
@@ -586,15 +590,8 @@ class AISocialEngine(
         # Increment in-memory instruction total count for IQ tracking
         self._instruction_total_count += 1
 
-        if self.temp_index > 7:
-            self.temp_index = 0
-        else:
-            self.temp_index = self.temp_index + 1
-
-        if self.temp_index_2 > 3:
-            self.temp_index_2 = 0
-        else:
-            self.temp_index_2 = self.temp_index_2 + 1
+        self.life_decline_counter += 1
+        self.energy_decline_counter += 1
 
         if self.move_by_route_flag:
             self.write_on_going_process_to_pane(f"{action_str}(Changed to 'move by route' due to the movement setting.")
