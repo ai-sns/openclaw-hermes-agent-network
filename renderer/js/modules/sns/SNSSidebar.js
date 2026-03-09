@@ -39,6 +39,7 @@ export default {
     _chatLinkListenerBound: false,
 
     _exploreNickname: '',
+    _mapReloadListenersBound: false,
 
     escapeHtml(value) {
         return String(value ?? '')
@@ -367,6 +368,7 @@ export default {
         this.attachEventListeners();
         this.setupTabSwitching();
         this.setupWebSocketListener();
+        this.setupMapReloadRefreshListeners();
 
         if (!this._exploreTitleListenerBound) {
             window.addEventListener('sns-user-info-updated', (event) => {
@@ -375,6 +377,28 @@ export default {
             });
             this._exploreTitleListenerBound = true;
         }
+    },
+
+    setupMapReloadRefreshListeners() {
+        if (this._mapReloadListenersBound) return;
+        this._mapReloadListenersBound = true;
+
+        const safeRefresh = async (reason) => {
+            try {
+                console.log(`[SNSSidebar] Refreshing user stats (${reason})...`);
+                await this.loadUserStats();
+            } catch (e) {
+                console.warn(`[SNSSidebar] Failed to refresh user stats after ${reason}:`, e);
+            }
+        };
+
+        window.addEventListener('sns-map-reload-start', () => {
+            safeRefresh('map reload start');
+        });
+
+        window.addEventListener('sns-map-iframe-loaded', () => {
+            safeRefresh('map iframe loaded');
+        });
     },
 
     /**

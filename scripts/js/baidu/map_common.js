@@ -542,6 +542,101 @@ function loadModel(persondata) {
         return;
     }
 
+    if (typeof window !== 'undefined') {
+        window.__sns_baidu_person_loading_labels = window.__sns_baidu_person_loading_labels || {};
+        window.__sns_baidu_person_loading_style_injected = window.__sns_baidu_person_loading_style_injected || false;
+    }
+
+    function __snsEnsureBaiduPersonLoadingStyle() {
+        try {
+            if (typeof document === 'undefined') return;
+            if (typeof window === 'undefined') return;
+            if (window.__sns_baidu_person_loading_style_injected) return;
+
+            const style = document.createElement('style');
+            style.type = 'text/css';
+            style.textContent = `
+                @keyframes snsBaiduHoloSpin { 0% { transform: rotateX(75deg) rotateZ(0deg); } 100% { transform: rotateX(75deg) rotateZ(360deg); } }
+                @keyframes snsBaiduHoloBeam { 0%, 100% { opacity: 0.6; height: 70px; } 50% { opacity: 0.9; height: 90px; } }
+                @keyframes snsBaiduHoloBuild { 
+                    0% { clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%); opacity: 0.7; }
+                    100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+                }
+                @keyframes snsBaiduHoloScan { 0% { bottom: 15px; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { bottom: 75px; opacity: 0; } }
+                @keyframes snsBaiduHoloText { 0%,100% { opacity: 0.7; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.05); } }
+                
+                .sns-baidu-person-loading-overlay { width: 80px; height: 120px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+                .sns-baidu-holo-shadow { position: absolute; bottom: -8px; width: 70px; height: 26px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; }
+                .sns-baidu-holo-base { position: absolute; bottom: 5px; width: 60px; height: 60px; border: 2px solid rgba(0, 150, 160, 0.95); border-radius: 50%; transform: rotateX(75deg) rotateZ(0deg); animation: snsBaiduHoloSpin 3s linear infinite; box-shadow: 0 0 10px rgba(0, 150, 160, 0.5), inset 0 0 10px rgba(0, 150, 160, 0.5); background: rgba(0, 150, 160, 0.15); }
+                .sns-baidu-holo-base::before { content: ''; position: absolute; inset: 6px; border: 2px dashed rgba(0, 150, 160, 0.95); border-radius: 50%; }
+                .sns-baidu-holo-base::after { content: ''; position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: #0096a0; box-shadow: 0 0 8px 3px #0096a0; transform: translate(-50%, -50%); border-radius: 50%; }
+                .sns-baidu-holo-beam { position: absolute; bottom: 15px; width: 44px; height: 80px; background: linear-gradient(to top, rgba(0, 150, 160, 0.5), transparent); clip-path: polygon(20% 0, 80% 0, 100% 100%, 0% 100%); animation: snsBaiduHoloBeam 2s ease-in-out infinite; }
+                .sns-baidu-holo-person { position: absolute; bottom: 15px; width: 36px; height: 64px; color: #0096a0; animation: snsBaiduHoloBuild 1.5s infinite alternate ease-in-out; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
+                .sns-baidu-holo-person svg { width: 100%; height: 100%; display: block; }
+                .sns-baidu-holo-scanline { position: absolute; bottom: 15px; width: 46px; height: 3px; background: #fff; box-shadow: 0 0 6px 2px #0096a0, 0 2px 4px rgba(0,0,0,0.5); animation: snsBaiduHoloScan 1.5s linear infinite; border-radius: 50%; }
+                .sns-baidu-holo-text { position: absolute; bottom: -24px; font-size: 12px; color: #00c8cc; font-family: 'Consolas', 'Courier New', monospace; letter-spacing: 1.5px; animation: snsBaiduHoloText 1.5s infinite ease-in-out; white-space: nowrap; font-weight: bold; background: rgba(10, 25, 45, 0.85); padding: 5px 14px; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 150, 160, 0.4), inset 0 0 5px rgba(0, 150, 160, 0.3); border: 1px solid rgba(0, 150, 160, 0.5); text-transform: uppercase; text-shadow: 0 0 5px rgba(0, 150, 160, 0.6); }
+            `;
+            document.head.appendChild(style);
+            window.__sns_baidu_person_loading_style_injected = true;
+        } catch (e) {
+        }
+    }
+
+    function __snsShowBaiduPersonLoadingOverlay(nationIdStr, point) {
+        try {
+            if (typeof BMapGL === 'undefined') return;
+            if (typeof map === 'undefined' || !map) return;
+            if (!point) return;
+
+            __snsEnsureBaiduPersonLoadingStyle();
+
+            if (window.__sns_baidu_person_loading_labels && window.__sns_baidu_person_loading_labels[nationIdStr]) {
+                return;
+            }
+
+            const html = '<div class="sns-baidu-person-loading-overlay">' +
+                '<div class="sns-baidu-holo-shadow"></div>' +
+                '<div class="sns-baidu-holo-base"></div>' +
+                '<div class="sns-baidu-holo-beam"></div>' +
+                '<div class="sns-baidu-holo-person"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>' +
+                '<div class="sns-baidu-holo-scanline"></div>' +
+                '<div class="sns-baidu-holo-text">Loading Agent Avatar...</div>' +
+                '</div>';
+            const label = new BMapGL.Label(html, {
+                position: point,
+                offset: new BMapGL.Size(-40, -110),
+            });
+            try {
+                label.setStyle({
+                    border: '0',
+                    backgroundColor: 'transparent',
+                    padding: '0',
+                });
+            } catch (e) {
+            }
+            map.addOverlay(label);
+            window.__sns_baidu_person_loading_labels[nationIdStr] = label;
+        } catch (e) {
+            console.warn('Failed to show person loading overlay (baidu):', e);
+        }
+    }
+
+    function __snsHideBaiduPersonLoadingOverlay(nationIdStr) {
+        try {
+            if (typeof map === 'undefined' || !map) return;
+            if (typeof window === 'undefined' || !window.__sns_baidu_person_loading_labels) return;
+            const label = window.__sns_baidu_person_loading_labels[nationIdStr];
+            if (label) {
+                try {
+                    map.removeOverlay(label);
+                } catch (e) {
+                }
+            }
+            delete window.__sns_baidu_person_loading_labels[nationIdStr];
+        } catch (e) {
+        }
+    }
+
     if (model_loaded_list && model_loaded_list[nationId]) {
         try {
             showPersonModelByNationId(nationId);
@@ -551,10 +646,31 @@ function loadModel(persondata) {
         } catch (e) {
             console.warn('Failed to reuse loaded model:', e);
         }
+
+        try {
+            __snsHideBaiduPersonLoadingOverlay(nationId);
+        } catch (e) {
+        }
         return;
     }
 
     if (person_model_loading_promises[nationId]) {
+        try {
+            let pt = null;
+            if (typeof getPersonPointByNationId === 'function') {
+                pt = getPersonPointByNationId(nationId);
+            }
+            if (!pt) {
+                const posTmp = persondata["location"];
+                if (posTmp && posTmp.length >= 2) {
+                    pt = new BMapGL.Point(posTmp[0], posTmp[1]);
+                }
+            }
+            if (pt) {
+                __snsShowBaiduPersonLoadingOverlay(nationId, pt);
+            }
+        } catch (e) {
+        }
         return;
     }
 
@@ -562,6 +678,12 @@ function loadModel(persondata) {
     let pos = persondata["location"];
     let llPoint = new BMapGL.Point(pos[0], pos[1]);
     console.log("llPoint", llPoint);
+
+    try {
+        __snsShowBaiduPersonLoadingOverlay(nationId, llPoint);
+    } catch (e) {
+    }
+
     const mcpoint = BMapGL.Projection.convertLL2MC(llPoint);
     console.log("mcpoint", mcpoint)
 
@@ -681,10 +803,20 @@ function loadModel(persondata) {
             delete person_model_loading_promises[nationId];
         } catch (e) {
         }
+
+        try {
+            __snsHideBaiduPersonLoadingOverlay(nationId);
+        } catch (e) {
+        }
     }, undefined, function (error) {
         console.warn('Failed to load person model:', error);
         try {
             delete person_model_loading_promises[nationId];
+        } catch (e) {
+        }
+
+        try {
+            __snsHideBaiduPersonLoadingOverlay(nationId);
         } catch (e) {
         }
     });
@@ -1066,9 +1198,14 @@ function start_talk_to_it(nation_id, content) {
     person_target = getPersonDataByNationId(nation_id);
 
     setTimeout(function () {
-
-        map.setCenter(new BMapGL.Point(person_target_point.lng - 0.005, person_target_point.lat - 0.005));
-        showAlert("Moving to talk.");
+        const targetLng = person_target_point.lng - 0.005;
+        const targetLat = person_target_point.lat - 0.005;
+        const currentCenter = map.getCenter();
+        if (!currentCenter || Math.abs(currentCenter.lng - targetLng) > 0.0001 || Math.abs(currentCenter.lat - targetLat) > 0.0001) {
+            showAlert("Moving to talk.");
+        }
+        map.setCenter(new BMapGL.Point(targetLng, targetLat));
+        
 
     }, 100);
     setTimeout(function () {
@@ -1159,9 +1296,14 @@ function talk_to_it(nation_id, content) {
 
 
     setTimeout(function () {
-
-        map.setCenter(new BMapGL.Point(person_target_point.lng - 0.005, person_target_point.lat - 0.005));
-        showAlert("Moving to talk.");
+        const targetLng = person_target_point.lng - 0.005;
+        const targetLat = person_target_point.lat - 0.005;
+        const currentCenter = map.getCenter();
+        if (!currentCenter || Math.abs(currentCenter.lng - targetLng) > 0.0001 || Math.abs(currentCenter.lat - targetLat) > 0.0001) {
+            showAlert("Moving to talk.");
+        }
+        map.setCenter(new BMapGL.Point(targetLng, targetLat));
+        
 
     }, 100);
     setTimeout(function () {

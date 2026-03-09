@@ -271,8 +271,8 @@ class DataQueryMixin:
         return []
 
     def decline_energy(self):
-        exp = float(self.aichatcfg_record.exp_point or 0)
-        decline_point = 25 * ((100 - exp) / 100)
+        
+        decline_point = 25
         energy_point = float(self.aichatcfg_record.energy_point or 0) - decline_point
         self.aichatcfg_record.energy_point = energy_point
         life_point = float(self.aichatcfg_record.life_point or 0)
@@ -282,8 +282,8 @@ class DataQueryMixin:
         )
 
     def decline_life(self):
-        exp = float(self.aichatcfg_record.exp_point or 0)
-        decline_point = 25 * ((100 - exp) / 100)
+        
+        decline_point = 25
         life_point = float(self.aichatcfg_record.life_point or 0) - decline_point
         self.aichatcfg_record.life_point = life_point
         energy_point = float(self.aichatcfg_record.energy_point or 0)

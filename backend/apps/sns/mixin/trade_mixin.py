@@ -109,15 +109,16 @@ class TradeMixin:
         except Exception as e:
             logger.error(f"Failed to get nearest Restaurateur: {e}", exc_info=True)
 
-        self.aichatcfg_record.energy_point = self.aichatcfg_record.energy_point + 25
-        self.aichatcfg_record.move_point = round(
-            100 * (self.aichatcfg_record.life_point / 100) * (self.aichatcfg_record.energy_point / 100),
-            1,
-        )
+
 
         if provider:
             self.send_pay(fee, to_account=provider.get("account"), to_nation_id=provider.get("nation_id"), to_nick_name=provider.get("nick_name"))
         else:
+            self.aichatcfg_record.energy_point = self.aichatcfg_record.energy_point + 25
+            self.aichatcfg_record.move_point = round(
+                100 * (self.aichatcfg_record.life_point / 100) * (self.aichatcfg_record.energy_point / 100),
+                1,
+            )
             self.aichatcfg_record.money = self.aichatcfg_record.money - fee
 
         result = f"You paid {fee} for food. Your energy is now {self.aichatcfg_record.energy_point}%, and your move power is {self.aichatcfg_record.move_point}%"
@@ -151,15 +152,16 @@ class TradeMixin:
         except Exception as e:
             logger.error(f"Failed to get nearest Doctor: {e}", exc_info=True)
 
-        self.aichatcfg_record.life_point = self.aichatcfg_record.life_point + 25
-        self.aichatcfg_record.move_point = round(
-            100 * (self.aichatcfg_record.life_point / 100) * (self.aichatcfg_record.energy_point / 100),
-            1,
-        )
+
 
         if provider:
             self.send_pay(fee, to_account=provider.get("account"), to_nation_id=provider.get("nation_id"), to_nick_name=provider.get("nick_name"))
         else:
+            self.aichatcfg_record.life_point = self.aichatcfg_record.life_point + 25
+            self.aichatcfg_record.move_point = round(
+                100 * (self.aichatcfg_record.life_point / 100) * (self.aichatcfg_record.energy_point / 100),
+                1,
+            )
             self.aichatcfg_record.money = self.aichatcfg_record.money - fee
 
         result = f"You paid {fee} for remote medical service. Your life is now {self.aichatcfg_record.life_point}%, and your move power is {self.aichatcfg_record.move_point}%"

@@ -876,6 +876,14 @@ export default {
 
         window.addEventListener('reloadMap', async () => {
             console.log('Received reloadMap event - reloading map iframe');
+
+            try {
+                window.dispatchEvent(new CustomEvent('sns-map-reload-start', {
+                    detail: { timestamp: Date.now() }
+                }));
+            } catch (e) {
+            }
+
             try {
                 await this.loadMapIframe(true);
             } catch (e) {
@@ -2243,6 +2251,21 @@ export default {
             console.log('Map page loaded');
 
             try {
+                this._suppressSnsUpdates = false;
+            } catch (e) {
+            }
+
+            try {
+                window.dispatchEvent(new CustomEvent('sns-map-iframe-loaded', {
+                    detail: {
+                        url: mapUrl,
+                        timestamp: Date.now()
+                    }
+                }));
+            } catch (e) {
+            }
+
+            try {
                 if (typeof this.resetSNSActionBarToDefault === 'function') {
                     this.resetSNSActionBarToDefault();
                 }
@@ -2275,6 +2298,12 @@ export default {
         // Listen for iframe load failure
         iframe.onerror = () => {
             console.error('Map page failed to load');
+
+            try {
+                this._suppressSnsUpdates = false;
+            } catch (e) {
+            }
+
             this.showMapError(mapContainer);
         };
 
@@ -2615,6 +2644,13 @@ export default {
         const running = !!(payload && payload.running);
         const started = !!(payload && payload.started);
         const active = running || started || taskStatus === 'started' || taskStatus === 'paused';
+
+        if (active) {
+            try {
+                this._suppressSnsUpdates = false;
+            } catch (e) {
+            }
+        }
 
         const setStartButtonState = (state) => {
             if (state === 'start') {

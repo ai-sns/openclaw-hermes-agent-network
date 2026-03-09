@@ -2791,6 +2791,115 @@ function loadModel(persondata) {
 
     }
 
+    if (typeof window !== 'undefined') {
+        window.__sns_person_loading_overlays = window.__sns_person_loading_overlays || {};
+        window.__sns_person_loading_style_injected = window.__sns_person_loading_style_injected || false;
+    }
+
+    function __snsEnsurePersonLoadingStyle() {
+        try {
+            if (typeof document === 'undefined') return;
+            if (typeof window === 'undefined') return;
+            if (window.__sns_person_loading_style_injected) return;
+
+            const style = document.createElement('style');
+            style.type = 'text/css';
+            style.textContent = `
+                @keyframes snsHoloSpin { 0% { transform: rotateX(75deg) rotateZ(0deg); } 100% { transform: rotateX(75deg) rotateZ(360deg); } }
+                @keyframes snsHoloBeam { 0%, 100% { opacity: 0.6; height: 70px; } 50% { opacity: 0.9; height: 90px; } }
+                @keyframes snsHoloBuild { 
+                    0% { clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%); opacity: 0.7; }
+                    100% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+                }
+                @keyframes snsHoloScan { 0% { bottom: 15px; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { bottom: 75px; opacity: 0; } }
+                @keyframes snsHoloText { 0%,100% { opacity: 0.7; transform: scale(0.95); } 50% { opacity: 1; transform: scale(1.05); } }
+                
+                .sns-person-loading-overlay { position: absolute; transform: translate(-50%, -100%); pointer-events: none; z-index: 100000; width: 80px; height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+                .sns-holo-shadow { position: absolute; bottom: -8px; width: 70px; height: 26px; background: radial-gradient(ellipse at center, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 70%); border-radius: 50%; }
+                .sns-holo-base { position: absolute; bottom: 5px; width: 60px; height: 60px; border: 2px solid rgba(0, 150, 160, 0.95); border-radius: 50%; transform: rotateX(75deg) rotateZ(0deg); animation: snsHoloSpin 3s linear infinite; box-shadow: 0 0 10px rgba(0, 150, 160, 0.5), inset 0 0 10px rgba(0, 150, 160, 0.5); background: rgba(0, 150, 160, 0.15); }
+                .sns-holo-base::before { content: ''; position: absolute; inset: 6px; border: 2px dashed rgba(0, 150, 160, 0.95); border-radius: 50%; }
+                .sns-holo-base::after { content: ''; position: absolute; top: 50%; left: 50%; width: 6px; height: 6px; background: #0096a0; box-shadow: 0 0 8px 3px #0096a0; transform: translate(-50%, -50%); border-radius: 50%; }
+                .sns-holo-beam { position: absolute; bottom: 15px; width: 44px; height: 80px; background: linear-gradient(to top, rgba(0, 150, 160, 0.5), transparent); clip-path: polygon(20% 0, 80% 0, 100% 100%, 0% 100%); animation: snsHoloBeam 2s ease-in-out infinite; }
+                .sns-holo-person { position: absolute; bottom: 15px; width: 36px; height: 64px; color: #0096a0; animation: snsHoloBuild 1.5s infinite alternate ease-in-out; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
+                .sns-holo-person svg { width: 100%; height: 100%; display: block; }
+                .sns-holo-scanline { position: absolute; bottom: 15px; width: 46px; height: 3px; background: #fff; box-shadow: 0 0 6px 2px #0096a0, 0 2px 4px rgba(0,0,0,0.5); animation: snsHoloScan 1.5s linear infinite; border-radius: 50%; }
+                .sns-holo-text { position: absolute; bottom: -24px; font-size: 12px; color: #00c8cc; font-family: 'Consolas', 'Courier New', monospace; letter-spacing: 1.5px; animation: snsHoloText 1.5s infinite ease-in-out; white-space: nowrap; font-weight: bold; background: rgba(10, 25, 45, 0.85); padding: 5px 14px; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 150, 160, 0.4), inset 0 0 5px rgba(0, 150, 160, 0.3); border: 1px solid rgba(0, 150, 160, 0.5); text-transform: uppercase; text-shadow: 0 0 5px rgba(0, 150, 160, 0.6); }
+            `;
+            document.head.appendChild(style);
+            window.__sns_person_loading_style_injected = true;
+        } catch (e) {
+        }
+    }
+
+    function __snsShowPersonLoadingOverlay(nationIdStr, lat, lng) {
+        try {
+            if (typeof google === 'undefined' || !google.maps) return;
+            if (typeof map === 'undefined' || !map) return;
+            __snsEnsurePersonLoadingStyle();
+
+            if (window.__sns_person_loading_overlays && window.__sns_person_loading_overlays[nationIdStr]) {
+                return;
+            }
+
+            function LoadingOverlay(positionLatLng) {
+                this.position = positionLatLng;
+                this.div = null;
+            }
+            LoadingOverlay.prototype = new google.maps.OverlayView();
+            LoadingOverlay.prototype.onAdd = function () {
+                const div = document.createElement('div');
+                div.className = 'sns-person-loading-overlay';
+                div.innerHTML = 
+                    '<div class="sns-holo-shadow"></div>' +
+                    '<div class="sns-holo-base"></div>' +
+                    '<div class="sns-holo-beam"></div>' +
+                    '<div class="sns-holo-person"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div>' +
+                    '<div class="sns-holo-scanline"></div>' +
+                    '<div class="sns-holo-text">Loading Agent Avatar...</div>';
+                this.div = div;
+                const panes = this.getPanes();
+                if (panes && panes.overlayMouseTarget) {
+                    panes.overlayMouseTarget.appendChild(div);
+                } else if (panes && panes.overlayLayer) {
+                    panes.overlayLayer.appendChild(div);
+                }
+            };
+            LoadingOverlay.prototype.draw = function () {
+                if (!this.div) return;
+                const projection = this.getProjection();
+                if (!projection) return;
+                const pos = projection.fromLatLngToDivPixel(this.position);
+                if (!pos) return;
+                this.div.style.left = pos.x + 'px';
+                this.div.style.top = pos.y + 'px';
+            };
+            LoadingOverlay.prototype.onRemove = function () {
+                if (this.div && this.div.parentNode) {
+                    this.div.parentNode.removeChild(this.div);
+                }
+                this.div = null;
+            };
+
+            const overlayInst = new LoadingOverlay(new google.maps.LatLng(lat, lng));
+            overlayInst.setMap(map);
+            window.__sns_person_loading_overlays[nationIdStr] = overlayInst;
+        } catch (e) {
+            console.warn('Failed to show person loading overlay:', e);
+        }
+    }
+
+    function __snsHidePersonLoadingOverlay(nationIdStr) {
+        try {
+            if (typeof window === 'undefined' || !window.__sns_person_loading_overlays) return;
+            const inst = window.__sns_person_loading_overlays[nationIdStr];
+            if (inst && typeof inst.setMap === 'function') {
+                inst.setMap(null);
+            }
+            delete window.__sns_person_loading_overlays[nationIdStr];
+        } catch (e) {
+        }
+    }
+
 
 
     if (model_loaded_list && model_loaded_list[nationId]) {
@@ -2819,6 +2928,16 @@ function loadModel(persondata) {
 
     if (person_model_loading_promises[nationId]) {
 
+        try {
+            const pos = persondata["location"];
+            const lat = pos && pos.length >= 2 ? parseFloat(pos[1]) : NaN;
+            const lng = pos && pos.length >= 2 ? parseFloat(pos[0]) : NaN;
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                __snsShowPersonLoadingOverlay(nationId, lat, lng);
+            }
+        } catch (e) {
+        }
+
         return;
 
     }
@@ -2829,6 +2948,30 @@ function loadModel(persondata) {
 
     let pos = persondata["location"];
 
+    let overlayLat = NaN;
+    let overlayLng = NaN;
+    try {
+        if (typeof getPersonPointByNationId === 'function') {
+            const pt = getPersonPointByNationId(nationId);
+            if (pt && typeof pt.lat === 'function' && typeof pt.lng === 'function') {
+                overlayLat = Number(pt.lat());
+                overlayLng = Number(pt.lng());
+            } else if (pt && typeof pt.lat === 'number' && typeof pt.lng === 'number') {
+                overlayLat = Number(pt.lat);
+                overlayLng = Number(pt.lng);
+            }
+        }
+    } catch (e) {
+    }
+
+    if (!Number.isFinite(overlayLat) || !Number.isFinite(overlayLng)) {
+        try {
+            overlayLat = pos && pos.length >= 2 ? parseFloat(pos[1]) : NaN;
+            overlayLng = pos && pos.length >= 2 ? parseFloat(pos[0]) : NaN;
+        } catch (e) {
+        }
+    }
+
     const coordinates = {
 
         lat: parseFloat(pos[1]),
@@ -2837,34 +2980,24 @@ function loadModel(persondata) {
 
     };
 
-
-
-    // Parse filename params
+    try {
+        if (Number.isFinite(overlayLat) && Number.isFinite(overlayLng)) {
+            __snsShowPersonLoadingOverlay(nationId, overlayLat, overlayLng);
+        }
+    } catch (e) {
+    }
 
     let modelParams = null;
-
-
-
-    // If not a web URL, add directory prefix and parse filename params
-
-    if (!isWebUrl(url)) {
-
-        // Parse params from filename
-
-        modelParams = parseModelFilename(url);
-
-        if (modelParams) {
-
-            console.log(`Parsed model params:`, modelParams);
-
+    try {
+        if (!isWebUrl(url)) {
+            modelParams = parseModelFilename(url);
+            if (modelParams) {
+                console.log(`Parsed model params:`, modelParams);
+            }
+            url = '/scripts/avatar3d/' + url;
+            console.log(`Full model path: ${url}`);
         }
-
-        // Add directory prefix
-
-        url = '/scripts/avatar3d/' + url;
-
-        console.log(`Full model path: ${url}`);
-
+    } catch (e) {
     }
 
 
@@ -3112,6 +3245,11 @@ function loadModel(persondata) {
             console.error(`Failed to load person model (${persondata.name}):`, error);
 
         } finally {
+
+            try {
+                __snsHidePersonLoadingOverlay(nationId);
+            } catch (e) {
+            }
 
             try {
 
@@ -3490,8 +3628,13 @@ function start_talk_to_it(nation_id, content) {
 
 
     setTimeout(function () {
-        map.setCenter(new google.maps.LatLng(person_target_point.lat() - 0.0025, person_target_point.lng()- 0.0025));
-        showAlert("Moving to talk.");
+        const targetLat = person_target_point.lat() - 0.0025;
+        const targetLng = person_target_point.lng() - 0.0025;
+        const currentCenter = map.getCenter();
+        if (!currentCenter || Math.abs(currentCenter.lat() - targetLat) > 0.0001 || Math.abs(currentCenter.lng() - targetLng) > 0.0001) {
+            showAlert("Moving to talk.");
+        }
+        map.setCenter(new google.maps.LatLng(targetLat, targetLng));        
 
     }, 100);
     setTimeout(function () {
@@ -3780,8 +3923,13 @@ function talk_to_it(nation_id, content) {
     person_target = getPersonDataByNationId(nation_id);
 
     setTimeout(function () {
-        map.setCenter(new google.maps.LatLng(person_target_point.lat() - 0.0025, person_target_point.lng()- 0.0025));
-        showAlert("Moving to talk.");
+        const targetLat = person_target_point.lat() - 0.0025;
+        const targetLng = person_target_point.lng() - 0.0025;
+        const currentCenter = map.getCenter();
+        if (!currentCenter || Math.abs(currentCenter.lat() - targetLat) > 0.0001 || Math.abs(currentCenter.lng() - targetLng) > 0.0001) {
+            showAlert("Moving to talk.");
+        }
+        map.setCenter(new google.maps.LatLng(targetLat, targetLng));        
 
     }, 100);
     setTimeout(function () {
