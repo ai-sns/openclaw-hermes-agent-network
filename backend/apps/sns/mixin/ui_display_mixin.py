@@ -139,6 +139,15 @@ class UIDisplayMixin:
         # self.plan_edit.setPlainText(combined_content)
         print("write_task_process_to_pane")
 
+    def write_process_history_to_pane(self):
+        task_process_history = self.get_task_process_history()
+        lines = (task_process_history or "").split("\n")
+        if len(lines) >= 2 and ("📜 Process history" in lines[0]) and ("━" in lines[1]):
+            history_body = "\n".join(lines[2:]).strip()
+        else:
+            history_body = (task_process_history or "").strip()
+        asyncio.create_task(self._send_to_frontend('process', history_body, section='history'))
+
 
     def get_ai_model_display_name(self):
         """

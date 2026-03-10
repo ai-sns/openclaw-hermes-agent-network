@@ -899,6 +899,18 @@ export default {
         const actionBar = document.querySelector('.map-action-bar');
         if (!actionBar) return;
 
+        const self = this;
+
+        const refreshEngineStatusForStartButton = async () => {
+            try {
+                const status = await snsApi.getEngineStatus();
+                if (status && typeof self.handleSNSEngineStatusUpdate === 'function') {
+                    self.handleSNSEngineStatusUpdate(status);
+                }
+            } catch (e) {
+            }
+        };
+
         const state1 = document.getElementById('actionBarState1');
         const state2 = document.getElementById('actionBarState2');
         const controlBtn = document.getElementById('controlBtn');
@@ -954,6 +966,11 @@ export default {
                 snsApi.setHumanControlState(false, null);
             } catch (e) {
             }
+
+            try {
+                refreshEngineStatusForStartButton();
+            } catch (e) {
+            }
         };
 
         // Expose reset for map iframe reload hook
@@ -971,6 +988,11 @@ export default {
             const mode = activeToggle ? activeToggle.dataset.mode : 'ai';
             const humanTalkType = mode === 'ai' ? 0 : 1;
             snsApi.setHumanControlState(true, humanTalkType);
+
+            try {
+                refreshEngineStatusForStartButton();
+            } catch (e) {
+            }
         };
 
         const switchToState1 = () => {
@@ -981,6 +1003,11 @@ export default {
 
             // Exit control mode => backend human_take_over = false
             snsApi.setHumanControlState(false, null);
+
+            try {
+                refreshEngineStatusForStartButton();
+            } catch (e) {
+            }
         };
 
         // Control button click - switch to state 2

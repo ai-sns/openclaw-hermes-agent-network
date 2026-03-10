@@ -526,6 +526,8 @@ export class SNSAvatarDialog {
                 if (!xmppResult || !xmppResult.success) {
                     errors.push('XMPP update failed' + (xmppResult && xmppResult.message ? (': ' + xmppResult.message) : '.'));
                 } else {
+                    // Ensure remote sync happens even when only XMPP fields change.
+                    didChangeSubmit = true;
                     if (xmppUpdates.account) {
                         this.existingConfig = {
                             ...(this.existingConfig || {}),
@@ -555,12 +557,23 @@ export class SNSAvatarDialog {
                 : (this.existingConfig && this.existingConfig.avatar3d ? String(this.existingConfig.avatar3d) : '');
 
             const submitPayload = {
-                avatar_map: avatarMapToSubmit,
                 avatar3d: avatar3dValue,
                 nickname,
                 profile: sign,
                 sns_url: snsUrl
             };
+
+            try {
+                const accountToSubmit = xmppAccount || (this.existingConfig && this.existingConfig.account ? String(this.existingConfig.account) : '');
+                if (accountToSubmit) {
+                    submitPayload.account = accountToSubmit;
+                }
+            } catch (e) {
+            }
+
+            if (avatarMapToSubmit) {
+                submitPayload.avatar_map = avatarMapToSubmit;
+            }
 
             const submitResp = await fetch(this.resolve('/api/sns/avatar-dialog/submit'), {
                 method: 'POST',

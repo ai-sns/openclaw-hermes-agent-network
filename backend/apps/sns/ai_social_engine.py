@@ -592,6 +592,7 @@ class AISocialEngine(
 
         # Increment in-memory instruction total count for IQ tracking
         self._instruction_total_count += 1
+        self._update_iq_point_from_counters()
 
         self.life_decline_counter += 1
         self.energy_decline_counter += 1

@@ -428,6 +428,14 @@ export default {
         const existing = this.contacts.find(c => c.account === contactData.account);
         if (existing) {
             Object.assign(existing, contactData);
+            try {
+                const idx = this.contacts.indexOf(existing);
+                if (idx > 0) {
+                    this.contacts.splice(idx, 1);
+                    this.contacts.unshift(existing);
+                }
+            } catch (e) {
+            }
             return existing;
         }
 
@@ -603,7 +611,7 @@ export default {
         }
 
         contactList.innerHTML = filteredContacts.map(contact => `
-            <div class="contact-item" data-account="${contact.account}">
+            <div class="contact-item" data-account="${contact.account}" title="${this.escapeHtml(contact.account)}">
                 <div class="contact-avatar">${contact.nick_name.charAt(0)}</div>
                 <span class="contact-name">${contact.nick_name}</span>
                 ${contact.new_message_flag ? '<span class="contact-badge">●</span>' : ''}

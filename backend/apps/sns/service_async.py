@@ -70,6 +70,17 @@ class SNSService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _broadcast_engine_status(self) -> None:
+        try:
+            status_payload = await self.get_social_engine_status()
+            if isinstance(status_payload, dict):
+                await websocket_manager.broadcast({
+                    "type": "sns_engine_status",
+                    **status_payload
+                })
+        except Exception as e:
+            logger.warning("Failed to broadcast engine status: %s", e)
+
     @staticmethod
     def _normalize_attachment_content(filename: str, content: bytes) -> bytes:
         """Normalize text attachments to UTF-8 to avoid mojibake on receiver side."""
@@ -497,6 +508,7 @@ class SNSService:
                 _social_engine_running = True
 
                 logger.info("AI Social Engine started successfully")
+                await self._broadcast_engine_status()
                 return {
                     "success": True,
                     "message": "AI Social Engine started successfully",
@@ -505,6 +517,7 @@ class SNSService:
             except Exception as e:
                 logger.error(f"Error starting AI social engine: {e}")
                 _social_engine_running = False
+                await self._broadcast_engine_status()
                 return {
                     "success": False,
                     "message": f"Failed to start AI Social Engine: {str(e)}",
@@ -536,11 +549,13 @@ class SNSService:
                 }
                 if isinstance(result, dict):
                     payload.update({k: v for k, v in result.items() if k not in payload})
+                await self._broadcast_engine_status()
                 return payload
 
             except Exception as e:
                 logger.error(f"Error stopping AI social engine: {e}")
                 _social_engine_running = False
+                await self._broadcast_engine_status()
                 return {
                     "success": False,
                     "message": f"Failed to stop AI Social Engine: {str(e)}",
@@ -571,11 +586,13 @@ class SNSService:
                 }
                 if isinstance(result, dict):
                     payload.update({k: v for k, v in result.items() if k not in payload})
+                await self._broadcast_engine_status()
                 return payload
 
             except Exception as e:
                 logger.error(f"Error restarting AI social engine: {e}")
                 _social_engine_running = False
+                await self._broadcast_engine_status()
                 return {
                     "success": False,
                     "message": f"Failed to restart AI Social Engine: {str(e)}",
@@ -596,10 +613,12 @@ class SNSService:
                 }
 
             result = await _social_engine_instance.pause_engine()
+            await self._broadcast_engine_status()
             return result
 
         except Exception as e:
             logger.error(f"Error pausing AI social engine: {e}")
+            await self._broadcast_engine_status()
             return {
                 "success": False,
                 "message": f"Failed to pause AI Social Engine: {str(e)}",
@@ -619,10 +638,12 @@ class SNSService:
                 }
 
             result = await _social_engine_instance.resume_engine()
+            await self._broadcast_engine_status()
             return result
 
         except Exception as e:
             logger.error(f"Error resuming AI social engine: {e}")
+            await self._broadcast_engine_status()
             return {
                 "success": False,
                 "message": f"Failed to resume AI Social Engine: {str(e)}",
@@ -652,13 +673,26 @@ class SNSService:
 
 
     async def set_human_control_state(self, human_take_over: bool, human_talk_type: int = None) -> dict:
-        global _social_engine_instance
+        global _social_engine_instance, _social_engine_running
 
         if _social_engine_instance is None:
-            return {
-                "success": False,
-                "message": "AI Social Engine is not initialized"
-            }
+            if human_take_over:
+                start_result = await self.start_social_engine()
+                if not isinstance(start_result, dict) or not start_result.get("success", False):
+                    return {
+                        "success": False,
+                        "message": "Failed to initialize engine for human control",
+                        "engine_start": start_result,
+                    }
+            else:
+                return {
+                    "success": True,
+                    "message": "Human control state ignored because engine is not initialized",
+                    "data": {
+                        "human_take_over": False,
+                        "human_talk_type": int(human_talk_type) if human_talk_type is not None else None,
+                    }
+                }
 
         prev_take_over = bool(getattr(_social_engine_instance, "human_take_over", False))
         _social_engine_instance.human_take_over = bool(human_take_over)
@@ -706,6 +740,7 @@ class SNSService:
         await self._ensure_engine_running_for_priority_action()
 
         _social_engine_instance.human_message_received(message)
+        await self._broadcast_engine_status()
         return {
             "success": True,
             "message": "Human message received"
@@ -820,14 +855,7 @@ class SNSService:
                 "task_status": getattr(_social_engine_instance, "map_task_status", None),
             }
 
-        try:
-            if isinstance(status_payload, dict):
-                await websocket_manager.broadcast({
-                    "type": "sns_engine_status",
-                    **status_payload
-                })
-        except Exception as e:
-            logger.warning(f"Failed to broadcast engine status: {e}")
+        await self._broadcast_engine_status()
 
         return {
             "success": True,
@@ -979,6 +1007,23 @@ class SNSService:
                 self.db.add(config)
 
             config.avatar = avatar_data
+
+            memo_raw = getattr(config, 'memo', None)
+            memo_obj = {}
+            if isinstance(memo_raw, str) and memo_raw.strip():
+                try:
+                    memo_obj = json.loads(memo_raw)
+                except Exception:
+                    memo_obj = {}
+            if not isinstance(memo_obj, dict):
+                memo_obj = {}
+            memo_obj['avatar_file'] = filename
+            memo_obj['avatar_map'] = avatar_map_filename
+            try:
+                config.memo = json.dumps(memo_obj, ensure_ascii=False)
+            except Exception:
+                pass
+
             await self.db.commit()
             await self.db.refresh(config)
 
@@ -1005,6 +1050,7 @@ class SNSService:
             nickname = (payload.get('nickname') or payload.get('nick_name') or '').strip()
             profile = (payload.get('profile') or '').strip()
             sns_url = (payload.get('sns_url') or '').strip()
+            xmpp_account = (payload.get('account') or payload.get('xmpp_account') or payload.get('sns_account') or '').strip()
 
             if not avatar3d:
                 return {'success': False, 'message': 'avatar3d is required'}
@@ -1030,8 +1076,10 @@ class SNSService:
                     except Exception:
                         pass
 
-            if not avatar_map:
-                return {'success': False, 'message': 'avatar_map is required'}
+            # If avatar_map is still missing, treat it as "no avatar change" and
+            # skip remote avatar upload. This allows saving other profile fields
+            # without forcing users to re-upload an avatar.
+            should_upload_avatar = bool(avatar_map)
 
             nationid = (getattr(config, 'nationid', None) or '').strip()
             nationpassword = (getattr(config, 'nationpassword', None) or '').strip()
@@ -1044,12 +1092,18 @@ class SNSService:
             profile = profile or (getattr(config, 'sign', None) or '')
             sns_url = sns_url or (getattr(config, 'sns_url', None) or '')
 
+            if not xmpp_account:
+                xmpp_account = (getattr(config, 'account', None) or '').strip()
+
             config.avatar3d = avatar3d
             if nickname:
                 config.nickname = nickname
             if profile:
                 config.sign = profile
             config.sns_url = sns_url
+
+            if xmpp_account and hasattr(config, 'account'):
+                config.account = xmpp_account
             await self.db.commit()
 
             cfg_stmt = (
@@ -1064,24 +1118,25 @@ class SNSService:
             if not base:
                 return {'success': False, 'message': 'ai_sns_server is not configured'}
 
-            avatar_map_path = Path('images') / 'avatars' / avatar_map
-            if not avatar_map_path.exists():
-                return {'success': False, 'message': f'avatar_map file not found: {avatar_map}'}
-
             async with httpx.AsyncClient(timeout=60.0) as client:
-                files = {
-                    'avatar_file': (avatar_map_path.name, avatar_map_path.read_bytes(), 'image/png')
-                }
-                upload_resp = await client.post(
-                    f"{base}/api/upload_avatar/",
-                    data={'nation_id': nationid},
-                    files=files,
-                )
-                if upload_resp.status_code not in (200, 201):
-                    return {
-                        'success': False,
-                        'message': f"Remote avatar upload failed: {upload_resp.status_code} - {upload_resp.text}",
+                if should_upload_avatar:
+                    avatar_map_path = Path('images') / 'avatars' / avatar_map
+                    if not avatar_map_path.exists():
+                        return {'success': False, 'message': f'avatar_map file not found: {avatar_map}'}
+
+                    files = {
+                        'avatar_file': (avatar_map_path.name, avatar_map_path.read_bytes(), 'image/png')
                     }
+                    upload_resp = await client.post(
+                        f"{base}/api/upload_avatar/",
+                        data={'nation_id': nationid},
+                        files=files,
+                    )
+                    if upload_resp.status_code not in (200, 201):
+                        return {
+                            'success': False,
+                            'message': f"Remote avatar upload failed: {upload_resp.status_code} - {upload_resp.text}",
+                        }
 
                 update_resp = await client.post(
                     f"{base}/api/update-user/",
@@ -1089,6 +1144,7 @@ class SNSService:
                         'nation_id': nationid,
                         'password': nationpassword,
                         'nick_name': nickname,
+                        'account': xmpp_account,
                         'avatar_3d': avatar3d,
                         'profile': profile,
                         'sns_url': sns_url,

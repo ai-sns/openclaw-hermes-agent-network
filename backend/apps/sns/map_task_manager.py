@@ -1,6 +1,7 @@
 import json
 import asyncio
 from db.DBFactory import query_single_map_task, update_map_task
+from db.DBFactory import get_prompt_by_title
 from i18n import lt
 from typing import Dict, Any, Optional
 from util import generate_random_id
@@ -40,7 +41,93 @@ class MapTaskManager:
         self.reviewing_current_process = False
         self.reviewing_task = False
 
+        self._process_history_flush_task = None
+
+        self._pick_people_format_retry = {
+            "communication": 0,
+            "sell": 0,
+            "buy": 0,
+        }
+
         self.init_task_mng()
+
+    @staticmethod
+    def _validate_people_selection_result(people_dict: Any) -> (bool, list):
+        required_keys = ["nation_id", "account", "message", "nick_name"]
+        if not isinstance(people_dict, dict):
+            return False, required_keys
+
+        missing = []
+        for k in required_keys:
+            v = people_dict.get(k, None)
+            if not isinstance(v, str) or not v.strip():
+                missing.append(k)
+        return len(missing) == 0, missing
+
+    def _retry_pick_people_selection(self, *, talk_type: str, raw_result: str, missing_keys: list) -> bool:
+        retry_count = int(self._pick_people_format_retry.get(talk_type, 0) or 0)
+        if retry_count >= 3:
+            logger.warning(
+                f"Invalid people selection result, reached max retries (talk_type={talk_type}, missing={missing_keys})."
+            )
+            self._pick_people_format_retry[talk_type] = 0
+            asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+            return False
+
+        title_map = {
+            "communication": (
+                "ask_agent_start_to_talk_to_a_people",
+                "__start_to_talk_to_a_people__",
+                "__start_to_talk_to_a_people_content__",
+            ),
+            "sell": (
+                "ask_agent_start_to_sell_to_a_people",
+                "__start_to_sell_to_a_people__",
+                "__start_to_sell_to_a_people_content__",
+            ),
+            "buy": (
+                "ask_agent_start_to_buy_from_a_people",
+                "__start_to_buy_from_a_people__",
+                "__start_to_buy_from_a_people_content__",
+            ),
+        }
+        command_status, role_title, content_title = title_map.get(talk_type, ("", "", ""))
+        if not command_status:
+            self._pick_people_format_retry[talk_type] = 0
+            asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+            return False
+
+        self._pick_people_format_retry[talk_type] = retry_count + 1
+
+        objective_to_achieve = (getattr(self.parent, "_pending_talk_objective", None) or "").strip()
+        people_list = []
+        try:
+            people_list = self.parent._get_filtered_people_list_for_talk_type(talk_type) or []
+        except Exception:
+            people_list = []
+
+        provided_profile_list = json.dumps(people_list, indent=4, ensure_ascii=False)
+        role_prompt = get_prompt_by_title(role_title) or ""
+        content_prompt = (get_prompt_by_title(content_title) or "")
+        content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
+        content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
+
+        strict_instruction = (
+            "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
+            "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
+            f"Missing/invalid keys: {missing_keys}. Previous raw output: {str(raw_result)[:300]}"
+        )
+        content_prompt = f"{content_prompt}\n\n{strict_instruction}"
+
+        logger.warning(
+            f"Invalid people selection result, retrying (talk_type={talk_type}, retry={retry_count + 1}/3, missing={missing_keys})."
+        )
+        self._instruction_invalid_count += 1
+        self._update_iq_point_from_counters()
+
+        self.set_command_status(command_status)
+        asyncio.create_task(self.parent.ask_agent_and_get_instruction(content_prompt, role_prompt))
+        return True
 
     def init_task_mng(self):
         self.message_dict.clear()
@@ -157,8 +244,14 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         return process
 
     async def process_task(self, **kwargs):
-        async with self._process_lock:
-            return await self._process_task_impl(**kwargs)
+        try:
+            async with self._process_lock:
+                return await self._process_task_impl(**kwargs)
+        except Exception as e:
+            event = kwargs.get("event", "")
+            action_requested = kwargs.get("action", "")
+            logger.exception(f"process_task failed (event={event}, action={action_requested}): {e}")
+            return None
 
     async def _process_task_impl(self, **kwargs):
         logger.info("[Step-05],Start process_task...")
@@ -240,13 +333,14 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
             people_dict = robust_json_loads(result, default=None)
-            if not isinstance(people_dict, dict):
-                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+            ok, missing_keys = self._validate_people_selection_result(people_dict)
+            if not ok:
+                if self._retry_pick_people_selection(talk_type="communication", raw_result=result, missing_keys=missing_keys):
+                    return
                 return
-            if people_dict:
-                nick_name = people_dict["nick_name"]
-            else:
-                nick_name = ""
+
+            self._pick_people_format_retry["communication"] = 0
+            nick_name = (people_dict.get("nick_name") or "").strip()
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
             self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
@@ -258,13 +352,14 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
             people_dict = robust_json_loads(result, default=None)
-            if not isinstance(people_dict, dict):
-                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+            ok, missing_keys = self._validate_people_selection_result(people_dict)
+            if not ok:
+                if self._retry_pick_people_selection(talk_type="sell", raw_result=result, missing_keys=missing_keys):
+                    return
                 return
-            if people_dict:
-                nick_name = people_dict["nick_name"]
-            else:
-                nick_name = ""
+
+            self._pick_people_format_retry["sell"] = 0
+            nick_name = (people_dict.get("nick_name") or "").strip()
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
             self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
@@ -276,13 +371,14 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             self.show_status_on_map("talking")
             result = kwargs.get("result", "")
             people_dict = robust_json_loads(result, default=None)
-            if not isinstance(people_dict, dict):
-                asyncio.create_task(self.parent.taskmng.process_task(event="agent_pick_people_list_fail"))
+            ok, missing_keys = self._validate_people_selection_result(people_dict)
+            if not ok:
+                if self._retry_pick_people_selection(talk_type="buy", raw_result=result, missing_keys=missing_keys):
+                    return
                 return
-            if people_dict:
-                nick_name = people_dict["nick_name"]
-            else:
-                nick_name = ""
+
+            self._pick_people_format_retry["buy"] = 0
+            nick_name = (people_dict.get("nick_name") or "").strip()
             self.parent.write_on_going_process_to_pane(f"Talking with {nick_name}")
             self.js_task_manager.show_information(lt(f"Agent choose {nick_name} to talk", f"Agent chose {result} to talk"))
             self.set_command_status("")
@@ -326,6 +422,11 @@ I am participating in a virtual social game based on Google Maps. Players role-p
     def add_process_info_to_list(self, info):
         self.process_info_list.append(info)
 
+        try:
+            self._schedule_process_history_flush()
+        except Exception:
+            pass
+
         if len(self.process_info_list) < 50:
             return
 
@@ -339,6 +440,31 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             # Called from a sync context without a running event loop.
             # Fall back to trimming without summarization.
             self.process_info_list = self.process_info_list[-50:]
+
+    def _schedule_process_history_flush(self):
+        try:
+            task = getattr(self, "_process_history_flush_task", None)
+            if isinstance(task, asyncio.Task) and not task.done():
+                return
+        except Exception:
+            pass
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        self._process_history_flush_task = loop.create_task(self._flush_process_history())
+
+    async def _flush_process_history(self):
+        await asyncio.sleep(0.1)
+        try:
+            self.parent.write_process_history_to_pane()
+        except Exception:
+            try:
+                self.parent.write_task_process_to_pane("")
+            except Exception:
+                pass
 
     async def _compact_process_info_list(self):
         if self._process_info_compacting:

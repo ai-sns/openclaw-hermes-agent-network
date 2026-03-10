@@ -249,6 +249,19 @@ class TradeMixin:
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
             return
         if result:
+            required_keys = ["nation_id", "account", "message", "nick_name"]
+            missing = []
+            for k in required_keys:
+                v = result.get(k, None)
+                if not isinstance(v, str) or not v.strip():
+                    missing.append(k)
+            if missing:
+                logger.warning(
+                    f"Invalid people selection result in sell. missing={missing} raw={str(content)[:300]}"
+                )
+                asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
+
             nation_id = result["nation_id"]
             account = result["account"]
             nick_name = result["nick_name"]
@@ -286,6 +299,19 @@ class TradeMixin:
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
             return
         if result:
+            required_keys = ["nation_id", "account", "message", "nick_name"]
+            missing = []
+            for k in required_keys:
+                v = result.get(k, None)
+                if not isinstance(v, str) or not v.strip():
+                    missing.append(k)
+            if missing:
+                logger.warning(
+                    f"Invalid people selection result in buy. missing={missing} raw={str(content)[:300]}"
+                )
+                asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
+
             nation_id = result["nation_id"]
             account = result["account"]
             nick_name = result["nick_name"]

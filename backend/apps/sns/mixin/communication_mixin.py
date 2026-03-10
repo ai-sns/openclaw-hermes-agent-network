@@ -107,7 +107,9 @@ class CommunicationMixin:
             inbox = self.conversation_inbox
         inbox.setdefault(account, []).append({"ts": self._now_ts(), "content": content})
         try:
-            self.send_msg_to_map(("show_information_chat", self._format_inbox_message(account, content), ""))
+            #Temporarily not displayed on the map,Temporarily commented out
+            # self.send_msg_to_map(("show_information_chat", self._format_inbox_message(account, content), ""))
+            logger.info("show_information_chat is canceled Temporarily")
         except Exception as e:
             logger.error(f"Failed to notify inbox message: {e}")
 
@@ -371,6 +373,19 @@ talk_to_a_people
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
             return
         if result:
+            required_keys = ["nation_id", "account", "message", "nick_name"]
+            missing = []
+            for k in required_keys:
+                v = result.get(k, None)
+                if not isinstance(v, str) or not v.strip():
+                    missing.append(k)
+            if missing:
+                logger.warning(
+                    f"Invalid people selection result in communication. missing={missing} raw={str(content)[:300]}"
+                )
+                asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
+                return
+
             nation_id = result["nation_id"]
             account = result["account"]
             nick_name = result["nick_name"]
