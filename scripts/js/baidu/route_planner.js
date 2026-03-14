@@ -578,23 +578,41 @@ function toggleTrack() {
     const span = document.getElementById('route_opr');
     const icon = document.getElementById('track_icon');
 
+    function setTrackIcon(iconName) {
+        try {
+            if (!icon) return;
+            const isSvg = icon instanceof SVGElement || (icon.classList && icon.classList.contains('ui-icon'));
+            if (isSvg) {
+                icon.setAttribute('data-icon', iconName);
+                const useEl = icon.querySelector('use');
+                const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
+                    ? window.__getUiIconHref(iconName)
+                    : `mapIcons/menu-icons.svg#icon-${iconName}`;
+                useEl && useEl.setAttribute('href', href);
+                return;
+            }
+            icon.className = `fas fa-${iconName}`;
+        } catch (e) {
+        }
+    }
+
     switch (route_status) {
         case 'stopped':
             startTrack();
             span.textContent = 'Pause route'; // Update text
-            icon.className = 'fas fa-circle-pause'; // Update icon: pause
+            setTrackIcon('circle-pause'); // Update icon: pause
             route_status = 'playing'; // Update state
             break;
         case 'playing':
             pauseTrack();
             span.textContent = 'Resume route'; // Update text
-            icon.className = 'fas fa-circle-play'; // Update icon: play
+            setTrackIcon('circle-play'); // Update icon: play
             route_status = 'paused'; // Update state
             break;
         case 'paused':
             continueTrack();
             span.textContent = 'Pause route'; // Update text
-            icon.className = 'fas fa-circle-pause'; // Update icon: pause
+            setTrackIcon('circle-pause'); // Update icon: pause
             route_status = 'playing'; // Update state
             break;
         default:

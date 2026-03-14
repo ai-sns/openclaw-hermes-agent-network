@@ -87,11 +87,31 @@ const homeHandlers = {
                     ? String(remoteCfg.contact_recent_limit)
                     : '3';
 
+                const compactEveryValue = (remoteCfg && remoteCfg.process_info_compact_every_n !== undefined && remoteCfg.process_info_compact_every_n !== null)
+                    ? String(remoteCfg.process_info_compact_every_n)
+                    : '50';
+                const planSummaryEveryValue = (remoteCfg && remoteCfg.process_info_plan_summary_every_n !== undefined && remoteCfg.process_info_plan_summary_every_n !== null)
+                    ? String(remoteCfg.process_info_plan_summary_every_n)
+                    : '5';
+
+                const memoryEnabledValue = (remoteCfg && remoteCfg.memory_enabled !== undefined && remoteCfg.memory_enabled !== null)
+                    ? Boolean(remoteCfg.memory_enabled)
+                    : true;
+
+                const memoryEmbeddingEnabledValue = (remoteCfg && remoteCfg.memory_embedding_enabled !== undefined && remoteCfg.memory_embedding_enabled !== null)
+                    ? Boolean(remoteCfg.memory_embedding_enabled)
+                    : false;
+
                 const agentInput = modal.element?.querySelector('#homeCfgAgentServer');
                 const snsInput = modal.element?.querySelector('#homeCfgAiSnsServer');
                 const timeoutInput = modal.element?.querySelector('#homeCfgConversationTimeoutSeconds');
                 const cooldownInput = modal.element?.querySelector('#homeCfgContactCooldownSeconds');
                 const recentLimitInput = modal.element?.querySelector('#homeCfgContactRecentLimit');
+                const compactEveryInput = modal.element?.querySelector('#homeCfgProcessInfoCompactEveryN');
+                const planSummaryEveryInput = modal.element?.querySelector('#homeCfgProcessInfoPlanSummaryEveryN');
+                const memoryEnabledInput = modal.element?.querySelector('#homeCfgMemoryEnabled');
+                const memoryEmbeddingEnabledInput = modal.element?.querySelector('#homeCfgMemoryEmbeddingEnabled');
+                const memoryEmbeddingRow = modal.element?.querySelector('#homeCfgMemoryEmbeddingRow');
                 if (agentInput) {
                     agentInput.value = agentValue;
                 }
@@ -106,6 +126,21 @@ const homeHandlers = {
                 }
                 if (recentLimitInput) {
                     recentLimitInput.value = recentLimitValue;
+                }
+                if (compactEveryInput) {
+                    compactEveryInput.value = compactEveryValue;
+                }
+                if (planSummaryEveryInput) {
+                    planSummaryEveryInput.value = planSummaryEveryValue;
+                }
+                if (memoryEnabledInput) {
+                    memoryEnabledInput.checked = !!memoryEnabledValue;
+                }
+                if (memoryEmbeddingEnabledInput) {
+                    memoryEmbeddingEnabledInput.checked = !!memoryEmbeddingEnabledValue;
+                }
+                if (memoryEmbeddingRow) {
+                    memoryEmbeddingRow.style.display = memoryEnabledValue ? '' : 'none';
                 }
             } catch (e) {
                 if (typeof Notification !== 'undefined' && Notification.error) {
@@ -138,6 +173,22 @@ const homeHandlers = {
                         <label>Recent Contact Limit</label>
                         <input type="number" min="0" max="50" step="1" class="setting-input" id="homeCfgContactRecentLimit" value="" placeholder="3" />
                     </div>
+                    <div class="setting-group">
+                        <label>Process Log Compact Every N Rounds</label>
+                        <input type="number" min="0" max="100000" step="1" class="setting-input" id="homeCfgProcessInfoCompactEveryN" value="" placeholder="50" />
+                    </div>
+                    <div class="setting-group">
+                        <label>Process Plan Summary Every N Rounds</label>
+                        <input type="number" min="0" max="100000" step="1" class="setting-input" id="homeCfgProcessInfoPlanSummaryEveryN" value="" placeholder="5" />
+                    </div>
+                    <div class="setting-group">
+                        <label>Enable Memory</label>
+                        <input type="checkbox" id="homeCfgMemoryEnabled" />
+                    </div>
+                    <div class="setting-group" id="homeCfgMemoryEmbeddingRow" style="display:none;">
+                        <label>Enable Memory Embedding</label>
+                        <input type="checkbox" id="homeCfgMemoryEmbeddingEnabled" />
+                    </div>
                 </div>
             `,
             confirmText: 'Save',
@@ -165,6 +216,21 @@ const homeHandlers = {
                 }
 
                 await loadConfigIntoModal(modal);
+
+                const memoryEnabledInput = modal.element?.querySelector('#homeCfgMemoryEnabled');
+                const memoryEmbeddingRow = modal.element?.querySelector('#homeCfgMemoryEmbeddingRow');
+                const memoryEmbeddingEnabledInput = modal.element?.querySelector('#homeCfgMemoryEmbeddingEnabled');
+                if (memoryEnabledInput && memoryEmbeddingRow) {
+                    const applyMemoryRow = () => {
+                        const enabled = !!memoryEnabledInput.checked;
+                        memoryEmbeddingRow.style.display = enabled ? '' : 'none';
+                        if (!enabled && memoryEmbeddingEnabledInput) {
+                            memoryEmbeddingEnabledInput.checked = false;
+                        }
+                    };
+                    memoryEnabledInput.addEventListener('change', applyMemoryRow);
+                    applyMemoryRow();
+                }
             },
             onConfirm: async (modal) => {
                 try {
@@ -179,9 +245,17 @@ const homeHandlers = {
                     const cooldownRaw = (modal.element?.querySelector('#homeCfgContactCooldownSeconds')?.value || '').trim();
                     const recentLimitRaw = (modal.element?.querySelector('#homeCfgContactRecentLimit')?.value || '').trim();
 
+                    const compactEveryRaw = (modal.element?.querySelector('#homeCfgProcessInfoCompactEveryN')?.value || '').trim();
+                    const planSummaryEveryRaw = (modal.element?.querySelector('#homeCfgProcessInfoPlanSummaryEveryN')?.value || '').trim();
+
+                    const memory_enabled = !!(modal.element?.querySelector('#homeCfgMemoryEnabled')?.checked);
+
                     const conversation_timeout_seconds = timeoutRaw ? parseInt(timeoutRaw, 10) : 60;
                     const contact_cooldown_seconds = cooldownRaw ? parseInt(cooldownRaw, 10) : 300;
                     const contact_recent_limit = recentLimitRaw ? parseInt(recentLimitRaw, 10) : 3;
+
+                    const process_info_compact_every_n = compactEveryRaw ? parseInt(compactEveryRaw, 10) : 50;
+                    const process_info_plan_summary_every_n = planSummaryEveryRaw ? parseInt(planSummaryEveryRaw, 10) : 5;
 
                     if (!Number.isFinite(conversation_timeout_seconds) || conversation_timeout_seconds < 5 || conversation_timeout_seconds > 3600) {
                         throw new Error('Conversation Timeout must be between 5 and 3600 seconds');
@@ -191,6 +265,17 @@ const homeHandlers = {
                     }
                     if (!Number.isFinite(contact_recent_limit) || contact_recent_limit < 0 || contact_recent_limit > 50) {
                         throw new Error('Recent Contact Limit must be between 0 and 50');
+                    }
+                    if (!Number.isFinite(process_info_compact_every_n) || process_info_compact_every_n < 0 || process_info_compact_every_n > 100000) {
+                        throw new Error('Process Log Compact Every N Rounds must be between 0 and 100000');
+                    }
+                    if (!Number.isFinite(process_info_plan_summary_every_n) || process_info_plan_summary_every_n < 0 || process_info_plan_summary_every_n > 100000) {
+                        throw new Error('Process Plan Summary Every N Rounds must be between 0 and 100000');
+                    }
+
+                    let memory_embedding_enabled = !!(modal.element?.querySelector('#homeCfgMemoryEmbeddingEnabled')?.checked);
+                    if (!memory_enabled) {
+                        memory_embedding_enabled = false;
                     }
 
                     const localRes = await window.electronAPI.writeConfigJson({ agent_server, ai_sns_server });
@@ -210,6 +295,10 @@ const homeHandlers = {
                                 conversation_timeout_seconds,
                                 contact_cooldown_seconds,
                                 contact_recent_limit,
+                                process_info_compact_every_n,
+                                process_info_plan_summary_every_n,
+                                memory_enabled,
+                                memory_embedding_enabled,
                             });
                             remoteOk = !!(remoteRes && remoteRes.success);
                         } catch (e) {

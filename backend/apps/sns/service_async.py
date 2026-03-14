@@ -18,6 +18,7 @@ from backend.database.models.chat import AIFriend, AIChatMessages, AiChatCfg
 from backend.database.models.system import Prompt
 from backend.database.models.system import SystemCfg
 from backend.apps.sns.xmpp_client import XMPPClientManager
+from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
 from backend.config.database import get_db_sync
 from backend.shared.websocket_manager import manager as websocket_manager
 
@@ -41,7 +42,34 @@ def apply_runtime_system_config(payload: dict) -> bool:
         return False
 
     changed = False
-    for k in ("conversation_timeout_seconds", "contact_cooldown_seconds", "contact_recent_limit"):
+    if "memory_enabled" in payload and _social_engine_instance is not None:
+        try:
+            from backend.apps.sns.memory import MemoryConfig
+            MemoryConfig.ENABLED = bool(payload.get("memory_enabled"))
+            setattr(_social_engine_instance, "memory_enabled", MemoryConfig.ENABLED)
+            changed = True
+        except Exception:
+            pass
+
+    if "memory_embedding_enabled" in payload and _social_engine_instance is not None:
+        try:
+            from backend.apps.sns.memory import MemoryConfig
+            emb = bool(payload.get("memory_embedding_enabled"))
+            if not bool(getattr(MemoryConfig, "ENABLED", True)):
+                emb = False
+            MemoryConfig.EMBEDDING_ENABLED = emb
+            setattr(_social_engine_instance, "memory_embedding_enabled", emb)
+            changed = True
+        except Exception:
+            pass
+
+    for k in (
+        "conversation_timeout_seconds",
+        "contact_cooldown_seconds",
+        "contact_recent_limit",
+        "process_info_compact_every_n",
+        "process_info_plan_summary_every_n",
+    ):
         if k in payload and payload[k] is not None:
             try:
                 v = int(payload[k])
@@ -289,6 +317,7 @@ class SNSService:
                 }
 
             client.send_message_to_jid(to_account, content)
+            stored_content = format_internal_xmpp_message_for_storage(content)
 
             stmt = select(AiChatCfg).where(AiChatCfg.is_delete == False)
             result = await self.db.execute(stmt)
@@ -321,7 +350,7 @@ class SNSService:
                 message = AIChatMessages(
                     conversation_id=f"{config.account}_{to_account}",
                     flag=0,
-                    content=content,
+                    content=stored_content,
                     owner_account=config.account,
                     friend_account=to_account,
                     owner_name=config.nickname or config.account,
@@ -413,10 +442,11 @@ class SNSService:
                         self.db.add(friend)
 
                     file_message = f"📎 File: {file.filename}\n{url}"
+                    stored_file_message = format_internal_xmpp_message_for_storage(file_message)
                     message = AIChatMessages(
                         conversation_id=f"{config.account}_{to_account}",
                         flag=0,
-                        content=file_message,
+                        content=stored_file_message,
                         attachment_list=file.filename,
                         owner_account=config.account,
                         friend_account=to_account,
@@ -863,6 +893,60 @@ class SNSService:
             "engine_status": status_payload
         }
 
+    async def end_active_conversation(self, *, reason: str, message: str = "", resume_activity: bool = True) -> dict:
+        global _social_engine_instance, _social_engine_running
+
+        if _social_engine_instance is None:
+            return {
+                "success": False,
+                "message": "AI Social Engine is not initialized",
+            }
+
+        try:
+            await self._ensure_engine_running_for_priority_action()
+        except Exception:
+            pass
+
+        active = {}
+        try:
+            active = getattr(_social_engine_instance, "active_conversation", None) or {}
+        except Exception:
+            active = {}
+
+        try:
+            active_account = (active.get("account") or "").strip() if isinstance(active, dict) else ""
+        except Exception:
+            active_account = ""
+
+        if not active_account:
+            return {
+                "success": True,
+                "message": "No active conversation",
+            }
+
+        try:
+            _social_engine_instance.end_active_conversation(
+                reason=str(reason or "user_stop"),
+                message=str(message or ""),
+                resume_activity=bool(resume_activity),
+            )
+        except Exception as e:
+            logger.error("Failed to end active conversation: %s", e, exc_info=True)
+            return {
+                "success": False,
+                "message": f"Failed to end active conversation: {str(e)}",
+            }
+
+        try:
+            await self._broadcast_engine_status()
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "message": "Active conversation ended",
+        }
+
     async def get_ai_chat_config(self, user_id: str = None):
         """Get AI chat configuration"""
         try:
@@ -1049,7 +1133,8 @@ class SNSService:
             avatar3d = (payload.get('avatar3d') or payload.get('avatar_3d') or '').strip()
             nickname = (payload.get('nickname') or payload.get('nick_name') or '').strip()
             profile = (payload.get('profile') or '').strip()
-            sns_url = (payload.get('sns_url') or '').strip()
+            raw_sns_url = payload.get('sns_url', None)
+            sns_url = '' if raw_sns_url is None else str(raw_sns_url).strip()
             xmpp_account = (payload.get('account') or payload.get('xmpp_account') or payload.get('sns_account') or '').strip()
 
             if not avatar3d:
@@ -1090,7 +1175,8 @@ class SNSService:
 
             nickname = nickname or (getattr(config, 'nickname', None) or '')
             profile = profile or (getattr(config, 'sign', None) or '')
-            sns_url = sns_url or (getattr(config, 'sns_url', None) or '')
+            if raw_sns_url is None:
+                sns_url = (getattr(config, 'sns_url', None) or '')
 
             if not xmpp_account:
                 xmpp_account = (getattr(config, 'account', None) or '').strip()
@@ -1180,6 +1266,87 @@ class SNSService:
         except Exception as e:
             logger.error(f"Error getting social roles: {e}")
             return []
+
+    async def get_prompt_by_title(self, title: str):
+        """Get a prompt record by its exact title."""
+        try:
+            title_value = (title or '').strip()
+            if not title_value:
+                return {"success": False, "message": "Title is required", "data": None}
+
+            stmt = select(Prompt).where(Prompt.title == title_value)
+            result = await self.db.execute(stmt)
+            prompt = result.scalar_one_or_none()
+            if not prompt:
+                return {"success": False, "message": "Prompt not found", "data": None}
+
+            return {
+                "success": True,
+                "data": {
+                    "id": getattr(prompt, "id", None),
+                    "title": getattr(prompt, "title", None),
+                    "caption": getattr(prompt, "caption", None),
+                    "content": getattr(prompt, "content", "") or "",
+                    "question": getattr(prompt, "question", None),
+                    "tags": getattr(prompt, "tags", None),
+                },
+            }
+        except Exception as e:
+            logger.error(f"Error getting prompt by title: {e}")
+            return {"success": False, "message": str(e), "data": None}
+
+    async def upsert_prompt_content_by_title(self, title: str, content: str):
+        """Insert or update prompt content by its exact title."""
+        try:
+            title_value = (title or '').strip()
+            if not title_value:
+                return {"success": False, "message": "Title is required"}
+
+            stmt = select(Prompt).where(Prompt.title == title_value)
+            result = await self.db.execute(stmt)
+            prompt = result.scalar_one_or_none()
+
+            content_value = "" if content is None else str(content)
+
+            if not prompt:
+                prompt = Prompt(
+                    title=title_value,
+                    caption=title_value,
+                    content=content_value,
+                    question="",
+                    tags="",
+                    model_name="",
+                    position=9999,
+                )
+                self.db.add(prompt)
+            else:
+                prompt.content = content_value
+
+            await self.db.commit()
+            try:
+                await self.db.refresh(prompt)
+            except Exception:
+                pass
+
+            return {
+                "success": True,
+                "message": "Prompt updated successfully",
+                "data": {
+                    "id": getattr(prompt, "id", None),
+                    "title": getattr(prompt, "title", None),
+                    "caption": getattr(prompt, "caption", None),
+                    "content": getattr(prompt, "content", "") or "",
+                    "question": getattr(prompt, "question", None),
+                    "tags": getattr(prompt, "tags", None),
+                },
+            }
+        except Exception as e:
+            try:
+                await self.db.rollback()
+            except Exception:
+                pass
+            logger.error(f"Error upserting prompt by title: {e}")
+            return {"success": False, "message": str(e)}
 
     async def get_social_role_by_id(self, role_id: int):
         """Get a specific social role by ID"""

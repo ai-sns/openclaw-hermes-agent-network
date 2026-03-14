@@ -6,7 +6,6 @@ html, body, * {
 
 
 
-
 /* 使用通用选择器确保所有元素都采用 border-box 计算尺寸 */
 * {
     box-sizing: border-box;
@@ -22,12 +21,18 @@ body {
     position: relative; /* 使子元素的绝对定位可用 */
 }
 
+.ui-icon {
+    width: 1em;
+    height: 1em;
+    display: inline-block;
+    vertical-align: -0.125em;
+}
+
 /* 设置地图容器的大小 */
 #map {
     height: 100vh; /* 设置为整个视口高度 */
     width: 100vw; /* 设置为整个视口宽度 */
 }
-
 
 /* 顶部导航栏 */
 .top-bar {
@@ -265,7 +270,8 @@ body {
     color: white;
 }
 
-.menu-item.active i {
+.menu-item.active i,
+.menu-item.active .ui-icon {
     color: white;
 }
 

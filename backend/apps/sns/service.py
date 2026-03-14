@@ -10,7 +10,9 @@ from typing import List
 from fastapi import HTTPException
 from backend.database.models.chat import AIFriend, AIChatMessages, AiChatCfg
 from backend.database.models.system import Prompt
+from backend.database.models.system import SystemCfg
 from backend.apps.sns.xmpp_client import XMPPClientManager
+from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +186,8 @@ class SNSService:
             # Send message via XMPP
             client.send_message_to_jid(to_account, content)
 
+            stored_content = format_internal_xmpp_message_for_storage(content)
+
             # Save to database
             config = self.db.query(AiChatCfg).filter(
                 AiChatCfg.is_delete == False
@@ -193,7 +197,7 @@ class SNSService:
                 message = AIChatMessages(
                     conversation_id=f"{config.account}_{to_account}",
                     flag=0,  # 0=send
-                    content=content,
+                    content=stored_content,
                     owner_account=config.account,
                     friend_account=to_account,
                     owner_name=config.nickname or config.account,
@@ -253,10 +257,11 @@ class SNSService:
 
                 if config:
                     file_message = f"📎 File: {file.filename}\n{url}"
+                    stored_file_message = format_internal_xmpp_message_for_storage(file_message)
                     message = AIChatMessages(
                         conversation_id=f"{config.account}_{to_account}",
                         flag=0,  # 0=send
-                        content=file_message,
+                        content=stored_file_message,
                         attachment_list=file.filename,
                         owner_account=config.account,
                         friend_account=to_account,

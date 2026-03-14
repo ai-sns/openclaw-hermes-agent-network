@@ -6,6 +6,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from backend.config.database import get_db_sync
 from backend.database.models.chat import AiChatCfg, AIFriend, AIChatMessages
+from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ class XMPPClient(slixmpp.ClientXMPP):
 
                 if config:
                     from datetime import datetime
+                    stored_body = format_internal_xmpp_message_for_storage(body)
                     friend = self.db.query(AIFriend).filter(
                         AIFriend.account == from_jid,
                         AIFriend.owner_sns_account == config.account
@@ -106,7 +108,7 @@ class XMPPClient(slixmpp.ClientXMPP):
                     message = AIChatMessages(
                         conversation_id=f"{config.account}_{from_jid}",
                         flag=1,  # 1=receive
-                        content=body,
+                        content=stored_body,
                         owner_account=config.account,
                         friend_account=from_jid,
                         owner_name=config.nickname or config.account,
@@ -129,7 +131,7 @@ class XMPPClient(slixmpp.ClientXMPP):
                         'data': {
                             'id': message.id,
                             'from_account': from_jid,
-                            'content': body,
+                            'content': stored_body,
                             'flag': 1,
                             'create_time': message.create_time.isoformat() if message.create_time else None,
                             'contact': contact_payload,

@@ -700,6 +700,15 @@ function loadModel(persondata) {
         // Add directory prefix
         url = '/scripts/avatar3d/' + url;
         console.log(`Full model path: ${url}`);
+    }else{
+        modelParams = {
+        rotationX:  0,      // 1st number: X rotation (degrees)
+        rotationY:  0,      // 2nd number: Y rotation (degrees)
+        rotationZ:  0,      // 3rd number: Z rotation (degrees)
+        altitude:  0,       // 4th number: altitude
+        scaleMultiplier: 1,     // 5th number: scale multiplier (Baidu is ~1.8x smaller than Google)
+        animationIndex:  0    // 6th number: animation index
+        }
     }
 
     const loader = new mapvgl.THREELoader.GLTFLoader();
@@ -1191,11 +1200,84 @@ function __snsSendMessage(to_account, content) {
     });
 }
 
+function __snsResolveTalkAccount(nation_id, opts) {
+    try {
+        const overrideAccount = (opts && opts.account) ? String(opts.account).trim() : '';
+        if (overrideAccount) {
+            return overrideAccount;
+        }
+    } catch (e) {
+    }
+
+    try {
+        const m = (typeof window !== 'undefined') ? window.__talk_target_account_by_nation_id : null;
+        if (m && typeof m === 'object' && m[nation_id]) {
+            const mapped = String(m[nation_id]).trim();
+            if (mapped) {
+                return mapped;
+            }
+        }
+    } catch (e) {
+    }
+
+    try {
+        const p = getPersonDataByNationId(nation_id);
+        if (p && p["account"]) {
+            return String(p["account"]).trim();
+        }
+    } catch (e) {
+    }
+
+    return '';
+}
+
+function __snsShouldSendTerminate(account) {
+    const acc = String(account || '').trim();
+    if (!acc) {
+        return false;
+    }
+    try {
+        if (typeof window === 'undefined') {
+            return true;
+        }
+        if (!window.__last_terminate_ts_by_account || typeof window.__last_terminate_ts_by_account !== 'object') {
+            window.__last_terminate_ts_by_account = {};
+        }
+        const now = Date.now();
+        const last = Number(window.__last_terminate_ts_by_account[acc] || 0);
+        if (last && (now - last) < 1200) {
+            return false;
+        }
+        window.__last_terminate_ts_by_account[acc] = now;
+        return true;
+    } catch (e) {
+        return true;
+    }
+}
+
+function __snsEndActiveConversation(payload) {
+    return __snsPostJson(
+        '/api/sns/end-active-conversation',
+        payload || { reason: 'user_stop', message: '', resume_activity: true },
+    );
+}
+
 function start_talk_to_it(nation_id, content) {
 
     person_target_point = getPersonPointByNationId(nation_id);
     person_data_me = getPersonDataByNationId(nation_id_me);
     person_target = getPersonDataByNationId(nation_id);
+
+    try {
+        const account = (person_target && person_target["account"]) ? String(person_target["account"]).trim() : '';
+        if (typeof window !== 'undefined' && account) {
+            if (!window.__talk_target_account_by_nation_id || typeof window.__talk_target_account_by_nation_id !== 'object') {
+                window.__talk_target_account_by_nation_id = {};
+            }
+            window.__talk_target_account_by_nation_id[String(nation_id)] = account;
+        }
+    } catch (e) {
+    }
 
     setTimeout(function () {
         const targetLng = person_target_point.lng - 0.005;
@@ -1205,7 +1287,7 @@ function start_talk_to_it(nation_id, content) {
             showAlert("Moving to talk.");
         }
         map.setCenter(new BMapGL.Point(targetLng, targetLat));
-        
+
 
     }, 100);
     setTimeout(function () {
@@ -1274,6 +1356,30 @@ function start_talk_to_it(nation_id, content) {
 }
 
 function talk_to_it(nation_id, content) {
+    // Ensure only one active talk target at a time.
+    try {
+        const prev = (typeof window !== 'undefined') ? window.__active_talk_nation_id : undefined;
+        if (prev && String(prev) !== String(nation_id) && typeof stop_talk_to_it === 'function') {
+            let prevAccount = '';
+            try {
+                const m = (typeof window !== 'undefined') ? window.__talk_target_account_by_nation_id : null;
+                if (m && typeof m === 'object' && m[prev]) {
+                    prevAccount = String(m[prev] || '').trim();
+                }
+            } catch (e) {
+            }
+            stop_talk_to_it(prev, { account: prevAccount });
+        }
+    } catch (e) {
+        console.warn('talk_to_it pre-stop failed:', e);
+    }
+    try {
+        if (typeof window !== 'undefined') {
+            window.__active_talk_nation_id = String(nation_id);
+        }
+    } catch (e) {
+    }
+
     setTimeout(function () {
         closeBaiduBubble();
     }, 0);
@@ -1303,7 +1409,7 @@ function talk_to_it(nation_id, content) {
             showAlert("Moving to talk.");
         }
         map.setCenter(new BMapGL.Point(targetLng, targetLat));
-        
+
 
     }, 100);
     setTimeout(function () {
@@ -1411,7 +1517,8 @@ function talk_to_it(nation_id, content) {
 
 }
 
-function stop_talk_to_it(nation_id) {
+function stop_talk_to_it(nation_id, options) {
+    const opts = options || {};
     try {
         resetMyModelRotationAfterTalk();
         map.setHeading(0);
@@ -1445,23 +1552,8 @@ function stop_talk_to_it(nation_id) {
     }
 
     try {
-        let targetAccount = '';
-        try {
-            if (typeof person_target !== 'undefined' && person_target && person_target["account"]) {
-                targetAccount = String(person_target["account"]).trim();
-            }
-        } catch (e) {
-        }
-        if (!targetAccount) {
-            try {
-                const p = getPersonDataByNationId(nation_id);
-                if (p && p["account"]) {
-                    targetAccount = String(p["account"]).trim();
-                }
-            } catch (e) {
-            }
-        }
-        if (targetAccount) {
+        const targetAccount = __snsResolveTalkAccount(nation_id, opts);
+        if (targetAccount && !opts.skipTerminate && __snsShouldSendTerminate(targetAccount)) {
             __snsSendMessage(targetAccount, 'TERMINATE');
         }
     } catch (e) {
@@ -1472,6 +1564,35 @@ function stop_talk_to_it(nation_id) {
         close_sns_profile();
     } catch (e) {
     }
+
+    try {
+        if (typeof window !== 'undefined') {
+            const cur = window.__active_talk_nation_id;
+            if (cur && String(cur) === String(nation_id)) {
+                window.__active_talk_nation_id = '';
+            }
+        }
+    } catch (e) {
+    }
+
+    try {
+        if (typeof window !== 'undefined' && window.__talk_target_account_by_nation_id && typeof window.__talk_target_account_by_nation_id === 'object') {
+            delete window.__talk_target_account_by_nation_id[String(nation_id)];
+        }
+    } catch (e) {
+    }
+}
+
+function end_chat(nation_id) {
+    try {
+        __snsEndActiveConversation({ reason: 'user_stop', message: '', resume_activity: true });
+    } catch (e) {
+    }
+    try {
+        stop_talk_to_it(nation_id);
+    } catch (e) {
+    }
+    return false;
 }
 
 
@@ -1520,10 +1641,20 @@ function showprofile(nation_id) {
     console.log(person_point);
     let person = getPersonDataByNationId(nation_id);
 
+    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
+    var metaHTML = '<div style="padding-top: 1px; font-size: 12px; line-height: 1.2;">' +
+        '<div>🤖 ' + agentType + '</div>' +
+        '<div>🧠 ' + modelName + '</div>' +
+        '</div>';
+
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
     var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
-    var bodyHTML = badgeHTML + person["profile"] +
-        '<div style="text-align: right;"><a href="#" class="bubble-action-btn" onclick="talk_to_it(\'' + nation_id + '\',\'\');return false;">Chat</a></div>';
+    var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
+        '<div>' + metaHTML + '</div>' +
+        '<div style="text-align: right;"><a href="#" class="bubble-action-btn" onclick="talk_to_it(\'' + nation_id + '\',\'\');return false;">Chat</a></div>' +
+        '</div>';
+    var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
     var point = getPersonPointByNationId(nation_id);
     console.log("the point", point);
@@ -1562,11 +1693,22 @@ function showprofile3d(geoGroup) {
     // return;
 
     let person = geoGroup.userData;
+    var nation_id = (person && (person["nation_id"] || person["nationid"])) ? String(person["nation_id"] || person["nationid"]) : '';
+
+    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
+    var metaHTML = '<div style="padding-top: 3px; font-size: 12px; line-height: 1.2;">' +
+        '<div>🤖 ' + agentType + '</div>' +
+        '<div>🧠 ' + modelName + '</div>' +
+        '</div>';
 
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
     var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
-    var bodyHTML = badgeHTML + person["profile"] +
-        '<div style="text-align: right;"><a href="#" class="bubble-action-btn btn-danger" onclick="stop_talk_to_it(\'' + nation_id + '\');return false;">End chat</a></div>';
+    var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
+        '<div>' + metaHTML + '</div>' +
+        '<div style="text-align: right;"><a href="#" class="bubble-action-btn btn-danger" onclick="end_chat(\'' + nation_id + '\');return false;">End chat</a></div>' +
+        '</div>';
+    var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
     // Assume geoGroup.position x/y are Mercator coordinates
     const mercatorX = geoGroup.position.x;
@@ -1744,5 +1886,6 @@ function cancelNavigate() {
     }
     map.setDisplayOptions(displayOptions);
     map.cancelViewAnimation(view_animation);
-    refresh();
+    // refresh();
+    findHim();
 }

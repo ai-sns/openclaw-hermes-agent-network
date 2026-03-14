@@ -10,6 +10,7 @@ import { SNSProfessionDialog } from './SNSProfessionDialog.js';
 import { SNSSocialRoleDialog } from './SNSSocialRoleDialog.js';
 import { SNSMapConfigDialog } from './SNSMapConfigDialog.js';
 import { SNSPluginDialog } from './SNSPluginDialog.js';
+import { SNSGoalsDialog } from './SNSGoalsDialog.js';
 
 export default {
     lastPlaceIntroUrl: '',
@@ -303,9 +304,9 @@ export default {
             const agentValue = document.getElementById('agentValue');
             const providerValue = document.getElementById('providerValue');
             const modelValue = document.getElementById('modelValue');
-            if (agentValue) agentValue.textContent = ': Loading...';
-            if (providerValue) providerValue.textContent = ': Loading...';
-            if (modelValue) modelValue.textContent = ': Loading...';
+            if (agentValue) agentValue.textContent = ' Loading...';
+            if (providerValue) providerValue.textContent = ' Loading...';
+            if (modelValue) modelValue.textContent = ' Loading...';
 
             const logRows = thinkPane.querySelector('.status-section:nth-child(2) .status-rows');
             if (logRows) {
@@ -358,22 +359,22 @@ export default {
 
             if (result && result.success && result.data) {
                 const { agent, provider, model } = result.data;
-                if (agentValue) agentValue.textContent = `: ${agent}`;
-                if (providerValue) providerValue.textContent = `: ${provider}`;
-                if (modelValue) modelValue.textContent = `: ${model}`;
+                if (agentValue) agentValue.textContent = ` ${agent}`;
+                if (providerValue) providerValue.textContent = ` ${provider}`;
+                if (modelValue) modelValue.textContent = ` ${model}`;
                 return;
             }
 
-            if (agentValue) agentValue.textContent = ': N/A';
-            if (providerValue) providerValue.textContent = ': N/A';
-            if (modelValue) modelValue.textContent = ': N/A';
+            if (agentValue) agentValue.textContent = ' N/A';
+            if (providerValue) providerValue.textContent = ' N/A';
+            if (modelValue) modelValue.textContent = ' N/A';
         } catch (e) {
             const agentValue = document.getElementById('agentValue');
             const providerValue = document.getElementById('providerValue');
             const modelValue = document.getElementById('modelValue');
-            if (agentValue) agentValue.textContent = ': Error';
-            if (providerValue) providerValue.textContent = ': Error';
-            if (modelValue) modelValue.textContent = ': Error';
+            if (agentValue) agentValue.textContent = ' Error';
+            if (providerValue) providerValue.textContent = ' Error';
+            if (modelValue) modelValue.textContent = ' Error';
         }
     },
 
@@ -3068,6 +3069,9 @@ export default {
                     break;
                 case 'socialRole':
                     dialog = new SNSSocialRoleDialog();
+                    break;
+                case 'goals':
+                    dialog = new SNSGoalsDialog();
                     break;
                 case 'mapConfig':
                     dialog = new SNSMapConfigDialog();

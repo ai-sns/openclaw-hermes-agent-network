@@ -463,11 +463,22 @@ document.addEventListener("DOMContentLoaded", function () {
     loadMoreItems(true);
 });
 
+function escapeHtmlForMapChat(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 var show_talk_message = function (from, to, msg) {
     console.log(from);
     console.log(to);
     from_point = getPersonPointByAccount(from);
     person_data = getPersonDataByAccount(from);
+
+    const formattedSafe = escapeHtmlForMapChat(msg).replace(/\n/g, '<br>');
 
     // Only hide status indicator when person_me is the sender
     const isMe = (typeof person_data_me !== 'undefined' && person_data_me &&
@@ -482,9 +493,9 @@ var show_talk_message = function (from, to, msg) {
     }
 
     if (map_type == "google") {
-        send_chat_msg(from_point.lng(), from_point.lat(), msg, person_data["nick_name"]);
+        send_chat_msg(from_point.lng(), from_point.lat(), formattedSafe, person_data["nick_name"]);
     } else {
-        send_chat_msg(from_point.lng, from_point.lat, msg, person_data["nick_name"]);
+        send_chat_msg(from_point.lng, from_point.lat, formattedSafe, person_data["nick_name"]);
     }
 }
 
@@ -1071,13 +1082,31 @@ function Maximize() {
     document.querySelector('.top-bar').classList.add('collapsed');
     document.querySelector('.right-menu').classList.add('collapsed');
 
-    const topBarIcon = document.querySelector('.top-bar-toggle i');
-    topBarIcon.classList.remove('fa-angle-double-up');
-    topBarIcon.classList.add('fa-angle-double-down');
+    const topBarIcon = document.querySelector('.top-bar-toggle i, .top-bar-toggle .ui-icon');
+    if (topBarIcon && (topBarIcon instanceof SVGElement || topBarIcon.classList.contains('ui-icon'))) {
+        topBarIcon.setAttribute('data-icon', 'angle-double-down');
+        const useEl = topBarIcon.querySelector('use');
+        const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
+            ? window.__getUiIconHref('angle-double-down')
+            : 'mapIcons/menu-icons.svg#icon-angle-double-down';
+        useEl && useEl.setAttribute('href', href);
+    } else if (topBarIcon && topBarIcon.classList) {
+        topBarIcon.classList.remove('fa-angle-double-up');
+        topBarIcon.classList.add('fa-angle-double-down');
+    }
 
-    const rightMenuIcon = document.querySelector('.right-menu .menu-toggle i');
-    rightMenuIcon.classList.remove('fa-angle-double-right');
-    rightMenuIcon.classList.add('fa-angle-double-left');
+    const rightMenuIcon = document.querySelector('.right-menu .menu-toggle i, .right-menu .menu-toggle .ui-icon');
+    if (rightMenuIcon && (rightMenuIcon instanceof SVGElement || rightMenuIcon.classList.contains('ui-icon'))) {
+        rightMenuIcon.setAttribute('data-icon', 'angle-double-left');
+        const useEl = rightMenuIcon.querySelector('use');
+        const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
+            ? window.__getUiIconHref('angle-double-left')
+            : 'mapIcons/menu-icons.svg#icon-angle-double-left';
+        useEl && useEl.setAttribute('href', href);
+    } else if (rightMenuIcon && rightMenuIcon.classList) {
+        rightMenuIcon.classList.remove('fa-angle-double-right');
+        rightMenuIcon.classList.add('fa-angle-double-left');
+    }
 
     // Tell Electron frontend to collapse sidebar and right panel
     if (typeof window.parent !== 'undefined') {
@@ -1099,13 +1128,31 @@ function Minimize() {
     document.querySelector('.top-bar').classList.remove('collapsed');
     document.querySelector('.right-menu').classList.remove('collapsed');
 
-    const topBarIcon = document.querySelector('.top-bar-toggle i');
-    topBarIcon.classList.remove('fa-angle-double-down');
-    topBarIcon.classList.add('fa-angle-double-up');
+    const topBarIcon = document.querySelector('.top-bar-toggle i, .top-bar-toggle .ui-icon');
+    if (topBarIcon && (topBarIcon instanceof SVGElement || topBarIcon.classList.contains('ui-icon'))) {
+        topBarIcon.setAttribute('data-icon', 'angle-double-up');
+        const useEl = topBarIcon.querySelector('use');
+        const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
+            ? window.__getUiIconHref('angle-double-up')
+            : 'mapIcons/menu-icons.svg#icon-angle-double-up';
+        useEl && useEl.setAttribute('href', href);
+    } else if (topBarIcon && topBarIcon.classList) {
+        topBarIcon.classList.remove('fa-angle-double-down');
+        topBarIcon.classList.add('fa-angle-double-up');
+    }
 
-    const rightMenuIcon = document.querySelector('.right-menu .menu-toggle i');
-    rightMenuIcon.classList.remove('fa-angle-double-left');
-    rightMenuIcon.classList.add('fa-angle-double-right');
+    const rightMenuIcon = document.querySelector('.right-menu .menu-toggle i, .right-menu .menu-toggle .ui-icon');
+    if (rightMenuIcon && (rightMenuIcon instanceof SVGElement || rightMenuIcon.classList.contains('ui-icon'))) {
+        rightMenuIcon.setAttribute('data-icon', 'angle-double-right');
+        const useEl = rightMenuIcon.querySelector('use');
+        const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
+            ? window.__getUiIconHref('angle-double-right')
+            : 'mapIcons/menu-icons.svg#icon-angle-double-right';
+        useEl && useEl.setAttribute('href', href);
+    } else if (rightMenuIcon && rightMenuIcon.classList) {
+        rightMenuIcon.classList.remove('fa-angle-double-left');
+        rightMenuIcon.classList.add('fa-angle-double-right');
+    }
 
     // Tell Electron frontend to expand sidebar and right panel
     if (typeof window.parent !== 'undefined') {
@@ -1140,6 +1187,17 @@ function jobSetting() {
         }, '*');
     }
     console.log("jobSetting");
+}
+
+function goalsSetting() {
+    // Use postMessage to ask Electron frontend to open the goals dialog
+    if (typeof window.parent !== 'undefined') {
+        window.parent.postMessage({
+            type: 'openDialog',
+            dialogType: 'goals'
+        }, '*');
+    }
+    console.log("goalsSetting");
 }
 
 function showGameTarget() {

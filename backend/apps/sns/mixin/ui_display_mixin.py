@@ -5,6 +5,7 @@ from backend.apps.sns.js_task_manager import JsTaskManager
 from backend.apps.sns.xmpp_client import XMPPClientManager
 from backend.modules.agent.agent_manager import agent_manager
 from backend.shared.websocket_manager import manager as websocket_manager
+from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
 
 # *********
 import os
@@ -370,6 +371,11 @@ class UIDisplayMixin:
         import logging
 
         logger = logging.getLogger(__name__)
+
+        try:
+            message = format_internal_xmpp_message_for_storage(message)
+        except Exception:
+            pass
 
 
         # Build map message (new format)

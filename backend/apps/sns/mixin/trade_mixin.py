@@ -38,6 +38,7 @@ from geographiclib.geodesic import Geodesic
 import random
 
 from backend.shared.utils import robust_json_loads, safe_json_dumps
+from backend.apps.sns.memory.memory_types import MemoryType
 
 logger = logging.getLogger(__name__)
 
@@ -195,6 +196,23 @@ class TradeMixin:
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
+        # Memory recall: append past interaction memories for candidate people
+        try:
+            mm = getattr(self, "memory_manager", None)
+            if mm:
+                person_memory_sections = []
+                for person in people_list[:5]:
+                    acct = (person.get("account") or "").strip()
+                    name = (person.get("nick_name") or acct)
+                    if acct:
+                        section = mm.get_person_memory_prompt_section(acct, person_name=name, max_results=2, max_chars=300)
+                        if section:
+                            person_memory_sections.append(section)
+                if person_memory_sections:
+                    content_prompt += "\n\n" + "\n".join(person_memory_sections)
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for sell people selection: %s", _mem_err)
+
         self.command_status = "ask_agent_start_to_sell_to_a_people"
         asyncio.create_task(self.ask_agent_and_get_instruction(content_prompt, role_prompt))
 
@@ -209,6 +227,23 @@ class TradeMixin:
         content_prompt = get_prompt_by_title("__start_to_buy_from_a_people_content__")
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
+
+        # Memory recall: append past interaction memories for candidate people
+        try:
+            mm = getattr(self, "memory_manager", None)
+            if mm:
+                person_memory_sections = []
+                for person in people_list[:5]:
+                    acct = (person.get("account") or "").strip()
+                    name = (person.get("nick_name") or acct)
+                    if acct:
+                        section = mm.get_person_memory_prompt_section(acct, person_name=name, max_results=2, max_chars=300)
+                        if section:
+                            person_memory_sections.append(section)
+                if person_memory_sections:
+                    content_prompt += "\n\n" + "\n".join(person_memory_sections)
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for buy people selection: %s", _mem_err)
 
         self.command_status = "ask_agent_start_to_buy_from_a_people"
         asyncio.create_task(self.ask_agent_and_get_instruction(content_prompt, role_prompt))
@@ -436,12 +471,12 @@ class TradeMixin:
 
         if buy_score >= 80 and price >= 0:
             self.send_pay(price)
-            self.end_active_conversation(
-                reason="pay",
-                message="Payment initiated.",
-                resume_activity=True,
-                resume_ask_content="",
-            )
+            # self.end_active_conversation(
+            #     reason="pay",
+            #     message="Payment initiated.",
+            #     resume_activity=True,
+            #     resume_ask_content="",
+            # )
             return
 
         if not continue_chat:
@@ -534,6 +569,8 @@ class TradeMixin:
     def send_pay(self, price, to_account: Optional[str] = None, to_nation_id: Optional[str] = None, to_nick_name: Optional[str] = None) -> None:
         trade_id = generate_random_id()
         current_talk_people = self.current_talk_people or {}
+        logger.info("sendpay.......")
+        logger.info(current_talk_people)
 
         account = (to_account or current_talk_people.get("account") or "").strip()
         nation_id = (to_nation_id or current_talk_people.get("nation_id") or "").strip()
@@ -550,6 +587,9 @@ class TradeMixin:
             (current_talk_people.get("Profession") or current_talk_people.get("profession") or "").strip()
         )
         profession_key = recipient_profession.lower()
+        print("recipient_profession")
+        print(profession_key)
+
         if profession_key == "doctor":
             try:
                 self.aichatcfg_record.life_point = self.aichatcfg_record.life_point + 25
@@ -573,9 +613,45 @@ class TradeMixin:
         try:
             message = f"AISNS_INT_001_PAY_SEND_START\n{trade_id}__AISNS_INT_SEPARATOR__{price}\nAISNS_INT_001_PAY_SEND_END"
 
+            try:
+                if not isinstance(getattr(self, "current_talk_people", None), dict) or not self.current_talk_people:
+                    self.current_talk_people = {
+                        "nation_id": nation_id,
+                        "account": account,
+                        "nick_name": nick_name,
+                    }
+                round_value = int(self.current_talk_people.get("talk_round", 0) or 0)
+                if round_value < 1:
+                    self.current_talk_people["talk_round"] = 1
+            except Exception:
+                pass
+
             self.talk_to_a_people(message, nation_id, account, nick_name)
 
             self.add_money(0 - float(price or 0))
+
+            # Memory capture: record buy trade
+            try:
+                from backend.apps.sns.memory.memory_config import MemoryConfig
+                mm = getattr(self, "memory_manager", None)
+                if mm and MemoryConfig.ENABLED:
+                    mm.capture_async(
+                        MemoryType.TRADE,
+                        key=f"Paid {price} to {nick_name}",
+                        content=f"Bought from {nick_name} (account: {account}) for ${float(price or 0):.2f}.",
+                        metadata={
+                            "trade_type": "buy",
+                            "account": account,
+                            "nation_id": nation_id,
+                            "nick_name": nick_name,
+                            "price": float(price or 0),
+                            "trade_id": trade_id,
+                        },
+                        importance=70,
+                    )
+            except Exception as _mem_err:
+                logger.warning("Memory capture failed for buy trade: %s", _mem_err)
+
             # Increment credit by 1 for each buy trade
             current_credit = int(self.aichatcfg_record.credit or 0)
             self.aichatcfg_record.credit = current_credit + 1
@@ -594,6 +670,10 @@ class TradeMixin:
             logger.error(f"send_pay failed: {e}", exc_info=True)
 
     def handle_pay_received(self, price_str) -> None:
+        try:
+            self.command_status = ""
+        except Exception:
+            pass
         talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
         trade_id, trade_price = self._parse_trade_payment(price_str)
 
@@ -621,7 +701,7 @@ class TradeMixin:
                 self.handle_send_goods(handle_content, trade_id)
                 return
 
-            if handle_after_trade in {"发送消息", "Send message"}:
+            if handle_after_trade == "message":
                 self.handle_send_goods(handle_content, trade_id)
                 return
 
@@ -667,6 +747,10 @@ class TradeMixin:
             print(f"Tool trade sell error: {str(e)}")
 
     def handle_send_goods(self, good_str, trade_id):
+        try:
+            self.command_status = ""
+        except Exception:
+            pass
         current_talk_people = self.current_talk_people
         nation_id = current_talk_people["nation_id"]
         account = current_talk_people["account"]
@@ -678,15 +762,25 @@ class TradeMixin:
                 trade_id = generate_random_id()
 
             good_payload = good_str
-            if not isinstance(good_payload, str):
-                good_payload = safe_json_dumps({"format": "aisns_goods_v1", "content": good_payload}, default=str(good_payload))
-            else:
-                good_payload = good_payload.strip()
-                # Always normalize to structured payload unless it's already a JSON object
-                if not (good_payload.startswith("{") and good_payload.endswith("}")):
-                    good_payload = safe_json_dumps({"format": "aisns_goods_v1", "content": good_payload})
+            # if not isinstance(good_payload, str):
+            #     good_payload = safe_json_dumps({"format": "aisns_goods_v1", "content": good_payload}, default=str(good_payload))
+            # else:
+            #     good_payload = good_payload.strip()
+            #     # Always normalize to structured payload unless it's already a JSON object
+            #     if not (good_payload.startswith("{") and good_payload.endswith("}")):
+            #         good_payload = safe_json_dumps({"format": "aisns_goods_v1", "content": good_payload})
 
             message = f"AISNS_INT_002_GOOD_SEND_START\n{trade_id}__AISNS_INT_SEPARATOR__{good_payload}\nAISNS_INT_002_GOOD_SEND_END"
+
+            # Avoid the first-round 5s delay in talk_to_a_people for trade delivery.
+            try:
+                if isinstance(self.current_talk_people, dict):
+                    round_value = int(self.current_talk_people.get("talk_round", 0) or 0)
+                    if round_value < 1:
+                        self.current_talk_people["talk_round"] = 1
+            except Exception:
+                pass
+
             self.talk_to_a_people(message, nation_id, account, nick_name)
             trade_type = "S"
             title = f"Trade with {nick_name}"
@@ -699,6 +793,47 @@ class TradeMixin:
             else:
                 add_map_trade(trade_id=trade_id, trade_type=trade_type, title=title, detail=detail, pay=price, trade_with_name=trade_with_name, trade_with_account=trade_with_account, status=2)
             self.add_money(price)
+
+            # Memory capture: record sell trade
+            try:
+                from backend.apps.sns.memory.memory_config import MemoryConfig
+                mm = getattr(self, "memory_manager", None)
+                if mm and MemoryConfig.ENABLED:
+                    mm.capture_async(
+                        MemoryType.TRADE,
+                        key=f"Sold to {nick_name} for {price}",
+                        content=f"Sold goods/service to {nick_name} (account: {account}) for ${float(price or 0):.2f}. Detail: {str(good_payload)[:200]}",
+                        metadata={
+                            "trade_type": "sell",
+                            "account": account,
+                            "nation_id": nation_id,
+                            "nick_name": nick_name,
+                            "price": float(price or 0),
+                            "trade_id": trade_id,
+                        },
+                        importance=75,
+                    )
+            except Exception as _mem_err:
+                logger.warning("Memory capture failed for sell trade: %s", _mem_err)
+
+            def _end_trade_conversation():
+                self.end_active_conversation(
+                    reason="Good sent,Trade complete.",
+                    message="Good sent,Trade complete.",
+                    resume_activity=True,
+                    resume_ask_content="",
+                )
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.call_later(6, _end_trade_conversation)
+            except RuntimeError:
+                async def _end_conversation_delayed():
+                    await asyncio.sleep(6)
+                    _end_trade_conversation()
+
+                asyncio.create_task(_end_conversation_delayed())
+
             # Increment credit by 1 for each sell trade
             current_credit = int(self.aichatcfg_record.credit or 0)
             self.aichatcfg_record.credit = current_credit + 1
@@ -720,8 +855,26 @@ class TradeMixin:
 
         try:
             update_map_trade(trade_id, detail=goods_detail, status=3)
+
+            def _end_trade_conversation():
+                self.end_active_conversation(
+                    reason="Good received,Trade complete.",
+                    message="Good received,Trade complete.",
+                    resume_activity=True,
+                    resume_ask_content="",
+                )
+
+            try:
+                loop = asyncio.get_running_loop()
+                loop.call_later(3, _end_trade_conversation)
+            except RuntimeError:
+                async def _end_conversation_delayed():
+                    await asyncio.sleep(3)
+                    _end_trade_conversation()
+
+                asyncio.create_task(_end_conversation_delayed())
         except Exception as e:
-            print(f"Tool trade sell error: {str(e)}")
+            print(f"Handle goods received error: {str(e)}")
 
     def add_money(self, count):
         money = float(self.aichatcfg_record.money or 0) + count

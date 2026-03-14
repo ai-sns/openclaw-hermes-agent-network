@@ -15,9 +15,6 @@ async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIA
         throw new Error('Invalid URL parameter');
 
     }
-
-
-
     // Inner function that performs the request
 
     async function fetchData(retriesLeft, delay) {
@@ -189,7 +186,6 @@ async function load_persons_data_and_show() {
                 : 'Contact the system administrator');
 
     }
-
 }
 
 
@@ -311,6 +307,25 @@ async function loadModelWithRetry(loaderInstance, url, retries = 3, retryDelay =
         }
 
     }
+}
+
+
+function end_chat(nation_id) {
+
+    try {
+        __snsEndActiveConversation({ reason: 'user_stop', message: '', resume_activity: true });
+    } catch (e) {
+    }
+
+    try {
+
+        stop_talk_to_it(nation_id);
+
+    } catch (e) {
+
+    }
+
+    return false;
 
 }
 
@@ -1092,9 +1107,13 @@ function initMap() {
 
         // alert("center_point:" + JSON.stringify(center_point.toJSON(), null, 2));
 
-        distance = getDistance(last_click_point, center_point);
+        const myGeo = (typeof __getMyPersonGeo === 'function') ? __getMyPersonGeo() : null;
+        const myPoint = (myGeo && Number.isFinite(Number(myGeo.lat)) && Number.isFinite(Number(myGeo.lng)))
+            ? new google.maps.LatLng(Number(myGeo.lat), Number(myGeo.lng))
+            : center_point;
+        distance = getDistance(myPoint, last_click_point);
 
-        // alert(distance);
+        //alert(distance);
 
         // showinfo();
 
@@ -1165,6 +1184,14 @@ function initMap() {
                         setPersonPointByNationId(nation_id_me, lngVal, latVal);
 
                         window.current_position = { lng: lngVal, lat: latVal };
+                        console.log("distance:");
+                        console.log(distance);
+                        if(distance>50000){
+                            findHim();//The model will not show correct if move across the map. so must call findHim function，this can refresh
+
+                        }
+
+
 
                     }
 
@@ -1866,7 +1893,6 @@ function initMap() {
 
     const webglOverlay = new google.maps.WebGLOverlayView();
 
-    // const cubePosition = { lat: 39.97619992566233, lng: 116.19042703542924 };
 
     const cubePosition = { lat: 37.530317234458025, lng: -122.47283866789105 };
 
@@ -2849,7 +2875,7 @@ function loadModel(persondata) {
             LoadingOverlay.prototype.onAdd = function () {
                 const div = document.createElement('div');
                 div.className = 'sns-person-loading-overlay';
-                div.innerHTML = 
+                div.innerHTML =
                     '<div class="sns-holo-shadow"></div>' +
                     '<div class="sns-holo-base"></div>' +
                     '<div class="sns-holo-beam"></div>' +
@@ -2996,6 +3022,25 @@ function loadModel(persondata) {
             }
             url = '/scripts/avatar3d/' + url;
             console.log(`Full model path: ${url}`);
+        }else{
+            modelParams = {
+
+        rotationX:  0,      // 1st number: X rotation (degrees)
+
+        rotationY:  0,      // 2nd number: Y rotation (degrees)
+
+        rotationZ:  0,      // 3rd number: Z rotation (degrees)
+
+        altitude:  0,       // 4th number: altitude
+
+        scaleMultiplier: 1,           // 5th number: scale multiplier
+
+        animationIndex:  0    // 6th number: animation index
+
+    };
+            alert(modelParams);
+            console.log("modelParams");
+            console.log(modelParams);
         }
     } catch (e) {
     }
@@ -3607,6 +3652,76 @@ function __snsSendMessage(to_account, content) {
 
 }
 
+function __snsResolveTalkAccount(nation_id, opts) {
+
+    try {
+        const overrideAccount = (opts && opts.account) ? String(opts.account).trim() : '';
+        if (overrideAccount) {
+            return overrideAccount;
+        }
+    } catch (e) {
+    }
+
+    try {
+        const m = (typeof window !== 'undefined') ? window.__talk_target_account_by_nation_id : null;
+        if (m && typeof m === 'object' && m[nation_id]) {
+            const mapped = String(m[nation_id]).trim();
+            if (mapped) {
+                return mapped;
+            }
+        }
+    } catch (e) {
+    }
+
+    try {
+        const p = getPersonDataByNationId(nation_id);
+        if (p && p["account"]) {
+            return String(p["account"]).trim();
+        }
+    } catch (e) {
+    }
+
+    return '';
+
+}
+
+
+function __snsShouldSendTerminate(account) {
+
+    const acc = String(account || '').trim();
+    if (!acc) {
+        return false;
+    }
+    try {
+        if (typeof window === 'undefined') {
+            return true;
+        }
+        if (!window.__last_terminate_ts_by_account || typeof window.__last_terminate_ts_by_account !== 'object') {
+            window.__last_terminate_ts_by_account = {};
+        }
+        const now = Date.now();
+        const last = Number(window.__last_terminate_ts_by_account[acc] || 0);
+        if (last && (now - last) < 1200) {
+            return false;
+        }
+        window.__last_terminate_ts_by_account[acc] = now;
+        return true;
+    } catch (e) {
+        return true;
+    }
+
+}
+
+
+function __snsEndActiveConversation(payload) {
+
+    return __snsPostJson(
+        '/api/sns/end-active-conversation',
+        payload || { reason: 'user_stop', message: '', resume_activity: true },
+    );
+
+}
+
 
 
 function start_talk_to_it(nation_id, content) {
@@ -3626,6 +3741,17 @@ function start_talk_to_it(nation_id, content) {
 
     person_target = getPersonDataByNationId(nation_id);
 
+    try {
+        const account = (person_target && person_target["account"]) ? String(person_target["account"]).trim() : '';
+        if (typeof window !== 'undefined' && account) {
+            if (!window.__talk_target_account_by_nation_id || typeof window.__talk_target_account_by_nation_id !== 'object') {
+                window.__talk_target_account_by_nation_id = {};
+            }
+            window.__talk_target_account_by_nation_id[String(nation_id)] = account;
+        }
+    } catch (e) {
+    }
+
 
     setTimeout(function () {
         const targetLat = person_target_point.lat() - 0.0025;
@@ -3634,7 +3760,7 @@ function start_talk_to_it(nation_id, content) {
         if (!currentCenter || Math.abs(currentCenter.lat() - targetLat) > 0.0001 || Math.abs(currentCenter.lng() - targetLng) > 0.0001) {
             showAlert("Moving to talk.");
         }
-        map.setCenter(new google.maps.LatLng(targetLat, targetLng));        
+        map.setCenter(new google.maps.LatLng(targetLat, targetLng));
 
     }, 100);
     setTimeout(function () {
@@ -3904,6 +4030,30 @@ function start_talk_to_it(nation_id, content) {
 
 function talk_to_it(nation_id, content) {
 
+    // Ensure only one active talk target at a time.
+    try {
+        const prev = (typeof window !== 'undefined') ? window.__active_talk_nation_id : undefined;
+        if (prev && String(prev) !== String(nation_id) && typeof stop_talk_to_it === 'function') {
+            let prevAccount = '';
+            try {
+                const m = (typeof window !== 'undefined') ? window.__talk_target_account_by_nation_id : null;
+                if (m && typeof m === 'object' && m[prev]) {
+                    prevAccount = String(m[prev] || '').trim();
+                }
+            } catch (e) {
+            }
+            stop_talk_to_it(prev, { account: prevAccount });
+        }
+    } catch (e) {
+        console.warn('talk_to_it pre-stop failed:', e);
+    }
+    try {
+        if (typeof window !== 'undefined') {
+            window.__active_talk_nation_id = String(nation_id);
+        }
+    } catch (e) {
+    }
+
     // content=""
 
     // alert(nation_id);
@@ -3929,7 +4079,7 @@ function talk_to_it(nation_id, content) {
         if (!currentCenter || Math.abs(currentCenter.lat() - targetLat) > 0.0001 || Math.abs(currentCenter.lng() - targetLng) > 0.0001) {
             showAlert("Moving to talk.");
         }
-        map.setCenter(new google.maps.LatLng(targetLat, targetLng));        
+        map.setCenter(new google.maps.LatLng(targetLat, targetLng));
 
     }, 100);
     setTimeout(function () {
@@ -4231,7 +4381,9 @@ function talk_to_it(nation_id, content) {
 
 
 
-function stop_talk_to_it(nation_id) {
+function stop_talk_to_it(nation_id, options) {
+
+    const opts = options || {};
 
     try {
 
@@ -4290,43 +4442,9 @@ function stop_talk_to_it(nation_id) {
 
 
     try {
-
-        let targetAccount = '';
-
-        try {
-
-            if (typeof person_target !== 'undefined' && person_target && person_target["account"]) {
-
-                targetAccount = String(person_target["account"]).trim();
-
-            }
-
-        } catch (e) {
-
-        }
-
-        if (!targetAccount) {
-
-            try {
-
-                const p = getPersonDataByNationId(nation_id);
-
-                if (p && p["account"]) {
-
-                    targetAccount = String(p["account"]).trim();
-
-                }
-
-            } catch (e) {
-
-            }
-
-        }
-
-        if (targetAccount) {
-
+        const targetAccount = __snsResolveTalkAccount(nation_id, opts);
+        if (targetAccount && !opts.skipTerminate && __snsShouldSendTerminate(targetAccount)) {
             __snsSendMessage(targetAccount, 'TERMINATE');
-
         }
 
     } catch (e) {
@@ -4341,6 +4459,23 @@ function stop_talk_to_it(nation_id) {
 
     } catch (e) {
 
+    }
+
+    try {
+        if (typeof window !== 'undefined') {
+            const cur = window.__active_talk_nation_id;
+            if (cur && String(cur) === String(nation_id)) {
+                window.__active_talk_nation_id = '';
+            }
+        }
+    } catch (e) {
+    }
+
+    try {
+        if (typeof window !== 'undefined' && window.__talk_target_account_by_nation_id && typeof window.__talk_target_account_by_nation_id === 'object') {
+            delete window.__talk_target_account_by_nation_id[String(nation_id)];
+        }
+    } catch (e) {
     }
 
 }
@@ -4441,13 +4576,22 @@ function showprofile(nation_id) {
 
 
 
+    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
+    var metaHTML = '<div style="padding-top: 3px; font-size: 12px; line-height: 1.2;">' +
+        '<div>🤖 ' + agentType + '</div>' +
+        '<div>🧠 ' + modelName + '</div>' +
+        '</div>';
+
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
 
     var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
 
-    var bodyHTML = badgeHTML + person["profile"] +
-
-        '<div style="text-align: right;"><a href="#" class="bubble-action-btn" onclick="talk_to_it(\'' + nation_id + '\',\'\');return false;">Chat</a></div>';
+    var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
+        '<div>' + metaHTML + '</div>' +
+        '<div style="text-align: right;"><a href="#" class="bubble-action-btn" onclick="talk_to_it(\'' + nation_id + '\',\'\');return false;">Chat</a></div>' +
+        '</div>';
+    var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
 
 
@@ -4495,13 +4639,22 @@ function showprofile3d(geoGroup) {
 
 
 
+    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
+    var metaHTML = '<div style="padding-top: 1px; font-size: 12px; line-height: 1.2;">' +
+        '<div>🤖 ' + agentType + '</div>' +
+        '<div>🧠 ' + modelName + '</div>' +
+        '</div>';
+
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
 
     var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
 
-    var bodyHTML = badgeHTML + person["profile"] +
-
-        '<div style="text-align: right;"><a href="#" class="bubble-action-btn btn-danger" onclick="stop_talk_to_it(\'' + nation_id + '\');return false;">End chat</a></div>';
+    var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
+        '<div>' + metaHTML + '</div>' +
+        '<div style="text-align: right;"><a href="#" class="bubble-action-btn btn-danger" onclick="end_chat(\'' + nation_id + '\');return false;">End chat</a></div>' +
+        '</div>';
+    var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
 
 
@@ -4753,8 +4906,8 @@ function cancelNavigate() {
 
     auto_navigate_flag = false;
 
-    refresh();
-
+    // refresh();
+    findHim();
 }
 
 

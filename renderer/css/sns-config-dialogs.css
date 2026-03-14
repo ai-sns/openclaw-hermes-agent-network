@@ -169,6 +169,32 @@
     word-break: break-all;
 }
 
+.avatar3d-custom-container {
+    margin-top: 12px;
+    padding: 10px;
+    border: 1px dashed rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.avatar3d-custom-container .form-control {
+    width: 100%;
+}
+
+.avatar3d-custom-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
+.avatar3d-item.avatar3d-item-custom img {
+    width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
 /* Profession Selection Dialog */
 .profession-config-container,
 .map-config-container {
@@ -630,6 +656,11 @@
     font-weight: 500;
     color: var(--text-primary);
 }
+
+ .required-asterisk {
+    color: #dc3545;
+    margin-left: 4px;
+ }
 
 .form-control {
     width: 100%;

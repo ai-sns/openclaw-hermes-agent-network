@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI-SNS</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+
+
+        .help-panel {
+            position: fixed;
+            left: 12px;
+            bottom: 12px;
+            z-index: 10;
+            max-width: 260px;
+            max-height: 160px;
+            background: rgba(0, 0, 0, 0.55);
+            color: #fff;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            line-height: 1.35;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 10px;
+            padding: 8px 10px;
+            backdrop-filter: blur(4px);
+            overflow: hidden;
+        }
+        .help-panel.collapsed .help-body { display: none; }
+        .help-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .help-toggle { background: none; border: none; color: #fff; cursor: pointer; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+
+<div id="helpPanel" class="help-panel" role="note" aria-label="Controls help">
+    <div class="help-header">
+        <span>Help</span>
+        <button id="helpToggle" class="help-toggle" type="button">–</button>
+    </div>
+    <div id="helpBody" class="help-body">
+        <div>Click the scene to focus.</div>
+        <div><kbd>P</kbd> / <kbd>O</kbd>: show dialog</div>
+        <div>Arrow keys: move</div>
+        <div>Mouse drag: pan / rotate</div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/loaders/RGBELoader.js"></script>
+<script src="https://fastly.jsdelivr.net/npm/three@0.128/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+const scene = new THREE.Scene();
+let tooltipPlane, tooltipPlane2;
+let mixer, mixerboss, character, boss, office;
+let actions = {}, currentAction = null;
+let keys = {}, isFirstPersonView = false;
+
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.6, 6);
+
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+
+renderer.domElement.tabIndex = 0;
+renderer.domElement.style.outline = "none";
+renderer.domElement.focus();
+renderer.domElement.addEventListener('click', ()=>renderer.domElement.focus());
+renderer.domElement.addEventListener('keydown', (e)=>{ keys[e.code]=true; handleKeyDown(e.code); });
+renderer.domElement.addEventListener('keyup', (e)=>{ keys[e.code]=false; });
+
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+
+scene.add(new THREE.AmbientLight(0xffffff,0.5));
+const directionalLight = new THREE.DirectionalLight(0xffffff,1.5);
+directionalLight.position.set(5,10,7.5);
+directionalLight.castShadow = true;
+scene.add(directionalLight);
+
+
+const rgbeLoader = new THREE.RGBELoader();
+rgbeLoader.load('http://localhost:8788/scripts/cankao2/sky.hdr', texture=>{
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.background = texture;
+    scene.environment = texture;
+});
+
+
+const gltfLoader = new THREE.GLTFLoader();
+gltfLoader.load('http://localhost:8788/scripts/cankao2/aigccenter.glb', gltf=>{
+    office = gltf.scene;
+    office.scale.set(1,1,1);
+    scene.add(office);
+
+    const center = new THREE.Box3().setFromObject(office).getCenter(new THREE.Vector3());
+    loadCharacter(center);
+    loadBoss(center);
+});
+
+function loadCharacter(center){
+    gltfLoader.load('http://localhost:8788/scripts/cankao2/playergirl.glb', gltf=>{
+        character = gltf.scene;
+        character.scale.set(1,1,1);
+        scene.add(character);
+        mixer = new THREE.AnimationMixer(character);
+        gltf.animations.forEach(clip=>actions[clip.name]=mixer.clipAction(clip));
+        character.position.set(center.x+1.8,0.3,0.9);
+        playAction('idle');
+        character.rotation.y+=3;
+    });
+}
+
+function loadBoss(center){
+    gltfLoader.load('http://localhost:8788/scripts/cankao2/boss.glb', gltf=>{
+        boss = gltf.scene;
+        boss.scale.set(0.7,0.7,0.7);
+        mixerboss = new THREE.AnimationMixer(boss);
+        gltf.animations.forEach(clip=>actions[clip.name]=mixerboss.clipAction(clip));
+        boss.position.set(center.x+1.8,0.3,-0.8);
+        scene.add(boss);
+        playAction('mixamo.com');
+    });
+}
+
+function handleKeyDown(code){
+    const map = {
+        'KeyR':'mixamo.com','KeyW':'walk','KeyI':'idle','KeyS':'swim','KeyM':'idle_water',
+        'KeyP':'showTextBubble','KeyO':'showTextBubble_boss','KeyQ':'toggleFirstPerson'
+    };
+    if(!map[code]) return;
+    const cmd = map[code];
+    if(cmd==='toggleFirstPerson') toggleFirstPersonView();
+    else if(cmd==='showTextBubble') tooltipPlane=createTooltip(character,'Sir, could you tell me some clues about the treasure?',300);
+    else if(cmd==='showTextBubble_boss') tooltipPlane2=createTooltip2(boss,'There is a place in the East.You must overcome every obstacle to reach it.You are not a true hero until you have been there.');
+    else playAction(cmd);
+}
+
+function toggleFirstPersonView(){
+    isFirstPersonView=!isFirstPersonView;
+    if(isFirstPersonView && character){
+        camera.position.copy(character.position); camera.position.y+=1.6; camera.rotation.copy(character.rotation);
+    } else {
+        camera.position.set(0,1.6,6); camera.lookAt(0,1.6,0);
+    }
+}
+
+function playAction(name){
+    const action = actions[name];
+    if(action){ action.reset().play(); currentAction = action; }
+}
+
+function createTooltip(t_character,text,maxWidth=200,attach=true){
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const fontSize=24, lineHeight=fontSize*1.2, scale=2;
+    ctx.font=`Bold ${fontSize}px Arial`;
+    const words=text.split(' '), lines=[];
+    let line='';
+    for(let w of words){
+        const test=line + w + ' ';
+        if(ctx.measureText(test).width>maxWidth && line!==''){ lines.push(line.trim()); line=w+' '; }
+        else line=test;
+    }
+    lines.push(line.trim());
+    const bubbleWidth=maxWidth+20, bubbleHeight=lineHeight*lines.length+40;
+    canvas.width=bubbleWidth*scale; canvas.height=bubbleHeight*scale; ctx.scale(scale,scale);
+    ctx.font=`Bold ${fontSize}px Arial`;
+    ctx.fillStyle='white';
+    const r=10;
+    ctx.beginPath();
+    ctx.moveTo(r,0); ctx.lineTo(bubbleWidth-r,0); ctx.quadraticCurveTo(bubbleWidth,0,bubbleWidth,r);
+    ctx.lineTo(bubbleWidth,lineHeight*lines.length+30-r);
+    ctx.quadraticCurveTo(bubbleWidth,lineHeight*lines.length+30,bubbleWidth-r,lineHeight*lines.length+30);
+    ctx.lineTo(r,lineHeight*lines.length+30);
+    ctx.quadraticCurveTo(0,lineHeight*lines.length+30,0,lineHeight*lines.length+30-r);
+    ctx.lineTo(0,r); ctx.quadraticCurveTo(0,0,r,0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='black';
+    const yOffset=((lineHeight*lines.length+30)-30)/2-(lineHeight*lines.length)/2+lineHeight;
+    lines.forEach((l,i)=>ctx.fillText(l,10,yOffset+lineHeight*i));
+    const texture=new THREE.CanvasTexture(canvas);
+    const plane=new THREE.Mesh(new THREE.PlaneGeometry(bubbleWidth/100,bubbleHeight/100),
+        new THREE.MeshBasicMaterial({map:texture,transparent:true}));
+    if(attach){
+        t_character.updateWorldMatrix(true, true);
+        const box = new THREE.Box3().setFromObject(t_character);
+        const center = box.getCenter(new THREE.Vector3());
+        const topWorld = new THREE.Vector3(center.x, box.max.y, center.z);
+        const topLocal = t_character.worldToLocal(topWorld);
+        plane.position.set(topLocal.x, topLocal.y + 2.0, topLocal.z);
+        t_character.add(plane);
+    }
+    setTimeout(()=>{ if(plane.parent) plane.parent.remove(plane); },3000);
+    return plane;
+}
+
+function createTooltip2(t_character,text){
+    t_character.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(t_character);
+    const center = box.getCenter(new THREE.Vector3());
+    const topWorld = new THREE.Vector3(center.x, box.max.y, center.z);
+    const topLocal = t_character.worldToLocal(topWorld);
+    const plane=createTooltip(t_character,text,400,false);
+    plane.position.set(topLocal.x, topLocal.y + 0.1, topLocal.z);
+    t_character.add(plane);
+    return plane;
+}
+
+function updateCharacterPositionAndRotation(){
+    if(!character) return;
+    const s=0.05, r=0.02;
+    if(keys['ArrowUp']) character.position.z-=s;
+    if(keys['ArrowDown']) character.position.z+=s;
+    if(keys['ArrowLeft']) character.position.x-=s;
+    if(keys['ArrowRight']) character.position.x+=s;
+    if(keys['KeyD']) character.rotation.y+=r;
+    if(keys['KeyA']) character.rotation.y-=r;
+}
+
+function animate(){
+    requestAnimationFrame(animate);
+    if(tooltipPlane) tooltipPlane.lookAt(camera.position);
+    if(tooltipPlane2) tooltipPlane2.lookAt(camera.position);
+    updateCharacterPositionAndRotation();
+    if(mixer) mixer.update(0.01);
+    if(mixerboss) mixerboss.update(0.01);
+    if(isFirstPersonView && character){ camera.position.copy(character.position); camera.position.y+=1.6; camera.rotation.copy(character.rotation); }
+    controls.update();
+    renderer.render(scene,camera);
+}
+
+animate();
+window.addEventListener('resize',()=>{ renderer.setSize(window.innerWidth,window.innerHeight); camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); });
+
+
+const helpPanel = document.getElementById('helpPanel');
+const helpToggle = document.getElementById('helpToggle');
+helpToggle.addEventListener('click', ()=>{
+    helpPanel.classList.toggle('collapsed');
+    helpToggle.textContent = helpPanel.classList.contains('collapsed') ? '+' : '–';
+});
+</script>
+</body>
+</html>

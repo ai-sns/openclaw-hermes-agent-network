@@ -20,10 +20,16 @@ from backend.apps.sns.schemas import (
     SocialRoleUpdateRequest,
     HumanControlStateRequest,
     HumanMessageRequest,
-    AgentInstructionRequest
+    AgentInstructionRequest,
+    EndActiveConversationRequest,
+    PromptByTitleUpdateRequest
 )
 
+from backend.apps.sns.memory.router import router as memory_router
+
 router = APIRouter()
+
+router.include_router(memory_router, tags=["Memory"])
 
 
 @router.get("/user-stats", response_model=UserStatsResponse)
@@ -304,6 +310,33 @@ async def update_social_role(
     return result
 
 
+@router.get("/prompts/by-title/{title}")
+async def get_prompt_by_title(
+    title: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a prompt record by its title."""
+    service = SNSService(db)
+    result = await service.get_prompt_by_title(title)
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("message") or "Prompt not found")
+    return result
+
+
+@router.put("/prompts/by-title/{title}")
+async def upsert_prompt_by_title(
+    title: str,
+    request: PromptByTitleUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Update a prompt content by its title."""
+    service = SNSService(db)
+    result = await service.upsert_prompt_content_by_title(title, request.content)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    return result
+
+
 @router.delete("/social-roles/{role_id}")
 async def delete_social_role(
     role_id: int,
@@ -414,4 +447,17 @@ async def submit_agent_instruction(
 ):
     service = SNSService(db)
     return await service.submit_agent_instruction(request.instruction)
+
+
+@router.post("/end-active-conversation")
+async def end_active_conversation(
+    request: EndActiveConversationRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    service = SNSService(db)
+    return await service.end_active_conversation(
+        reason=request.reason,
+        message=request.message or "",
+        resume_activity=bool(request.resume_activity),
+    )
 

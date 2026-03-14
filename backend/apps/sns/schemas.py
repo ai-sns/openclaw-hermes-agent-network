@@ -119,6 +119,19 @@ class SocialRoleUpdateRequest(BaseModel):
     tags: Optional[str] = None
 
 
+class PromptByTitleItem(BaseModel):
+    id: Optional[int] = None
+    title: str
+    caption: Optional[str] = None
+    content: str
+    question: Optional[str] = None
+    tags: Optional[str] = None
+
+
+class PromptByTitleUpdateRequest(BaseModel):
+    content: str
+
+
 class HumanControlStateRequest(BaseModel):
     human_take_over: bool
     human_talk_type: Optional[int] = None
@@ -130,3 +143,9 @@ class HumanMessageRequest(BaseModel):
 
 class AgentInstructionRequest(BaseModel):
     instruction: str
+
+
+class EndActiveConversationRequest(BaseModel):
+    reason: str = "user_stop"
+    message: Optional[str] = ""
+    resume_activity: bool = True

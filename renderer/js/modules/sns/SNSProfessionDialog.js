@@ -110,6 +110,29 @@ export class SNSProfessionDialog {
         alertBox.classList.remove('inline-alert-error', 'inline-alert-success');
         alertBox.classList.add(type === 'success' ? 'inline-alert-success' : 'inline-alert-error');
         alertBox.style.display = 'block';
+
+        this.scrollToBottom();
+    }
+
+    scrollToBottom() {
+        if (!this._isDialogAlive()) {
+            return;
+        }
+
+        const alertBox = this._q('#snsProfessionAlert');
+        const modalBody = this._q('.modal-body');
+
+        requestAnimationFrame(() => {
+            try {
+                if (modalBody && modalBody.scrollHeight > modalBody.clientHeight) {
+                    modalBody.scrollTop = modalBody.scrollHeight;
+                }
+                if (alertBox && typeof alertBox.scrollIntoView === 'function') {
+                    alertBox.scrollIntoView({ block: 'end' });
+                }
+            } catch (e) {
+            }
+        });
     }
 
     _isDialogAlive() {
@@ -178,7 +201,7 @@ export class SNSProfessionDialog {
                             </div>
 
                             <div class="other-profession-container" id="otherProfessionContainer" style="display: none;">
-                                <label for="otherProfessionInput">Other profession (required):</label>
+                                <label for="otherProfessionInput">Other profession<span class="required-asterisk">*</span></label>
                                 <input type="text" id="otherProfessionInput" class="form-control" placeholder="Enter your profession" />
                                 <div class="other-profession-helper" id="otherProfessionHelper" aria-live="polite"></div>
                             </div>
@@ -214,7 +237,7 @@ export class SNSProfessionDialog {
                                 <!-- Message Input (shown when 'send message' is selected) -->
                                 <div class="message-input-container" id="messageInputContainer" style="display: none;">
                                     <div class="form-group" style="margin-bottom: 0;">
-                                        <label for="messageContent">Message content</label>
+                                        <label for="messageContent">Message content<span class="required-asterisk">*</span></label>
                                         <textarea id="messageContent" class="form-control" placeholder="Enter the message to send..." rows="3"></textarea>
                                     </div>
                                 </div>

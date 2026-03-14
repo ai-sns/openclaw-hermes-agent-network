@@ -38,6 +38,7 @@ from geographiclib.geodesic import Geodesic
 import random
 
 from backend.shared.utils import robust_json_loads
+from backend.apps.sns.memory.memory_types import MemoryType
 
 logger = logging.getLogger(__name__)
 
@@ -230,6 +231,45 @@ class CommunicationMixin:
         except Exception:
             pass
 
+        logger.info(
+            "end_active_conversation called: reason=%s, account=%s, nation_id=%s",
+            reason,
+            account,
+            nation_id,
+        )
+
+        # Memory capture: record conversation summary
+        try:
+            from backend.apps.sns.memory.memory_config import MemoryConfig
+            active = getattr(self, "active_conversation", None) or {}
+            talk_type = active.get("talk_type", "communication")
+            nick_name = active.get("nick_name", account)
+            objective = active.get("objective", "")
+            history = list(getattr(self, "current_talk_history", []) or [])
+            summary = message or f"Conversation with {nick_name} ended ({reason})"
+            if history:
+                summary += " Exchanges: " + "; ".join(h[:100] for h in history[-4:])
+
+            mm = getattr(self, "memory_manager", None)
+            if mm and MemoryConfig.ENABLED:
+                mm.capture_async(
+                    MemoryType.CONVERSATION,
+                    key=f"Talked with {nick_name} ({talk_type})",
+                    content=summary[:500],
+                    metadata={
+                        "account": account,
+                        "nation_id": nation_id,
+                        "nick_name": nick_name,
+                        "talk_type": talk_type,
+                        "reason": reason,
+                        "objective": objective[:200] if objective else "",
+                        "rounds": len(history),
+                    },
+                    importance=65 if talk_type == "communication" else 75,
+                )
+        except Exception as _mem_err:
+            logger.warning("Memory capture failed for conversation end: %s", _mem_err)
+
         try:
             if nation_id:
                 self.send_msg_to_map(("stop_talk_to_it", nation_id, ""))
@@ -349,6 +389,24 @@ talk_to_a_people
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
+        # Memory recall: append past interaction memories for candidate people
+        try:
+            from backend.apps.sns.memory.memory_config import MemoryConfig
+            mm = getattr(self, "memory_manager", None)
+            if mm and MemoryConfig.ENABLED:
+                person_memory_sections = []
+                for person in people_list[:5]:
+                    acct = (person.get("account") or "").strip()
+                    name = (person.get("nick_name") or acct)
+                    if acct:
+                        section = mm.get_person_memory_prompt_section(acct, person_name=name, max_results=2, max_chars=300)
+                        if section:
+                            person_memory_sections.append(section)
+                if person_memory_sections:
+                    content_prompt += "\n\n" + "\n".join(person_memory_sections)
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for talk people selection: %s", _mem_err)
+
         self.command_status = "ask_agent_start_to_talk_to_a_people"
         asyncio.create_task(self.ask_agent_and_get_instruction(content_prompt, role_prompt))
 
@@ -422,6 +480,21 @@ talk_to_a_people
         # role_prompt = role_prompt.replace("__conversation_target__", conversation_target)
         # role_prompt = role_prompt.replace("__messages_history__", messages_history)
         question = "## 聊天记录 \n" + messages_history
+
+        # Memory recall: inject past interactions with the current conversation partner
+        try:
+            from backend.apps.sns.memory.memory_config import MemoryConfig
+            mm = getattr(self, "memory_manager", None)
+            active = getattr(self, "active_conversation", None) or {}
+            acct = (active.get("account") or "").strip()
+            name = (active.get("nick_name") or acct)
+            if mm and acct and MemoryConfig.ENABLED:
+                person_section = mm.get_person_memory_prompt_section(acct, person_name=name, max_results=3, max_chars=600)
+                if person_section:
+                    question += "\n\n" + person_section
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for conversation review: %s", _mem_err)
+
         await   self.ask_agent_and_get_instruction(question, role_prompt)
 
     def handle_agent_review_conversation_result(self, content):
@@ -452,12 +525,12 @@ talk_to_a_people
 
         if buy_score >= 80 and price >= 0:
             self.send_pay(price)
-            self.end_active_conversation(
-                reason="pay",
-                message="Payment initiated.",
-                resume_activity=True,
-                resume_ask_content="",
-            )
+            # self.end_active_conversation(
+            #     reason="pay",
+            #     message="Payment initiated.",
+            #     resume_activity=True,
+            #     resume_ask_content="",
+            # )
             return
 
         if not continue_chat:

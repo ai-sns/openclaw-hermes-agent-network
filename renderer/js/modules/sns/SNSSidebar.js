@@ -51,6 +51,33 @@ export default {
             .replace(/'/g, '&#39;');
     },
 
+    formatInternalXmppMessageForDisplay(raw) {
+        const s = String(raw ?? '');
+        const inquiryPrefix = '[AISNS_INT_003_INQUIRY]';
+
+        if (s.startsWith(inquiryPrefix)) {
+            return `💬💲${s.slice(inquiryPrefix.length)}`;
+        }
+
+        const payMatch = s.match(/AISNS_INT_001_PAY_SEND_START([\s\S]*?)AISNS_INT_001_PAY_SEND_END/);
+        if (payMatch) {
+            const payload = String(payMatch[1] ?? '').trim();
+            const parts = payload.split('__AISNS_INT_SEPARATOR__');
+            const price = (parts[1] ?? '').trim();
+            return `💰✔️${price}`;
+        }
+
+        const goodMatch = s.match(/AISNS_INT_002_GOOD_SEND_START([\s\S]*?)AISNS_INT_002_GOOD_SEND_END/);
+        if (goodMatch) {
+            const payload = String(goodMatch[1] ?? '').trim();
+            const parts = payload.split('__AISNS_INT_SEPARATOR__');
+            const text = (parts[1] ?? '').trim();
+            return `🤝📦${text}`;
+        }
+
+        return s;
+    },
+
     formatRadarValue(label, value) {
         const num = Number(value);
         if (!Number.isFinite(num)) return String(value ?? '');
@@ -93,6 +120,16 @@ export default {
     },
 
     renderMessageContent(content) {
+        const formatted = this.formatInternalXmppMessageForDisplay(content);
+        const escaped = this.escapeHtml(formatted);
+        const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+            return `<a href="${url}" class="chat-link" data-external-url="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+        });
+
+        return withLinks.replace(/\n/g, '<br>');
+    },
+
+    renderStoredMessageContent(content) {
         const escaped = this.escapeHtml(content);
         const withLinks = escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
             return `<a href="${url}" class="chat-link" data-external-url="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
@@ -104,8 +141,8 @@ export default {
     createChatMessageHTML(message) {
         return `
             <div class="chat-message ${message.flag === 0 ? 'sent' : 'received'}">
-                <div class="message-content">${this.renderMessageContent(message.content)}</div>
-                <div class="message-time">${new Date(message.create_time).toLocaleTimeString()}</div>
+                <div class="message-content">${this.renderStoredMessageContent(message.content)}</div>
+                <div class="message-time">${new Date(message.create_time).toLocaleString()}</div>
             </div>
         `;
     },
@@ -514,7 +551,7 @@ export default {
                 messageDiv.className = `chat-message ${flag === 0 ? 'sent' : 'received'}`;
                 messageDiv.innerHTML = `
                     <div class="message-content">${this.renderMessageContent(content)}</div>
-                    <div class="message-time">${new Date(create_time).toLocaleTimeString()}</div>
+                    <div class="message-time">${new Date(create_time).toLocaleString()}</div>
                 `;
                 chatMessages.appendChild(messageDiv);
                 chatMessages.scrollTop = chatMessages.scrollHeight;

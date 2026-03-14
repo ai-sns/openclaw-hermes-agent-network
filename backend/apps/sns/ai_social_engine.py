@@ -14,6 +14,7 @@ import asyncio
 import zipfile
 import shutil
 import time
+import uuid
 
 import logging
 
@@ -46,6 +47,7 @@ from .mixin.agent_interaction_mixin import AgentInteractionMixin
 from .mixin.trade_mixin import TradeMixin
 from .mixin.ui_display_mixin import UIDisplayMixin
 from .mixin.data_query_mixin import DataQueryMixin
+from backend.apps.sns.memory import MemoryManager, MemoryType, MemoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +231,17 @@ class AISocialEngine(
         # self.update_map_charts()
         # self.update_resource_display()
 
+        # Initialize memory manager
+        agent_id = "default"
+        try:
+            agent_id = (getattr(self.ai_chat_cfg, 'account', None) or 'default').strip() or 'default'
+        except Exception:
+            pass
+        self.memory_manager = MemoryManager(agent_id=agent_id)
+        self.memory_enabled = True
+        self._memory_session_id = None
+        self.memory_embedding_enabled = False
+
         self.active_conversation = None
         self.conversation_inbox = {}
         self.conversation_timeout_seconds = 60
@@ -250,6 +263,9 @@ class AISocialEngine(
             "communication": 0,
         }
 
+        self.process_info_compact_every_n = 50
+        self.process_info_plan_summary_every_n = 5
+
         try:
             cfg = query_SystemCfg(is_delete=False)
             if cfg is not None:
@@ -262,6 +278,29 @@ class AISocialEngine(
                 v = getattr(cfg, "contact_recent_limit", None)
                 if v is not None:
                     self.contact_recent_limit = int(v)
+
+                v = getattr(cfg, "process_info_compact_every_n", None)
+                if v is not None:
+                    self.process_info_compact_every_n = int(v)
+                v = getattr(cfg, "process_info_plan_summary_every_n", None)
+                if v is not None:
+                    self.process_info_plan_summary_every_n = int(v)
+
+                v = getattr(cfg, "memory_enabled", None)
+                if v is not None:
+                    self.memory_enabled = bool(int(v)) if isinstance(v, (int, float, str)) else bool(v)
+                    MemoryConfig.ENABLED = self.memory_enabled
+
+                v = getattr(cfg, "memory_embedding_enabled", None)
+                if v is not None:
+                    self.memory_embedding_enabled = bool(int(v)) if isinstance(v, (int, float, str)) else bool(v)
+                    MemoryConfig.EMBEDDING_ENABLED = bool(self.memory_embedding_enabled) and bool(MemoryConfig.ENABLED)
+        except Exception:
+            pass
+
+        try:
+            MemoryConfig.ENABLED = bool(self.memory_enabled)
+            MemoryConfig.EMBEDDING_ENABLED = bool(getattr(self, "memory_embedding_enabled", False)) and bool(MemoryConfig.ENABLED)
         except Exception:
             pass
 
@@ -282,6 +321,20 @@ class AISocialEngine(
             if self.map_task_status == "":
                 print("[Info]:", "map_task_status is blank")
                 self.map_task_status = "started"
+
+                try:
+                    self._memory_session_id = str(uuid.uuid4())
+                    if MemoryConfig.ENABLED:
+                        self.memory_manager.start_session(
+                            self._memory_session_id,
+                            metadata={
+                                "engine": "AISocialEngine",
+                                "current_place": getattr(self, "current_place", None),
+                                "map_mode": getattr(self, "map_mode", None),
+                            },
+                        )
+                except Exception as _mem_err:
+                    logger.warning("Memory session start failed: %s", _mem_err)
 
                 self.taskmng.reviewing_task = True
                 self.process_list = []
@@ -306,6 +359,13 @@ class AISocialEngine(
                         "status": "enabled"
                     }
                 ]
+                # Preload recent memories into cache on engine start
+                try:
+                    if MemoryConfig.ENABLED:
+                        self.memory_manager.preload()
+                except Exception as _mem_err:
+                    logger.warning("Memory preload failed: %s", _mem_err)
+
                 t = asyncio.create_task(self.taskmng.process_task(action="process_activity"))
                 self._background_tasks.add(t)
                 t.add_done_callback(lambda _t: self._background_tasks.discard(_t))
@@ -392,6 +452,37 @@ class AISocialEngine(
         """Stop the AI social engine"""
         try:
             logger.info("Stopping AI Social Engine...")
+
+            # Memory capture: save a reflection summary of this engine run
+            try:
+                mm = getattr(self, "memory_manager", None)
+                info_list = getattr(self.taskmng, "process_info_list", []) if hasattr(self, "taskmng") else []
+                if mm and info_list:
+                    recent_items = info_list[-10:]
+                    run_summary = "; ".join(str(item)[:80] for item in recent_items)
+                    mm.capture(
+                        MemoryType.REFLECTION,
+                        key="Engine stop summary",
+                        content=f"Engine stopped. Recent activity: {run_summary[:400]}",
+                        metadata={"process_count": len(info_list)},
+                        importance=55,
+                    )
+            except Exception as _mem_err:
+                logger.warning("Memory capture failed on engine stop: %s", _mem_err)
+
+            try:
+                if MemoryConfig.ENABLED and getattr(self, "_memory_session_id", None):
+                    info_list = getattr(self.taskmng, "process_info_list", []) if hasattr(self, "taskmng") else []
+                    recent_items = info_list[-10:] if info_list else []
+                    session_summary = "; ".join(str(item)[:120] for item in recent_items)
+                    self.memory_manager.end_session(
+                        summary=f"Engine stopped. Recent activity: {session_summary[:800]}",
+                        metadata={"process_count": len(info_list or [])},
+                    )
+            except Exception as _mem_err:
+                logger.warning("Memory session end failed: %s", _mem_err)
+            finally:
+                self._memory_session_id = None
 
             try:
                 for t in list(getattr(self, '_background_tasks', set()) or set()):
@@ -544,7 +635,7 @@ class AISocialEngine(
         move_point = int(self.aichatcfg_record.move_point or 0)
 
         current_status = f"""
-* Money: {money:.2f} CNY
+* Money: ${money:.2f}
 * Life: {life_point}%
 * Energy: {energy_point}%
 * Action points: {move_point}%
@@ -564,6 +655,20 @@ class AISocialEngine(
         prompt = prompt.replace(f"__people_list__", json.dumps(self.get_people_list(), indent=4, ensure_ascii=False))
         prompt = prompt.replace(f"__place_list__", json.dumps(self.get_place_list(), indent=4, ensure_ascii=False))
         prompt = prompt.replace(f"__question_to_llm__", question_to_llm)
+
+        # Memory recall: inject relevant memories into the prompt
+        try:
+            if MemoryConfig.ENABLED:
+                memory_section = self.memory_manager.get_memory_prompt_section(
+                    query=question_to_llm,
+                    max_results=5,
+                    max_chars=1500,
+                )
+                if memory_section:
+                    prompt = prompt.strip() + "\n\n" + memory_section
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for compose_full_ask_content: %s", _mem_err)
+
         return prompt.strip()
 
     def parse_agent_instruction_for_process_activity(self, instruction):
@@ -592,7 +697,7 @@ class AISocialEngine(
 
         # Increment in-memory instruction total count for IQ tracking
         self._instruction_total_count += 1
-        self._update_iq_point_from_counters()
+
 
         self.life_decline_counter += 1
         self.energy_decline_counter += 1
@@ -711,25 +816,63 @@ class AISocialEngine(
         self.taskmng.add_process_info_to_list(f"system:{action_result}")
         self.write_task_process_to_pane(action_result + "\n\n")
         self.show_alert_on_map(action_result)
+
+        # Memory capture: record completed action as episode memory
+        try:
+            pos = getattr(self.aichatcfg_record, 'current_position', [])
+            self.memory_manager.capture_async(
+                MemoryType.EPISODE,
+                key=f"Action: {action_str[:80]}",
+                content=action_result,
+                metadata={
+                    "action": action_str[:120],
+                    "position": pos if isinstance(pos, list) else [],
+                    "money": float(self.aichatcfg_record.money or 0),
+                    "life": int(self.aichatcfg_record.life_point or 0),
+                    "energy": int(self.aichatcfg_record.energy_point or 0),
+                },
+            )
+        except Exception as _mem_err:
+            logger.warning("Memory capture failed after action: %s", _mem_err)
+
         ask_content = instruction
         asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content))
 
     def get_next_action(self, instruction):
-        # Define delimiter markers
         delimiter = "### Next Action"
-
-        # Check whether delimiter exists
+        action_text = ""
         if delimiter in instruction:
-            # Split and take the last part (in case there are multiple identical markers)
             parts = instruction.split(delimiter, 1)
-            return parts[1].strip() if len(parts) > 1 else ""
-        delimiter = "Next Action"
-        if delimiter in instruction:
-            # Split and take the last part (in case there are multiple identical markers)
-            parts = instruction.split(delimiter, 1)
-            return parts[1].strip() if len(parts) > 1 else ""
+            action_text = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            delimiter = "Next Action"
+            if delimiter in instruction:
+                parts = instruction.split(delimiter, 1)
+                action_text = parts[1].strip() if len(parts) > 1 else ""
+            else:
+                return ""
 
-        return ""
+        if not action_text:
+            return ""
+
+        candidates = [
+            "1_EXPLORE_NEARBY",
+            "2_WALK_TO",
+            "3_COMMUNICATE",
+            "4_PROMOTE",
+            "5_PURCHASE",
+            "6_WEB_SERVICE",
+            "7_NAVIGATION",
+            "8_FOOD_DELIVERY",
+            "9_CALL_TAXI",
+            "10_REMOTE_MEDICAL",
+        ]
+
+        pattern = r"(?:【\s*)?(" + "|".join(re.escape(c) for c in candidates) + r")(?:\s*】)?"
+        found_actions = re.findall(pattern, action_text)
+        if len(set(found_actions)) >= 2:
+            return ""
+        return action_text
 
     def get_current_task_list(self, text):
         start_marker = "### Current Task List"
@@ -794,6 +937,19 @@ class AISocialEngine(
         prompt = prompt.replace(f"__people_list__", json.dumps(self.get_people_list(), indent=4, ensure_ascii=False))
         prompt = prompt.replace(f"__place_list__", json.dumps(self.get_place_list(), indent=4, ensure_ascii=False))
 
+        # Memory recall: inject relevant memories for human instruction context
+        try:
+            if MemoryConfig.ENABLED:
+                memory_section = self.memory_manager.get_memory_prompt_section(
+                    query=question_to_llm,
+                    max_results=5,
+                    max_chars=1500,
+                )
+                if memory_section:
+                    prompt = prompt.strip() + "\n\n" + memory_section
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for compose_full_ask_content_human: %s", _mem_err)
+
         return prompt.strip()
 
     def parse_agent_instruction_for_process_human_instruction(self, instruction):
@@ -847,6 +1003,18 @@ class AISocialEngine(
                     {"role": "user", "content": f"{memory_content}"}
                 ]
                 add_memory_list(messages)
+
+                # Memory capture: save human note to local memory system
+                try:
+                    self.memory_manager.capture_async(
+                        MemoryType.HUMAN_NOTE,
+                        key=f"Human note: {memory_content[:60]}",
+                        content=memory_content,
+                        importance=80,
+                    )
+                except Exception as _mem_err:
+                    logger.warning("Memory capture failed for human note: %s", _mem_err)
+
                 return
 
             # Ensure engine is running and interrupt current tasks for priority execution
@@ -879,6 +1047,23 @@ class AISocialEngine(
                 self.aichatcfg_record.move_point = 100
                 self.aichatcfg_record.money = 1000
                 logger.info(f"Rebirth triggered (#{self._rebirth_count}). Stats reset: life=100, energy=100, move=100, money=1000")
+
+                # Memory capture: record rebirth event
+                try:
+                    self.memory_manager.capture_async(
+                        MemoryType.EPISODE,
+                        key=f"Rebirth #{self._rebirth_count}",
+                        content=f"Rebirth triggered (#{self._rebirth_count}). Cause: life={life:.0f}, energy={energy:.0f}, money={money:.0f}. Stats reset to defaults.",
+                        metadata={
+                            "rebirth_count": self._rebirth_count,
+                            "pre_life": life,
+                            "pre_energy": energy,
+                            "pre_money": money,
+                        },
+                        importance=90,
+                    )
+                except Exception as _mem_err:
+                    logger.warning("Memory capture failed for rebirth: %s", _mem_err)
             finally:
                 self._rebirth_in_progress = False
             return True

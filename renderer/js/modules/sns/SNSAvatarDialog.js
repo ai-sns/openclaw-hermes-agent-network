@@ -6,12 +6,98 @@ export class SNSAvatarDialog {
     constructor() {
         this.dialog = null;
         this.selectedAvatar3D = null;
+        this.selectedAvatar3DMode = null;
         this.uploadedAvatar = null;
         this.uploadedAvatarMeta = null;
         this.existingConfig = null;
         this.existingAvatar3DName = null;
+        this.existingAvatar3DCustomUrl = null;
         this.existingAgentId = null;
         this.existingUserInfo = null;
+    }
+
+    clearInlineMessage() {
+        const alertBox = this._q('#snsAvatarAlert');
+        if (!alertBox) {
+            return;
+        }
+        alertBox.style.display = 'none';
+        alertBox.textContent = '';
+        alertBox.classList.remove('inline-alert-error', 'inline-alert-success');
+    }
+
+    showInlineMessage(message, type = 'error', options = {}) {
+        const alertBox = this._q('#snsAvatarAlert');
+        if (!alertBox) {
+            return;
+        }
+
+        const targetTab = options && options.tab ? String(options.tab) : '';
+        const focusEl = options && options.focusEl ? options.focusEl : null;
+        if (targetTab) {
+            this.setActiveTab(targetTab);
+        }
+
+        if (targetTab) {
+            requestAnimationFrame(() => {
+                try {
+                    this.setActiveTab(targetTab);
+                } catch (e) {
+                }
+            });
+        }
+
+        alertBox.textContent = message;
+        alertBox.classList.remove('inline-alert-error', 'inline-alert-success');
+        alertBox.classList.add(type === 'success' ? 'inline-alert-success' : 'inline-alert-error');
+        alertBox.style.display = 'block';
+
+        requestAnimationFrame(() => {
+            try {
+                if (focusEl && typeof focusEl.focus === 'function') {
+                    try {
+                        focusEl.focus({ preventScroll: true });
+                    } catch (e) {
+                        focusEl.focus();
+                    }
+                }
+
+                const modalBody = this._q('.modal-body');
+                if (modalBody && modalBody.scrollHeight > modalBody.clientHeight) {
+                    modalBody.scrollTop = modalBody.scrollHeight;
+                }
+                if (typeof alertBox.scrollIntoView === 'function') {
+                    alertBox.scrollIntoView({ block: 'end' });
+                }
+            } catch (e) {
+            }
+        });
+    }
+
+    setActiveTab(tabKey) {
+        const key = String(tabKey || '').trim();
+        if (!key) {
+            return;
+        }
+
+        const modalTabs = this._qa('.modal-tab');
+        modalTabs.forEach(t => {
+            const isActive = t && t.dataset && t.dataset.tab === key;
+            if (isActive) t.classList.add('active');
+            else t.classList.remove('active');
+        });
+
+        const tabContents = this._qa('.tab-content');
+        tabContents.forEach(content => {
+            content.style.display = 'none';
+            content.classList.remove('active');
+        });
+
+        const targetContent = this._q(`#${key}Tab`);
+        if (targetContent) {
+            targetContent.style.display = 'block';
+            targetContent.classList.add('active');
+        }
     }
 
     _isDialogAlive() {
@@ -34,6 +120,53 @@ export class SNSAvatarDialog {
         } catch (e) {
         }
         return urlOrPath;
+    }
+
+    _isWebUrl(url) {
+        const u = String(url || '').trim();
+        return u.startsWith('http://') || u.startsWith('https://') || u.startsWith('//');
+    }
+
+    _setCustomAvatar3dInputVisible(visible) {
+        const container = this._q('#avatar3dCustomContainer');
+        if (!container) return;
+        container.style.display = visible ? 'block' : 'none';
+    }
+
+    _getCustomAvatar3dUrlValue() {
+        const input = this._q('#avatar3dCustomUrl');
+        return input ? String(input.value || '').trim() : '';
+    }
+
+    _getEffectiveAvatar3dValue() {
+        if (this.selectedAvatar3DMode === 'custom') {
+            return this._getCustomAvatar3dUrlValue();
+        }
+
+        if (this.selectedAvatar3D) {
+            const name = String(this.selectedAvatar3D.name || '');
+            return name.toLowerCase().endsWith('.glb') ? name : `${name}.glb`;
+        }
+
+        return (this.existingConfig && this.existingConfig.avatar3d)
+            ? String(this.existingConfig.avatar3d)
+            : '';
+    }
+
+    _validateCustomAvatar3dUrl(urlValue) {
+        const url = String(urlValue || '').trim();
+        if (!url) {
+            return 'Please enter a URL for your custom 3D avatar.';
+        }
+        if (!this._isWebUrl(url)) {
+            return 'The custom 3D avatar URL must start with http://, https://, or //.';
+        }
+
+        const cleaned = url.split('#')[0].split('?')[0];
+        if (!cleaned.toLowerCase().endsWith('.glb')) {
+            return 'The custom 3D avatar URL must point to a .glb file.';
+        }
+        return null;
     }
 
     async show() {
@@ -90,6 +223,10 @@ export class SNSAvatarDialog {
                                     <div class="avatar3d-grid" id="avatar3dGrid">
                                         <div class="loading">Loading...</div>
                                     </div>
+                                    <div class="avatar3d-custom-container" id="avatar3dCustomContainer" style="display: none;">
+                                        <input type="text" id="avatar3dCustomUrl" class="form-control" placeholder="Enter a .glb URL (https://...)" autocomplete="off">
+                                        <div class="avatar3d-custom-hint">The URL must allow cross-origin requests (CORS). Consider hosting it via a CDN such as Cloudflare or jsDelivr.</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -101,19 +238,19 @@ export class SNSAvatarDialog {
                                     <h4>Basic Information</h4>
                                     <div class="user-info-form">
                                         <div class="form-group">
-                                            <label for="userNickname">Nickname</label>
+                                            <label for="userNickname">Nickname<span class="required-asterisk">*</span></label>
                                             <input type="text" id="userNickname" class="form-control" placeholder="Enter a nickname">
                                         </div>
                                         <div class="form-group">
-                                            <label for="userSign">Profile</label>
+                                            <label for="userSign">Profile<span class="required-asterisk">*</span></label>
                                             <input type="text" id="userSign" class="form-control" placeholder="Enter a profile">
                                         </div>
                                         <div class="form-group">
                                             <label for="userSnsUrl">SNS URL</label>
-                                            <input type="text" id="userSnsUrl" class="form-control" placeholder="Enter the SNS URL">
+                                            <input type="text" id="userSnsUrl" class="form-control" placeholder="X.com URL or other social links(to learn more about you)">
                                         </div>
                                         <div class="form-group">
-                                            <label for="userAgentId">Agent</label>
+                                            <label for="userAgentId">Agent<span class="required-asterisk">*</span></label>
                                             <select id="userAgentId" class="form-control">
                                                 <option value="">Select an agent</option>
                                             </select>
@@ -129,7 +266,7 @@ export class SNSAvatarDialog {
                                     <h4>XMPP</h4>
                                     <div class="user-info-form">
                                         <div class="form-group">
-                                            <label for="xmppAccount">Account</label>
+                                            <label for="xmppAccount">Account<span class="required-asterisk">*</span></label>
                                             <input type="text" id="xmppAccount" class="form-control" placeholder="Enter the XMPP account">
                                         </div>
                                         <div class="form-group">
@@ -159,6 +296,8 @@ export class SNSAvatarDialog {
                                 </div>
                             </div>
                         </div>
+
+                        <div class="dialog-inline-alert" id="snsAvatarAlert" style="display: none;"></div>
                     </div>
                     <div class="modal-footer">
                         <button class="btn btn-secondary" onclick="document.getElementById('snsAvatarDialog').remove()">Cancel</button>
@@ -173,6 +312,8 @@ export class SNSAvatarDialog {
         this.dialog = document.getElementById('snsAvatarDialog');
 
         if (!this._isDialogAlive()) return;
+
+        this.clearInlineMessage();
 
         await this.loadExistingConfig();
 
@@ -225,7 +366,16 @@ export class SNSAvatarDialog {
             }
             if (config.avatar3d) {
                 const rawName = String(config.avatar3d || '');
-                this.existingAvatar3DName = rawName.toLowerCase().endsWith('.glb') ? rawName.slice(0, -4) : rawName;
+                if (this._isWebUrl(rawName)) {
+                    this.existingAvatar3DCustomUrl = rawName;
+                    this.existingAvatar3DName = null;
+                    this.selectedAvatar3DMode = 'custom';
+                } else {
+                    this.existingAvatar3DCustomUrl = null;
+                    const baseName = rawName.split('/').pop().split('\\').pop();
+                    this.existingAvatar3DName = baseName.toLowerCase().endsWith('.glb') ? baseName.slice(0, -4) : baseName;
+                    this.selectedAvatar3DMode = 'preset';
+                }
             }
         } catch (error) {
             console.error('Error loading existing config:', error);
@@ -255,12 +405,29 @@ export class SNSAvatarDialog {
                 grid.appendChild(item);
             });
 
+            const customItem = document.createElement('div');
+            customItem.className = 'avatar3d-item avatar3d-item-custom';
+            customItem.dataset.custom = '1';
+            const customPreviewUrl = this.resolve('/scripts/images/custom3d.png');
+            customItem.innerHTML = `
+                <img src="${customPreviewUrl}" alt="Custom">
+                <div class="avatar3d-name">Custom</div>
+            `;
+            customItem.addEventListener('click', () => this.selectCustom3DAvatar(customItem));
+            grid.appendChild(customItem);
+
             if (this.existingAvatar3DName) {
                 const existingAvatar = avatars.find(a => a.name === this.existingAvatar3DName);
                 const existingItem = grid.querySelector(`.avatar3d-item[data-name="${CSS.escape(this.existingAvatar3DName)}"]`);
                 if (existingAvatar && existingItem) {
                     this.select3DAvatar(existingItem, existingAvatar);
                 }
+            } else if (this.existingAvatar3DCustomUrl) {
+                const input = this._q('#avatar3dCustomUrl');
+                if (input) {
+                    input.value = this.existingAvatar3DCustomUrl;
+                }
+                this.selectCustom3DAvatar(customItem, { skipFocus: true });
             }
         } catch (error) {
             console.error('Error loading 3D avatars:', error);
@@ -280,6 +447,30 @@ export class SNSAvatarDialog {
         // Select current
         element.classList.add('selected');
         this.selectedAvatar3D = avatar;
+        this.selectedAvatar3DMode = 'preset';
+        this._setCustomAvatar3dInputVisible(false);
+    }
+
+    selectCustom3DAvatar(element, options = {}) {
+        // Remove previous selection
+        if (this.dialog) {
+            this.dialog.querySelectorAll('.avatar3d-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+
+        element.classList.add('selected');
+        this.selectedAvatar3D = null;
+        this.selectedAvatar3DMode = 'custom';
+        this._setCustomAvatar3dInputVisible(true);
+
+        const input = this._q('#avatar3dCustomUrl');
+        if (input && !(options && options.skipFocus)) {
+            try {
+                input.focus();
+            } catch (e) {
+            }
+        }
     }
 
     setupEventListeners() {
@@ -289,24 +480,22 @@ export class SNSAvatarDialog {
             tab.addEventListener('click', (e) => {
                 const targetTab = e.target.dataset.tab;
 
-                // Update tab buttons
-                modalTabs.forEach(t => t.classList.remove('active'));
-                e.target.classList.add('active');
-
-                // Update tab content
-                const tabContents = this._qa('.tab-content');
-                tabContents.forEach(content => {
-                    content.style.display = 'none';
-                    content.classList.remove('active');
-                });
-
-                const targetContent = this._q(`#${targetTab}Tab`);
-                if (targetContent) {
-                    targetContent.style.display = 'block';
-                    targetContent.classList.add('active');
-                }
+                this.setActiveTab(targetTab);
             });
         });
+
+        const clear = () => this.clearInlineMessage();
+        const nicknameEl = this._q('#userNickname');
+        if (nicknameEl) nicknameEl.addEventListener('input', clear);
+        const signEl = this._q('#userSign');
+        if (signEl) signEl.addEventListener('input', clear);
+        const agentIdEl = this._q('#userAgentId');
+        if (agentIdEl) agentIdEl.addEventListener('change', clear);
+        const xmppAccountEl = this._q('#xmppAccount');
+        if (xmppAccountEl) xmppAccountEl.addEventListener('input', clear);
+
+        const customAvatar3dUrlEl = this._q('#avatar3dCustomUrl');
+        if (customAvatar3dUrlEl) customAvatar3dUrlEl.addEventListener('input', clear);
 
         // Upload button
         const uploadBtn = this._q('#uploadAvatarBtn');
@@ -389,6 +578,40 @@ export class SNSAvatarDialog {
             const xmppPasswordEl = this._q('#xmppPassword');
             const xmppAccount = xmppAccountEl ? String(xmppAccountEl.value || '').trim() : '';
             const xmppPassword = xmppPasswordEl ? String(xmppPasswordEl.value || '').trim() : '';
+
+            const nicknameEl = this._q('#userNickname');
+            const signEl = this._q('#userSign');
+            const agentIdEl = this._q('#userAgentId');
+            const nicknameRaw = nicknameEl ? String(nicknameEl.value || '') : '';
+            const signRaw = signEl ? String(signEl.value || '') : '';
+            const agentIdRaw = agentIdEl ? String(agentIdEl.value || '') : '';
+
+            if (!nicknameRaw.trim()) {
+                this.showInlineMessage('Nickname is required.', 'error', { tab: 'userinfo', focusEl: nicknameEl });
+                return;
+            }
+            if (!signRaw.trim()) {
+                this.showInlineMessage('Profile is required.', 'error', { tab: 'userinfo', focusEl: signEl });
+                return;
+            }
+            if (!agentIdRaw.trim()) {
+                this.showInlineMessage('Agent is required.', 'error', { tab: 'userinfo', focusEl: agentIdEl });
+                return;
+            }
+            if (!xmppAccount) {
+                this.showInlineMessage('Account is required.', 'error', { tab: 'xmpp', focusEl: xmppAccountEl });
+                return;
+            }
+
+            if (this.selectedAvatar3DMode === 'custom') {
+                const customUrl = this._getCustomAvatar3dUrlValue();
+                const urlError = this._validateCustomAvatar3dUrl(customUrl);
+                if (urlError) {
+                    const input = this._q('#avatar3dCustomUrl');
+                    this.showInlineMessage(urlError, 'error', { tab: 'avatar', focusEl: input });
+                    return;
+                }
+            }
             const xmppUpdates = {};
             const prevXmppAccount = this.existingConfig && this.existingConfig.account ? String(this.existingConfig.account || '') : '';
             if (xmppAccount && xmppAccount !== prevXmppAccount) xmppUpdates.account = xmppAccount;
@@ -399,6 +622,12 @@ export class SNSAvatarDialog {
 
             // 1) Avatar settings (upload avatar / select 3D avatar)
             const configUpdates = {};
+
+            const effectiveAvatar3dValue = this._getEffectiveAvatar3dValue();
+            const prevAvatar3dValue = (this.existingConfig && this.existingConfig.avatar3d) ? String(this.existingConfig.avatar3d) : '';
+            if (effectiveAvatar3dValue && effectiveAvatar3dValue !== prevAvatar3dValue) {
+                configUpdates.avatar3d = effectiveAvatar3dValue;
+            }
 
             if (this.uploadedAvatar) {
                 const formData = new FormData();
@@ -429,16 +658,6 @@ export class SNSAvatarDialog {
                 }
             }
 
-            if (this.selectedAvatar3D) {
-                const name = String(this.selectedAvatar3D.name || '');
-                const nextValue = name.toLowerCase().endsWith('.glb') ? name : `${name}.glb`;
-                const nextNormalized = nextValue.toLowerCase().endsWith('.glb') ? nextValue.slice(0, -4) : nextValue;
-
-                if (!this.existingAvatar3DName || nextNormalized !== String(this.existingAvatar3DName).toLowerCase()) {
-                    configUpdates.avatar3d = nextValue;
-                }
-            }
-
             if (Object.keys(configUpdates).length > 0) {
                 didChange = true;
                 didChangeSubmit = true;
@@ -446,14 +665,11 @@ export class SNSAvatarDialog {
             }
 
             // 2) Profile info (nickname / signature / sns_url / agent)
-            const nicknameEl = this._q('#userNickname');
-            const signEl = this._q('#userSign');
             const snsUrlEl = this._q('#userSnsUrl');
-            const agentIdEl = this._q('#userAgentId');
-            const nickname = nicknameEl ? nicknameEl.value : '';
-            const sign = signEl ? signEl.value : '';
+            const nickname = nicknameRaw;
+            const sign = signRaw;
             const snsUrl = snsUrlEl ? snsUrlEl.value : '';
-            const agentId = agentIdEl ? agentIdEl.value : '';
+            const agentId = agentIdRaw;
 
             const previous = this.existingUserInfo || {};
             const userInfoUpdates = {};
@@ -549,12 +765,7 @@ export class SNSAvatarDialog {
                 return;
             }
 
-            const avatar3dValue = this.selectedAvatar3D
-                ? (() => {
-                    const name = String(this.selectedAvatar3D.name || '');
-                    return name.toLowerCase().endsWith('.glb') ? name : `${name}.glb`;
-                })()
-                : (this.existingConfig && this.existingConfig.avatar3d ? String(this.existingConfig.avatar3d) : '');
+            const avatar3dValue = this._getEffectiveAvatar3dValue();
 
             const submitPayload = {
                 avatar3d: avatar3dValue,
@@ -600,6 +811,17 @@ export class SNSAvatarDialog {
                     ...(this.existingConfig || {}),
                     avatar3d: avatar3dValue
                 };
+                if (this._isWebUrl(avatar3dValue)) {
+                    this.existingAvatar3DCustomUrl = avatar3dValue;
+                    this.existingAvatar3DName = null;
+                    this.selectedAvatar3DMode = 'custom';
+                } else {
+                    const normalized = String(avatar3dValue || '');
+                    const baseName = normalized.split('/').pop().split('\\').pop();
+                    this.existingAvatar3DName = baseName.toLowerCase().endsWith('.glb') ? baseName.slice(0, -4) : baseName;
+                    this.existingAvatar3DCustomUrl = null;
+                    this.selectedAvatar3DMode = 'preset';
+                }
             }
 
             if (errors.length > 0) {

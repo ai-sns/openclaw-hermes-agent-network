@@ -16,6 +16,10 @@ class SystemConfig(BaseModel):
     conversation_timeout_seconds: Optional[int] = None
     contact_cooldown_seconds: Optional[int] = None
     contact_recent_limit: Optional[int] = None
+    process_info_compact_every_n: Optional[int] = None
+    process_info_plan_summary_every_n: Optional[int] = None
+    memory_enabled: Optional[bool] = None
+    memory_embedding_enabled: Optional[bool] = None
 
 
 class WebMngReorderItem(BaseModel):

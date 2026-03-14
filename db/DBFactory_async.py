@@ -153,6 +153,12 @@ async def query_single_map_trade(trade_id):
 async def add_AIChatMessages(**kwargs):
     """Asynchronously add a chat message."""
     async with AsyncSessionLocal() as session:
+        try:
+            if 'content' in kwargs:
+                from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+                kwargs['content'] = format_internal_xmpp_message_for_storage(kwargs.get('content'))
+        except Exception:
+            pass
         message = AIChatMessages(**kwargs)
         session.add(message)
         await session.commit()

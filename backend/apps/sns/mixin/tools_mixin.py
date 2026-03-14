@@ -100,6 +100,23 @@ class ToolsMixin:
 
         question = f"当前的目标是：{objective_to_achieve}。请根据相关的任务要求，准确选择服务，如果没有合适的服务请返回空列表。"
 
+        # Memory recall: inject past service usage experience
+        try:
+            from backend.apps.sns.memory.memory_types import MemoryType
+            from backend.apps.sns.memory.memory_config import MemoryConfig
+            mm = getattr(self, "memory_manager", None)
+            if mm and MemoryConfig.ENABLED:
+                memory_section = mm.get_memory_prompt_section(
+                    query=objective_to_achieve,
+                    memory_types=[MemoryType.EPISODE.value, MemoryType.OBSERVATION.value],
+                    max_results=3,
+                    max_chars=800,
+                )
+                if memory_section:
+                    question += "\n\n" + memory_section
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for service selection: %s", _mem_err)
+
         self.command_status = "ask_agent_to_use_service"
         await self.ask_agent_and_get_instruction(question, role_prompt)
 

@@ -122,6 +122,12 @@ def add_AIChatMessages(conversation_id, flag, title, content, owner_name, owner_
                        km_content=""):
     session = Session()
     try:
+        try:
+            from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+            content = format_internal_xmpp_message_for_storage(content)
+        except Exception:
+            pass
+
         ai_friend = AIChatMessages(conversation_id=conversation_id, flag=flag, title=title, content=content,
                                    owner_name=owner_name, owner_account=owner_account, friend_name=friend_name,
                                    friend_account=friend_account, is_first=is_first, attachment_list=attachment_list,
@@ -2517,6 +2523,10 @@ class SystemCfg(Base):
     conversation_timeout_seconds = Column(Integer, default=60)
     contact_cooldown_seconds = Column(Integer, default=300)
     contact_recent_limit = Column(Integer, default=3)
+    process_info_compact_every_n = Column(Integer, default=50)
+    process_info_plan_summary_every_n = Column(Integer, default=5)
+    memory_enabled = Column(Boolean, default=True)
+    memory_embedding_enabled = Column(Boolean, default=False)
     is_delete = Column(Boolean, default=False)
     create_time = Column(DateTime, default=datetime.now)
 
@@ -2534,6 +2544,14 @@ def _ensure_system_cfg_columns():
             cursor.execute("ALTER TABLE system_cfg ADD COLUMN contact_cooldown_seconds INTEGER DEFAULT 300")
         if 'contact_recent_limit' not in columns:
             cursor.execute("ALTER TABLE system_cfg ADD COLUMN contact_recent_limit INTEGER DEFAULT 3")
+        if 'process_info_compact_every_n' not in columns:
+            cursor.execute("ALTER TABLE system_cfg ADD COLUMN process_info_compact_every_n INTEGER DEFAULT 50")
+        if 'process_info_plan_summary_every_n' not in columns:
+            cursor.execute("ALTER TABLE system_cfg ADD COLUMN process_info_plan_summary_every_n INTEGER DEFAULT 5")
+        if 'memory_enabled' not in columns:
+            cursor.execute("ALTER TABLE system_cfg ADD COLUMN memory_enabled INTEGER DEFAULT 1")
+        if 'memory_embedding_enabled' not in columns:
+            cursor.execute("ALTER TABLE system_cfg ADD COLUMN memory_embedding_enabled INTEGER DEFAULT 0")
         conn.commit()
     except Exception:
         try:
@@ -2794,6 +2812,29 @@ def update_prompt(id, **kwargs):
             setattr(record, key, value)
         session.commit()
     session.close()
+
+
+def upsert_prompt_by_title(title: str, content: str) -> bool:
+    session = Session()
+    try:
+        record = session.query(Prompt).filter_by(title=title).first()
+        if record:
+            record.content = content
+            session.commit()
+            return True
+
+        record = Prompt(title=title, content=content)
+        session.add(record)
+        session.commit()
+        return True
+    except Exception:
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        return False
+    finally:
+        session.close()
 
 
 class KeyValue(Base):
@@ -3697,10 +3738,26 @@ class MapActivity(Base):
 
 def add_map_activity(activity_id, content, type):
     session = Session()
-    new_activity = MapActivity(activity_id=activity_id, content=content, type=type)
-    session.add(new_activity)
-    session.commit()
-    session.close()
+    try:
+        new_activity = MapActivity(activity_id=activity_id, content=content, type=type)
+        session.add(new_activity)
+        _commit_with_retry(session, max_retries=5, base_delay=0.2)
+        return True
+    except Exception as e:
+        err_msg = str(e).lower()
+        try:
+            session.rollback()
+        except Exception:
+            pass
+        if 'database is locked' in err_msg:
+            _dbfactory_logger.error(
+                "[DBFactory] database is locked: failed to add map activity, skipping. activity_id=%s",
+                activity_id,
+            )
+            return False
+        raise
+    finally:
+        session.close()
 
 
 def query_map_activity_all(**kwargs):

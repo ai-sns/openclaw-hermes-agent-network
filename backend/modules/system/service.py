@@ -43,6 +43,10 @@ class SystemService:
             "conversation_timeout_seconds": getattr(config, 'conversation_timeout_seconds', 60),
             "contact_cooldown_seconds": getattr(config, 'contact_cooldown_seconds', 300),
             "contact_recent_limit": getattr(config, 'contact_recent_limit', 3),
+            "process_info_compact_every_n": getattr(config, 'process_info_compact_every_n', 50),
+            "process_info_plan_summary_every_n": getattr(config, 'process_info_plan_summary_every_n', 5),
+            "memory_enabled": bool(getattr(config, 'memory_enabled', True)),
+            "memory_embedding_enabled": bool(getattr(config, 'memory_embedding_enabled', False)),
             "tools": {
                 "page_size": settings.tools.page_size
             }
@@ -66,18 +70,52 @@ class SystemService:
             "conversation_timeout_seconds",
             "contact_cooldown_seconds",
             "contact_recent_limit",
+            "process_info_compact_every_n",
+            "process_info_plan_summary_every_n",
+            "memory_enabled",
+            "memory_embedding_enabled",
         }
 
         payload = {k: v for k, v in kwargs.items() if k in allowed_keys}
         if not payload:
             return
 
-        for k in ("conversation_timeout_seconds", "contact_cooldown_seconds", "contact_recent_limit"):
+        for k in (
+            "conversation_timeout_seconds",
+            "contact_cooldown_seconds",
+            "contact_recent_limit",
+            "process_info_compact_every_n",
+            "process_info_plan_summary_every_n",
+        ):
             if k in payload and payload[k] is not None:
                 try:
                     payload[k] = int(payload[k])
                 except (TypeError, ValueError):
                     payload.pop(k, None)
+
+        for k in ("process_info_compact_every_n", "process_info_plan_summary_every_n"):
+            if k in payload:
+                if payload[k] is None:
+                    payload.pop(k, None)
+                    continue
+                if payload[k] < 0:
+                    payload.pop(k, None)
+
+        if "memory_enabled" in payload:
+            try:
+                payload["memory_enabled"] = bool(payload["memory_enabled"])
+            except Exception:
+                payload.pop("memory_enabled", None)
+
+        if "memory_embedding_enabled" in payload:
+            try:
+                payload["memory_embedding_enabled"] = bool(payload["memory_embedding_enabled"])
+            except Exception:
+                payload.pop("memory_embedding_enabled", None)
+
+        # If memory is disabled, embedding must be disabled as well.
+        if payload.get("memory_enabled") is False:
+            payload["memory_embedding_enabled"] = False
 
         record = query_SystemCfg(is_delete=False)
         if record:

@@ -67,6 +67,8 @@ class DataQueryMixin:
             "lat": self.aichatcfg_record.current_position[1]
         }
         data = self.http_request(url, params)
+        logger.info("loading pesons...")
+        logger.info(data)
 
         remove_id = ((self.user_map_setting or {}).get("nationid") or "").strip()
         if not remove_id:
@@ -209,7 +211,7 @@ class DataQueryMixin:
         if record.money is None:
             self.aichatcfg_record.money = 1000
         if record.credit is None:
-            self.aichatcfg_record.credit = 100
+            self.aichatcfg_record.credit = 0
         if record.level is None:
             self.aichatcfg_record.level = 1
 
@@ -274,7 +276,7 @@ class DataQueryMixin:
         return []
 
     def decline_energy(self):
-        
+
         decline_point = 25
         energy_point = float(self.aichatcfg_record.energy_point or 0) - decline_point
         self.aichatcfg_record.energy_point = energy_point
@@ -287,7 +289,7 @@ class DataQueryMixin:
         self.check_and_handle_rebirth()
 
     def decline_life(self):
-        
+
         decline_point = 25
         life_point = float(self.aichatcfg_record.life_point or 0) - decline_point
         self.aichatcfg_record.life_point = life_point

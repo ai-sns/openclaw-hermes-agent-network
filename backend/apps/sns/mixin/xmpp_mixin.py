@@ -38,6 +38,8 @@ from geographiclib.geodesic import Geodesic
 import random
 from datetime import datetime
 
+from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+
 logger = logging.getLogger(__name__)
 
 
@@ -252,7 +254,8 @@ class XmppMixin:
             to_name = recipient['name']
 
             logger.info(f"Sending message to {to_jid}: {content[:50]}...")
-            self._save_message_to_database(content, to_jid, to_name)
+            stored_content = format_internal_xmpp_message_for_storage(content)
+            self._save_message_to_database(stored_content, to_jid, to_name)
 
             # Send XMPP message
             if not self.send_xmpp_message(to_jid, content):
@@ -261,7 +264,7 @@ class XmppMixin:
 
             # Update UI (if not background)
             if not back_ground:
-                self._update_ui_with_sent_message(to_jid, content)
+                self._update_ui_with_sent_message(to_jid, stored_content)
 
             logger.info(f"Message sent successfully to {to_jid}")
             return True

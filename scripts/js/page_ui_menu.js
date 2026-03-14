@@ -19,7 +19,7 @@ function setTopInfoDisabled(disabled) {
 
     try {
         const btn = document.getElementById('top_info_btn');
-        const icon = btn ? btn.querySelector('i') : null;
+        const icon = btn ? btn.querySelector('i, .ui-icon') : null;
         if (btn) {
             btn.style.pointerEvents = next ? 'none' : '';
             btn.style.opacity = next ? '0.5' : '';
@@ -30,6 +30,24 @@ function setTopInfoDisabled(disabled) {
         }
     } catch (e) {
     }
+}
+
+function __getUiIconHref(iconName) {
+    try {
+        const symbolId = `icon-${iconName}`;
+        if (document.getElementById(symbolId)) {
+            return `#${symbolId}`;
+        }
+    } catch (e) {
+    }
+    return `mapIcons/menu-icons.svg#icon-${iconName}`;
+}
+
+try {
+    if (typeof window !== 'undefined' && window) {
+        window.__getUiIconHref = __getUiIconHref;
+    }
+} catch (e) {
 }
 
 try {
@@ -180,13 +198,28 @@ if (topButtons) {
             }
         } catch (e2) {
         }
-        const icon = btn.querySelector('i');
+        const icon = btn.querySelector('i, .ui-icon');
         if (!icon) return;
-        if (target === icon) return;
+        if (icon.contains(target)) return;
         if (typeof icon.onclick === 'function') {
             icon.onclick.call(icon, e);
         }
     });
+}
+
+function __setUiIcon(el, iconName) {
+    try {
+        if (!el || !iconName) return;
+        const isSvg = el instanceof SVGElement || (el.classList && el.classList.contains('ui-icon'));
+        if (!isSvg) return;
+
+        el.setAttribute('data-icon', iconName);
+        const useEl = el.querySelector('use');
+        if (useEl) {
+            useEl.setAttribute('href', __getUiIconHref(iconName));
+        }
+    } catch (e) {
+    }
 }
 
 const rightMenuClickRoot = document.querySelector('.right-menu');
@@ -226,9 +259,15 @@ rightMenuToggle.addEventListener('click', function () {
     rightMenu.classList.toggle('collapsed');
 
     // Toggle icon direction
-    const icon = this.querySelector('i');
-    icon.classList.toggle('fa-angle-double-right');
-    icon.classList.toggle('fa-angle-double-left');
+    const icon = this.querySelector('i, .ui-icon');
+    if (icon && (icon instanceof SVGElement || icon.classList.contains('ui-icon'))) {
+        const current = String(icon.getAttribute('data-icon') || '');
+        const next = current === 'angle-double-right' ? 'angle-double-left' : 'angle-double-right';
+        __setUiIcon(icon, next);
+    } else if (icon && icon.classList) {
+        icon.classList.toggle('fa-angle-double-right');
+        icon.classList.toggle('fa-angle-double-left');
+    }
 });
 
 // Top bar collapse/expand
@@ -239,9 +278,15 @@ topBarToggle.addEventListener('click', function () {
     topBar.classList.toggle('collapsed');
 
     // Toggle icon direction
-    const icon = this.querySelector('i');
-    icon.classList.toggle('fa-angle-double-up');
-    icon.classList.toggle('fa-angle-double-down');
+    const icon = this.querySelector('i, .ui-icon');
+    if (icon && (icon instanceof SVGElement || icon.classList.contains('ui-icon'))) {
+        const current = String(icon.getAttribute('data-icon') || '');
+        const next = current === 'angle-double-up' ? 'angle-double-down' : 'angle-double-up';
+        __setUiIcon(icon, next);
+    } else if (icon && icon.classList) {
+        icon.classList.toggle('fa-angle-double-up');
+        icon.classList.toggle('fa-angle-double-down');
+    }
 });
 
 // Show custom confirm dialog

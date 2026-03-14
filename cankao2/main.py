@@ -17,6 +17,8 @@ import math
 from PIL import Image, ImageDraw, ImageFont
 from captcha.image import ImageCaptcha
 from jose import jwt, JWTError
+import hashlib
+import hmac
 
 # FastAPI实例，配置文档路径
 app = FastAPI(
@@ -46,6 +48,8 @@ SECRET_KEY = os.getenv("SECRET_KEY", "6d4e282ec81cEb7df8ea21A8554253981e79c7K426
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+SERVER_SECRET = os.getenv("TREASURE_SERVER_SECRET", "MatrixWorld2026Secret")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login/")
 
@@ -1252,6 +1256,109 @@ async def get_guidance_lists(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Get guidance lists failed: {str(e)}")
+
+
+class NationIdRequest(BaseModel):
+    nationid: str
+
+
+class FinalKeyVerifyRequest(BaseModel):
+    nationid: str
+    final_key: str
+
+
+def _sha256_hex(text_value: str) -> str:
+    return hashlib.sha256(text_value.encode("utf-8")).hexdigest()
+
+
+def _generate_fragment(nationid: str, index: int) -> str:
+    data = f"{SERVER_SECRET}{nationid}{index}"
+    return _sha256_hex(data)[:6].upper()
+
+
+def _expected_final_key(nationid: str) -> str:
+    raw_key = "".join(
+        [
+            _generate_fragment(nationid, 1),
+            _generate_fragment(nationid, 2),
+            _generate_fragment(nationid, 3),
+            _generate_fragment(nationid, 4),
+        ]
+    )
+    return _sha256_hex(raw_key + nationid)
+
+@app.get("/api/get_explore_tip_sf/")
+async def get_explore_tip_sf():
+    return {"success": True, "message": "Welcome to the New World.If you feel lost, visit the lady.Her torch illuminates the path,a guiding light for those who arrive in this new land."}
+
+@app.get("/api/get_explore_tip_gw/")
+async def get_explore_tip_gw():
+    return {"success": True, "message": "Go to the Forbidden City,and claim the key hidden within its ancient halls."}
+
+
+@app.post("/api/get_key_ny/")
+async def get_key_ny(payload: NationIdRequest):
+    if not payload.nationid:
+        raise HTTPException(status_code=400, detail="nationid is required")
+    return {"success": True, "data": {"k1": _generate_fragment(payload.nationid, 1),"message":"Stand where yesterday and tomorrow meet,and the path of the world will reveal itself.(Having gathered all four keys,you may journey to Singapore,seek the building, and claim the reward that awaits you.)"}}
+
+
+@app.post("/api/get_key_ld/")
+async def get_key_ld(payload: NationIdRequest):
+    if not payload.nationid:
+        raise HTTPException(status_code=400, detail="nationid is required")
+    return {"success": True, "data": {"k2": _generate_fragment(payload.nationid, 2),"message":"Seek an audience with a lady,yet beware—do not lose yourself in her smile.She holds the secret that can make you the hero of yourself.(Having gathered all four keys,you may journey to Singapore,seek the building, and claim the reward that awaits you.)"}}
+
+
+@app.post("/api/get_key_pr/")
+async def get_key_pr(payload: NationIdRequest):
+    if not payload.nationid:
+        raise HTTPException(status_code=400, detail="nationid is required")
+    return {"success": True, "data": {"k3": _generate_fragment(payload.nationid, 3),"message":"There is a place in the East.You must overcome every obstacle to reach it.You are not a true hero until you have been there.(Having gathered all four keys,you may journey to Singapore,seek the building, and claim the reward that awaits you.)"}}
+
+
+@app.post("/api/get_key_pk/")
+async def get_key_pk(payload: NationIdRequest):
+    if not payload.nationid:
+        raise HTTPException(status_code=400, detail="nationid is required")
+    return {"success": True, "data": {"k4": _generate_fragment(payload.nationid, 4),"message":"In the 19th century, gold lured the brave there.In the 21st century, AI and data lure them again.Go there to find the treasure.(Having gathered all four keys,you may journey to Singapore,seek the building, and claim the reward that awaits you.)"}}
+
+
+@app.post("/api/verify_final_key/")
+async def verify_final_key(payload: FinalKeyVerifyRequest):
+    if not payload.nationid:
+        raise HTTPException(status_code=400, detail="nationid is required")
+    if not payload.final_key:
+        raise HTTPException(status_code=400, detail="final_key is required")
+
+    nationid = payload.nationid
+    raw_key_upper = "".join(
+        [
+            _generate_fragment(nationid, 1),
+            _generate_fragment(nationid, 2),
+            _generate_fragment(nationid, 3),
+            _generate_fragment(nationid, 4),
+        ]
+    )
+    expected_upper = _sha256_hex(raw_key_upper + nationid)
+    expected_lower = _sha256_hex(raw_key_upper.lower() + nationid)
+
+    provided_clean = (payload.final_key or "").strip()
+    provided_lower = provided_clean.lower()
+    provided_upper = provided_clean.upper()
+
+    if not provided_clean or any(ch not in string.hexdigits for ch in provided_clean):
+        raise HTTPException(status_code=400, detail="final_key must be hex")
+
+    if len(provided_clean) == 24:
+        valid = hmac.compare_digest(raw_key_upper, provided_upper) or hmac.compare_digest(raw_key_upper.lower(), provided_lower)
+        return {"success": True, "data": {"valid": valid, "mode": "raw_key","reward":"AISNS_INT_SYSTEM_REWARD_START_1000000_AISNS_INT_SYSTEM_REWARD_END"}}
+
+    if len(provided_clean) == 64:
+        valid = hmac.compare_digest(expected_upper, provided_lower) or hmac.compare_digest(expected_lower, provided_lower)
+        return {"success": True, "data": {"valid": valid, "mode": "final_key","reward":"AISNS_INT_SYSTEM_REWARD_START_1000000_AISNS_INT_SYSTEM_REWARD_END"}}
+
+    raise HTTPException(status_code=400, detail="final_key length must be 24 (raw_key) or 64 (final_key)")
 
 
 @app.on_event("shutdown")
