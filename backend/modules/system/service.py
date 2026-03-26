@@ -40,7 +40,7 @@ class SystemService:
             "minirunontray": getattr(config, 'minirunontray', True),
             "agent_server": getattr(config, 'agent_server', None),
             "ai_sns_server": getattr(config, 'ai_sns_server', None),
-            "conversation_timeout_seconds": getattr(config, 'conversation_timeout_seconds', 60),
+            "conversation_timeout_seconds": 300,
             "contact_cooldown_seconds": getattr(config, 'contact_cooldown_seconds', 300),
             "contact_recent_limit": getattr(config, 'contact_recent_limit', 3),
             "process_info_compact_every_n": getattr(config, 'process_info_compact_every_n', 50),
@@ -70,7 +70,6 @@ class SystemService:
             "infosound",
             "agent_server",
             "ai_sns_server",
-            "conversation_timeout_seconds",
             "contact_cooldown_seconds",
             "contact_recent_limit",
             "process_info_compact_every_n",
@@ -87,7 +86,6 @@ class SystemService:
             return
 
         for k in (
-            "conversation_timeout_seconds",
             "contact_cooldown_seconds",
             "contact_recent_limit",
             "process_info_compact_every_n",
@@ -145,17 +143,16 @@ class SystemService:
                 pass
             return
 
-        session = Session()
+        from db.write_queue import db_write
+        _payload = {**payload, 'is_delete': False, 'create_time': datetime.now()}
+        def _do(session):
+            session.add(DBSystemCfg(**_payload))
+        db_write(_do, description="system_service_create_config")
         try:
-            session.add(DBSystemCfg(**payload, is_delete=False, create_time=datetime.now()))
-            session.commit()
-            try:
-                from backend.apps.sns.service_async import apply_runtime_system_config
-                apply_runtime_system_config(payload)
-            except Exception:
-                pass
-        finally:
-            session.close()
+            from backend.apps.sns.service_async import apply_runtime_system_config
+            apply_runtime_system_config(payload)
+        except Exception:
+            pass
 
     def get_web_mng(self) -> List[Dict[str, Any]]:
         """Get all web management items"""

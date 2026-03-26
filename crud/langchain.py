@@ -10,9 +10,12 @@ class CRUDItem(CRUDBase[LangchainParameter, LangchainParameterCreate, LangchainP
         return query
 
     def update_param(self, id, obj_in: LangchainParameterUpdate, db: Session):
+        from db.write_queue import db_write
         data = obj_in.dict(exclude_unset=True)
-        db.query(self.model).filter(self.model.id == id).update(data)
-        db.commit()
+        _model = self.model
+        def _do(session):
+            session.query(_model).filter(_model.id == id).update(data)
+        db_write(_do, description="crud_update_langchain_param")
 
 
 CrudLangchainParameter = CRUDItem(LangchainParameter)

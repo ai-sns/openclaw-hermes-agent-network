@@ -100,6 +100,11 @@ class AgentInteractionMixin:
             self.stop_AI_process_finished()
             return
 
+        try:
+            self.agent_replying_flag = True
+        except Exception:
+            pass
+
         system_role_prompt = self._apply_sns_prompt_placeholders(system_role_prompt)
         question = self._apply_sns_prompt_placeholders(question)
 
@@ -128,6 +133,10 @@ ask_agent_and_get_instruction
 
         self.agent = self.get_agent_for_current_chat(command_status=command_status)
         if not self.agent:
+            try:
+                self.agent_replying_flag = False
+            except Exception:
+                pass
             return
 
         agent = self.agent
@@ -235,11 +244,14 @@ ask_agent_and_get_instruction
             agent.role_config['system_prompt'] = original_prompt
             restore_role()
 
-        self.on_agent_return_instruction(question, reply)
+        self.on_agent_return_instruction(question, reply, command_status=command_status)
 
     # b. Agent returns instruction
-    def on_agent_return_instruction(self, question, content):
-        self.agent_replying_flag = False
+    def on_agent_return_instruction(self, question, content, *, command_status: Optional[str] = None):
+        try:
+            self.agent_replying_flag = False
+        except Exception:
+            pass
         if self.stopping_ai_process_flag:
             self.stop_AI_process_finished()
             return
@@ -252,7 +264,17 @@ ask_agent_and_get_instruction
                 content = ""
 
         content = re.sub(r'^\s*```json\s*|\s*```\s*$', '', content, flags=re.DOTALL)
-        command_status = self.command_status
+
+        current_status = self.command_status
+        if command_status is not None and command_status != current_status:
+            logger.info(
+                "Dropping agent reply due to command_status mismatch. expected=%s current=%s",
+                command_status,
+                current_status,
+            )
+            return
+
+        command_status = current_status
         title_str = "Agent return the instruction"
         content_str = f"""🟪 *The function is*:
 

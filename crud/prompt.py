@@ -14,10 +14,18 @@ class CRUDItem(CRUDBase[Prompt, PromptCreate, PromptUpdate]):
         if obj_in:
             for i in obj_in:
                 db_model.prompt.append(self.model(**i.dict(exclude_unset=True)))
-        db.add(db_model)
-        db.commit()
-        db.refresh(db_model)
-        return db_model
+        from db.write_queue import db_write
+        _obj_list = [i.dict(exclude_unset=True) for i in obj_in] if obj_in else []
+        def _do(session):
+            from models.model import Role as _Role
+            r = _Role(name=name)
+            for item_data in _obj_list:
+                r.prompt.append(Prompt(**item_data))
+            session.add(r)
+            session.flush()
+            session.refresh(r)
+            return r
+        return db_write(_do, description="crud_create_role")
 
     def list_role(self, db: Session):
         return db.query(Role).all()

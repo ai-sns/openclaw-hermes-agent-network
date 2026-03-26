@@ -345,8 +345,8 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             if self._tool_check_due and (not self._tool_checking):
                 self.show_status_on_map("using-tool")
                 self.js_task_manager.show_information(lt(
-                    "<b>Agent is checking if tools are needed before action decision.</b>",
-                    "<b>Agent is checking if tools are needed before action decision.</b>",
+                    "<b>🔮Using tools before action decision.</b>",
+                    "<b>🔮Using tools before action decision.</b>",
                 ))
                 self._tool_checking = True
                 self._tool_check_due = False
@@ -379,8 +379,17 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             except Exception:
                 counter = None
 
+            try:
+                if (not bool(getattr(self.parent, "human_take_over", False))) and counter is not None:
+                    if (int(counter) + 1) % 2 == 0:
+                        if hasattr(self.parent, "maybe_auto_reply_from_inbox"):
+                            if await self.parent.maybe_auto_reply_from_inbox():
+                                return
+            except Exception:
+                logger.exception("Inbox auto-reply hook failed")
+
             suffix = f"[#{counter+1}]" if counter is not None else ""
-            msg = f"<b>Agent is thinking about the next action.{suffix}</b>"
+            msg = f"<b>🤔Agent is thinking about the next action.{suffix}</b>"
             self.js_task_manager.show_information(lt(msg, msg))
             self.set_command_status("ask_agent_instruction_to_process_activity")
 
@@ -461,7 +470,13 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             if isinstance(resume_payload, dict) and resume_payload:
                 asyncio.create_task(self.process_task(**resume_payload))
             else:
-                asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
+                try:
+                    if bool(getattr(self.parent, "_human_command_inflight", False)) and hasattr(self.parent, "_maybe_finish_human_command_if_idle"):
+                        self.parent._maybe_finish_human_command_if_idle(ask_content=self.get_current_objective())
+                    else:
+                        asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
+                except Exception:
+                    asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
 
         elif action_requested == "process_human_instruction":
             ask_content = kwargs.get("ask_content", "")
@@ -740,7 +755,13 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             if isinstance(resume_payload, dict) and resume_payload:
                 asyncio.create_task(self.process_task(**resume_payload))
             else:
-                asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
+                try:
+                    if bool(getattr(self.parent, "_human_command_inflight", False)) and hasattr(self.parent, "_maybe_finish_human_command_if_idle"):
+                        self.parent._maybe_finish_human_command_if_idle(ask_content=self.get_current_objective())
+                    else:
+                        asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
+                except Exception:
+                    asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
 
     async def _run_tool_check_then_review(self, *, talk_history_str: str, effective_talk_type: str):
         """Run tool check before conversation review using chat_with_agent(use_tools=True).
@@ -761,8 +782,8 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 question = "\n".join(context_parts)
                 self.show_status_on_map("using-tool")
                 self.js_task_manager.show_information(lt(
-                    "<b>Message Received.Agent is checking if tools are needed before reply.</b>",
-                    "<b>Message Received.Agent is checking if tools are needed before reply.</b>",
+                    "<b>✨Message Received.Using tools before reply.</b>",
+                    "<b>✨Message Received.Using tools before reply.</b>",
                 ))
 
                 tool_result = await self.parent.chat_with_agent(
@@ -772,6 +793,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                     use_memory=False,
                     use_knowledge_base=False,
                 )
+                self.show_status_on_map("talking")
 
                 tool_result = (tool_result or "").strip()
                 if tool_result and "NO_TOOL_NEEDED" not in tool_result.upper():

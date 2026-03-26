@@ -35,12 +35,16 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         return db.query(self.model).offset(skip).limit(limit).all()
 
     def create(self, db: Session, *, obj_in: CreateSchemaType) -> ModelType:
+        from db.write_queue import db_write
         obj_in_data = jsonable_encoder(obj_in)
-        db_obj = self.model(**obj_in_data)  # type: ignore
-        db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
-        return db_obj
+        _model = self.model
+        def _do(session):
+            db_obj = _model(**obj_in_data)
+            session.add(db_obj)
+            session.flush()
+            session.refresh(db_obj)
+            return db_obj
+        return db_write(_do, description=f"crud_create_{self.model.__tablename__}")
 
     def update(
             self,
@@ -54,27 +58,41 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             update_data = obj_in
         else:
             update_data = obj_in.dict(exclude_unset=True)
-        for field in obj_data:
-            if field in update_data:
-                setattr(db_obj, field, update_data[field])
-        db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
-        return db_obj
+        from db.write_queue import db_write
+        _model = self.model
+        _obj_id = db_obj.id
+        def _do(session):
+            rec = session.query(_model).filter(_model.id == _obj_id).first()
+            if rec:
+                for field in obj_data:
+                    if field in update_data:
+                        setattr(rec, field, update_data[field])
+                session.flush()
+                session.refresh(rec)
+            return rec
+        return db_write(_do, description=f"crud_update_{self.model.__tablename__}")
 
     def remove(self, db: Session, id: int) -> ModelType:
-        obj = db.query(self.model).get(id)
-        db.delete(obj)
-        db.commit()
-        return obj
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = session.query(_model).get(id)
+            if obj:
+                session.delete(obj)
+            return obj
+        return db_write(_do, description=f"crud_remove_{self.model.__tablename__}")
 
     def create_multi(
             self, obj_in: CreateSchemaType, db: Session, **kwargs
     ):
-        for data in obj_in:
-            db_model = self.model(**data.dict(exclude_unset=True), **kwargs)
-            db.add(db_model)
-        db.commit()
+        from db.write_queue import db_write
+        _model = self.model
+        _items = [data.dict(exclude_unset=True) for data in obj_in]
+        def _do(session):
+            for item_data in _items:
+                db_model = _model(**item_data, **kwargs)
+                session.add(db_model)
+        db_write(_do, description=f"crud_create_multi_{self.model.__tablename__}")
         return obj_in
 
     def list_params(self, db: Session,

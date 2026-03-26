@@ -43,17 +43,14 @@ class SysConfigRepository(BaseRepository[SysConfig]):
 
     def update_language(self, lang: str, **kwargs):
         """Update system language."""
-        session = get_session()
-        try:
-            record = session.query(self.model).filter_by(**kwargs).first()
+        from db.write_queue import db_write
+        _model = self.model
+        _kwargs = kwargs
+        def _do(session):
+            record = session.query(_model).filter_by(**_kwargs).first()
             if record:
                 record.lang = lang
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        db_write(_do, description="repo_update_language")
 
 
 class SystemInitRepository(BaseRepository[SystemInit]):
@@ -134,12 +131,11 @@ class PluginMngRepository(BaseRepository[PluginMng]):
 
     def copy_plugin(self, plugin_id: str, new_plugin_id: str, **kwargs) -> Optional[PluginMng]:
         """Copy plugin record."""
-        session = get_session()
-        try:
-            record_to_copy = session.query(self.model).filter_by(plugin_id=plugin_id).first()
+        from db.write_queue import db_write
+        def _do(session):
+            record_to_copy = session.query(PluginMng).filter_by(plugin_id=plugin_id).first()
             if not record_to_copy:
                 return None
-
             new_record = PluginMng(
                 plugin_id=new_plugin_id,
                 company=kwargs.get('company', record_to_copy.company),
@@ -164,15 +160,9 @@ class PluginMngRepository(BaseRepository[PluginMng]):
                 is_delete=record_to_copy.is_delete,
                 create_time=datetime.now()
             )
-
             session.add(new_record)
-            session.commit()
             return new_record
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_copy_plugin")
 
 
 class FunctionMngRepository(BaseRepository[FunctionMng]):
@@ -183,20 +173,14 @@ class FunctionMngRepository(BaseRepository[FunctionMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create function and return its ID."""
-        session = get_session()
-        try:
-            func = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            func = _model(**kwargs)
             session.add(func)
             session.flush()
-            record_id = func.id
-            session.refresh(func)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return func.id
+        return db_write(_do, description="repo_create_function_mng")
 
     def update_by_function_id(self, function_id: str, **kwargs):
         """Update function by function_id."""
@@ -211,20 +195,14 @@ class McpMngRepository(BaseRepository[McpMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create MCP and return its ID."""
-        session = get_session()
-        try:
-            mcp = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            mcp = _model(**kwargs)
             session.add(mcp)
             session.flush()
-            record_id = mcp.id
-            session.refresh(mcp)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return mcp.id
+        return db_write(_do, description="repo_create_mcp_mng")
 
     def update_by_mcp_id(self, mcp_id: str, **kwargs):
         """Update MCP by mcp_id."""
@@ -239,20 +217,14 @@ class SkillMngRepository(BaseRepository[SkillMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create skill and return its ID."""
-        session = get_session()
-        try:
-            skill = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            skill = _model(**kwargs)
             session.add(skill)
             session.flush()
-            record_id = skill.id
-            session.refresh(skill)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return skill.id
+        return db_write(_do, description="repo_create_skill_mng")
 
     def update_by_skill_id(self, skill_id: str, **kwargs):
         """Update skill by skill_id."""
@@ -267,20 +239,14 @@ class WebMngRepository(BaseRepository[WebMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create web entry and return its ID."""
-        session = get_session()
-        try:
-            web = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            web = _model(**kwargs)
             session.add(web)
             session.flush()
-            record_id = web.id
-            session.refresh(web)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return web.id
+        return db_write(_do, description="repo_create_web_mng")
 
     def get_all_ordered(self, **kwargs) -> List[WebMng]:
         """Get all web entries ordered by position."""
@@ -303,29 +269,22 @@ class WorkflowMngRepository(BaseRepository[WorkflowMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create workflow and return its ID."""
-        session = get_session()
-        try:
-            workflow = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            workflow = _model(**kwargs)
             session.add(workflow)
             session.flush()
-            record_id = workflow.id
-            session.refresh(workflow)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return workflow.id
+        return db_write(_do, description="repo_create_workflow_mng")
 
     def copy_workflow(self, workflow_id: str, new_workflow_id: str) -> Optional[WorkflowMng]:
         """Copy workflow record."""
-        session = get_session()
-        try:
-            original = session.query(self.model).filter_by(workflow_id=workflow_id).first()
+        from db.write_queue import db_write
+        def _do(session):
+            original = session.query(WorkflowMng).filter_by(workflow_id=workflow_id).first()
             if not original:
                 return None
-
             new_workflow = WorkflowMng(
                 workflow_id=new_workflow_id,
                 title=original.title + "-Copy",
@@ -339,15 +298,9 @@ class WorkflowMngRepository(BaseRepository[WorkflowMng]):
                 is_delete=False,
                 create_time=datetime.now()
             )
-
             session.add(new_workflow)
-            session.commit()
             return new_workflow
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_copy_workflow")
 
 
 class TaskScheduleRepository(BaseRepository[TaskSchedule]):
@@ -358,20 +311,14 @@ class TaskScheduleRepository(BaseRepository[TaskSchedule]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create task schedule and return its ID."""
-        session = get_session()
-        try:
-            schedule = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            schedule = _model(**kwargs)
             session.add(schedule)
             session.flush()
-            record_id = schedule.id
-            session.refresh(schedule)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return schedule.id
+        return db_write(_do, description="repo_create_task_schedule")
 
 
 class PromptRepository(BaseRepository[Prompt]):
@@ -428,20 +375,14 @@ class PromptFrequentRepository(BaseRepository[PromptFrequent]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create prompt frequent and return its ID."""
-        session = get_session()
-        try:
-            frequent = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            frequent = _model(**kwargs)
             session.add(frequent)
             session.flush()
-            record_id = frequent.id
-            session.refresh(frequent)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return frequent.id
+        return db_write(_do, description="repo_create_prompt_frequent")
 
     def get_all_ordered(self, **kwargs) -> List[PromptFrequent]:
         """Get all prompt frequents ordered by position."""
@@ -486,20 +427,14 @@ class LlmFrequentRepository(BaseRepository[LlmFrequent]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create LLM frequent and return its ID."""
-        session = get_session()
-        try:
-            frequent = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            frequent = _model(**kwargs)
             session.add(frequent)
             session.flush()
-            record_id = frequent.id
-            session.refresh(frequent)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return frequent.id
+        return db_write(_do, description="repo_create_llm_frequent")
 
     def get_all_ordered(self, **kwargs) -> List[LlmFrequent]:
         """Get all LLM frequents ordered by position."""

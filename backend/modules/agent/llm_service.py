@@ -56,9 +56,11 @@ class LlmConfigService:
         if config_data.get("is_default"):
             self._unset_other_defaults()
 
-        config = LlmConfig(**config_data)
-        self.db.add(config)
-        self.db.commit()
+        from db.write_queue import db_write
+        def _do(session):
+            c = LlmConfig(**config_data)
+            session.add(c)
+        db_write(_do, description="llm_service_create")
 
         return config_id
 
@@ -86,8 +88,16 @@ class LlmConfigService:
         for key, value in update_data.items():
             setattr(config, key, value)
 
-        config.update_time = datetime.now()
-        self.db.commit()
+        from db.write_queue import db_write
+        _cid = config_id
+        _update_data = update_data
+        def _do(session):
+            rec = session.query(LlmConfig).filter(LlmConfig.config_id == _cid, LlmConfig.is_delete == False).first()
+            if rec:
+                for key, value in _update_data.items():
+                    setattr(rec, key, value)
+                rec.update_time = datetime.now()
+        db_write(_do, description="llm_service_update")
 
     def delete(self, config_id: str):
         """Soft delete LLM configuration."""
@@ -99,8 +109,13 @@ class LlmConfigService:
         if not config:
             raise ValueError(f"Config not found: {config_id}")
 
-        config.is_delete = True
-        self.db.commit()
+        from db.write_queue import db_write
+        _cid = config_id
+        def _do(session):
+            rec = session.query(LlmConfig).filter(LlmConfig.config_id == _cid, LlmConfig.is_delete == False).first()
+            if rec:
+                rec.is_delete = True
+        db_write(_do, description="llm_service_delete")
 
     async def test_connection(self, test_data: LlmTestRequest) -> Dict[str, Any]:
         """Test LLM connection."""
@@ -193,10 +208,15 @@ class LlmConfigService:
             query = query.filter(LlmConfig.id != exclude_id)
 
         configs = query.all()
-        for config in configs:
-            config.is_default = False
-
-        self.db.commit()
+        _ids = [c.id for c in configs]
+        if _ids:
+            from db.write_queue import db_write
+            def _do(session):
+                for _id in _ids:
+                    rec = session.query(LlmConfig).filter(LlmConfig.id == _id).first()
+                    if rec:
+                        rec.is_default = False
+            db_write(_do, description="llm_service_unset_defaults")
 
     def _to_dict(self, config: LlmConfig) -> Dict[str, Any]:
         """Convert model to dict."""

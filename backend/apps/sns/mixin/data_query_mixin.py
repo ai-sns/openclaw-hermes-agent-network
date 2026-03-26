@@ -288,7 +288,7 @@ class DataQueryMixin:
         )
 
         try:
-            msg = f"Energy: {energy_before:.0f}% -> {float(self.aichatcfg_record.energy_point or 0):.0f}%"
+            msg = f"⚡Energy: {energy_before:.0f}% -> {float(self.aichatcfg_record.energy_point or 0):.0f}%"
             if hasattr(self, "show_alert_on_map"):
                 self.show_alert_on_map(msg, is_error=True)
             if hasattr(self, "taskmng_js"):
@@ -312,7 +312,7 @@ class DataQueryMixin:
         )
 
         try:
-            msg = f"Life: {life_before:.0f}% -> {float(self.aichatcfg_record.life_point or 0):.0f}%"
+            msg = f"❤️Life: {life_before:.0f}% -> {float(self.aichatcfg_record.life_point or 0):.0f}%"
             if hasattr(self, "show_alert_on_map"):
                 self.show_alert_on_map(msg, is_error=True)
             if hasattr(self, "taskmng_js"):

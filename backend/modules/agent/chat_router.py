@@ -195,13 +195,12 @@ def _save_chat_messages_to_db(
             )
         )
 
-        session.add_all(messages_to_save)
-        session.commit()
+        from db.write_queue import db_write
+        _msgs = messages_to_save
+        def _do(sess):
+            sess.add_all(_msgs)
+        db_write(_do, description="chat_router_save_messages")
     except Exception as e:
-        try:
-            session.rollback()
-        except Exception:
-            pass
         logger.error(f"Failed to save chat messages: {e}", exc_info=True)
     finally:
         try:

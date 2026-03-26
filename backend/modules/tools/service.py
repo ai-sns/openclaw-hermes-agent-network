@@ -40,16 +40,17 @@ class ToolsService:
         """Create a new plugin"""
         try:
             plugin_id = self._generate_id("PL")
-            db_plugin = PluginMng(
-                plugin_id=plugin_id,
-                **plugin.model_dump()
-            )
-            self.db.add(db_plugin)
-            self.db.commit()
-            self.db.refresh(db_plugin)
+            from db.write_queue import db_write
+            _dump = plugin.model_dump()
+            def _do(session):
+                p = PluginMng(plugin_id=plugin_id, **_dump)
+                session.add(p)
+                session.flush()
+                session.refresh(p)
+                return p
+            db_plugin = db_write(_do, description="tools_create_plugin")
             return PluginResponse.model_validate(db_plugin)
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error creating plugin: {e}")
             raise
 
@@ -131,15 +132,20 @@ class ToolsService:
             if not db_plugin:
                 return None
 
-            update_data = plugin.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(db_plugin, key, value)
-
-            self.db.commit()
-            self.db.refresh(db_plugin)
-            return PluginResponse.model_validate(db_plugin)
+            from db.write_queue import db_write
+            _pid = db_plugin.plugin_id
+            _update_data = plugin.model_dump(exclude_unset=True)
+            def _do(session):
+                rec = session.query(PluginMng).filter(PluginMng.plugin_id == _pid, PluginMng.is_delete == False).first()
+                if rec:
+                    for key, value in _update_data.items():
+                        setattr(rec, key, value)
+                    session.flush()
+                    session.refresh(rec)
+                return rec
+            updated = db_write(_do, description="tools_update_plugin")
+            return PluginResponse.model_validate(updated) if updated else None
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error updating plugin: {e}")
             raise
 
@@ -154,15 +160,22 @@ class ToolsService:
             if not db_plugin:
                 return False
 
-            db_plugin.is_delete = True
-            self.db.commit()
+            from db.write_queue import db_write
+            _pid = db_plugin.plugin_id
+            _ptype = db_plugin.plugin_type
+            _pdir = db_plugin.plugin_directory
+            def _do(session):
+                rec = session.query(PluginMng).filter(PluginMng.plugin_id == _pid, PluginMng.is_delete == False).first()
+                if rec:
+                    rec.is_delete = True
+            db_write(_do, description="tools_delete_plugin")
 
             # Best-effort cleanup for extracted renderer plugins.
             # This keeps DB soft-delete semantics, but also frees disk space.
             try:
-                if (db_plugin.plugin_type or '').lower() == 'renderer' and db_plugin.plugin_directory:
+                if (_ptype or '').lower() == 'renderer' and _pdir:
                     uploads_root = (Path('uploads') / 'plugins').resolve()
-                    plugin_dir = Path(str(db_plugin.plugin_directory)).resolve()
+                    plugin_dir = Path(str(_pdir)).resolve()
 
                     # Only allow deletion of uploads/plugins/<plugin_id> to avoid unsafe deletes.
                     if plugin_dir.parent == uploads_root and plugin_dir.name == str(plugin_id):
@@ -172,7 +185,6 @@ class ToolsService:
 
             return True
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error deleting plugin: {e}")
             raise
 
@@ -263,15 +275,30 @@ class ToolsService:
                     used_in_sns=bool(used_in_sns)
                 )
 
-                self.db.add(db_plugin)
-                self.db.commit()
-                self.db.refresh(db_plugin)
+                from db.write_queue import db_write  # noqa: F811
+                _plugin_data = {
+                    'plugin_id': plugin_id,
+                    'name': plugin_name,
+                    'version': plugin_version,
+                    'alias_name': plugin_alias or None,
+                    'description': plugin_desc or None,
+                    'filename': entry_url,
+                    'plugin_directory': str(target_dir).replace('\\', '/'),
+                    'plugin_type': 'renderer',
+                    'confirm_needed': True,
+                    'used_in_sns': bool(used_in_sns),
+                }
+                def _do(session):
+                    p = PluginMng(**_plugin_data)
+                    session.add(p)
+                    session.flush()
+                    session.refresh(p)
+                    return p
+                db_plugin = db_write(_do, description="tools_import_renderer_plugin")
                 return PluginResponse.model_validate(db_plugin)
         except HTTPException:
-            self.db.rollback()
             raise
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error importing renderer plugin zip: {e}")
             raise
         finally:
@@ -287,16 +314,17 @@ class ToolsService:
         """Create a new MCP"""
         try:
             mcp_id = self._generate_id("MC")
-            db_mcp = McpMng(
-                mcp_id=mcp_id,
-                **mcp.model_dump()
-            )
-            self.db.add(db_mcp)
-            self.db.commit()
-            self.db.refresh(db_mcp)
+            from db.write_queue import db_write
+            _dump = mcp.model_dump()
+            def _do(session):
+                m = McpMng(mcp_id=mcp_id, **_dump)
+                session.add(m)
+                session.flush()
+                session.refresh(m)
+                return m
+            db_mcp = db_write(_do, description="tools_create_mcp")
             return MCPResponse.model_validate(db_mcp)
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error creating MCP: {e}")
             raise
 
@@ -326,15 +354,20 @@ class ToolsService:
             if not db_mcp:
                 return None
 
-            update_data = mcp.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(db_mcp, key, value)
-
-            self.db.commit()
-            self.db.refresh(db_mcp)
-            return MCPResponse.model_validate(db_mcp)
+            from db.write_queue import db_write
+            _mid = db_mcp.mcp_id
+            _update_data = mcp.model_dump(exclude_unset=True)
+            def _do(session):
+                rec = session.query(McpMng).filter(McpMng.mcp_id == _mid, McpMng.is_delete == False).first()
+                if rec:
+                    for key, value in _update_data.items():
+                        setattr(rec, key, value)
+                    session.flush()
+                    session.refresh(rec)
+                return rec
+            updated = db_write(_do, description="tools_update_mcp")
+            return MCPResponse.model_validate(updated) if updated else None
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error updating MCP: {e}")
             raise
 
@@ -349,11 +382,15 @@ class ToolsService:
             if not db_mcp:
                 return False
 
-            db_mcp.is_delete = True
-            self.db.commit()
+            from db.write_queue import db_write
+            _mid = db_mcp.mcp_id
+            def _do(session):
+                rec = session.query(McpMng).filter(McpMng.mcp_id == _mid, McpMng.is_delete == False).first()
+                if rec:
+                    rec.is_delete = True
+            db_write(_do, description="tools_delete_mcp")
             return True
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error deleting MCP: {e}")
             raise
 
@@ -363,16 +400,17 @@ class ToolsService:
         """Create a new function"""
         try:
             function_id = self._generate_id("FN")
-            db_function = FunctionMng(
-                function_id=function_id,
-                **function.model_dump()
-            )
-            self.db.add(db_function)
-            self.db.commit()
-            self.db.refresh(db_function)
+            from db.write_queue import db_write
+            _dump = function.model_dump()
+            def _do(session):
+                f = FunctionMng(function_id=function_id, **_dump)
+                session.add(f)
+                session.flush()
+                session.refresh(f)
+                return f
+            db_function = db_write(_do, description="tools_create_function")
             return FunctionResponse.model_validate(db_function)
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error creating function: {e}")
             raise
 
@@ -402,15 +440,20 @@ class ToolsService:
             if not db_function:
                 return None
 
-            update_data = function.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(db_function, key, value)
-
-            self.db.commit()
-            self.db.refresh(db_function)
-            return FunctionResponse.model_validate(db_function)
+            from db.write_queue import db_write
+            _fid = db_function.function_id
+            _update_data = function.model_dump(exclude_unset=True)
+            def _do(session):
+                rec = session.query(FunctionMng).filter(FunctionMng.function_id == _fid, FunctionMng.is_delete == False).first()
+                if rec:
+                    for key, value in _update_data.items():
+                        setattr(rec, key, value)
+                    session.flush()
+                    session.refresh(rec)
+                return rec
+            updated = db_write(_do, description="tools_update_function")
+            return FunctionResponse.model_validate(updated) if updated else None
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error updating function: {e}")
             raise
 
@@ -425,11 +468,15 @@ class ToolsService:
             if not db_function:
                 return False
 
-            db_function.is_delete = True
-            self.db.commit()
+            from db.write_queue import db_write
+            _fid = db_function.function_id
+            def _do(session):
+                rec = session.query(FunctionMng).filter(FunctionMng.function_id == _fid, FunctionMng.is_delete == False).first()
+                if rec:
+                    rec.is_delete = True
+            db_write(_do, description="tools_delete_function")
             return True
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error deleting function: {e}")
             raise
 
@@ -439,16 +486,17 @@ class ToolsService:
         """Create a new skill"""
         try:
             skill_id = self._generate_id("SK")
-            db_skill = SkillMng(
-                skill_id=skill_id,
-                **skill.model_dump()
-            )
-            self.db.add(db_skill)
-            self.db.commit()
-            self.db.refresh(db_skill)
+            from db.write_queue import db_write
+            _dump = skill.model_dump()
+            def _do(session):
+                s = SkillMng(skill_id=skill_id, **_dump)
+                session.add(s)
+                session.flush()
+                session.refresh(s)
+                return s
+            db_skill = db_write(_do, description="tools_create_skill")
             return SkillResponse.model_validate(db_skill)
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error creating skill: {e}")
             raise
 
@@ -479,15 +527,20 @@ class ToolsService:
             if not db_skill:
                 return None
 
-            update_data = skill.model_dump(exclude_unset=True)
-            for key, value in update_data.items():
-                setattr(db_skill, key, value)
-
-            self.db.commit()
-            self.db.refresh(db_skill)
-            return SkillResponse.model_validate(db_skill)
+            from db.write_queue import db_write
+            _sid = db_skill.skill_id
+            _update_data = skill.model_dump(exclude_unset=True)
+            def _do(session):
+                rec = session.query(SkillMng).filter(SkillMng.skill_id == _sid, SkillMng.is_delete == False).first()
+                if rec:
+                    for key, value in _update_data.items():
+                        setattr(rec, key, value)
+                    session.flush()
+                    session.refresh(rec)
+                return rec
+            updated = db_write(_do, description="tools_update_skill")
+            return SkillResponse.model_validate(updated) if updated else None
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error updating skill: {e}")
             raise
 
@@ -502,11 +555,15 @@ class ToolsService:
             if not db_skill:
                 return False
 
-            db_skill.is_delete = True
-            self.db.commit()
+            from db.write_queue import db_write
+            _sid = db_skill.skill_id
+            def _do(session):
+                rec = session.query(SkillMng).filter(SkillMng.skill_id == _sid, SkillMng.is_delete == False).first()
+                if rec:
+                    rec.is_delete = True
+            db_write(_do, description="tools_delete_skill")
             return True
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Error deleting skill: {e}")
             raise
 

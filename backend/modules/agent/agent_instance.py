@@ -1028,12 +1028,16 @@ IMPORTANT Tool Usage Guidelines:
                         ))
 
                         # Batch save
-                        session.add_all(messages_to_save)
-                        session.commit()
-                        logger.info(f"Saved conversation messages to database: conversation_id={conversation_id}, count={len(messages_to_save)}")
+                        from db.write_queue import db_write
+                        _msgs = messages_to_save
+                        _cid = conversation_id
+                        _count = len(messages_to_save)
+                        def _do(sess):
+                            sess.add_all(_msgs)
+                        db_write(_do, description="agent_instance_save_messages")
+                        logger.info(f"Saved conversation messages to database: conversation_id={_cid}, count={_count}")
 
                     except Exception as save_error:
-                        session.rollback()
                         logger.error(f"Failed to save conversation messages to database: {save_error}", exc_info=True)
                     finally:
                         session.close()

@@ -96,20 +96,21 @@ class AgentToolsRepository:
                 VALUES (:agent_id, :tool_type, :tool_id, :enabled, :priority)
             """)
 
-            self.db.execute(insert_query, {
+            from db.write_queue import db_write
+            _params = {
                 "agent_id": agent_id,
                 "tool_type": tool_type,
                 "tool_id": tool_id,
                 "enabled": enabled,
                 "priority": priority
-            })
-
-            self.db.commit()
+            }
+            def _do(session):
+                session.execute(insert_query, _params)
+            db_write(_do, description="agent_tools_add")
             logger.info(f"Added tool {tool_type}/{tool_id} to agent {agent_id}")
             return True
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Failed to add agent tool: {e}")
             return False
 
@@ -131,15 +132,18 @@ class AgentToolsRepository:
                 WHERE agent_id = :agent_id AND tool_type = :tool_type AND tool_id = :tool_id
             """)
 
-            result = self.db.execute(delete_query, {
+            from db.write_queue import db_write
+            _params = {
                 "agent_id": agent_id,
                 "tool_type": tool_type,
                 "tool_id": tool_id
-            })
+            }
+            def _do(session):
+                result = session.execute(delete_query, _params)
+                return result.rowcount
+            rowcount = db_write(_do, description="agent_tools_remove")
 
-            self.db.commit()
-
-            if result.rowcount > 0:
+            if rowcount > 0:
                 logger.info(f"Removed tool {tool_type}/{tool_id} from agent {agent_id}")
                 return True
             else:
@@ -147,7 +151,6 @@ class AgentToolsRepository:
                 return False
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Failed to remove agent tool: {e}")
             return False
 
@@ -167,14 +170,16 @@ class AgentToolsRepository:
                 WHERE agent_id = :agent_id
             """)
 
-            self.db.execute(delete_query, {"agent_id": agent_id})
-            self.db.commit()
+            from db.write_queue import db_write
+            _agent_id = agent_id
+            def _do(session):
+                session.execute(delete_query, {"agent_id": _agent_id})
+            db_write(_do, description="agent_tools_clear")
 
             logger.info(f"Cleared all tools from agent {agent_id}")
             return True
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Failed to clear agent tools: {e}")
             return False
 
@@ -198,16 +203,19 @@ class AgentToolsRepository:
                 WHERE agent_id = :agent_id AND tool_type = :tool_type AND tool_id = :tool_id
             """)
 
-            result = self.db.execute(update_query, {
+            from db.write_queue import db_write
+            _params = {
                 "priority": priority,
                 "agent_id": agent_id,
                 "tool_type": tool_type,
                 "tool_id": tool_id
-            })
+            }
+            def _do(session):
+                result = session.execute(update_query, _params)
+                return result.rowcount
+            rowcount = db_write(_do, description="agent_tools_update_priority")
 
-            self.db.commit()
-
-            if result.rowcount > 0:
+            if rowcount > 0:
                 logger.info(f"Updated priority for tool {tool_type}/{tool_id} in agent {agent_id}")
                 return True
             else:
@@ -215,7 +223,6 @@ class AgentToolsRepository:
                 return False
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Failed to update tool priority: {e}")
             return False
 
@@ -239,16 +246,19 @@ class AgentToolsRepository:
                 WHERE agent_id = :agent_id AND tool_type = :tool_type AND tool_id = :tool_id
             """)
 
-            result = self.db.execute(update_query, {
+            from db.write_queue import db_write
+            _params = {
                 "enabled": 1 if enabled else 0,
                 "agent_id": agent_id,
                 "tool_type": tool_type,
                 "tool_id": tool_id
-            })
+            }
+            def _do(session):
+                result = session.execute(update_query, _params)
+                return result.rowcount
+            rowcount = db_write(_do, description="agent_tools_toggle_enabled")
 
-            self.db.commit()
-
-            if result.rowcount > 0:
+            if rowcount > 0:
                 logger.info(f"{'Enabled' if enabled else 'Disabled'} tool {tool_type}/{tool_id} for agent {agent_id}")
                 return True
             else:
@@ -256,6 +266,5 @@ class AgentToolsRepository:
                 return False
 
         except Exception as e:
-            self.db.rollback()
             logger.error(f"Failed to toggle tool enabled: {e}")
             return False

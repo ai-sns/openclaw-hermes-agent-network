@@ -43,14 +43,27 @@ class CRUDItem(CRUDBase[ModelExperience, ModelExperienceCreate, ModelExperienceU
         if len(uuid_list) < 1:
             problem = data.get("problem")[:15]
             db_model = self.model(**data, label=problem, **kwargs)
-        db.add(db_model)
-        instance = query.order_by(
-            self.model.create_time).first()
-        if instance and instance.label is None:
-            instance.label = instance.problem
-        db.commit()
-        db.refresh(db_model)
-        return db_model
+        from db.write_queue import db_write
+        _model = self.model
+        _data = data
+        _kwargs = kwargs
+        _uuid = kwargs.get("uuid")
+        _has_records = len(uuid_list) >= 1
+        def _do(session):
+            if not _has_records:
+                problem = _data.get("problem")[:15]
+                new_obj = _model(**_data, label=problem, **_kwargs)
+            else:
+                new_obj = _model(**_data, **_kwargs)
+            session.add(new_obj)
+            first = session.query(_model).filter(_model.uuid == _uuid).order_by(
+                _model.create_time).first()
+            if first and first.label is None:
+                first.label = first.problem
+            session.flush()
+            session.refresh(new_obj)
+            return new_obj
+        return db_write(_do, description="crud_save_conversation")
 
     def get_history(self, db: Session, user_id, model_id, task_id):
         query = db.query(self.model).filter(self.model.user_id == user_id, self.model.is_delete == False)
@@ -87,17 +100,32 @@ class CRUDItem(CRUDBase[ModelExperience, ModelExperienceCreate, ModelExperienceU
             query = query.filter(self.model.task_id == task_id)
         instance = query.all()
         if instance:
-            for i in instance:
-                i.is_delete = True
-            db.commit()
+            from db.write_queue import db_write
+            _model = self.model
+            _ids = [i.id for i in instance]
+            def _do(session):
+                for _id in _ids:
+                    rec = session.query(_model).filter(_model.id == _id).first()
+                    if rec:
+                        rec.is_delete = True
+            db_write(_do, description="crud_delete_history")
 
     def update_label(self, db: Session, id, user_id, label):
         instance = db.query(self.model).filter(self.model.id == id, self.model.user_id == user_id).one_or_none()
         if not instance:
             raise HTTPException(status_code=404, detail="该记录不存在")
-        instance.label = label
-        db.commit()
-        db.refresh(instance)
+        from db.write_queue import db_write
+        _model = self.model
+        _id = instance.id
+        _label = label
+        def _do(session):
+            rec = session.query(_model).filter(_model.id == _id).first()
+            if rec:
+                rec.label = _label
+                session.flush()
+                session.refresh(rec)
+            return rec
+        instance = db_write(_do, description="crud_update_label")
 
         return {
             "id": instance.id,

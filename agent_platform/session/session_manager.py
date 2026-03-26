@@ -114,8 +114,24 @@ class SessionManager:
                 expires_at=expires_at,
                 client_info=client_info or {}
             )
-            db.add(db_session)
-            db.commit()
+            from db.write_queue import db_write
+            _data = {
+                'session_id': session_id,
+                'user_id': user_id,
+                'agent_id': agent_id,
+                'thread_id': thread_id,
+                'thread_count': 1,
+                'context_data': context or {},
+                'messages': [],
+                'message_count': 0,
+                'status': 'active',
+                'expires_at': expires_at,
+                'client_info': client_info or {},
+            }
+            def _do(session):
+                rec = SessionRecord(**_data)
+                session.add(rec)
+            db_write(_do, description="session_create")
         finally:
             db.close()
 
@@ -156,8 +172,13 @@ class SessionManager:
 
             # Check if expired
             if db_session.expires_at and db_session.expires_at < datetime.now():
-                db_session.status = "expired"
-                db.commit()
+                from db.write_queue import db_write
+                _sid = db_session.session_id
+                def _do_expire(session):
+                    rec = session.query(SessionRecord).filter(SessionRecord.session_id == _sid).first()
+                    if rec:
+                        rec.status = "expired"
+                db_write(_do_expire, description="session_expire")
                 return None
 
             # Convert to Session object
@@ -234,9 +255,32 @@ class SessionManager:
                 current_metadata.update(metadata)
                 db_session.session_metadata = current_metadata
 
-            db_session.updated_at = datetime.now()
-            db_session.last_activity_at = datetime.now()
-            db.commit()
+            from db.write_queue import db_write
+            _sid = session_id
+            _context_data = context_data
+            _messages = messages
+            _agent_id = agent_id
+            _metadata = metadata
+            def _do(session):
+                rec = session.query(SessionRecord).filter(SessionRecord.session_id == _sid).first()
+                if not rec:
+                    return
+                if _context_data:
+                    cur = rec.context_data or {}
+                    cur.update(_context_data)
+                    rec.context_data = cur
+                if _messages:
+                    rec.messages = _messages
+                    rec.message_count = len(_messages)
+                if _agent_id:
+                    rec.agent_id = _agent_id
+                if _metadata:
+                    cur_meta = rec.session_metadata or {}
+                    cur_meta.update(_metadata)
+                    rec.session_metadata = cur_meta
+                rec.updated_at = datetime.now()
+                rec.last_activity_at = datetime.now()
+            db_write(_do, description="session_update")
 
             # Update cache
             session = self.get_session(session_id)
@@ -275,11 +319,17 @@ class SessionManager:
             # Append message
             messages = db_session.messages or []
             messages.append(message)
-            db_session.messages = messages
-            db_session.message_count = len(messages)
-            db_session.last_activity_at = datetime.now()
-            db_session.updated_at = datetime.now()
-            db.commit()
+            from db.write_queue import db_write
+            _sid = session_id
+            _msgs = messages
+            def _do(session):
+                rec = session.query(SessionRecord).filter(SessionRecord.session_id == _sid).first()
+                if rec:
+                    rec.messages = _msgs
+                    rec.message_count = len(_msgs)
+                    rec.last_activity_at = datetime.now()
+                    rec.updated_at = datetime.now()
+            db_write(_do, description="session_add_message")
 
             # Invalidate cache
             self._cache.pop(session_id, None)
@@ -307,9 +357,14 @@ class SessionManager:
             if not db_session:
                 return False
 
-            db_session.status = "closed"
-            db_session.updated_at = datetime.now()
-            db.commit()
+            from db.write_queue import db_write
+            _sid = session_id
+            def _do(session):
+                rec = session.query(SessionRecord).filter(SessionRecord.session_id == _sid).first()
+                if rec:
+                    rec.status = "closed"
+                    rec.updated_at = datetime.now()
+            db_write(_do, description="session_close")
 
             # Remove from cache
             self._cache.pop(session_id, None)
@@ -384,11 +439,13 @@ class SessionManager:
         """
         db = SessionLocal()
         try:
-            result = db.query(SessionRecord).filter(
-                SessionRecord.expires_at < datetime.now(),
-                SessionRecord.status == "active"
-            ).update({"status": "expired"})
-            db.commit()
+            from db.write_queue import db_write
+            def _do(session):
+                return session.query(SessionRecord).filter(
+                    SessionRecord.expires_at < datetime.now(),
+                    SessionRecord.status == "active"
+                ).update({"status": "expired"})
+            result = db_write(_do, description="session_cleanup_expired")
 
             # Clear cache
             self._cache.clear()

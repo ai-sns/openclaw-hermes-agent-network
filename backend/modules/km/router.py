@@ -41,15 +41,12 @@ async def reorder_knowledge_bases(request: Request):
             if "position" not in item:
                 raise HTTPException(status_code=422, detail=f"Item {idx} missing 'position'")
 
-        session = Session()
-        try:
-            for item in items:
-                kb_id = int(item["id"])
-                position = int(item["position"])
-                session.query(KMCfg).filter_by(id=kb_id).update({"position": position})
-            session.commit()
-        finally:
-            session.close()
+        from db.write_queue import db_write
+        _items = [(int(item["id"]), int(item["position"])) for item in items]
+        def _do(session):
+            for kid, pos in _items:
+                session.query(KMCfg).filter_by(id=kid).update({"position": pos})
+        db_write(_do, description="km_router_reorder")
 
         return {"success": True}
     except HTTPException:

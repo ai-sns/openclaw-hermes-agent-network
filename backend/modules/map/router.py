@@ -382,8 +382,13 @@ async def delete_trade(trade_id: str, db: Session = Depends(get_db_sync)):
         if not trade:
             raise HTTPException(status_code=404, detail="Trade not found")
 
-        trade.is_delete = True
-        db.commit()
+        from db.write_queue import db_write
+        _tid = trade_id
+        def _do(session):
+            rec = session.query(MapTrade).filter(MapTrade.trade_id == _tid).first()
+            if rec:
+                rec.is_delete = True
+        db_write(_do, description="map_router_delete_trade")
 
         try:
             await global_ws_manager.broadcast({

@@ -140,9 +140,12 @@ class AgentService:
                 autorunrounds=0,
                 is_show=kwargs.get('is_active', True)
             )
-            session.add(agent)
-            session.commit()
-            agent_id = agent.id
+            from db.write_queue import db_write
+            def _do(sess):
+                sess.add(agent)
+                sess.flush()
+                return agent.id
+            agent_id = db_write(_do, description="agent_service_create")
             session.close()
             return agent_id
         except Exception as e:
@@ -232,7 +235,24 @@ class AgentService:
 
         agent.memo = json.dumps(extra_data, ensure_ascii=False)
 
-        session.commit()
+        from db.write_queue import db_write
+        _aid = agent_id
+        _name = agent.name
+        _defaultmodel = agent.defaultmodel
+        _defaultrole = agent.defaultrole
+        _prompt = agent.prompt
+        _is_show = agent.is_show
+        _memo = agent.memo
+        def _do(sess):
+            rec = sess.query(AgentCfg).filter_by(id=_aid).first()
+            if rec:
+                rec.name = _name
+                rec.defaultmodel = _defaultmodel
+                rec.defaultrole = _defaultrole
+                rec.prompt = _prompt
+                rec.is_show = _is_show
+                rec.memo = _memo
+        db_write(_do, description="agent_service_update")
         session.close()
 
     @staticmethod
@@ -241,9 +261,14 @@ class AgentService:
         session = Session()
         agent = session.query(AgentCfg).filter_by(id=agent_id).first()
         if agent:
-            agent.is_delete = True
-            agent.is_show = False
-            session.commit()
+            from db.write_queue import db_write
+            _aid = agent_id
+            def _do(sess):
+                rec = sess.query(AgentCfg).filter_by(id=_aid).first()
+                if rec:
+                    rec.is_delete = True
+                    rec.is_show = False
+            db_write(_do, description="agent_service_delete")
         session.close()
 
     # ==================== Agent Tools Management ====================

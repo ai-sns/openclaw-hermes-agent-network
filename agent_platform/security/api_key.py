@@ -151,8 +151,21 @@ class APIKeyManager:
                     is_active=True,
                     expires_at=expires_at
                 )
-                db.add(api_key)
-                db.commit()
+                from db.write_queue import db_write
+                _data = {
+                    'key_hash': key_hash,
+                    'key_prefix': key_prefix,
+                    'name': name,
+                    'user_id': user_id,
+                    'scopes': scopes,
+                    'rate_limit': rate_limit,
+                    'is_active': True,
+                    'expires_at': expires_at,
+                }
+                def _do(session):
+                    rec = APIKey(**_data)
+                    session.add(rec)
+                db_write(_do, description="api_key_create")
             finally:
                 db.close()
         else:
@@ -201,8 +214,13 @@ class APIKeyManager:
                     return None
 
                 # Update last used
-                api_key.last_used_at = datetime.now()
-                db.commit()
+                from db.write_queue import db_write
+                _kh = key_hash
+                def _do_update(session):
+                    rec = session.query(APIKey).filter(APIKey.key_hash == _kh).first()
+                    if rec:
+                        rec.last_used_at = datetime.now()
+                db_write(_do_update, description="api_key_update_last_used")
 
                 return APIKeyInfo(
                     key_prefix=api_key.key_prefix,
@@ -261,8 +279,13 @@ class APIKeyManager:
                 if not api_key:
                     return False
 
-                api_key.is_active = False
-                db.commit()
+                from db.write_queue import db_write
+                _kh = key_hash
+                def _do(session):
+                    rec = session.query(APIKey).filter(APIKey.key_hash == _kh).first()
+                    if rec:
+                        rec.is_active = False
+                db_write(_do, description="api_key_revoke")
                 return True
             finally:
                 db.close()
@@ -290,8 +313,13 @@ class APIKeyManager:
                 if not api_key:
                     return False
 
-                api_key.is_active = False
-                db.commit()
+                from db.write_queue import db_write
+                _kp = key_prefix
+                def _do(session):
+                    rec = session.query(APIKey).filter(APIKey.key_prefix == _kp).first()
+                    if rec:
+                        rec.is_active = False
+                db_write(_do, description="api_key_revoke_by_prefix")
                 return True
             finally:
                 db.close()
@@ -409,8 +437,14 @@ class APIKeyManager:
                 if not api_key:
                     return False
 
-                api_key.rate_limit = rate_limit
-                db.commit()
+                from db.write_queue import db_write
+                _kp = key_prefix
+                _rl = rate_limit
+                def _do(session):
+                    rec = session.query(APIKey).filter(APIKey.key_prefix == _kp).first()
+                    if rec:
+                        rec.rate_limit = _rl
+                db_write(_do, description="api_key_update_rate_limit")
                 return True
             finally:
                 db.close()
@@ -439,8 +473,14 @@ class APIKeyManager:
                 if not api_key:
                     return False
 
-                api_key.scopes = scopes
-                db.commit()
+                from db.write_queue import db_write
+                _kp = key_prefix
+                _scopes = scopes
+                def _do(session):
+                    rec = session.query(APIKey).filter(APIKey.key_prefix == _kp).first()
+                    if rec:
+                        rec.scopes = _scopes
+                db_write(_do, description="api_key_update_scopes")
                 return True
             finally:
                 db.close()

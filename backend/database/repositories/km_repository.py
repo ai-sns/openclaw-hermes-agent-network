@@ -38,20 +38,14 @@ class KMDataRepository(BaseRepository[KMData]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create KM data and return its ID."""
-        session = get_session()
-        try:
-            data = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            data = _model(**kwargs)
             session.add(data)
             session.flush()
-            record_id = data.id
-            session.refresh(data)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return data.id
+        return db_write(_do, description="repo_create_km_data")
 
 
 class NoteMngRepository(BaseRepository[NoteMng]):
@@ -62,20 +56,14 @@ class NoteMngRepository(BaseRepository[NoteMng]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create note and return its ID."""
-        session = get_session()
-        try:
-            note = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            note = _model(**kwargs)
             session.add(note)
             session.flush()
-            record_id = note.id
-            session.refresh(note)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return note.id
+        return db_write(_do, description="repo_create_note_mng")
 
     def get_all_with_label_filter(self, count: int, label: bool = False, **kwargs) -> List[NoteMng]:
         """Get all notes with optional label filter and limit."""

@@ -184,18 +184,25 @@ class KMService:
                 f.write(content)
 
             # Insert into km_data
-            cursor.execute("""
-                INSERT INTO km_data (km_id, filename, filenum, waitvectorization, is_delete, create_time)
-                VALUES (?, ?, 1, 1, 0, datetime('now'))
-            """, (km_id_str, filename))
-
-            file_id = cursor.lastrowid
-            conn.commit()
+            from db.write_queue import db_write
+            from sqlalchemy import text as sa_text
+            _km_id_str = km_id_str
+            _filename = filename
+            def _do_insert(session):
+                session.execute(sa_text(
+                    "INSERT INTO km_data (km_id, filename, filenum, waitvectorization, is_delete, create_time) "
+                    "VALUES (:km_id, :filename, 1, 1, 0, datetime('now'))"
+                ), {"km_id": _km_id_str, "filename": _filename})
+                session.flush()
+                row = session.execute(sa_text("SELECT last_insert_rowid()")).scalar()
+                return row
+            file_id = db_write(_do_insert, description="km_service_insert_file")
 
             text = DocumentLoader.load_document(file_path)
             if not text:
-                cursor.execute("DELETE FROM km_data WHERE id = ?", (file_id,))
-                conn.commit()
+                def _do_delete(session):
+                    session.execute(sa_text("DELETE FROM km_data WHERE id = :fid"), {"fid": file_id})
+                db_write(_do_delete, description="km_service_delete_failed_file")
                 try:
                     file_path.unlink(missing_ok=True)
                 except Exception:
@@ -216,11 +223,13 @@ class KMService:
                     overlap=overlap
                 )
 
-                cursor.execute(
-                    "UPDATE km_data SET waitvectorization = 0, filenum = ? WHERE id = ?",
-                    (int(chunks_count or 0), file_id)
-                )
-                conn.commit()
+                _chunks = int(chunks_count or 0)
+                _fid = file_id
+                def _do_update_vec(session):
+                    session.execute(sa_text(
+                        "UPDATE km_data SET waitvectorization = 0, filenum = :chunks WHERE id = :fid"
+                    ), {"chunks": _chunks, "fid": _fid})
+                db_write(_do_update_vec, description="km_service_update_vectorization")
                 logger.info(f"Vectorized file {filename} into {chunks_count} chunks")
             except Exception as e:
                 logger.error(f"Error vectorizing file {filename}: {e}")
@@ -251,13 +260,12 @@ class KMService:
                     logger.error(f"Error deleting vectors for file {file_id}: {e}")
 
             # Mark as deleted in database
-            cursor.execute("""
-                UPDATE km_data
-                SET is_delete = 1
-                WHERE id = ?
-            """, (file_id,))
-
-            conn.commit()
+            from db.write_queue import db_write
+            from sqlalchemy import text as sa_text
+            _fid = file_id
+            def _do(session):
+                session.execute(sa_text("UPDATE km_data SET is_delete = 1 WHERE id = :fid"), {"fid": _fid})
+            db_write(_do, description="km_service_delete_file")
         finally:
             conn.close()
 
@@ -340,13 +348,18 @@ class KMService:
 
             km_id_str = row[0]
 
-            cursor.execute("""
-                INSERT INTO key_value (key, value, km_id)
-                VALUES (?, ?, ?)
-            """, (key, value, km_id_str))
-
-            kv_id = cursor.lastrowid
-            conn.commit()
+            from db.write_queue import db_write
+            from sqlalchemy import text as sa_text
+            _key = key
+            _value = value
+            _km_id = km_id_str
+            def _do(session):
+                session.execute(sa_text(
+                    "INSERT INTO key_value (key, value, km_id) VALUES (:key, :value, :km_id)"
+                ), {"key": _key, "value": _value, "km_id": _km_id})
+                session.flush()
+                return session.execute(sa_text("SELECT last_insert_rowid()")).scalar()
+            kv_id = db_write(_do, description="km_service_add_kv")
 
             return kv_id
         finally:
@@ -367,13 +380,17 @@ class KMService:
 
             km_id_str = row[0]
 
-            cursor.execute("""
-                UPDATE key_value
-                SET key = ?, value = ?
-                WHERE id = ? AND km_id = ?
-            """, (key, value, kv_id, km_id_str))
-
-            conn.commit()
+            from db.write_queue import db_write
+            from sqlalchemy import text as sa_text
+            _key = key
+            _value = value
+            _kv_id = kv_id
+            _km_id = km_id_str
+            def _do(session):
+                session.execute(sa_text(
+                    "UPDATE key_value SET key = :key, value = :value WHERE id = :kv_id AND km_id = :km_id"
+                ), {"key": _key, "value": _value, "kv_id": _kv_id, "km_id": _km_id})
+            db_write(_do, description="km_service_update_kv")
         finally:
             conn.close()
 
@@ -392,11 +409,14 @@ class KMService:
 
             km_id_str = row[0]
 
-            cursor.execute("""
-                DELETE FROM key_value
-                WHERE id = ? AND km_id = ?
-            """, (kv_id, km_id_str))
-
-            conn.commit()
+            from db.write_queue import db_write
+            from sqlalchemy import text as sa_text
+            _kv_id = kv_id
+            _km_id = km_id_str
+            def _do(session):
+                session.execute(sa_text(
+                    "DELETE FROM key_value WHERE id = :kv_id AND km_id = :km_id"
+                ), {"kv_id": _kv_id, "km_id": _km_id})
+            db_write(_do, description="km_service_delete_kv")
         finally:
             conn.close()

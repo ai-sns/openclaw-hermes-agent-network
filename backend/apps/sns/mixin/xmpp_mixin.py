@@ -283,6 +283,35 @@ class XmppMixin:
             if not back_ground:
                 self._update_ui_with_sent_message(to_jid, stored_content)
 
+            try:
+                if by_click and bool(getattr(self, "human_take_over", False)):
+                    try:
+                        if to_jid not in self.talk_history:
+                            self.talk_history[to_jid] = []
+                        self.talk_history[to_jid].append("Me:" + content)
+                    except Exception:
+                        pass
+
+                    active_account = ""
+                    try:
+                        active = getattr(self, "active_conversation", None) or {}
+                        active_account = (active.get("account") or "").strip()
+                    except Exception:
+                        active_account = ""
+
+                    if bool(active_account) and active_account == to_jid:
+                        try:
+                            self.current_talk_history.append("Me:" + content)
+                        except Exception:
+                            pass
+                        try:
+                            if hasattr(self, "_touch_conversation_activity"):
+                                self._touch_conversation_activity(to_jid)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
             logger.info(f"Message sent successfully to {to_jid}")
             return True
 
@@ -324,61 +353,50 @@ class XmppMixin:
             to_name: Receiver name
         """
         try:
-            conversation_id = self.conversation_id or f"{self.ai_chat_cfg.account}_{to_jid}"
-            add_AIChatMessages(
-                conversation_id,
-                0,
-                "",
-                content,
-                self.ai_chat_cfg.name,
-                self.ai_chat_cfg.account,
-                to_name,
-                to_jid,
-                False
-            )
+            from db.write_queue import db_write
 
-            try:
-                owner_account = self.ai_chat_cfg.account
-                friend = self.db.query(AIFriend).filter(
+            owner_account = (getattr(self.ai_chat_cfg, "account", "") or "").strip()
+            owner_name = getattr(self.ai_chat_cfg, "name", "") or owner_account
+            conversation_id = getattr(self, "conversation_id", "") or f"{owner_account}_{to_jid}"
+            _to_jid = (to_jid or "").strip()
+            _to_name = (to_name or "").strip() or _to_jid
+            _stored_content = content
+
+            def _save_all(session):
+                friend = session.query(AIFriend).filter(
                     AIFriend.is_delete == False,
                     AIFriend.owner_sns_account == owner_account,
-                    AIFriend.account == to_jid,
+                    AIFriend.account == _to_jid,
                 ).first()
-
                 if friend:
                     if not friend.nick_name:
-                        friend.nick_name = to_name or to_jid
+                        friend.nick_name = _to_name or _to_jid
                 else:
                     friend = AIFriend(
-                        account=to_jid,
-                        nick_name=(to_name or to_jid),
+                        account=_to_jid,
+                        nick_name=(_to_name or _to_jid),
                         groups="",
                         owner_sns_account=owner_account,
                         subscription="none",
                         new_message_flag=False,
                         last_message_time=datetime.now(),
                     )
-                    self.db.add(friend)
+                    session.add(friend)
 
+                message = AIChatMessages(
+                    conversation_id=conversation_id,
+                    flag=0,
+                    content=_stored_content,
+                    owner_account=owner_account,
+                    friend_account=_to_jid,
+                    owner_name=owner_name,
+                    friend_name=_to_name,
+                )
+                session.add(message)
+                session.flush()
+
+                friend.new_message_flag = False
                 friend.last_message_time = datetime.now()
-                # Retry commit on database lock (long-lived session is prone to contention)
-                _max_retries = 3
-                for _attempt in range(1, _max_retries + 1):
-                    try:
-                        self.db.commit()
-                        break
-                    except Exception as _commit_err:
-                        if 'database is locked' in str(_commit_err).lower() and _attempt < _max_retries:
-                            _wait = 0.5 * (2 ** (_attempt - 1))
-                            logger.warning(
-                                "[XmppMixin] database is locked on self.db.commit (attempt %d/%d), retrying in %.1fs...",
-                                _attempt, _max_retries, _wait
-                            )
-                            self.db.rollback()
-                            import time as _time_mod
-                            _time_mod.sleep(_wait)
-                        else:
-                            raise
 
                 contact_payload = {
                     'account': friend.account,
@@ -386,33 +404,35 @@ class XmppMixin:
                     'new_message_flag': bool(friend.new_message_flag),
                     'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
                 }
+                msg_payload = {
+                    'id': message.id,
+                    'from_account': _to_jid,
+                    'content': message.content,
+                    'flag': 0,
+                    'create_time': message.create_time.isoformat() if message.create_time else None,
+                    'contact': contact_payload,
+                }
 
+                return {
+                    'contact': contact_payload,
+                    'message': msg_payload,
+                }
+
+            result = db_write(_save_all, description="xmpp_mixin_save_outgoing")
+            contact_payload = (result or {}).get('contact')
+            msg_payload = (result or {}).get('message')
+
+            if contact_payload:
                 asyncio.create_task(websocket_manager.broadcast({
                     'type': 'contact_upserted',
                     'data': contact_payload
                 }))
 
-                msg = self.db.query(AIChatMessages).filter(
-                    AIChatMessages.is_delete == False,
-                    AIChatMessages.owner_account == owner_account,
-                    AIChatMessages.friend_account == to_jid,
-                    AIChatMessages.flag == 0,
-                ).order_by(AIChatMessages.create_time.desc()).first()
-
-                if msg:
-                    asyncio.create_task(websocket_manager.broadcast({
-                        'type': 'new_message',
-                        'data': {
-                            'id': msg.id,
-                            'from_account': to_jid,
-                            'content': msg.content,
-                            'flag': 0,
-                            'create_time': msg.create_time.isoformat() if msg.create_time else None,
-                            'contact': contact_payload,
-                        }
-                    }))
-            except Exception as e:
-                logger.error(f"Failed to upsert contact while saving message: {e}")
+            if msg_payload:
+                asyncio.create_task(websocket_manager.broadcast({
+                    'type': 'new_message',
+                    'data': msg_payload,
+                }))
 
             logger.debug(f"Message saved to database for conversation {conversation_id}")
         except Exception as e:

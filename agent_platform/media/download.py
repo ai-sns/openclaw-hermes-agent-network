@@ -83,9 +83,14 @@ class FileDownloader:
             ).first()
 
             if file_record:
-                file_record.download_count += 1
-                file_record.last_accessed_at = datetime.now()
-                db.commit()
+                from db.write_queue import db_write
+                _fid = file_id
+                def _do(session):
+                    rec = session.query(FileUpload).filter(FileUpload.file_id == _fid).first()
+                    if rec:
+                        rec.download_count += 1
+                        rec.last_accessed_at = datetime.now()
+                db_write(_do, description="media_update_download_stats")
         finally:
             db.close()
 

@@ -42,15 +42,12 @@ async def reorder_agents(request: Request):
             if "position" not in item:
                 raise HTTPException(status_code=422, detail=f"Item {idx} missing 'position'")
 
-        session = Session()
-        try:
-            for item in items:
-                agent_id = int(item["id"])
-                position = int(item["position"])
-                session.query(AgentCfg).filter_by(id=agent_id).update({"position": position})
-            session.commit()
-        finally:
-            session.close()
+        from db.write_queue import db_write
+        _items = [(int(item["id"]), int(item["position"])) for item in items]
+        def _do(session):
+            for aid, pos in _items:
+                session.query(AgentCfg).filter_by(id=aid).update({"position": pos})
+        db_write(_do, description="agent_router_reorder")
 
         return {"success": True}
     except HTTPException:
@@ -248,8 +245,14 @@ async def update_agent_model_params(agent_id: int, params: AgentModelParamsUpdat
             extra_data['model_params'] = merged
 
             import json
-            agent.memo = json.dumps(extra_data, ensure_ascii=False)
-            session.commit()
+            from db.write_queue import db_write
+            _aid = agent_id
+            _memo = json.dumps(extra_data, ensure_ascii=False)
+            def _do(sess):
+                rec = sess.query(AgentCfg).filter_by(id=_aid).first()
+                if rec:
+                    rec.memo = _memo
+            db_write(_do, description="agent_router_update_model_params")
         finally:
             session.close()
 
@@ -417,8 +420,14 @@ async def update_agent_knowledge_bases(agent_id: int, request_body: dict):
         if not agent:
             raise HTTPException(status_code=404, detail="Agent not found")
 
-        agent.kms = ','.join(normalized)
-        session.commit()
+        from db.write_queue import db_write
+        _aid = agent_id
+        _kms = ','.join(normalized)
+        def _do(sess):
+            rec = sess.query(AgentCfg).filter_by(id=_aid).first()
+            if rec:
+                rec.kms = _kms
+        db_write(_do, description="agent_router_update_kms")
 
         agent_manager = AgentManager()
         agent_manager.reload_agent(agent_id)

@@ -72,13 +72,19 @@ class CRUDItem(CRUDBase[Model, ModelCreate, ModelUpdate]):
 
     def update_model(self, id, type, obj_in: ModelUpdate, db: Session):
         if obj_in:
+            from db.write_queue import db_write
             data = obj_in.dict(exclude_unset=True)
-            db.query(self.model).filter(self.model.id == id, self.model.type == type).update(data)
-            db.commit()
+            _model = self.model
+            def _do(session):
+                session.query(_model).filter(_model.id == id, _model.type == type).update(data)
+            db_write(_do, description="crud_update_model")
 
     def delete_model(self, id, type, db: Session):
-        db.query(self.model).filter(self.model.id == id, self.model.type == type).delete()
-        db.commit()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            session.query(_model).filter(_model.id == id, _model.type == type).delete()
+        db_write(_do, description="crud_delete_model")
 
 
 CrudModel = CRUDItem(Model)

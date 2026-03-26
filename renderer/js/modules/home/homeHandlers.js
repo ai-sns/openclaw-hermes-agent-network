@@ -76,10 +76,6 @@ const homeHandlers = {
                 const snsValue = (localCfg.ai_sns_server && String(localCfg.ai_sns_server).trim())
                     ? String(localCfg.ai_sns_server)
                     : (remoteCfg.ai_sns_server || '');
-
-                const timeoutValue = (remoteCfg && remoteCfg.conversation_timeout_seconds !== undefined && remoteCfg.conversation_timeout_seconds !== null)
-                    ? String(remoteCfg.conversation_timeout_seconds)
-                    : '60';
                 const cooldownValue = (remoteCfg && remoteCfg.contact_cooldown_seconds !== undefined && remoteCfg.contact_cooldown_seconds !== null)
                     ? String(remoteCfg.contact_cooldown_seconds)
                     : '300';
@@ -120,7 +116,6 @@ const homeHandlers = {
 
                 const agentInput = modal.element?.querySelector('#homeCfgAgentServer');
                 const snsInput = modal.element?.querySelector('#homeCfgAiSnsServer');
-                const timeoutInput = modal.element?.querySelector('#homeCfgConversationTimeoutSeconds');
                 const cooldownInput = modal.element?.querySelector('#homeCfgContactCooldownSeconds');
                 const recentLimitInput = modal.element?.querySelector('#homeCfgContactRecentLimit');
                 const compactEveryInput = modal.element?.querySelector('#homeCfgProcessInfoCompactEveryN');
@@ -136,9 +131,6 @@ const homeHandlers = {
                 }
                 if (snsInput) {
                     snsInput.value = snsValue;
-                }
-                if (timeoutInput) {
-                    timeoutInput.value = timeoutValue;
                 }
                 if (cooldownInput) {
                     cooldownInput.value = cooldownValue;
@@ -188,10 +180,6 @@ const homeHandlers = {
                     <div class="setting-group">
                         <label>AI-SNS Server <a href="#" id="homeCfgAiSnsHelp" style="font-size:12px;">help</a></label>
                         <input type="text" class="setting-input" id="homeCfgAiSnsServer" value="" placeholder="http://..." />
-                    </div>
-                    <div class="setting-group">
-                        <label>Conversation Timeout (seconds)</label>
-                        <input type="number" min="5" max="3600" step="1" class="setting-input" id="homeCfgConversationTimeoutSeconds" value="" placeholder="60" />
                     </div>
                     <div class="setting-group">
                         <label>Contact Cooldown (seconds)</label>
@@ -281,7 +269,6 @@ const homeHandlers = {
                     const agent_server = (modal.element?.querySelector('#homeCfgAgentServer')?.value || '').trim();
                     const ai_sns_server = (modal.element?.querySelector('#homeCfgAiSnsServer')?.value || '').trim();
 
-                    const timeoutRaw = (modal.element?.querySelector('#homeCfgConversationTimeoutSeconds')?.value || '').trim();
                     const cooldownRaw = (modal.element?.querySelector('#homeCfgContactCooldownSeconds')?.value || '').trim();
                     const recentLimitRaw = (modal.element?.querySelector('#homeCfgContactRecentLimit')?.value || '').trim();
 
@@ -293,7 +280,6 @@ const homeHandlers = {
 
                     const memory_enabled = !!(modal.element?.querySelector('#homeCfgMemoryEnabled')?.checked);
 
-                    const conversation_timeout_seconds = timeoutRaw ? parseInt(timeoutRaw, 10) : 60;
                     const contact_cooldown_seconds = cooldownRaw ? parseInt(cooldownRaw, 10) : 300;
                     const contact_recent_limit = recentLimitRaw ? parseInt(recentLimitRaw, 10) : 3;
 
@@ -303,9 +289,6 @@ const homeHandlers = {
 
                     const log_retention_days = logRetentionRaw ? parseInt(logRetentionRaw, 10) : 3;
 
-                    if (!Number.isFinite(conversation_timeout_seconds) || conversation_timeout_seconds < 5 || conversation_timeout_seconds > 3600) {
-                        throw new Error('Conversation Timeout must be between 5 and 3600 seconds');
-                    }
                     if (!Number.isFinite(contact_cooldown_seconds) || contact_cooldown_seconds < 0 || contact_cooldown_seconds > 86400) {
                         throw new Error('Contact Cooldown must be between 0 and 86400 seconds');
                     }
@@ -351,7 +334,6 @@ const homeHandlers = {
                             const remoteRes = await window.api.put('/api/system/config', {
                                 agent_server,
                                 ai_sns_server,
-                                conversation_timeout_seconds,
                                 contact_cooldown_seconds,
                                 contact_recent_limit,
                                 process_info_compact_every_n,

@@ -56,25 +56,13 @@ import time
 import logging
 _dbfactory_logger = logging.getLogger(__name__)
 
+from db.write_queue import db_write
+
 
 def _commit_with_retry(session, max_retries=3, base_delay=0.5):
-    """Commit a session with retry on database lock errors (exponential backoff)."""
-    for attempt in range(1, max_retries + 1):
-        try:
-            session.commit()
-            return
-        except Exception as e:
-            err_msg = str(e).lower()
-            if 'database is locked' in err_msg and attempt < max_retries:
-                wait = base_delay * (2 ** (attempt - 1))
-                _dbfactory_logger.warning(
-                    "[DBFactory] database is locked on commit (attempt %d/%d), retrying in %.1fs...",
-                    attempt, max_retries, wait
-                )
-                session.rollback()
-                time.sleep(wait)
-            else:
-                raise
+    """Deprecated: kept only for backward compatibility with memory_store imports.
+    New code should use db_write() from db.write_queue instead."""
+    session.commit()
 
 
 class User(Base):
@@ -120,23 +108,20 @@ class AIChatMessages(Base):
 def add_AIChatMessages(conversation_id, flag, title, content, owner_name, owner_account, friend_name, friend_account,
                        is_first=False, attachment_list="", document_content="", image_json="", km_list="",
                        km_content=""):
-    session = Session()
     try:
-        try:
-            from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
-            content = format_internal_xmpp_message_for_storage(content)
-        except Exception:
-            pass
+        from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+        content = format_internal_xmpp_message_for_storage(content)
+    except Exception:
+        pass
 
-        ai_friend = AIChatMessages(conversation_id=conversation_id, flag=flag, title=title, content=content,
-                                   owner_name=owner_name, owner_account=owner_account, friend_name=friend_name,
-                                   friend_account=friend_account, is_first=is_first, attachment_list=attachment_list,
-                                   document_content=document_content, image_json=image_json, km_list=km_list,
-                                   km_content=km_content)
-        session.add(ai_friend)
-        _commit_with_retry(session)
-    finally:
-        session.close()
+    def _do(session):
+        record = AIChatMessages(conversation_id=conversation_id, flag=flag, title=title, content=content,
+                                owner_name=owner_name, owner_account=owner_account, friend_name=friend_name,
+                                friend_account=friend_account, is_first=is_first, attachment_list=attachment_list,
+                                document_content=document_content, image_json=image_json, km_list=km_list,
+                                km_content=km_content)
+        session.add(record)
+    db_write(_do, description="add_AIChatMessages")
 
 
 def query_map_activity_previous(last_record_id=None, count=20, type_str=None):
@@ -273,31 +258,28 @@ def query_AIChatMessages_Search_First(agent_id, task_id, label: bool = False):
 
 
 def update_AIChatMessages(id, **kwargs):
-    session = Session()
-    record = session.query(AIChatMessages).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIChatMessages).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AIChatMessages")
 
 
 def update_AIChatMessages_stick(id, value=None, key: str = 'stick_time'):
-    session = Session()
-    task = session.query(AIChatMessages).filter_by(id=id).first()
-    if task:
-        setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AIChatMessages).filter_by(id=id).first()
+        if task:
+            setattr(task, key, value)
+    db_write(_do, description="update_AIChatMessages_stick")
 
 
 def delete_AIChatMessages(id):
-    session = Session()
-    record = session.query(AIChatMessages).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIChatMessages).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_AIChatMessages")
 
 
 def query_AIChat_Content(id, **kwargs):
@@ -389,11 +371,10 @@ class AIFriend(Base):
 
 
 def add_AIFriend(account, nick_name, groups, owner_sns_account, memo, sign, subscription, name, borndate, gender, area, city, address, mail, phone, organization, title, position):
-    session = Session()
-    ai_friend = AIFriend(account=account, nick_name=nick_name, groups=groups, owner_sns_account=owner_sns_account, memo=memo, sign=sign, subscription=subscription, name=name, borndate=borndate, gender=gender, area=area, city=city, address=address, mail=mail, phone=phone, organization=organization, title=title, position=position)
-    session.add(ai_friend)
-    session.commit()
-    session.close()
+    def _do(session):
+        ai_friend = AIFriend(account=account, nick_name=nick_name, groups=groups, owner_sns_account=owner_sns_account, memo=memo, sign=sign, subscription=subscription, name=name, borndate=borndate, gender=gender, area=area, city=city, address=address, mail=mail, phone=phone, organization=organization, title=title, position=position)
+        session.add(ai_friend)
+    db_write(_do, description="add_AIFriend")
 
 
 def query_AIFriend_All(**kwargs):
@@ -418,32 +399,29 @@ def query_AIFriend(**kwargs):
 
 
 def update_AIFriend_ById(id, **kwargs):
-    session = Session()
-    record = session.query(AIFriend).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIFriend).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AIFriend_ById")
 
 
 def update_AIFriend(account, owner_sns_account, **kwargs):
-    session = Session()
-    record = session.query(AIFriend).filter_by(account=account, owner_sns_account=owner_sns_account).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIFriend).filter_by(account=account, owner_sns_account=owner_sns_account).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AIFriend")
 
 
 def delete_AIFriend(id):
-    session = Session()
-    record = session.query(AIFriend).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIFriend).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_AIFriend")
 
 
 class AIChatInform(Base):
@@ -463,11 +441,10 @@ class AIChatInform(Base):
 
 
 def add_AIChatInform(inform_id, title, content, type, status, owner_name, owner_account, friend_name, friend_account):
-    session = Session()
-    ai_friend = AIChatInform(inform_id=inform_id, title=title, content=content, type=type, status=status, owner_name=owner_name, owner_account=owner_account, friend_name=friend_name, friend_account=friend_account)
-    session.add(ai_friend)
-    session.commit()
-    session.close()
+    def _do(session):
+        record = AIChatInform(inform_id=inform_id, title=title, content=content, type=type, status=status, owner_name=owner_name, owner_account=owner_account, friend_name=friend_name, friend_account=friend_account)
+        session.add(record)
+    db_write(_do, description="add_AIChatInform")
 
 
 def query_AIChatInform_All(**kwargs):
@@ -485,22 +462,20 @@ def query_AIChatInform(**kwargs):
 
 
 def update_AIChatInform(id, **kwargs):
-    session = Session()
-    record = session.query(AIChatInform).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIChatInform).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AIChatInform")
 
 
 def delete_AIChatInform(id):
-    session = Session()
-    record = session.query(AIChatInform).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AIChatInform).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_AIChatInform")
 
 
 class AgentTask(Base):
@@ -526,21 +501,14 @@ class AgentTask(Base):
 
 def add_AgentTask(task_id, title, problem, answer, model_name, agent_id, is_first=True, attachment_list="",
                   document_content="", image_json=""):
-    session = Session()
-    new_task = AgentTask(task_id=task_id, title=title, problem=problem, answer=answer, model_name=model_name,
-                         agent_id=agent_id, is_first=is_first, attachment_list=attachment_list,
-                         document_content=document_content, image_json=image_json)
-    session.add(new_task)
-    session.flush()
-    record_id = new_task.id
-    session.refresh(new_task)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_task = AgentTask(task_id=task_id, title=title, problem=problem, answer=answer, model_name=model_name,
+                             agent_id=agent_id, is_first=is_first, attachment_list=attachment_list,
+                             document_content=document_content, image_json=image_json)
+        session.add(new_task)
+        session.flush()
+        return new_task.id
+    return db_write(_do, description="add_AgentTask")
 
 
 def query_AgentTask(label: bool = False, **kwargs):
@@ -665,51 +633,40 @@ def query_AgentTask_Search_First(agent_id, task_id, label: bool = False):
 
 
 def update_AgentTask(id, **kwargs):
-    session = Session()
-    task = session.query(AgentTask).filter_by(id=id).first()
-    if task:
-        for key, value in kwargs.items():
-            setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTask).filter_by(id=id).first()
+        if task:
+            for key, value in kwargs.items():
+                setattr(task, key, value)
+    db_write(_do, description="update_AgentTask")
 
 
 def update_AgentTask_stick(id, action: int = 1, key: str = 'stick_time'):
-    session = Session()
     if action == 1:
         value = datetime.now()
     else:
         value = None
-    task = session.query(AgentTask).filter_by(id=id).first()
-    if task:
-        setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTask).filter_by(id=id).first()
+        if task:
+            setattr(task, key, value)
+    db_write(_do, description="update_AgentTask_stick")
 
 
 def delete_AgentTask(id):
-    session = Session()
-    task = session.query(AgentTask).filter_by(id=id).first()
-    if task:
-        session.delete(task)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTask).filter_by(id=id).first()
+        if task:
+            session.delete(task)
+    db_write(_do, description="delete_AgentTask")
 
 
 def deleteTasksFromDatabase(id_value):
-    session = Session()
-    try:
+    def _do(session):
         task = session.query(AgentTask).filter_by(id=id_value).first()
         if task:
-            task_id = task.task_id
-
-            session.query(AgentTask).filter_by(task_id=task_id).delete()
-            session.commit()
-    except Exception as e:
-        print(e)
-        session.rollback()
-    finally:
-        session.close()
+            session.query(AgentTask).filter_by(task_id=task.task_id).delete()
+    db_write(_do, description="deleteTasksFromDatabase")
 
 
 class AgentCfg(Base):
@@ -763,12 +720,11 @@ class AgentCfg(Base):
 
 
 def add_AgentCfg(user_id, name, memo, borndate, borncontry, language, gender, joinfederation, syncfederation, federationid, defaultmodel, defaultrole, lastmodel, lastrole, specialization, plugins, kms, last_plugins, last_kms, prompt, snsaccount, snsnickname, islimittotalmessage, islimitmessagepp, totalmessages, ppmessages, readfile, writefile, deletefile, execfile, uselastmodel, uselastrole, uselastplugins, uselastkms, callpluginbyinstruct, modelfrequent, rolefrequent, multimodelfrequent, autorunrounds):
-    session = Session()
-    agentcfg = AgentCfg(user_id=user_id, name=name, memo=memo, borndate=borndate, borncontry=borncontry, language=language, gender=gender, joinfederation=joinfederation, syncfederation=syncfederation, federationid=federationid, defaultmodel=defaultmodel, defaultrole=defaultrole, lastmodel=lastmodel, lastrole=lastrole, specialization=specialization, plugins=plugins, kms=kms, last_plugins=last_plugins, last_kms=last_kms, prompt=prompt, snsaccount=snsaccount, snsnickname=snsnickname, islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp, totalmessages=totalmessages, ppmessages=ppmessages, readfile=readfile, writefile=writefile, deletefile=deletefile, execfile=execfile, uselastmodel=uselastmodel, uselastrole=uselastrole, uselastplugins=uselastplugins, uselastkms=uselastkms, callpluginbyinstruct=callpluginbyinstruct, modelfrequent=modelfrequent,
-                        rolefrequent=rolefrequent, multimodelfrequent=multimodelfrequent, autorunrounds=autorunrounds)
-    session.add(agentcfg)
-    session.commit()
-    session.close()
+    def _do(session):
+        agentcfg = AgentCfg(user_id=user_id, name=name, memo=memo, borndate=borndate, borncontry=borncontry, language=language, gender=gender, joinfederation=joinfederation, syncfederation=syncfederation, federationid=federationid, defaultmodel=defaultmodel, defaultrole=defaultrole, lastmodel=lastmodel, lastrole=lastrole, specialization=specialization, plugins=plugins, kms=kms, last_plugins=last_plugins, last_kms=last_kms, prompt=prompt, snsaccount=snsaccount, snsnickname=snsnickname, islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp, totalmessages=totalmessages, ppmessages=ppmessages, readfile=readfile, writefile=writefile, deletefile=deletefile, execfile=execfile, uselastmodel=uselastmodel, uselastrole=uselastrole, uselastplugins=uselastplugins, uselastkms=uselastkms, callpluginbyinstruct=callpluginbyinstruct, modelfrequent=modelfrequent,
+                            rolefrequent=rolefrequent, multimodelfrequent=multimodelfrequent, autorunrounds=autorunrounds)
+        session.add(agentcfg)
+    db_write(_do, description="add_AgentCfg")
 
 
 def query_AgentCfg_All(**kwargs):
@@ -788,32 +744,29 @@ def query_AgentCfg(**kwargs):
 
 
 def update_AgentCfg(id, **kwargs):
-    session = Session()
-    agent = session.query(AgentCfg).filter_by(id=id).first()
-    if agent:
-        for key, value in kwargs.items():
-            setattr(agent, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        agent = session.query(AgentCfg).filter_by(id=id).first()
+        if agent:
+            for key, value in kwargs.items():
+                setattr(agent, key, value)
+    db_write(_do, description="update_AgentCfg")
 
 
 def update_AgentCfg_by_user_id(user_id, **kwargs):
-    session = Session()
-    agent = session.query(AgentCfg).filter_by(user_id=user_id).first()
-    if agent:
-        for key, value in kwargs.items():
-            setattr(agent, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        agent = session.query(AgentCfg).filter_by(user_id=user_id).first()
+        if agent:
+            for key, value in kwargs.items():
+                setattr(agent, key, value)
+    db_write(_do, description="update_AgentCfg_by_user_id")
 
 
 def delete_AgentCfg(user_id):
-    session = Session()
-    agent = session.query(AgentCfg).filter_by(user_id=user_id).first()
-    if agent:
-        session.delete(agent)
-        session.commit()
-    session.close()
+    def _do(session):
+        agent = session.query(AgentCfg).filter_by(user_id=user_id).first()
+        if agent:
+            session.delete(agent)
+    db_write(_do, description="delete_AgentCfg")
 
 
 def get_agent_system_prompt(name):
@@ -854,21 +807,14 @@ class AgentTaskMulti(Base):
 
 def add_AgentTaskMulti(task_id, topic, content, owner, group_id, is_first=True, attachment_list="", document_content="",
                        image_json="", model_name="", agent_id=""):
-    session = Session()
-    new_task = AgentTaskMulti(task_id=task_id, topic=topic, content=content, owner=owner, group_id=group_id,
-                              is_first=is_first, attachment_list=attachment_list, document_content=document_content,
-                              image_json=image_json, model_name=model_name, agent_id=agent_id)
-    session.add(new_task)
-    session.flush()
-    record_id = new_task.id
-    session.refresh(new_task)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_task = AgentTaskMulti(task_id=task_id, topic=topic, content=content, owner=owner, group_id=group_id,
+                                  is_first=is_first, attachment_list=attachment_list, document_content=document_content,
+                                  image_json=image_json, model_name=model_name, agent_id=agent_id)
+        session.add(new_task)
+        session.flush()
+        return new_task.id
+    return db_write(_do, description="add_AgentTaskMulti")
 
 
 def query_AgentTaskMulti(label: bool = False, **kwargs):
@@ -992,51 +938,40 @@ def query_AgentTaskMulti_Content(id, **kwargs):
 
 
 def update_AgentTaskMulti(id, **kwargs):
-    session = Session()
-    task = session.query(AgentTaskMulti).filter_by(id=id).first()
-    if task:
-        for key, value in kwargs.items():
-            setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTaskMulti).filter_by(id=id).first()
+        if task:
+            for key, value in kwargs.items():
+                setattr(task, key, value)
+    db_write(_do, description="update_AgentTaskMulti")
 
 
 def update_AgentTaskMulti_stick(id, action: int = 1, key: str = 'stick_time'):
-    session = Session()
     if action == 1:
         value = datetime.now()
     else:
         value = None
-    task = session.query(AgentTaskMulti).filter_by(id=id).first()
-    if task:
-        setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTaskMulti).filter_by(id=id).first()
+        if task:
+            setattr(task, key, value)
+    db_write(_do, description="update_AgentTaskMulti_stick")
 
 
 def delete_AgentTaskMulti(id):
-    session = Session()
-    task = session.query(AgentTaskMulti).filter_by(id=id).first()
-    if task:
-        session.delete(task)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(AgentTaskMulti).filter_by(id=id).first()
+        if task:
+            session.delete(task)
+    db_write(_do, description="delete_AgentTaskMulti")
 
 
 def deleteMultiTasksFromDatabase(id_value):
-    session = Session()
-    try:
+    def _do(session):
         task = session.query(AgentTaskMulti).filter_by(id=id_value).first()
         if task:
-            task_id = task.task_id
-
-            session.query(AgentTaskMulti).filter_by(task_id=task_id).delete()
-            session.commit()
-    except Exception as e:
-        print(e)
-        session.rollback()
-    finally:
-        session.close()
+            session.query(AgentTaskMulti).filter_by(task_id=task.task_id).delete()
+    db_write(_do, description="deleteMultiTasksFromDatabase")
 
 
 class MutiAgentCfg(Base):
@@ -1070,19 +1005,12 @@ class MutiAgentCfg(Base):
 
 
 def add_MutiAgentCfg(group_id, name, memo, agents, agentcommander, specialization, plugins, kms, prompt, islimittotalmessage, islimitmessagepp, totalmessages, ppmessages, readfile, writefile, deletefile, execfile, autorunrounds):
-    session = Session()
-    mutiAgentCfg = MutiAgentCfg(group_id=group_id, name=name, memo=memo, agents=agents, agentcommander=agentcommander, specialization=specialization, plugins=plugins, kms=kms, prompt=prompt, islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp, totalmessages=totalmessages, ppmessages=ppmessages, readfile=readfile, writefile=writefile, deletefile=deletefile, execfile=execfile, autorunrounds=autorunrounds)
-    session.add(mutiAgentCfg)
-    session.flush()
-    record_id = mutiAgentCfg.id
-    session.refresh(mutiAgentCfg)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-
-    session.close()
-    return (record_id)
+    def _do(session):
+        mutiAgentCfg = MutiAgentCfg(group_id=group_id, name=name, memo=memo, agents=agents, agentcommander=agentcommander, specialization=specialization, plugins=plugins, kms=kms, prompt=prompt, islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp, totalmessages=totalmessages, ppmessages=ppmessages, readfile=readfile, writefile=writefile, deletefile=deletefile, execfile=execfile, autorunrounds=autorunrounds)
+        session.add(mutiAgentCfg)
+        session.flush()
+        return mutiAgentCfg.id
+    return db_write(_do, description="add_MutiAgentCfg")
 
 
 def query_MutiAgentCfg_All(**kwargs):
@@ -1101,32 +1029,29 @@ def query_MutiAgentCfg(**kwargs):
 
 
 def update_MutiAgentCfg(id, **kwargs):
-    session = Session()
-    record = session.query(MutiAgentCfg).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(MutiAgentCfg).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_MutiAgentCfg")
 
 
 def update_MutiAgentCfg_by_group_id(group_id, **kwargs):
-    session = Session()
-    record = session.query(MutiAgentCfg).filter_by(group_id=group_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(MutiAgentCfg).filter_by(group_id=group_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_MutiAgentCfg_by_group_id")
 
 
 def delete_MutiAgentCfg(group_id):
-    session = Session()
-    record = session.query(MutiAgentCfg).filter_by(group_id=group_id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(MutiAgentCfg).filter_by(group_id=group_id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_MutiAgentCfg")
 
 
 class AiChatCfg(Base):
@@ -1227,40 +1152,33 @@ class AiChatCfg(Base):
 
 
 def add_AiChatCfg(user_id, account, password, nickname, sign, status, humantakeover, name, borndate, gender, area, state, city, community, street_block, address, mail, imaccount, phone, organization, title, orgposition, memo, islimittotalmessage, islimitmessagepp, totalmessages, ppmessages, serveraddress, port, ssl, resource, proxyused, proxyaddress, proxyport, proxyssl, savepasswordlocal, autoconnect, sendreceipt, sendreadflag, sendchatstatus, sendgroupchatstatus, agreeallfriendrequest, nationid, nationpassword, sns_url, avatar, avatar3d, house3d, map_type, map_api_key, map_id, current_position, home_position, positionx, positiony, positionz, route_start, route_end, route_status, route_current_position, route_points, route, level=1, credit=100, money=100, token_unit="k", life_point=4, energy_point=3, move_point=3, exp_point=4, iq_point=5):
-    session = Session()
-    aichatCfg = AiChatCfg(
-        user_id=user_id, account=account, password=password, nickname=nickname,
-        sign=sign, status=status, humantakeover=humantakeover, name=name,
-        borndate=borndate, gender=gender, area=area, state=state, city=city, community=community, street_block=street_block, address=address,
-        mail=mail, imaccount=imaccount, phone=phone, organization=organization,
-        title=title, orgposition=orgposition, memo=memo,
-        islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp,
-        totalmessages=totalmessages, ppmessages=ppmessages,
-        serveraddress=serveraddress, port=port, ssl=ssl, resource=resource,
-        proxyused=proxyused, proxyaddress=proxyaddress, proxyport=proxyport,
-        proxyssl=proxyssl, savepasswordlocal=savepasswordlocal,
-        autoconnect=autoconnect, sendreceipt=sendreceipt, sendreadflag=sendreadflag,
-        sendchatstatus=sendchatstatus, sendgroupchatstatus=sendgroupchatstatus,
-        agreeallfriendrequest=agreeallfriendrequest, nationid=nationid,
-        nationpassword=nationpassword, sns_url=sns_url, avatar=avatar,
-        avatar3d=avatar3d, house3d=house3d, map_type=map_type,
-        map_api_key=map_api_key, map_id=map_id, current_position=current_position, home_position=home_position,
-        positionx=positionx, positiony=positiony, positionz=positionz,
-        route_start=route_start, route_end=route_end, route_status=route_status,
-        route_current_position=route_current_position, route_points=route_points, route=route,
-        level=level, credit=credit, money=money, token_unit=token_unit, life_point=life_point, energy_point=energy_point, move_point=move_point, exp_point=exp_point, iq_point=iq_point
-    )
-    session.add(aichatCfg)
-    session.flush()
-    record_id = aichatCfg.id
-    session.refresh(aichatCfg)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return record_id
+    def _do(session):
+        aichatCfg = AiChatCfg(
+            user_id=user_id, account=account, password=password, nickname=nickname,
+            sign=sign, status=status, humantakeover=humantakeover, name=name,
+            borndate=borndate, gender=gender, area=area, state=state, city=city, community=community, street_block=street_block, address=address,
+            mail=mail, imaccount=imaccount, phone=phone, organization=organization,
+            title=title, orgposition=orgposition, memo=memo,
+            islimittotalmessage=islimittotalmessage, islimitmessagepp=islimitmessagepp,
+            totalmessages=totalmessages, ppmessages=ppmessages,
+            serveraddress=serveraddress, port=port, ssl=ssl, resource=resource,
+            proxyused=proxyused, proxyaddress=proxyaddress, proxyport=proxyport,
+            proxyssl=proxyssl, savepasswordlocal=savepasswordlocal,
+            autoconnect=autoconnect, sendreceipt=sendreceipt, sendreadflag=sendreadflag,
+            sendchatstatus=sendchatstatus, sendgroupchatstatus=sendgroupchatstatus,
+            agreeallfriendrequest=agreeallfriendrequest, nationid=nationid,
+            nationpassword=nationpassword, sns_url=sns_url, avatar=avatar,
+            avatar3d=avatar3d, house3d=house3d, map_type=map_type,
+            map_api_key=map_api_key, map_id=map_id, current_position=current_position, home_position=home_position,
+            positionx=positionx, positiony=positiony, positionz=positionz,
+            route_start=route_start, route_end=route_end, route_status=route_status,
+            route_current_position=route_current_position, route_points=route_points, route=route,
+            level=level, credit=credit, money=money, token_unit=token_unit, life_point=life_point, energy_point=energy_point, move_point=move_point, exp_point=exp_point, iq_point=iq_point
+        )
+        session.add(aichatCfg)
+        session.flush()
+        return aichatCfg.id
+    return db_write(_do, description="add_AiChatCfg")
 
 
 def query_AiChatCfg_All(**kwargs):
@@ -1355,44 +1273,38 @@ def query_AiChatCfg_map_setting(**kwargs):
 
 
 def update_AiChatCfg_map(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(AiChatCfg).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            _commit_with_retry(session)
-    finally:
-        session.close()
+    db_write(_do, description="update_AiChatCfg_map")
 
 
 def update_AiChatCfg(id, **kwargs):
-    session = Session()
-    record = session.query(AiChatCfg).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AiChatCfg).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AiChatCfg")
 
 
 def update_AiChatCfg_by_user_id(user_id, **kwargs):
-    session = Session()
-    record = session.query(AiChatCfg).filter_by(user_id=user_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AiChatCfg).filter_by(user_id=user_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_AiChatCfg_by_user_id")
 
 
 def delete_AiChatCfg(user_id):
-    session = Session()
-    record = session.query(AiChatCfg).filter_by(user_id=user_id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(AiChatCfg).filter_by(user_id=user_id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_AiChatCfg")
 
 
 class HumanChatCfg(Base):
@@ -1445,11 +1357,10 @@ class HumanChatCfg(Base):
 
 
 def add_HumanChatCfg(user_id, account, password, nickname, sign, status, name, borndate, gender, area, city, address, mail, imaccount, phone, organization, title, orgposition, memo, serveraddress, port, ssl, resource, proxyused, proxyaddress, proxyport, proxyssl, savepasswordlocal, autoconnect, sendreceipt, sendreadflag, sendchatstatus, sendgroupchatstatus, autoaway, autona, agreeallfriendrequest):
-    session = Session()
-    humanChatCfg = HumanChatCfg(user_id=user_id, account=account, password=password, nickname=nickname, sign=sign, status=status, name=name, borndate=borndate, gender=gender, area=area, city=city, address=address, mail=mail, imaccount=imaccount, phone=phone, organization=organization, title=title, orgposition=orgposition, memo=memo, serveraddress=serveraddress, port=port, ssl=ssl, resource=resource, proxyused=proxyused, proxyaddress=proxyaddress, proxyport=proxyport, proxyssl=proxyssl, savepasswordlocal=savepasswordlocal, autoconnect=autoconnect, sendreceipt=sendreceipt, sendreadflag=sendreadflag, sendchatstatus=sendchatstatus, sendgroupchatstatus=sendgroupchatstatus, autoaway=autoaway, autona=autona, agreeallfriendrequest=agreeallfriendrequest)
-    session.add(humanChatCfg)
-    session.commit()
-    session.close()
+    def _do(session):
+        humanChatCfg = HumanChatCfg(user_id=user_id, account=account, password=password, nickname=nickname, sign=sign, status=status, name=name, borndate=borndate, gender=gender, area=area, city=city, address=address, mail=mail, imaccount=imaccount, phone=phone, organization=organization, title=title, orgposition=orgposition, memo=memo, serveraddress=serveraddress, port=port, ssl=ssl, resource=resource, proxyused=proxyused, proxyaddress=proxyaddress, proxyport=proxyport, proxyssl=proxyssl, savepasswordlocal=savepasswordlocal, autoconnect=autoconnect, sendreceipt=sendreceipt, sendreadflag=sendreadflag, sendchatstatus=sendchatstatus, sendgroupchatstatus=sendgroupchatstatus, autoaway=autoaway, autona=autona, agreeallfriendrequest=agreeallfriendrequest)
+        session.add(humanChatCfg)
+    db_write(_do, description="add_HumanChatCfg")
 
 
 def query_HumanChatCfg_All(**kwargs):
@@ -1468,22 +1379,20 @@ def query_HumanChatCfg(**kwargs):
 
 
 def update_HumanChatCfg(id, **kwargs):
-    session = Session()
-    record = session.query(HumanChatCfg).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(HumanChatCfg).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_HumanChatCfg")
 
 
 def delete_HumanChatCfg(id):
-    session = Session()
-    record = session.query(HumanChatCfg).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(HumanChatCfg).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_HumanChatCfg")
 
 
 class KMCfg(Base):
@@ -1513,11 +1422,10 @@ class KMCfg(Base):
 
 
 def add_KMCfg(km_id, name, memo, label, kmpath, vectorization, stopvectorization, kmtype, vectortype, embeddingmodel, textblocklength, overlaplength, titleaugment, config_param):
-    session = Session()
-    kmCfg = KMCfg(km_id=km_id, name=name, memo=memo, label=label, kmpath=kmpath, kmtype=kmtype, vectorization=vectorization, stopvectorization=stopvectorization, vectortype=vectortype, embeddingmodel=embeddingmodel, textblocklength=textblocklength, overlaplength=overlaplength, titleaugment=titleaugment, config_param=config_param)
-    session.add(kmCfg)
-    session.commit()
-    session.close()
+    def _do(session):
+        kmCfg = KMCfg(km_id=km_id, name=name, memo=memo, label=label, kmpath=kmpath, kmtype=kmtype, vectorization=vectorization, stopvectorization=stopvectorization, vectortype=vectortype, embeddingmodel=embeddingmodel, textblocklength=textblocklength, overlaplength=overlaplength, titleaugment=titleaugment, config_param=config_param)
+        session.add(kmCfg)
+    db_write(_do, description="add_KMCfg")
 
 
 def query_KMCfg_All(**kwargs):
@@ -1536,32 +1444,29 @@ def query_KMCfg(**kwargs):
 
 
 def update_KMCfg(id, **kwargs):
-    session = Session()
-    record = session.query(KMCfg).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(KMCfg).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_KMCfg")
 
 
 def update_KMCfg_by_kmid(km_id, **kwargs):
-    session = Session()
-    record = session.query(KMCfg).filter_by(km_id=km_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(KMCfg).filter_by(km_id=km_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_KMCfg_by_kmid")
 
 
 def delete_KMCfg(km_id):
-    session = Session()
-    record = session.query(KMCfg).filter_by(km_id=km_id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(KMCfg).filter_by(km_id=km_id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_KMCfg")
 
 
 class KMData(Base):
@@ -1580,19 +1485,12 @@ class KMData(Base):
 
 
 def add_KMData(km_id, filename, filenum, textblocklength, overlaplength, waitvectorization):
-    session = Session()
-    kmData = KMData(km_id=km_id, filename=filename, filenum=filenum, textblocklength=textblocklength, overlaplength=overlaplength, waitvectorization=waitvectorization)
-    session.add(kmData)
-    session.flush()
-    record_id = kmData.id
-    session.refresh(kmData)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        kmData = KMData(km_id=km_id, filename=filename, filenum=filenum, textblocklength=textblocklength, overlaplength=overlaplength, waitvectorization=waitvectorization)
+        session.add(kmData)
+        session.flush()
+        return kmData.id
+    return db_write(_do, description="add_KMData")
 
 
 def query_KMData_All(**kwargs):
@@ -1611,22 +1509,20 @@ def query_KMData(**kwargs):
 
 
 def update_KMData(id, **kwargs):
-    session = Session()
-    record = session.query(KMData).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(KMData).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_KMData")
 
 
 def delete_KMData(id):
-    session = Session()
-    record = session.query(KMData).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(KMData).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_KMData")
 
 
 class PluginMng(Base):
@@ -1665,21 +1561,17 @@ class PluginMng(Base):
 
 
 def add_PluginMng(plugin_id, company, company_abbr, name, version, alias_name, filename, runtime_main, runtime_test, description, plugin_directory, plugin_type, plugin_executed, plugin_event, plugin_title, detail, creator, run_mode="", run_scope="", instruction="", used_in_sns=0):
-    session = Session()
-    pluginMng = PluginMng(plugin_id=plugin_id, company=company, company_abbr=company_abbr, name=name, version=version, alias_name=alias_name, filename=filename, run_mode=run_mode, run_scope=run_scope, instruction=instruction, runtime_main=runtime_main, runtime_test=runtime_test, description=description, plugin_directory=plugin_directory, plugin_type=plugin_type, plugin_executed=plugin_executed, plugin_event=plugin_event, plugin_title=plugin_title, detail=detail, creator=creator, used_in_sns=used_in_sns)
-    session.add(pluginMng)
-    session.commit()
-    session.close()
+    def _do(session):
+        pluginMng = PluginMng(plugin_id=plugin_id, company=company, company_abbr=company_abbr, name=name, version=version, alias_name=alias_name, filename=filename, run_mode=run_mode, run_scope=run_scope, instruction=instruction, runtime_main=runtime_main, runtime_test=runtime_test, description=description, plugin_directory=plugin_directory, plugin_type=plugin_type, plugin_executed=plugin_executed, plugin_event=plugin_event, plugin_title=plugin_title, detail=detail, creator=creator, used_in_sns=used_in_sns)
+        session.add(pluginMng)
+    db_write(_do, description="add_PluginMng")
 
 
 def copy_plugin_record(plugin_id, new_plugin_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record_to_copy = session.query(PluginMng).filter_by(plugin_id=plugin_id).first()
         if not record_to_copy:
-            print(f"No record found with plugin_id: {plugin_id}")
             return None
-
         new_record = PluginMng(
             plugin_id=new_plugin_id,
             company=kwargs.get('company', record_to_copy.company),
@@ -1704,15 +1596,9 @@ def copy_plugin_record(plugin_id, new_plugin_id, **kwargs):
             is_delete=record_to_copy.is_delete,
             create_time=datetime.now()
         )
-
         session.add(new_record)
-        session.commit()
         return new_record
-    except Exception as e:
-        session.rollback()
-        print(f"Error occurred while copying record: {e}")
-    finally:
-        session.close()
+    return db_write(_do, description="copy_plugin_record")
 
 
 def query_PluginMng_All(**kwargs):
@@ -1769,22 +1655,20 @@ def query_PluginMng(**kwargs):
 
 
 def update_PluginMng(id, **kwargs):
-    session = Session()
-    record = session.query(PluginMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(PluginMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_PluginMng")
 
 
 def delete_PluginMng(**kwargs):
-    session = Session()
-    record = session.query(PluginMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(PluginMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_PluginMng")
 
 
 class FunctionMng(Base):
@@ -1812,24 +1696,16 @@ class FunctionMng(Base):
 
 def add_function_mng(function_id, name, instruction, file_path, requirement, parameter,
                      description, detail, function_type, function_event, creator, used_in_sns=0):
-    session = Session()
-    new_function = FunctionMng(
-        function_id=function_id, name=name, instruction=instruction, file_path=file_path,
-        requirement=requirement, parameter=parameter, description=description, detail=detail,
-        function_type=function_type, function_event=function_event, creator=creator, used_in_sns=used_in_sns
-    )
-
-    session.add(new_function)
-    session.flush()
-    record_id = new_function.id
-    session.refresh(new_function)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_function = FunctionMng(
+            function_id=function_id, name=name, instruction=instruction, file_path=file_path,
+            requirement=requirement, parameter=parameter, description=description, detail=detail,
+            function_type=function_type, function_event=function_event, creator=creator, used_in_sns=used_in_sns
+        )
+        session.add(new_function)
+        session.flush()
+        return new_function.id
+    return db_write(_do, description="add_function_mng")
 
 
 def query_function_mng_all(**kwargs):
@@ -1847,32 +1723,29 @@ def query_function_mng(**kwargs):
 
 
 def update_function_mng(function_id, **kwargs):
-    session = Session()
-    record = session.query(FunctionMng).filter_by(function_id=function_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(FunctionMng).filter_by(function_id=function_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_function_mng")
 
 
 def update_function_mng_with_id(id, **kwargs):
-    session = Session()
-    record = session.query(FunctionMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(FunctionMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_function_mng_with_id")
 
 
 def delete_function_mng(**kwargs):
-    session = Session()
-    record = session.query(FunctionMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(FunctionMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_function_mng")
 
 
 class McpMng(Base):
@@ -1900,24 +1773,16 @@ class McpMng(Base):
 
 def add_mcp_mng(mcp_id, name, instruction, file_path, requirement, parameter,
                 description, detail, mcp_type, mcp_event, creator, used_in_sns=0):
-    session = Session()
-    new_mcp = McpMng(
-        mcp_id=mcp_id, name=name, instruction=instruction, file_path=file_path,
-        requirement=requirement, parameter=parameter, description=description, detail=detail,
-        mcp_type=mcp_type, mcp_event=mcp_event, creator=creator, used_in_sns=used_in_sns
-    )
-
-    session.add(new_mcp)
-    session.flush()
-    record_id = new_mcp.id
-    session.refresh(new_mcp)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_mcp = McpMng(
+            mcp_id=mcp_id, name=name, instruction=instruction, file_path=file_path,
+            requirement=requirement, parameter=parameter, description=description, detail=detail,
+            mcp_type=mcp_type, mcp_event=mcp_event, creator=creator, used_in_sns=used_in_sns
+        )
+        session.add(new_mcp)
+        session.flush()
+        return new_mcp.id
+    return db_write(_do, description="add_mcp_mng")
 
 
 def query_mcp_mng_all(**kwargs):
@@ -1935,32 +1800,29 @@ def query_mcp_mng(**kwargs):
 
 
 def update_mcp_mng(mcp_id, **kwargs):
-    session = Session()
-    record = session.query(McpMng).filter_by(mcp_id=mcp_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(McpMng).filter_by(mcp_id=mcp_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_mcp_mng")
 
 
 def update_mcp_mng_with_id(id, **kwargs):
-    session = Session()
-    record = session.query(McpMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(McpMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_mcp_mng_with_id")
 
 
 def delete_mcp_mng(**kwargs):
-    session = Session()
-    record = session.query(McpMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(McpMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_mcp_mng")
 
 
 class SkillMng(Base):
@@ -1988,24 +1850,16 @@ class SkillMng(Base):
 
 def add_skill_mng(skill_id, name, instruction, file_path, requirement, parameter,
                   description, detail, skill_type, skill_event, creator, used_in_sns=0):
-    session = Session()
-    new_skill = SkillMng(
-        skill_id=skill_id, name=name, instruction=instruction, file_path=file_path,
-        requirement=requirement, parameter=parameter, description=description, detail=detail,
-        skill_type=skill_type, skill_event=skill_event, creator=creator, used_in_sns=used_in_sns
-    )
-
-    session.add(new_skill)
-    session.flush()
-    record_id = new_skill.id
-    session.refresh(new_skill)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_skill = SkillMng(
+            skill_id=skill_id, name=name, instruction=instruction, file_path=file_path,
+            requirement=requirement, parameter=parameter, description=description, detail=detail,
+            skill_type=skill_type, skill_event=skill_event, creator=creator, used_in_sns=used_in_sns
+        )
+        session.add(new_skill)
+        session.flush()
+        return new_skill.id
+    return db_write(_do, description="add_skill_mng")
 
 
 def query_skill_mng_all(**kwargs):
@@ -2023,32 +1877,29 @@ def query_skill_mng(**kwargs):
 
 
 def update_skill_mng(skill_id, **kwargs):
-    session = Session()
-    record = session.query(SkillMng).filter_by(skill_id=skill_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SkillMng).filter_by(skill_id=skill_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_skill_mng")
 
 
 def update_skill_mng_with_id(id, **kwargs):
-    session = Session()
-    record = session.query(SkillMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SkillMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_skill_mng_with_id")
 
 
 def delete_skill_mng(**kwargs):
-    session = Session()
-    record = session.query(SkillMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SkillMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_skill_mng")
 
 
 class WebMng(Base):
@@ -2071,23 +1922,15 @@ class WebMng(Base):
 
 def add_web_mng(web_id, name, title, type, description,
                 filename, url):
-    session = Session()
-    new_web = WebMng(
-        web_id=web_id, name=name, title=title,
-        type=type, description=description, filename=filename, url=url
-    )
-
-    session.add(new_web)
-    session.flush()
-    record_id = new_web.id
-    session.refresh(new_web)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_web = WebMng(
+            web_id=web_id, name=name, title=title,
+            type=type, description=description, filename=filename, url=url
+        )
+        session.add(new_web)
+        session.flush()
+        return new_web.id
+    return db_write(_do, description="add_web_mng")
 
 
 def query_web_mng_all(**kwargs):
@@ -2105,22 +1948,20 @@ def query_web_mng(**kwargs):
 
 
 def update_web_mng(web_id, **kwargs):
-    session = Session()
-    record = session.query(WebMng).filter_by(web_id=web_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(WebMng).filter_by(web_id=web_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_web_mng")
 
 
 def delete_web_mng(**kwargs):
-    session = Session()
-    record = session.query(WebMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(WebMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_web_mng")
 
 
 class WorkflowMng(Base):
@@ -2144,26 +1985,22 @@ class WorkflowMng(Base):
 
 def add_workflow_mng(workflow_id, title, description, instruction,
                      detail, timer_desc, timer_cron, run_agent_name, run_agent_id):
-    session = Session()
-    workflow_mng = WorkflowMng(
-        workflow_id=workflow_id,
-        title=title,
-        description=description,
-        instruction=instruction,
-        detail=detail,
-        timer_desc=timer_desc,
-        timer_cron=timer_cron,
-        run_agent_name=run_agent_name,
-        run_agent_id=run_agent_id
-    )
-
-    session.add(workflow_mng)
-    session.flush()
-    record_id = workflow_mng.id
-    session.refresh(workflow_mng)
-    session.commit()
-    session.close()
-    return record_id
+    def _do(session):
+        workflow_mng = WorkflowMng(
+            workflow_id=workflow_id,
+            title=title,
+            description=description,
+            instruction=instruction,
+            detail=detail,
+            timer_desc=timer_desc,
+            timer_cron=timer_cron,
+            run_agent_name=run_agent_name,
+            run_agent_id=run_agent_id
+        )
+        session.add(workflow_mng)
+        session.flush()
+        return workflow_mng.id
+    return db_write(_do, description="add_workflow_mng")
 
 
 def query_workflow_mng_all(**kwargs):
@@ -2185,63 +2022,43 @@ def query_workflow_mng(**kwargs):
 
 
 def update_workflow_mng(id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(WorkflowMng).filter_by(id=id).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"更新工作流记录失败: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_workflow_mng")
 
 
 def delete_workflow_mng(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(WorkflowMng).filter_by(**kwargs).first()
         if record:
             session.delete(record)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"删除工作流记录失败: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_workflow_mng")
 
 
 def copy_workflow(workflow_id, new_workflow_id):
-    session = Session()
-    try:
+    def _do(session):
         original_record = session.query(WorkflowMng).filter_by(workflow_id=workflow_id).first()
-        if original_record:
-            new_workflow = WorkflowMng(
-                workflow_id=new_workflow_id,
-                title=original_record.title + "-Copy",
-                description=original_record.description,
-                instruction=original_record.instruction,
-                workflow_event=original_record.workflow_event,
-                detail=original_record.detail,
-                timer_desc=original_record.timer_desc,
-                timer_cron=original_record.timer_cron,
-                creator=original_record.creator,
-                is_delete=False,
-                create_time=datetime.now()
-            )
-            session.add(new_workflow)
-            session.commit()
-            return new_workflow
-        else:
-            print("未找到指定的工作流记录")
+        if not original_record:
             return None
-    except Exception as e:
-        session.rollback()
-        print(f"拷贝工作流记录失败: {e}")
-    finally:
-        session.close()
+        new_workflow = WorkflowMng(
+            workflow_id=new_workflow_id,
+            title=original_record.title + "-Copy",
+            description=original_record.description,
+            instruction=original_record.instruction,
+            workflow_event=original_record.workflow_event,
+            detail=original_record.detail,
+            timer_desc=original_record.timer_desc,
+            timer_cron=original_record.timer_cron,
+            creator=original_record.creator,
+            is_delete=False,
+            create_time=datetime.now()
+        )
+        session.add(new_workflow)
+        return new_workflow
+    return db_write(_do, description="copy_workflow")
 
 
 class TaskSchedule(Base):
@@ -2269,28 +2086,24 @@ class TaskSchedule(Base):
 
 def add_task_schedule_mng(title, description, task_type,
                           task_id, org_id, parameter, schedule_time, timer_desc, timer_cron, run_agent_name, run_agent_id):
-    session = Session()
-    task_schedule = TaskSchedule(
-        title=title,
-        description=description,
-        task_type=task_type,
-        task_id=task_id,
-        org_id=org_id,
-        parameter=parameter,
-        schedule_time=schedule_time,
-        timer_desc=timer_desc,
-        timer_cron=timer_cron,
-        run_agent_name=run_agent_name,
-        run_agent_id=run_agent_id
-    )
-
-    session.add(task_schedule)
-    session.flush()
-    record_id = task_schedule.id
-    session.refresh(task_schedule)
-    session.commit()
-    session.close()
-    return record_id
+    def _do(session):
+        task_schedule = TaskSchedule(
+            title=title,
+            description=description,
+            task_type=task_type,
+            task_id=task_id,
+            org_id=org_id,
+            parameter=parameter,
+            schedule_time=schedule_time,
+            timer_desc=timer_desc,
+            timer_cron=timer_cron,
+            run_agent_name=run_agent_name,
+            run_agent_id=run_agent_id
+        )
+        session.add(task_schedule)
+        session.flush()
+        return task_schedule.id
+    return db_write(_do, description="add_task_schedule_mng")
 
 
 def query_task_schedule_all(**kwargs):
@@ -2312,32 +2125,20 @@ def query_task_schedule(**kwargs):
 
 
 def update_task_schedule(id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(TaskSchedule).filter_by(id=id).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"更新记录失败: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_task_schedule")
 
 
 def delete_task_schedule(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(TaskSchedule).filter_by(**kwargs).first()
         if record:
             session.delete(record)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        print(f"删除记录失败: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_task_schedule")
 
 
 class NoteMng(Base):
@@ -2363,22 +2164,15 @@ class NoteMng(Base):
 
 def add_note_mng(note_id, title, file_name, content, km_id, tag_1, tag_2,
                  tag_3, waitvectorization, label):
-    session = Session()
-    new_note = NoteMng(
-        note_id=note_id, title=title, file_name=file_name, content=content, km_id=km_id,
-        tag_1=tag_1, tag_2=tag_2, tag_3=tag_3, waitvectorization=waitvectorization, label=label
-    )
-    session.add(new_note)
-    session.flush()
-    record_id = new_note.id
-    session.refresh(new_note)
-    try:
-        session.commit()
-    except Exception as e:
-        print(e)
-    print("--->start insert db6")
-    session.close()
-    return (record_id)
+    def _do(session):
+        new_note = NoteMng(
+            note_id=note_id, title=title, file_name=file_name, content=content, km_id=km_id,
+            tag_1=tag_1, tag_2=tag_2, tag_3=tag_3, waitvectorization=waitvectorization, label=label
+        )
+        session.add(new_note)
+        session.flush()
+        return new_note.id
+    return db_write(_do, description="add_note_mng")
 
 
 def query_note_mng_all(count, label: bool = False, **kwargs):
@@ -2434,41 +2228,37 @@ def query_note_mng_ByLabel(km_id):
 
 
 def update_note_mng(note_id, **kwargs):
-    session = Session()
-    record = session.query(NoteMng).filter_by(note_id=note_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(NoteMng).filter_by(note_id=note_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_note_mng")
 
 
 def update_note_mng_stick(id, value=None, key: str = 'stick_time'):
-    session = Session()
-    task = session.query(NoteMng).filter_by(id=id).first()
-    if task:
-        setattr(task, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        task = session.query(NoteMng).filter_by(id=id).first()
+        if task:
+            setattr(task, key, value)
+    db_write(_do, description="update_note_mng_stick")
 
 
 def update_note_mng_by_recordid(id, **kwargs):
-    session = Session()
-    record = session.query(NoteMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(NoteMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_note_mng_by_recordid")
 
 
 def delete_note_mng(**kwargs):
-    session = Session()
-    record = session.query(NoteMng).filter_by(**kwargs).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(NoteMng).filter_by(**kwargs).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_note_mng")
 
 
 def query_Note_mng_Search_Content(count, label: bool = False, **kwargs):
@@ -2575,11 +2365,10 @@ def _ensure_system_cfg_columns():
 
 
 def add_SystemCfg(autorun, showtaskbar, updateinfo, minirunontray, closebuttontype, style, showinfo, showinfoicon, infosound):
-    session = Session()
-    systemCfg = SystemCfg(autorun=autorun, showtaskbar=showtaskbar, updateinfo=updateinfo, minirunontray=minirunontray, closebuttontype=closebuttontype, style=style, showinfo=showinfo, showinfoicon=showinfoicon, infosound=infosound)
-    session.add(systemCfg)
-    session.commit()
-    session.close()
+    def _do(session):
+        systemCfg = SystemCfg(autorun=autorun, showtaskbar=showtaskbar, updateinfo=updateinfo, minirunontray=minirunontray, closebuttontype=closebuttontype, style=style, showinfo=showinfo, showinfoicon=showinfoicon, infosound=infosound)
+        session.add(systemCfg)
+    db_write(_do, description="add_SystemCfg")
 
 
 def query_SystemCfg_All(**kwargs):
@@ -2598,22 +2387,20 @@ def query_SystemCfg(**kwargs):
 
 
 def update_SystemCfg(id, **kwargs):
-    session = Session()
-    record = session.query(SystemCfg).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SystemCfg).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_SystemCfg")
 
 
 def delete_SystemCfg(id):
-    session = Session()
-    record = session.query(SystemCfg).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SystemCfg).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_SystemCfg")
 
 
 class LogsMng(Base):
@@ -2629,11 +2416,10 @@ class LogsMng(Base):
 
 
 def add_LogsMng(logs_id, content, type):
-    session = Session()
-    logsMng = LogsMng(logs_id=logs_id, content=content, type=type)
-    session.add(logsMng)
-    session.commit()
-    session.close()
+    def _do(session):
+        logsMng = LogsMng(logs_id=logs_id, content=content, type=type)
+        session.add(logsMng)
+    db_write(_do, description="add_LogsMng")
 
 
 def query_LogsMng_All(**kwargs):
@@ -2652,22 +2438,20 @@ def query_LogsMng(**kwargs):
 
 
 def update_LogsMng(id, **kwargs):
-    session = Session()
-    record = session.query(LogsMng).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(LogsMng).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_LogsMng")
 
 
 def delete_LogsMng(id):
-    session = Session()
-    record = session.query(LogsMng).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(LogsMng).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_LogsMng")
 
 
 class SysConfig(Base):
@@ -2685,11 +2469,10 @@ def query_config_lang(**kwargs):
 
 
 def update_config_lang(lang, **kwargs):
-    session = Session()
-    record = session.query(SysConfig).filter_by(**kwargs).first()
-    record.lang = lang
-    session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SysConfig).filter_by(**kwargs).first()
+        record.lang = lang
+    db_write(_do, description="update_config_lang")
     return lang
 
 
@@ -2702,11 +2485,10 @@ class Question(Base):
 
 
 def add_Question(question, tag):
-    session = Session()
-    systemCfg = add_Question(question=question, tag=tag)
-    session.add(systemCfg)
-    session.commit()
-    session.close()
+    def _do(session):
+        record = Question(question=question, tag=tag)
+        session.add(record)
+    db_write(_do, description="add_Question")
 
 
 def query_Question_All(**kwargs):
@@ -2735,22 +2517,20 @@ def query_Question(**kwargs):
 
 
 def update_Question(id, **kwargs):
-    session = Session()
-    record = session.query(Question).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(Question).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_Question")
 
 
 def delete_Question(id):
-    session = Session()
-    record = session.query(Question).filter_by(id=id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(Question).filter_by(id=id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_Question")
 
 
 class Prompt(Base):
@@ -2814,60 +2594,43 @@ def get_all_prompt_by_modelname(model_name):
 
 
 def update_prompt(id, **kwargs):
-    session = Session()
-    record = session.query(Prompt).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(Prompt).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_prompt")
 
 
 def upsert_prompt_by_title_with_tags(title: str, content: str, tags: str = "") -> bool:
     """Upsert a prompt by title. Sets tags only on initial insert (does not overwrite existing tags)."""
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(Prompt).filter_by(title=title).first()
         if record:
             record.content = content
-            session.commit()
             return True
-
         record = Prompt(title=title, content=content, tags=tags)
         session.add(record)
-        session.commit()
         return True
+    try:
+        return db_write(_do, description="upsert_prompt_by_title_with_tags")
     except Exception:
-        try:
-            session.rollback()
-        except Exception:
-            pass
         return False
-    finally:
-        session.close()
 
 
 def upsert_prompt_by_title(title: str, content: str) -> bool:
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(Prompt).filter_by(title=title).first()
         if record:
             record.content = content
-            session.commit()
             return True
-
         record = Prompt(title=title, content=content)
         session.add(record)
-        session.commit()
         return True
+    try:
+        return db_write(_do, description="upsert_prompt_by_title")
     except Exception:
-        try:
-            session.rollback()
-        except Exception:
-            pass
         return False
-    finally:
-        session.close()
 
 
 class KeyValue(Base):
@@ -2879,10 +2642,10 @@ class KeyValue(Base):
 
 
 def add_key_value(key: str, value: str):
-    session = Session()
-    new_entry = KeyValue(key=key, value=value)
-    session.add(new_entry)
-    session.commit()
+    def _do(session):
+        new_entry = KeyValue(key=key, value=value)
+        session.add(new_entry)
+    db_write(_do, description="add_key_value")
 
 
 def get_key_value(key: str):
@@ -2904,19 +2667,19 @@ def search_key_values(search_text: str) -> list:
 
 
 def update_key_value(key: str, new_value: str):
-    session = Session()
-    entry = session.query(KeyValue).filter_by(key=key).first()
-    if entry:
-        entry.value = new_value
-        session.commit()
+    def _do(session):
+        entry = session.query(KeyValue).filter_by(key=key).first()
+        if entry:
+            entry.value = new_value
+    db_write(_do, description="update_key_value")
 
 
 def delete_key_value(key: str):
-    session = Session()
-    entry = session.query(KeyValue).filter_by(key=key).first()
-    if entry:
-        session.delete(entry)
-        session.commit()
+    def _do(session):
+        entry = session.query(KeyValue).filter_by(key=key).first()
+        if entry:
+            session.delete(entry)
+    db_write(_do, description="delete_key_value")
 
 
 class ModelMetrics(Base):
@@ -3007,19 +2770,12 @@ class MapCfg(Base):
 
 
 def add_map_cfg(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_cfg = MapCfg(**kwargs)
         session.add(new_cfg)
-        session.commit()
-        session.refresh(new_cfg)
+        session.flush()
         return new_cfg.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding MapCfg: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_map_cfg")
 
 
 def query_map_cfg(**kwargs):
@@ -3049,34 +2805,20 @@ def query_single_map_cfg(**kwargs):
 
 
 def update_map_cfg(cfg_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         cfg = session.query(MapCfg).filter_by(id=cfg_id).first()
         if cfg:
             for key, value in kwargs.items():
                 setattr(cfg, key, value)
-            session.commit()
-            print(f"MapCfg {cfg_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating MapCfg: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_map_cfg")
 
 
 def delete_map_cfg(cfg_id):
-    session = Session()
-    try:
+    def _do(session):
         cfg = session.query(MapCfg).filter_by(id=cfg_id).first()
         if cfg:
             session.delete(cfg)
-            session.commit()
-            print(f"MapCfg {cfg_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting MapCfg: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_cfg")
 
 
 class MapTask(Base):
@@ -3103,19 +2845,12 @@ class MapTask(Base):
 
 
 def add_map_task(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_task = MapTask(**kwargs)
         session.add(new_task)
-        session.commit()
-        session.refresh(new_task)
+        session.flush()
         return new_task.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding MapTask: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_map_task")
 
 
 def query_map_tasks(**kwargs):
@@ -3145,34 +2880,20 @@ def query_single_map_task(**kwargs):
 
 
 def update_map_task(id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         task = session.query(MapTask).filter_by(id=id).first()
         if task:
             for key, value in kwargs.items():
                 setattr(task, key, value)
-            session.commit()
-            print(f"MapTask {id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating MapTask: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_map_task")
 
 
 def delete_map_task(task_id):
-    session = Session()
-    try:
+    def _do(session):
         task = session.query(MapTask).filter_by(id=task_id).first()
         if task:
             session.delete(task)
-            session.commit()
-            print(f"MapTask {task_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting MapTask: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_task")
 
 
 class MapTool(Base):
@@ -3212,19 +2933,12 @@ class MapTool(Base):
 
 
 def add_map_tool(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_tech = MapTool(**kwargs)
         session.add(new_tech)
-        session.commit()
-        session.refresh(new_tech)
+        session.flush()
         return new_tech.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding MapTech: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_map_tool")
 
 
 def query_map_tools(**kwargs):
@@ -3254,34 +2968,20 @@ def query_single_map_tool(**kwargs):
 
 
 def update_map_tool(tech_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         tech = session.query(MapTool).filter_by(id=tech_id).first()
         if tech:
             for key, value in kwargs.items():
                 setattr(tech, key, value)
-            session.commit()
-            print(f"MapTech {tech_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating MapTech: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_map_tool")
 
 
 def delete_map_tool(tech_id):
-    session = Session()
-    try:
+    def _do(session):
         tech = session.query(MapTool).filter_by(id=tech_id).first()
         if tech:
             session.delete(tech)
-            session.commit()
-            print(f"MapTech {tech_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting MapTech: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_tool")
 
 
 class MapTrade(Base):
@@ -3304,19 +3004,12 @@ class MapTrade(Base):
 
 
 def add_map_trade(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_trade = MapTrade(**kwargs)
         session.add(new_trade)
-        session.commit()
-        session.refresh(new_trade)
+        session.flush()
         return new_trade.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding MapTrade: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_map_trade")
 
 
 def query_map_trades(**kwargs):
@@ -3346,36 +3039,22 @@ def query_single_map_trade(**kwargs):
 
 
 def update_map_trade(trade_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         trade = session.query(MapTrade).filter_by(trade_id=trade_id).first()
         if trade:
             for key, value in kwargs.items():
                 setattr(trade, key, value)
             if "create_time" not in kwargs:
                 trade.create_time = datetime.now()
-            session.commit()
-            print(f"MapTrade {trade_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating MapTrade: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_map_trade")
 
 
 def delete_map_trade(trade_id):
-    session = Session()
-    try:
+    def _do(session):
         trade = session.query(MapTrade).filter_by(id=trade_id).first()
         if trade:
             session.delete(trade)
-            session.commit()
-            print(f"MapTrade {trade_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting MapTrade: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_trade")
 
 
 class MapVisit(Base):
@@ -3399,19 +3078,12 @@ class MapVisit(Base):
 
 
 def add_map_visit(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_visit = MapVisit(**kwargs)
         session.add(new_visit)
-        session.commit()
-        session.refresh(new_visit)
+        session.flush()
         return new_visit.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding MapVisit: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_map_visit")
 
 
 def query_map_visits(**kwargs):
@@ -3441,34 +3113,20 @@ def query_single_map_visit(**kwargs):
 
 
 def update_map_visit(visit_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         visit = session.query(MapVisit).filter_by(id=visit_id).first()
         if visit:
             for key, value in kwargs.items():
                 setattr(visit, key, value)
-            session.commit()
-            print(f"MapVisit {visit_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating MapVisit: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_map_visit")
 
 
 def delete_map_visit(visit_id):
-    session = Session()
-    try:
+    def _do(session):
         visit = session.query(MapVisit).filter_by(id=visit_id).first()
         if visit:
             session.delete(visit)
-            session.commit()
-            print(f"MapVisit {visit_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting MapVisit: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_visit")
 
 
 class LlmFrequent(Base):
@@ -3488,19 +3146,12 @@ class LlmFrequent(Base):
 
 
 def add_llm_frequent(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_frequent = LlmFrequent(**kwargs)
         session.add(new_frequent)
-        session.commit()
-        session.refresh(new_frequent)
+        session.flush()
         return new_frequent.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding LlmFrequent: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_llm_frequent")
 
 
 def query_llm_frequents(**kwargs):
@@ -3531,34 +3182,20 @@ def query_single_llm_frequent(**kwargs):
 
 
 def update_llm_frequent(frequent_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         frequent = session.query(LlmFrequent).filter_by(id=frequent_id).first()
         if frequent:
             for key, value in kwargs.items():
                 setattr(frequent, key, value)
-            session.commit()
-            print(f"LlmFrequent {frequent_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating LlmFrequent: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_llm_frequent")
 
 
 def delete_llm_frequent(frequent_id):
-    session = Session()
-    try:
+    def _do(session):
         frequent = session.query(LlmFrequent).filter_by(id=frequent_id).first()
         if frequent:
             session.delete(frequent)
-            session.commit()
-            print(f"LlmFrequent {frequent_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting LlmFrequent: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_llm_frequent")
 
 
 class PromptFrequent(Base):
@@ -3577,19 +3214,12 @@ class PromptFrequent(Base):
 
 
 def add_prompt_frequent(**kwargs):
-    session = Session()
-    try:
+    def _do(session):
         new_frequent = PromptFrequent(**kwargs)
         session.add(new_frequent)
-        session.commit()
-        session.refresh(new_frequent)
+        session.flush()
         return new_frequent.id
-    except Exception as e:
-        session.rollback()
-        print(f"Error adding PromptFrequent: {e}")
-        return None
-    finally:
-        session.close()
+    return db_write(_do, description="add_prompt_frequent")
 
 
 def query_prompt_frequents(**kwargs):
@@ -3648,34 +3278,20 @@ def query_single_prompt_frequent(**kwargs):
 
 
 def update_prompt_frequent(frequent_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         frequent = session.query(PromptFrequent).filter_by(id=frequent_id).first()
         if frequent:
             for key, value in kwargs.items():
                 setattr(frequent, key, value)
-            session.commit()
-            print(f"PromptFrequent {frequent_id} updated successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error updating PromptFrequent: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="update_prompt_frequent")
 
 
 def delete_prompt_frequent(frequent_id):
-    session = Session()
-    try:
+    def _do(session):
         frequent = session.query(PromptFrequent).filter_by(id=frequent_id).first()
         if frequent:
             session.delete(frequent)
-            session.commit()
-            print(f"PromptFrequent {frequent_id} deleted successfully.")
-    except Exception as e:
-        session.rollback()
-        print(f"Error deleting PromptFrequent: {e}")
-    finally:
-        session.close()
+    db_write(_do, description="delete_prompt_frequent")
 
 
 class SystemInit(Base):
@@ -3704,28 +3320,27 @@ class SystemInit(Base):
 
 def add_SystemInit(name, avatar, password, confirm_password, profile, llm, llm_server, api_key, avatar3d,
                    account, account_password, sns_url, map, map_api_key, map_id, status):
-    session = Session()
-    system_init = SystemInit(
-        name=name,
-        avatar=avatar,
-        password=password,
-        confirm_password=confirm_password,
-        profile=profile,
-        llm=llm,
-        llm_server=llm_server,
-        api_key=api_key,
-        avatar3d=avatar3d,
-        account=account,
-        account_password=account_password,
-        sns_url=sns_url,
-        map=map,
-        map_api_key=map_api_key,
-        map_id=map_id,
-        status=status
-    )
-    session.add(system_init)
-    session.commit()
-    session.close()
+    def _do(session):
+        system_init = SystemInit(
+            name=name,
+            avatar=avatar,
+            password=password,
+            confirm_password=confirm_password,
+            profile=profile,
+            llm=llm,
+            llm_server=llm_server,
+            api_key=api_key,
+            avatar3d=avatar3d,
+            account=account,
+            account_password=account_password,
+            sns_url=sns_url,
+            map=map,
+            map_api_key=map_api_key,
+            map_id=map_id,
+            status=status
+        )
+        session.add(system_init)
+    db_write(_do, description="add_SystemInit")
 
 
 def query_SystemInit_All(**kwargs):
@@ -3743,22 +3358,20 @@ def query_SystemInit(**kwargs):
 
 
 def update_SystemInit_ById(id, **kwargs):
-    session = Session()
-    record = session.query(SystemInit).filter_by(id=id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SystemInit).filter_by(id=id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_SystemInit_ById")
 
 
 def delete_SystemInit(id):
-    session = Session()
-    record = session.query(SystemInit).filter_by(id=id).first()
-    if record:
-        record.is_delete = True
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(SystemInit).filter_by(id=id).first()
+        if record:
+            record.is_delete = True
+    db_write(_do, description="delete_SystemInit")
 
 
 class MapActivity(Base):
@@ -3772,27 +3385,18 @@ class MapActivity(Base):
 
 
 def add_map_activity(activity_id, content, type):
-    session = Session()
-    try:
+    def _do(session):
         new_activity = MapActivity(activity_id=activity_id, content=content, type=type)
         session.add(new_activity)
-        _commit_with_retry(session, max_retries=5, base_delay=0.2)
         return True
+    try:
+        return db_write(_do, description="add_map_activity")
     except Exception as e:
-        err_msg = str(e).lower()
-        try:
-            session.rollback()
-        except Exception:
-            pass
-        if 'database is locked' in err_msg:
-            _dbfactory_logger.error(
-                "[DBFactory] database is locked: failed to add map activity, skipping. activity_id=%s",
-                activity_id,
-            )
-            return False
-        raise
-    finally:
-        session.close()
+        _dbfactory_logger.error(
+            "[DBFactory] Failed to add map activity. activity_id=%s, error=%s",
+            activity_id, e,
+        )
+        return False
 
 
 def query_map_activity_all(**kwargs):
@@ -3827,22 +3431,20 @@ def query_map_activity(**kwargs):
 
 
 def update_map_activity_by_id(activity_id, **kwargs):
-    session = Session()
-    record = session.query(MapActivity).filter_by(activity_id=activity_id).first()
-    if record:
-        for key, value in kwargs.items():
-            setattr(record, key, value)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(MapActivity).filter_by(activity_id=activity_id).first()
+        if record:
+            for key, value in kwargs.items():
+                setattr(record, key, value)
+    db_write(_do, description="update_map_activity_by_id")
 
 
 def delete_map_activity(activity_id):
-    session = Session()
-    record = session.query(MapActivity).filter_by(activity_id=activity_id).first()
-    if record:
-        session.delete(record)
-        session.commit()
-    session.close()
+    def _do(session):
+        record = session.query(MapActivity).filter_by(activity_id=activity_id).first()
+        if record:
+            session.delete(record)
+    db_write(_do, description="delete_map_activity")
 
 
 class MapPresetMsg(Base):
@@ -3855,16 +3457,10 @@ class MapPresetMsg(Base):
 
 
 def add_map_preset_msg(content):
-    session = Session()
-    try:
+    def _do(session):
         new_msg = MapPresetMsg(content=content)
         session.add(new_msg)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="add_map_preset_msg")
 
 
 def query_map_preset_msg_all(**kwargs):
@@ -3898,32 +3494,20 @@ def query_map_preset_msg(**kwargs):
 
 
 def update_map_preset_msg_by_id(msg_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(MapPresetMsg).filter_by(id=msg_id).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="update_map_preset_msg_by_id")
 
 
 def delete_map_preset_msg(content):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(MapPresetMsg).filter_by(content=content).first()
         if record:
             session.delete(record)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="delete_map_preset_msg")
 
 
 class ChatPresetMsg(Base):
@@ -3936,16 +3520,10 @@ class ChatPresetMsg(Base):
 
 
 def add_chat_preset_msg(content):
-    session = Session()
-    try:
+    def _do(session):
         new_msg = ChatPresetMsg(content=content)
         session.add(new_msg)
-        session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="add_chat_preset_msg")
 
 
 def query_chat_preset_msg_all(**kwargs):
@@ -3979,32 +3557,20 @@ def query_chat_preset_msg(**kwargs):
 
 
 def update_chat_preset_msg_by_id(msg_id, **kwargs):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(ChatPresetMsg).filter_by(id=msg_id).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="update_chat_preset_msg_by_id")
 
 
 def delete_chat_preset_msg(content):
-    session = Session()
-    try:
+    def _do(session):
         record = session.query(ChatPresetMsg).filter_by(content=content).first()
         if record:
             session.delete(record)
-            session.commit()
-    except Exception as e:
-        session.rollback()
-        raise e
-    finally:
-        session.close()
+    db_write(_do, description="delete_chat_preset_msg")
 
 
 class ToolList(Base):

@@ -162,10 +162,16 @@ async def vectorize_note(note_id: int, request: dict):
                 raise HTTPException(status_code=400, detail="km_id is required")
 
             try:
-                note.waitvectorization = True
-                session.commit()
+                from db.write_queue import db_write
+                _nid = note_id
+                def _do_set_wait(sess):
+                    from backend.database.models.km import NoteMng as _NM
+                    rec = sess.query(_NM).filter(_NM.id == _nid).first()
+                    if rec:
+                        rec.waitvectorization = True
+                db_write(_do_set_wait, description="note_router_set_wait_vectorization")
             except Exception:
-                session.rollback()
+                pass
 
             title = getattr(note, 'title', '') or ''
             content = getattr(note, 'content', '') or ''
@@ -182,10 +188,16 @@ async def vectorize_note(note_id: int, request: dict):
             )
 
             try:
-                note.waitvectorization = False
-                session.commit()
+                from db.write_queue import db_write
+                _nid2 = note_id
+                def _do_clear_wait(sess):
+                    from backend.database.models.km import NoteMng as _NM
+                    rec = sess.query(_NM).filter(_NM.id == _nid2).first()
+                    if rec:
+                        rec.waitvectorization = False
+                db_write(_do_clear_wait, description="note_router_clear_wait_vectorization")
             except Exception:
-                session.rollback()
+                pass
 
             return {"success": True, "data": {"note_id": note_id, "chunks": int(chunks or 0)}}
         finally:

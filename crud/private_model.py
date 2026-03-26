@@ -38,9 +38,15 @@ class CRUDItem(CRUDBase[PrivateModel, PrivateModelCreate, PrivateModelUpdate]):
         instance = db.query(self.model).filter(self.model.id == id, self.model.user_id == user_id).one_or_none()
         if not instance:
             raise HTTPException(status_code=404, detail="记录不存在")
-        db.delete(instance)
-        db.commit()
-        return instance
+        from db.write_queue import db_write
+        _model = self.model
+        _inst_id = instance.id
+        def _do(session):
+            rec = session.query(_model).filter(_model.id == _inst_id).first()
+            if rec:
+                session.delete(rec)
+            return rec
+        return db_write(_do, description="crud_remove_private_model")
         # 构建分页查询函数
 
     def list_params(self, db: Session,

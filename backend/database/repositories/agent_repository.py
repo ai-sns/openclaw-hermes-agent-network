@@ -48,20 +48,14 @@ class AgentTaskRepository(BaseRepository[AgentTask]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create task and return its ID."""
-        session = get_session()
-        try:
-            task = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            task = _model(**kwargs)
             session.add(task)
             session.flush()
-            record_id = task.id
-            session.refresh(task)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return task.id
+        return db_write(_do, description="repo_create_agent_task")
 
     def get_with_label_filter(self, label: bool = False, **kwargs) -> List[AgentTask]:
         """Get tasks with optional label filter."""
@@ -151,17 +145,13 @@ class AgentTaskRepository(BaseRepository[AgentTask]):
 
     def delete_by_task_id(self, id_value: int):
         """Delete all tasks with same task_id."""
-        session = get_session()
-        try:
-            task = session.query(self.model).filter_by(id=id_value).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            task = session.query(_model).filter_by(id=id_value).first()
             if task:
-                session.query(self.model).filter_by(task_id=task.task_id).delete()
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+                session.query(_model).filter_by(task_id=task.task_id).delete()
+        db_write(_do, description="repo_delete_agent_task_by_task_id")
 
 
 class AgentTaskMultiRepository(BaseRepository[AgentTaskMulti]):
@@ -172,20 +162,14 @@ class AgentTaskMultiRepository(BaseRepository[AgentTaskMulti]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create task and return its ID."""
-        session = get_session()
-        try:
-            task = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            task = _model(**kwargs)
             session.add(task)
             session.flush()
-            record_id = task.id
-            session.refresh(task)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return task.id
+        return db_write(_do, description="repo_create_agent_task_multi")
 
     def get_with_label_filter(self, label: bool = False, **kwargs) -> List[AgentTaskMulti]:
         """Get tasks with optional label filter."""
@@ -239,17 +223,13 @@ class AgentTaskMultiRepository(BaseRepository[AgentTaskMulti]):
 
     def delete_by_task_id(self, id_value: int):
         """Delete all tasks with same task_id."""
-        session = get_session()
-        try:
-            task = session.query(self.model).filter_by(id=id_value).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            task = session.query(_model).filter_by(id=id_value).first()
             if task:
-                session.query(self.model).filter_by(task_id=task.task_id).delete()
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+                session.query(_model).filter_by(task_id=task.task_id).delete()
+        db_write(_do, description="repo_delete_agent_task_multi_by_task_id")
 
 
 class MutiAgentCfgRepository(BaseRepository[MutiAgentCfg]):
@@ -260,20 +240,14 @@ class MutiAgentCfgRepository(BaseRepository[MutiAgentCfg]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create configuration and return its ID."""
-        session = get_session()
-        try:
-            cfg = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            cfg = _model(**kwargs)
             session.add(cfg)
             session.flush()
-            record_id = cfg.id
-            session.refresh(cfg)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return cfg.id
+        return db_write(_do, description="repo_create_muti_agent_cfg")
 
     def get_all_ordered(self, **filters) -> List[MutiAgentCfg]:
         """Get all configurations ordered by position."""

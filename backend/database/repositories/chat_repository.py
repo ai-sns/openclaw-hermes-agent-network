@@ -173,78 +173,61 @@ class AIChatMessagesRepository(BaseRepository[AIChatMessages]):
             session.close()
 
     def soft_delete_conversation(self, conversation_id: str) -> int:
-        session = get_session()
-        try:
-            affected = session.query(self.model).filter(
-                AIChatMessages.conversation_id == conversation_id,
+        from db.write_queue import db_write
+        _cid = conversation_id
+        def _do(session):
+            affected = session.query(AIChatMessages).filter(
+                AIChatMessages.conversation_id == _cid,
                 AIChatMessages.is_delete == False,
             ).update({AIChatMessages.is_delete: True}, synchronize_session=False)
-            session.commit()
             return int(affected or 0)
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        return db_write(_do, description="repo_soft_delete_conversation")
 
     def update_conversation_title(self, conversation_id: str, title: str) -> bool:
-        session = get_session()
-        try:
-            affected = session.query(self.model).filter(
-                AIChatMessages.conversation_id == conversation_id,
+        from db.write_queue import db_write
+        _cid = conversation_id
+        _title = title
+        def _do(session):
+            affected = session.query(AIChatMessages).filter(
+                AIChatMessages.conversation_id == _cid,
                 AIChatMessages.is_first == True,
                 AIChatMessages.is_delete == False,
-            ).update({AIChatMessages.title: title}, synchronize_session=False)
-            session.commit()
+            ).update({AIChatMessages.title: _title}, synchronize_session=False)
             return bool(affected)
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        return db_write(_do, description="repo_update_conversation_title")
 
     def update_conversation_tag(self, conversation_id: str, tag: Optional[str]) -> bool:
-        session = get_session()
-        try:
-            clean_tag = None
-            if tag is not None:
-                t = str(tag).strip()
-                clean_tag = t if t else None
-
-            affected = session.query(self.model).filter(
-                AIChatMessages.conversation_id == conversation_id,
+        from db.write_queue import db_write
+        clean_tag = None
+        if tag is not None:
+            t = str(tag).strip()
+            clean_tag = t if t else None
+        _cid = conversation_id
+        _tag = clean_tag
+        def _do(session):
+            affected = session.query(AIChatMessages).filter(
+                AIChatMessages.conversation_id == _cid,
                 AIChatMessages.is_first == True,
                 AIChatMessages.is_delete == False,
-            ).update({AIChatMessages.label: clean_tag}, synchronize_session=False)
-            session.commit()
+            ).update({AIChatMessages.label: _tag}, synchronize_session=False)
             return bool(affected)
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        return db_write(_do, description="repo_update_conversation_tag")
 
     def toggle_conversation_pin(self, conversation_id: str) -> tuple[bool, Optional[datetime]]:
-        session = get_session()
-        try:
-            first = session.query(self.model).filter(
-                AIChatMessages.conversation_id == conversation_id,
+        from db.write_queue import db_write
+        _cid = conversation_id
+        def _do(session):
+            first = session.query(AIChatMessages).filter(
+                AIChatMessages.conversation_id == _cid,
                 AIChatMessages.is_first == True,
                 AIChatMessages.is_delete == False,
             ).order_by(desc(AIChatMessages.create_time)).first()
-
             if not first:
                 return False, None
-
             new_value = None if first.stick_time else datetime.now()
             first.stick_time = new_value
-            session.commit()
             return True, new_value
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
+        return db_write(_do, description="repo_toggle_conversation_pin")
 
     def get_tag_stats(self, agent_id: Optional[int] = None) -> List[dict]:
         session = get_session()
@@ -300,20 +283,14 @@ class AiChatCfgRepository(BaseRepository[AiChatCfg]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create configuration and return its ID."""
-        session = get_session()
-        try:
-            cfg = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            cfg = _model(**kwargs)
             session.add(cfg)
             session.flush()
-            record_id = cfg.id
-            session.refresh(cfg)
-            session.commit()
-            return record_id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+            return cfg.id
+        return db_write(_do, description="repo_create_aichat_cfg")
 
     def get_all_ordered(self, **kwargs) -> List[AiChatCfg]:
         """Get all configurations ordered by position."""
@@ -399,18 +376,14 @@ class AiChatCfgRepository(BaseRepository[AiChatCfg]):
 
     def update_map_config(self, **kwargs):
         """Update first map configuration."""
-        session = get_session()
-        try:
-            record = session.query(self.model).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            record = session.query(_model).first()
             if record:
                 for key, value in kwargs.items():
                     setattr(record, key, value)
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        db_write(_do, description="repo_update_map_config")
 
 
 class HumanChatCfgRepository(BaseRepository[HumanChatCfg]):

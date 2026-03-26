@@ -15,18 +15,15 @@ class BaseRepository(Generic[ModelType]):
 
     def create(self, **kwargs) -> ModelType:
         """Create a new record."""
-        session = get_db_session()
-        try:
-            obj = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = _model(**kwargs)
             session.add(obj)
-            session.commit()
+            session.flush()
             session.refresh(obj)
             return obj
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description=f"repo_create_{self.model.__tablename__}")
 
     def get_by_id(self, id: int) -> Optional[ModelType]:
         """Get record by ID."""
@@ -57,69 +54,53 @@ class BaseRepository(Generic[ModelType]):
 
     def update(self, id: int, **kwargs) -> bool:
         """Update a record by ID."""
-        session = get_db_session()
-        try:
-            obj = session.query(self.model).filter_by(id=id).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = session.query(_model).filter_by(id=id).first()
             if obj:
                 for key, value in kwargs.items():
                     setattr(obj, key, value)
-                session.commit()
                 return True
             return False
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description=f"repo_update_{self.model.__tablename__}")
 
     def update_by_filter(self, filters: Dict[str, Any], **kwargs) -> bool:
         """Update a record by custom filters."""
-        session = get_db_session()
-        try:
-            obj = session.query(self.model).filter_by(**filters).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = session.query(_model).filter_by(**filters).first()
             if obj:
                 for key, value in kwargs.items():
                     setattr(obj, key, value)
-                session.commit()
                 return True
             return False
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description=f"repo_update_by_filter_{self.model.__tablename__}")
 
     def delete(self, id: int) -> bool:
         """Delete a record by ID."""
-        session = get_db_session()
-        try:
-            obj = session.query(self.model).filter_by(id=id).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = session.query(_model).filter_by(id=id).first()
             if obj:
                 session.delete(obj)
-                session.commit()
                 return True
             return False
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description=f"repo_delete_{self.model.__tablename__}")
 
     def delete_by_filter(self, **filters) -> bool:
         """Delete a record by custom filters."""
-        session = get_db_session()
-        try:
-            obj = session.query(self.model).filter_by(**filters).first()
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            obj = session.query(_model).filter_by(**filters).first()
             if obj:
                 session.delete(obj)
-                session.commit()
                 return True
             return False
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description=f"repo_delete_by_filter_{self.model.__tablename__}")
 
     def count(self, **filters) -> int:
         """Count records with optional filters."""

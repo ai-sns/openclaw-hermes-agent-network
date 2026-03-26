@@ -89,55 +89,67 @@ class XMPPClient(slixmpp.ClientXMPP):
                 if config:
                     from datetime import datetime
                     stored_body = format_internal_xmpp_message_for_storage(body)
-                    friend = self.db.query(AIFriend).filter(
-                        AIFriend.account == from_jid,
-                        AIFriend.owner_sns_account == config.account
-                    ).first()
+                    from db.write_queue import db_write
+                    _from_jid = from_jid
+                    _config_account = config.account
+                    _config_nickname = config.nickname or config.account
+                    _stored_body = stored_body
 
-                    if friend:
-                        if not friend.nick_name:
-                            friend.nick_name = from_jid
-                    else:
-                        friend = AIFriend(
-                            account=from_jid,
-                            nick_name=from_jid,
-                            groups="",
-                            owner_sns_account=config.account,
-                            subscription="none",
-                            new_message_flag=True,
-                            last_message_time=datetime.now(),
+                    def _save_incoming(session):
+                        friend = session.query(AIFriend).filter(
+                            AIFriend.account == _from_jid,
+                            AIFriend.owner_sns_account == _config_account
+                        ).first()
+                        if friend:
+                            if not friend.nick_name:
+                                friend.nick_name = _from_jid
+                        else:
+                            friend = AIFriend(
+                                account=_from_jid,
+                                nick_name=_from_jid,
+                                groups="",
+                                owner_sns_account=_config_account,
+                                subscription="none",
+                                new_message_flag=True,
+                                last_message_time=datetime.now(),
+                            )
+                            session.add(friend)
+
+                        message = AIChatMessages(
+                            conversation_id=f"{_config_account}_{_from_jid}",
+                            flag=1,  # 1=receive
+                            content=_stored_body,
+                            owner_account=_config_account,
+                            friend_account=_from_jid,
+                            owner_name=_config_nickname,
+                            friend_name=_from_jid
                         )
-                        self.db.add(friend)
+                        session.add(message)
+                        session.flush()
+                        friend.new_message_flag = True
+                        friend.last_message_time = datetime.now()
+                        return {
+                            'message_id': message.id,
+                            'create_time': message.create_time.isoformat() if message.create_time else None,
+                            'contact': {
+                                'account': friend.account,
+                                'nick_name': friend.nick_name or friend.account,
+                                'new_message_flag': bool(friend.new_message_flag),
+                                'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
+                            }
+                        }
 
-                    message = AIChatMessages(
-                        conversation_id=f"{config.account}_{from_jid}",
-                        flag=1,  # 1=receive
-                        content=stored_body,
-                        owner_account=config.account,
-                        friend_account=from_jid,
-                        owner_name=config.nickname or config.account,
-                        friend_name=from_jid
-                    )
-                    self.db.add(message)
-                    self.db.commit()
-                    friend.new_message_flag = True
-                    friend.last_message_time = datetime.now()
-                    self.db.commit()
+                    result = db_write(_save_incoming, description="xmpp_client_save_incoming")
+                    contact_payload = result['contact']
 
-                    contact_payload = {
-                        'account': friend.account,
-                        'nick_name': friend.nick_name or friend.account,
-                        'new_message_flag': bool(friend.new_message_flag),
-                        'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
-                    }
                     await self.broadcast_new_message({
                         'type': 'new_message',
                         'data': {
-                            'id': message.id,
+                            'id': result['message_id'],
                             'from_account': from_jid,
                             'content': stored_body,
                             'flag': 1,
-                            'create_time': message.create_time.isoformat() if message.create_time else None,
+                            'create_time': result['create_time'],
                             'contact': contact_payload,
                         }
                     })
@@ -218,29 +230,34 @@ class XMPPClient(slixmpp.ClientXMPP):
 
             owner_account = config.account
 
-            # Check if friend exists
-            friend = self.db.query(AIFriend).filter(
-                AIFriend.account == account,
-                AIFriend.owner_sns_account == owner_account
-            ).first()
+            # Check if friend exists and upsert via write queue
+            from db.write_queue import db_write
+            _account = account
+            _nick_name = nick_name
+            _groups = groups
+            _subscription = subscription
+            _owner_account = owner_account
 
-            if friend:
-                # Update existing friend
-                friend.nick_name = nick_name
-                friend.groups = groups
-                friend.subscription = subscription
-            else:
-                # Add new friend
-                friend = AIFriend(
-                    account=account,
-                    nick_name=nick_name,
-                    groups=groups,
-                    owner_sns_account=owner_account,
-                    subscription=subscription
-                )
-                self.db.add(friend)
+            def _upsert_roster(session):
+                friend = session.query(AIFriend).filter(
+                    AIFriend.account == _account,
+                    AIFriend.owner_sns_account == _owner_account
+                ).first()
+                if friend:
+                    friend.nick_name = _nick_name
+                    friend.groups = _groups
+                    friend.subscription = _subscription
+                else:
+                    friend = AIFriend(
+                        account=_account,
+                        nick_name=_nick_name,
+                        groups=_groups,
+                        owner_sns_account=_owner_account,
+                        subscription=_subscription
+                    )
+                    session.add(friend)
 
-            self.db.commit()
+            db_write(_upsert_roster, description="xmpp_client_upsert_roster")
         except Exception as e:
             logger.error(f"Error updating roster for {jid}: {e}")
 

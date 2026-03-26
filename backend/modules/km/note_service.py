@@ -118,13 +118,18 @@ class NoteService:
 
             note = NoteMng(**note_data)
 
-            session.add(note)
-            session.commit()
-            session.refresh(note)
+            from db.write_queue import db_write
+            _note_data = note_data
+            def _do(sess):
+                n = NoteMng(**_note_data)
+                sess.add(n)
+                sess.flush()
+                sess.refresh(n)
+                return n
+            note = db_write(_do, description="note_service_create")
 
             return self._note_to_dict(note)
         except Exception as e:
-            session.rollback()
             raise e
         finally:
             session.close()
@@ -194,12 +199,40 @@ class NoteService:
             except Exception as e:
                 print(f"⚠️  Error while updating extended fields: {e}")
 
-            session.commit()
-            session.refresh(note)
+            from db.write_queue import db_write
+            _nid = note_id
+            _title = title
+            _content = content
+            _tags = tags
+            _is_pinned = is_pinned
+            def _do(sess):
+                rec = sess.query(NoteMng).filter(and_(NoteMng.id == _nid, NoteMng.is_delete == False)).first()
+                if not rec:
+                    return None
+                if _title is not None:
+                    rec.title = _title
+                if _content is not None:
+                    rec.content = _content
+                try:
+                    if _tags is not None and hasattr(rec, 'tags'):
+                        rec.tags = json.dumps(_tags, ensure_ascii=False)
+                    if _is_pinned is not None and hasattr(rec, 'is_pinned'):
+                        rec.is_pinned = _is_pinned
+                        if _is_pinned and hasattr(rec, 'stick_time'):
+                            rec.stick_time = datetime.now()
+                        elif hasattr(rec, 'stick_time'):
+                            rec.stick_time = None
+                    if hasattr(rec, 'updated_at'):
+                        rec.updated_at = datetime.now()
+                except Exception:
+                    pass
+                sess.flush()
+                sess.refresh(rec)
+                return rec
+            updated = db_write(_do, description="note_service_update")
 
-            return self._note_to_dict(note)
+            return self._note_to_dict(updated) if updated else None
         except Exception as e:
-            session.rollback()
             raise e
         finally:
             session.close()
@@ -218,18 +251,21 @@ class NoteService:
             if not note:
                 return False
 
-            note.is_delete = True
-
-            try:
-                if hasattr(note, 'updated_at'):
-                    note.updated_at = datetime.now()
-            except:
-                pass
-
-            session.commit()
-            return True
+            from db.write_queue import db_write
+            _nid = note_id
+            def _do(sess):
+                rec = sess.query(NoteMng).filter(and_(NoteMng.id == _nid, NoteMng.is_delete == False)).first()
+                if not rec:
+                    return False
+                rec.is_delete = True
+                try:
+                    if hasattr(rec, 'updated_at'):
+                        rec.updated_at = datetime.now()
+                except:
+                    pass
+                return True
+            return db_write(_do, description="note_service_delete")
         except Exception as e:
-            session.rollback()
             raise e
         finally:
             session.close()
@@ -248,23 +284,28 @@ class NoteService:
             if not note:
                 return None
 
-            # Only update extended fields if columns exist
-            try:
-                if hasattr(note, 'is_pinned'):
-                    note.is_pinned = not note.is_pinned
-                    if hasattr(note, 'stick_time'):
-                        note.stick_time = datetime.now() if note.is_pinned else None
-                if hasattr(note, 'updated_at'):
-                    note.updated_at = datetime.now()
-            except Exception as e:
-                print(f"⚠️  Error while toggling pinned status: {e}")
+            from db.write_queue import db_write
+            _nid = note_id
+            def _do(sess):
+                rec = sess.query(NoteMng).filter(and_(NoteMng.id == _nid, NoteMng.is_delete == False)).first()
+                if not rec:
+                    return None
+                try:
+                    if hasattr(rec, 'is_pinned'):
+                        rec.is_pinned = not rec.is_pinned
+                        if hasattr(rec, 'stick_time'):
+                            rec.stick_time = datetime.now() if rec.is_pinned else None
+                    if hasattr(rec, 'updated_at'):
+                        rec.updated_at = datetime.now()
+                except Exception:
+                    pass
+                sess.flush()
+                sess.refresh(rec)
+                return rec
+            toggled = db_write(_do, description="note_service_toggle_pin")
 
-            session.commit()
-            session.refresh(note)
-
-            return self._note_to_dict(note)
+            return self._note_to_dict(toggled) if toggled else None
         except Exception as e:
-            session.rollback()
             raise e
         finally:
             session.close()

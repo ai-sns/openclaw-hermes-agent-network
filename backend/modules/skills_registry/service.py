@@ -221,19 +221,23 @@ class DocSkillsService:
     def set_agent_skill_keys(self, agent_id: int, skill_keys: List[str]) -> None:
         db = get_db_session()
         try:
-            db.query(AgentDocSkill).filter(AgentDocSkill.agent_id == agent_id).delete()
-            for idx, key in enumerate(skill_keys):
-                db.add(
-                    AgentDocSkill(
-                        agent_id=agent_id,
-                        skill_key=str(key),
-                        enabled=True,
-                        priority=max(0, (len(skill_keys) - idx)),
+            from db.write_queue import db_write
+            _aid = agent_id
+            _keys = list(skill_keys)
+            _count = len(skill_keys)
+            def _do(session):
+                session.query(AgentDocSkill).filter(AgentDocSkill.agent_id == _aid).delete()
+                for idx, key in enumerate(_keys):
+                    session.add(
+                        AgentDocSkill(
+                            agent_id=_aid,
+                            skill_key=str(key),
+                            enabled=True,
+                            priority=max(0, (_count - idx)),
+                        )
                     )
-                )
-            db.commit()
+            db_write(_do, description="skills_registry_set_agent_skills")
         except Exception:
-            db.rollback()
             raise
         finally:
             db.close()

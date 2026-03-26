@@ -147,7 +147,6 @@ def apply_runtime_system_config(payload: dict) -> bool:
             pass
 
     for k in (
-        "conversation_timeout_seconds",
         "contact_cooldown_seconds",
         "contact_recent_limit",
         "process_info_compact_every_n",
@@ -422,49 +421,52 @@ class SNSService:
             config = result.scalar_one_or_none()
 
             if config:
-                stmt_friend = select(AIFriend).where(
-                    AIFriend.is_delete == False,
-                    AIFriend.owner_sns_account == config.account,
-                    AIFriend.account == to_account,
-                )
-                result_friend = await self.db.execute(stmt_friend)
-                friend = result_friend.scalar_one_or_none()
+                from db.write_queue import db_write_async
+                _config_account = config.account
+                _config_nickname = config.nickname or config.account
+                _to_account = to_account
+                _stored_content = stored_content
 
-                if friend:
-                    if not friend.nick_name:
-                        friend.nick_name = to_account
-                else:
-                    friend = AIFriend(
-                        account=to_account,
-                        nick_name=to_account,
-                        groups="",
-                        owner_sns_account=config.account,
-                        subscription="none",
-                        new_message_flag=False,
-                        last_message_time=datetime.now(),
+                def _save_and_upsert(session):
+                    friend = session.query(AIFriend).filter(
+                        AIFriend.is_delete == False,
+                        AIFriend.owner_sns_account == _config_account,
+                        AIFriend.account == _to_account,
+                    ).first()
+                    if friend:
+                        if not friend.nick_name:
+                            friend.nick_name = _to_account
+                    else:
+                        friend = AIFriend(
+                            account=_to_account,
+                            nick_name=_to_account,
+                            groups="",
+                            owner_sns_account=_config_account,
+                            subscription="none",
+                            new_message_flag=False,
+                            last_message_time=datetime.now(),
+                        )
+                        session.add(friend)
+
+                    message = AIChatMessages(
+                        conversation_id=f"{_config_account}_{_to_account}",
+                        flag=0,
+                        content=_stored_content,
+                        owner_account=_config_account,
+                        friend_account=_to_account,
+                        owner_name=_config_nickname,
+                        friend_name=_to_account
                     )
-                    self.db.add(friend)
+                    session.add(message)
+                    friend.last_message_time = datetime.now()
+                    return {
+                        'account': friend.account,
+                        'nick_name': friend.nick_name or friend.account,
+                        'new_message_flag': bool(friend.new_message_flag),
+                        'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
+                    }
 
-                message = AIChatMessages(
-                    conversation_id=f"{config.account}_{to_account}",
-                    flag=0,
-                    content=stored_content,
-                    owner_account=config.account,
-                    friend_account=to_account,
-                    owner_name=config.nickname or config.account,
-                    friend_name=to_account
-                )
-                self.db.add(message)
-
-                friend.last_message_time = datetime.now()
-                await self.db.commit()
-
-                contact_payload = {
-                    'account': friend.account,
-                    'nick_name': friend.nick_name or friend.account,
-                    'new_message_flag': bool(friend.new_message_flag),
-                    'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
-                }
+                contact_payload = await db_write_async(_save_and_upsert, description="service_async_send_message")
 
                 await websocket_manager.broadcast({
                     'type': 'contact_upserted',
@@ -523,52 +525,54 @@ class SNSService:
                 config = result.scalar_one_or_none()
 
                 if config:
-                    stmt_friend = select(AIFriend).where(
-                        AIFriend.is_delete == False,
-                        AIFriend.owner_sns_account == config.account,
-                        AIFriend.account == to_account,
-                    )
-                    result_friend = await self.db.execute(stmt_friend)
-                    friend = result_friend.scalar_one_or_none()
-
-                    if friend:
-                        if not friend.nick_name:
-                            friend.nick_name = to_account
-                    else:
-                        friend = AIFriend(
-                            account=to_account,
-                            nick_name=to_account,
-                            groups="",
-                            owner_sns_account=config.account,
-                            subscription="none",
-                            new_message_flag=False,
-                            last_message_time=datetime.now(),
-                        )
-                        self.db.add(friend)
-
+                    from db.write_queue import db_write_async
+                    _ca = config.account
+                    _cn = config.nickname or config.account
+                    _ta = to_account
                     file_message = f"📎 File: {file.filename}\n{url}"
-                    stored_file_message = format_internal_xmpp_message_for_storage(file_message)
-                    message = AIChatMessages(
-                        conversation_id=f"{config.account}_{to_account}",
-                        flag=0,
-                        content=stored_file_message,
-                        attachment_list=file.filename,
-                        owner_account=config.account,
-                        friend_account=to_account,
-                        owner_name=config.nickname or config.account,
-                        friend_name=to_account
-                    )
-                    self.db.add(message)
+                    _sfm = format_internal_xmpp_message_for_storage(file_message)
+                    _fn = file.filename
 
-                    friend.last_message_time = datetime.now()
-                    await self.db.commit()
+                    def _save_file_and_upsert(session):
+                        friend = session.query(AIFriend).filter(
+                            AIFriend.is_delete == False,
+                            AIFriend.owner_sns_account == _ca,
+                            AIFriend.account == _ta,
+                        ).first()
+                        if friend:
+                            if not friend.nick_name:
+                                friend.nick_name = _ta
+                        else:
+                            friend = AIFriend(
+                                account=_ta,
+                                nick_name=_ta,
+                                groups="",
+                                owner_sns_account=_ca,
+                                subscription="none",
+                                new_message_flag=False,
+                                last_message_time=datetime.now(),
+                            )
+                            session.add(friend)
+                        msg = AIChatMessages(
+                            conversation_id=f"{_ca}_{_ta}",
+                            flag=0,
+                            content=_sfm,
+                            attachment_list=_fn,
+                            owner_account=_ca,
+                            friend_account=_ta,
+                            owner_name=_cn,
+                            friend_name=_ta
+                        )
+                        session.add(msg)
+                        friend.last_message_time = datetime.now()
+                        return {
+                            'account': friend.account,
+                            'nick_name': friend.nick_name or friend.account,
+                            'new_message_flag': bool(friend.new_message_flag),
+                            'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
+                        }
 
-                    contact_payload = {
-                        'account': friend.account,
-                        'nick_name': friend.nick_name or friend.account,
-                        'new_message_flag': bool(friend.new_message_flag),
-                        'last_message_time': friend.last_message_time.isoformat() if friend.last_message_time else None,
-                    }
+                    contact_payload = await db_write_async(_save_file_and_upsert, description="service_async_send_file")
 
                     await websocket_manager.broadcast({
                         'type': 'contact_upserted',
@@ -970,6 +974,19 @@ class SNSService:
                 taskmng = getattr(_social_engine_instance, "taskmng", None)
 
                 if started_flag and map_task_status == "started" and taskmng is not None:
+                    try:
+                        if hasattr(_social_engine_instance, "is_idle_for_auto_activity") and (not _social_engine_instance.is_idle_for_auto_activity()):
+                            logger.info("Exiting human control mode: engine not idle, skipping process_activity resume")
+                            return {
+                                "success": True,
+                                "message": "Human control state updated",
+                                "data": {
+                                    "human_take_over": _social_engine_instance.human_take_over,
+                                    "human_talk_type": _social_engine_instance.human_talk_type
+                                }
+                            }
+                    except Exception:
+                        pass
                     ask_content = getattr(taskmng, "current_situation", "") or getattr(taskmng, "current_objective", "")
                     logger.info("Exiting human control mode: resuming task processing")
                     asyncio.create_task(taskmng.process_task(action="process_activity", ask_content=ask_content))
@@ -998,6 +1015,25 @@ class SNSService:
                 "success": False,
                 "message": "AI Social Engine is not initialized"
             }
+
+        try:
+            if hasattr(_social_engine_instance, "is_busy_for_human_command") and _social_engine_instance.is_busy_for_human_command():
+                msg = "Previous command is still running. Please wait."
+                try:
+                    _social_engine_instance.taskmng_js.show_information(f"<b>{msg}</b>")
+                except Exception:
+                    pass
+                try:
+                    if hasattr(_social_engine_instance, "show_alert_on_map"):
+                        _social_engine_instance.show_alert_on_map(msg, is_error=False)
+                except Exception:
+                    pass
+                return {
+                    "success": False,
+                    "message": msg,
+                }
+        except Exception:
+            pass
 
         # Ensure engine is in started state (handle paused/stopped)
         await self._ensure_engine_running_for_priority_action()
@@ -1108,7 +1144,20 @@ class SNSService:
             pass
 
         # Ensure engine is fully ready and interrupt current tasks for priority execution
-        await self._ensure_engine_running_for_priority_action()
+        try:
+            await self._ensure_engine_running_for_priority_action()
+        except Exception:
+            try:
+                setattr(_social_engine_instance, "_human_command_inflight", False)
+            except Exception:
+                pass
+            raise
+
+        try:
+            if hasattr(_social_engine_instance, "_terminate_active_conversation_for_priority_action"):
+                _social_engine_instance._terminate_active_conversation_for_priority_action()
+        except Exception:
+            pass
 
         try:
             started_flag_after = bool(getattr(_social_engine_instance, "started_flag", False))
@@ -1136,6 +1185,10 @@ class SNSService:
         try:
             _social_engine_instance.handle_parse_agent_instruction_for_process_activity(formatted_instruction)
         except Exception as e:
+            try:
+                setattr(_social_engine_instance, "_human_command_inflight", False)
+            except Exception:
+                pass
             logger.error(f"Error submitting agent instruction: {e}")
             return {
                 "success": False,
@@ -1254,17 +1307,23 @@ class SNSService:
                 config = AiChatCfg(user_id=user_id)
                 self.db.add(config)
 
-            for key, value in data.items():
-                if hasattr(config, key) and value is not None:
-                    setattr(config, key, value)
-
-            await self.db.commit()
-            await self.db.refresh(config)
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _data = {k: v for k, v in data.items() if v is not None}
+            def _update_cfg(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for key, value in _data.items():
+                        if hasattr(rec, key):
+                            setattr(rec, key, value)
+            await db_write_async(_update_cfg, description="service_async_update_ai_chat_config")
+            await self.db.expire_all()
+            result2 = await self.db.execute(stmt)
+            config = result2.scalars().first()
 
             return {"success": True, "message": "Configuration updated successfully", "data": config}
         except Exception as e:
             logger.error(f"Error updating AI chat config: {e}")
-            await self.db.rollback()
             return {"success": False, "message": str(e)}
 
     async def upload_avatar(self, user_id: str = None, file=None):
@@ -1298,7 +1357,10 @@ class SNSService:
                 config = AiChatCfg(user_id=user_id)
                 self.db.add(config)
 
-            config.avatar = filename
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _filename = filename
+            _avatar_map = avatar_map_filename
 
             memo_raw = getattr(config, 'memo', None)
             memo_obj = {}
@@ -1312,13 +1374,17 @@ class SNSService:
             memo_obj['avatar_file'] = filename
             memo_obj['avatar_map'] = avatar_map_filename
             try:
-                config.memo = json.dumps(memo_obj, ensure_ascii=False)
+                _memo_str = json.dumps(memo_obj, ensure_ascii=False)
             except Exception:
-                # Keep avatar update even if memo serialization fails.
-                pass
+                _memo_str = None
 
-            await self.db.commit()
-            await self.db.refresh(config)
+            def _set_avatar(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    rec.avatar = _filename
+                    if _memo_str is not None:
+                        rec.memo = _memo_str
+            await db_write_async(_set_avatar, description="service_async_upload_avatar")
 
             return {
                 "success": True,
@@ -1358,7 +1424,9 @@ class SNSService:
                 config = AiChatCfg(user_id=None)
                 self.db.add(config)
 
-            config.avatar = filename
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _filename = filename
 
             memo_raw = getattr(config, 'memo', None)
             memo_obj = {}
@@ -1372,12 +1440,17 @@ class SNSService:
             memo_obj['avatar_file'] = filename
             memo_obj['avatar_map'] = avatar_map_filename
             try:
-                config.memo = json.dumps(memo_obj, ensure_ascii=False)
+                _memo_str = json.dumps(memo_obj, ensure_ascii=False)
             except Exception:
-                pass
+                _memo_str = None
 
-            await self.db.commit()
-            await self.db.refresh(config)
+            def _set_avatar_dialog(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    rec.avatar = _filename
+                    if _memo_str is not None:
+                        rec.memo = _memo_str
+            await db_write_async(_set_avatar_dialog, description="service_async_upload_avatar_dialog")
 
             return {
                 'success': True,
@@ -1389,10 +1462,6 @@ class SNSService:
             }
         except Exception as e:
             logger.error("Avatar dialog upload failed: %s", e)
-            try:
-                await self.db.rollback()
-            except Exception:
-                pass
             return {'success': False, 'message': str(e)}
 
     async def submit_avatar_dialog(self, payload: dict) -> dict:
@@ -1449,16 +1518,26 @@ class SNSService:
             if not xmpp_account:
                 xmpp_account = (getattr(config, 'account', None) or '').strip()
 
-            config.avatar3d = avatar3d
-            if nickname:
-                config.nickname = nickname
-            if profile:
-                config.sign = profile
-            config.sns_url = sns_url
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _avatar3d = avatar3d
+            _nickname = nickname
+            _profile = profile
+            _sns_url = sns_url
+            _xmpp_account = xmpp_account
 
-            if xmpp_account and hasattr(config, 'account'):
-                config.account = xmpp_account
-            await self.db.commit()
+            def _update_avatar_dialog(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    rec.avatar3d = _avatar3d
+                    if _nickname:
+                        rec.nickname = _nickname
+                    if _profile:
+                        rec.sign = _profile
+                    rec.sns_url = _sns_url
+                    if _xmpp_account and hasattr(rec, 'account'):
+                        rec.account = _xmpp_account
+            await db_write_async(_update_avatar_dialog, description="service_async_submit_avatar_dialog")
 
             cfg_stmt = (
                 select(SystemCfg)
@@ -1576,43 +1655,43 @@ class SNSService:
 
             content_value = "" if content is None else str(content)
 
-            if not prompt:
-                prompt = Prompt(
-                    title=title_value,
-                    caption=title_value,
-                    content=content_value,
-                    question="",
-                    tags="",
-                    model_name="",
-                    position=9999,
-                )
-                self.db.add(prompt)
-            else:
-                prompt.content = content_value
+            from db.write_queue import db_write_async
+            _title_value = title_value
+            _content_value = content_value
 
-            await self.db.commit()
-            try:
-                await self.db.refresh(prompt)
-            except Exception:
-                pass
+            def _upsert_prompt(session):
+                rec = session.query(Prompt).filter_by(title=_title_value).first()
+                if not rec:
+                    rec = Prompt(
+                        title=_title_value,
+                        caption=_title_value,
+                        content=_content_value,
+                        question="",
+                        tags="",
+                        model_name="",
+                        position=9999,
+                    )
+                    session.add(rec)
+                else:
+                    rec.content = _content_value
+                session.flush()
+                return {
+                    "id": rec.id,
+                    "title": rec.title,
+                    "caption": getattr(rec, "caption", None),
+                    "content": rec.content or "",
+                    "question": getattr(rec, "question", None),
+                    "tags": getattr(rec, "tags", None),
+                }
+
+            prompt_data = await db_write_async(_upsert_prompt, description="service_async_upsert_prompt_by_title")
 
             return {
                 "success": True,
                 "message": "Prompt updated successfully",
-                "data": {
-                    "id": getattr(prompt, "id", None),
-                    "title": getattr(prompt, "title", None),
-                    "caption": getattr(prompt, "caption", None),
-                    "content": getattr(prompt, "content", "") or "",
-                    "question": getattr(prompt, "question", None),
-                    "tags": getattr(prompt, "tags", None),
-                },
+                "data": prompt_data,
             }
         except Exception as e:
-            try:
-                await self.db.rollback()
-            except Exception:
-                pass
             logger.error(f"Error upserting prompt by title: {e}")
             return {"success": False, "message": str(e)}
 
@@ -1637,32 +1716,36 @@ class SNSService:
             if not prompt:
                 return {"success": False, "message": "Social role not found"}
 
-            # Update fields
-            if "caption" in data:
-                prompt.caption = data["caption"]
-            if "content" in data:
-                prompt.content = data["content"]
-            if "question" in data:
-                prompt.question = data["question"]
-            if "tags" in data:
-                prompt.tags = data["tags"]
-
-            await self.db.commit()
-            await self.db.refresh(prompt)
+            from db.write_queue import db_write_async
+            _prompt_id = prompt.id
+            _data = data
+            def _update_role(session):
+                rec = session.query(Prompt).filter_by(id=_prompt_id).first()
+                if rec:
+                    if "caption" in _data:
+                        rec.caption = _data["caption"]
+                    if "content" in _data:
+                        rec.content = _data["content"]
+                    if "question" in _data:
+                        rec.question = _data["question"]
+                    if "tags" in _data:
+                        rec.tags = _data["tags"]
+                    return {
+                        "id": rec.id,
+                        "caption": getattr(rec, "caption", None),
+                        "content": getattr(rec, "content", None),
+                        "question": getattr(rec, "question", None),
+                        "tags": getattr(rec, "tags", None),
+                    }
+                return None
+            result_data = await db_write_async(_update_role, description="service_async_update_social_role")
 
             return {
                 "success": True,
                 "message": "Social role updated successfully",
-                "data": {
-                    "id": prompt.id,
-                    "caption": getattr(prompt, "caption", None),
-                    "content": getattr(prompt, "content", None),
-                    "question": getattr(prompt, "question", None),
-                    "tags": getattr(prompt, "tags", None),
-                }
+                "data": result_data
             }
         except Exception as e:
-            await self.db.rollback()
             logger.error(f"Error updating social role: {e}")
             return {"success": False, "message": str(e)}
 
@@ -1676,12 +1759,16 @@ class SNSService:
             if not prompt:
                 return {"success": False, "message": "Social role not found"}
 
-            await self.db.delete(prompt)
-            await self.db.commit()
+            from db.write_queue import db_write_async
+            _prompt_id = prompt.id
+            def _delete_role(session):
+                rec = session.query(Prompt).filter_by(id=_prompt_id).first()
+                if rec:
+                    session.delete(rec)
+            await db_write_async(_delete_role, description="service_async_delete_social_role")
 
             return {"success": True, "message": "Social role deleted successfully"}
         except Exception as e:
-            await self.db.rollback()
             logger.error(f"Error deleting social role: {e}")
             return {"success": False, "message": str(e)}
 
@@ -1914,12 +2001,17 @@ class SNSService:
                 except Exception:
                     pass
 
-            config.nationpassword = new_password
-            await self.db.commit()
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _new_password = new_password
+            def _set_password(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    rec.nationpassword = _new_password
+            await db_write_async(_set_password, description="service_async_change_nation_password")
             return {"success": True, "message": "Nation password updated successfully"}
         except Exception as e:
             logger.error(f"Error changing nation password: {e}")
-            await self.db.rollback()
             return {"success": False, "message": str(e)}
 
     async def update_user_info(self, data: dict):
@@ -2033,18 +2125,48 @@ class SNSService:
                     await self.db.rollback()
                     return {"success": False, "message": remote_error}
 
-            await self.db.commit()
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _updates = {}
+            if 'nickname' in data:
+                _updates['nickname'] = data['nickname']
+            if 'sign' in data:
+                _updates['sign'] = data['sign']
+            if 'sns_url' in data:
+                _updates['sns_url'] = data['sns_url']
+            if 'agent_id' in data and hasattr(config, 'agent_id'):
+                _updates['agent_id'] = data['agent_id']
+            if 'profession' in data:
+                _updates['profession'] = config.profession
+            if hasattr(config, 'money'):
+                _updates['money'] = config.money
+            if 'handle_after_trade' in data and hasattr(config, 'handle_after_trade'):
+                _updates['handle_after_trade'] = data.get('handle_after_trade')
+            if 'handle_content' in data and hasattr(config, 'handle_content'):
+                _updates['handle_content'] = data.get('handle_content')
+            if 'goods_or_service_description' in data and hasattr(config, 'goods_or_service_description'):
+                _updates['goods_or_service_description'] = data.get('goods_or_service_description')
+            if 'goods_or_service_price' in data and hasattr(config, 'goods_or_service_price'):
+                _updates['goods_or_service_price'] = data.get('goods_or_service_price')
+
+            _money_after = getattr(config, 'money', None)
+            def _update_user(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for k, v in _updates.items():
+                        if hasattr(rec, k):
+                            setattr(rec, k, v)
+            await db_write_async(_update_user, description="service_async_update_user_info")
             return {
                 "success": True,
                 "message": "User info updated successfully",
                 "data": {
                     "deducted": deducted,
-                    "money": getattr(config, 'money', None)
+                    "money": _money_after
                 }
             }
         except Exception as e:
             logger.error(f"Error updating user info: {e}")
-            await self.db.rollback()
             return {"success": False, "message": str(e)}
 
     async def get_map_config(self):
@@ -2142,7 +2264,27 @@ class SNSService:
                     config.positiony = baidu_data.get("positiony", 0)
                     config.positionz = baidu_data.get("positionz", 0)
 
-            await self.db.commit()
+            from db.write_queue import db_write_async
+            _config_id = config.id
+            _map_updates = {
+                'map_type': config.map_type,
+                'map_api_key': config.map_api_key,
+                'map_id': config.map_id,
+            }
+            if hasattr(config, 'memo'):
+                _map_updates['memo'] = config.memo
+            if map_type_changing:
+                for _f in ('route_start', 'route_end', 'route_current_position',
+                           'route', 'route_status', 'home_position',
+                           'positionx', 'positiony', 'positionz'):
+                    _map_updates[_f] = getattr(config, _f, None)
+
+            def _update_map(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for k, v in _map_updates.items():
+                        setattr(rec, k, v)
+            await db_write_async(_update_map, description="service_async_update_map_config")
 
             self._replace_map_config_in_files(
                 old_api_keys, old_map_ids,
@@ -2153,7 +2295,6 @@ class SNSService:
             return {"success": True, "message": "Map config updated successfully"}
         except Exception as e:
             logger.error(f"Error updating map config: {e}")
-            await self.db.rollback()
             return {"success": False, "message": str(e)}
 
     def _replace_map_config_in_files(self, old_api_keys, old_map_ids, new_api_keys, new_map_ids):

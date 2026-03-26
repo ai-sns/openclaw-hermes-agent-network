@@ -18,18 +18,14 @@ class MapCfgRepository(BaseRepository[MapCfg]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create map configuration and return its ID."""
-        session = get_session()
-        try:
-            cfg = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            cfg = _model(**kwargs)
             session.add(cfg)
-            session.commit()
-            session.refresh(cfg)
+            session.flush()
             return cfg.id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_create_map_cfg")
 
     def get_all_ordered(self, **kwargs) -> List[MapCfg]:
         """Get all map configurations ordered by create time."""
@@ -58,18 +54,14 @@ class MapTaskRepository(BaseRepository[MapTask]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create map task and return its ID."""
-        session = get_session()
-        try:
-            task = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            task = _model(**kwargs)
             session.add(task)
-            session.commit()
-            session.refresh(task)
+            session.flush()
             return task.id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_create_map_task")
 
     def get_all_ordered(self, **kwargs) -> List[MapTask]:
         """Get all map tasks ordered by create time."""
@@ -98,18 +90,14 @@ class MapToolRepository(BaseRepository[MapTool]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create map tool and return its ID."""
-        session = get_session()
-        try:
-            tool = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            tool = _model(**kwargs)
             session.add(tool)
-            session.commit()
-            session.refresh(tool)
+            session.flush()
             return tool.id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_create_map_tool")
 
     def get_all_ordered(self, **kwargs) -> List[MapTool]:
         """Get all map tools ordered by create time."""
@@ -138,18 +126,14 @@ class MapTradeRepository(BaseRepository[MapTrade]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create map trade and return its ID."""
-        session = get_session()
-        try:
-            trade = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            trade = _model(**kwargs)
             session.add(trade)
-            session.commit()
-            session.refresh(trade)
+            session.flush()
             return trade.id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_create_map_trade")
 
     def get_all_ordered(self, **kwargs) -> List[MapTrade]:
         """Get all map trades ordered by create time."""
@@ -182,18 +166,14 @@ class MapVisitRepository(BaseRepository[MapVisit]):
 
     def create_with_id(self, **kwargs) -> int:
         """Create map visit and return its ID."""
-        session = get_session()
-        try:
-            visit = self.model(**kwargs)
+        from db.write_queue import db_write
+        _model = self.model
+        def _do(session):
+            visit = _model(**kwargs)
             session.add(visit)
-            session.commit()
-            session.refresh(visit)
+            session.flush()
             return visit.id
-        except Exception as e:
-            session.rollback()
-            raise e
-        finally:
-            session.close()
+        return db_write(_do, description="repo_create_map_visit")
 
     def get_all_ordered(self, **kwargs) -> List[MapVisit]:
         """Get all map visits ordered by create time."""

@@ -60,17 +60,14 @@ async def query_AiChatCfg_map_setting(**kwargs):
 
 async def update_AiChatCfg_map(**kwargs):
     """Asynchronously update the AiChatCfg record."""
-    async with AsyncSessionLocal() as session:
-        stmt = select(AiChatCfg)
-        result = await session.execute(stmt)
-        record = result.scalar_one_or_none()
-
+    from db.write_queue import db_write_async
+    def _do(session):
+        record = session.query(AiChatCfg).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            await session.commit()
-
         return record
+    return await db_write_async(_do, description="async_update_AiChatCfg_map")
 
 
 async def query_tool_list():
@@ -94,50 +91,50 @@ async def query_single_tool(tool_id):
 async def update_map_task(task_id, **kwargs):
     """Asynchronously update a map task."""
     from db.database import MapTask
-    async with AsyncSessionLocal() as session:
-        stmt = select(MapTask).where(MapTask.id == task_id)
-        result = await session.execute(stmt)
-        task = result.scalar_one_or_none()
-
+    from db.write_queue import db_write_async
+    def _do(session):
+        task = session.query(MapTask).filter_by(id=task_id).first()
         if task:
             for key, value in kwargs.items():
                 setattr(task, key, value)
-            await session.commit()
-
         return task
+    return await db_write_async(_do, description="async_update_map_task")
 
 
 async def add_map_visit(**kwargs):
     """Asynchronously add a map visit record."""
     from db.database import MapVisit
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         visit = MapVisit(**kwargs)
         session.add(visit)
-        await session.commit()
-        await session.refresh(visit)
-        return visit
+        session.flush()
+        return visit.id
+    return await db_write_async(_do, description="async_add_map_visit")
 
 
 async def add_map_trade(**kwargs):
     """Asynchronously add a map trade record."""
     from db.database import MapTrade
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         trade = MapTrade(**kwargs)
         session.add(trade)
-        await session.commit()
-        await session.refresh(trade)
-        return trade
+        session.flush()
+        return trade.id
+    return await db_write_async(_do, description="async_add_map_trade")
 
 
 async def add_map_tool(**kwargs):
     """Asynchronously add a map tool record."""
     from db.database import MapTool
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         tool = MapTool(**kwargs)
         session.add(tool)
-        await session.commit()
-        await session.refresh(tool)
-        return tool
+        session.flush()
+        return tool.id
+    return await db_write_async(_do, description="async_add_map_tool")
 
 
 async def query_single_map_trade(trade_id):
@@ -152,18 +149,19 @@ async def query_single_map_trade(trade_id):
 
 async def add_AIChatMessages(**kwargs):
     """Asynchronously add a chat message."""
-    async with AsyncSessionLocal() as session:
-        try:
-            if 'content' in kwargs:
-                from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
-                kwargs['content'] = format_internal_xmpp_message_for_storage(kwargs.get('content'))
-        except Exception:
-            pass
+    try:
+        if 'content' in kwargs:
+            from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+            kwargs['content'] = format_internal_xmpp_message_for_storage(kwargs.get('content'))
+    except Exception:
+        pass
+    from db.write_queue import db_write_async
+    def _do(session):
         message = AIChatMessages(**kwargs)
         session.add(message)
-        await session.commit()
-        await session.refresh(message)
-        return message
+        session.flush()
+        return message.id
+    return await db_write_async(_do, description="async_add_AIChatMessages")
 
 
 async def query_mcp_mng(name=None):
@@ -181,22 +179,24 @@ async def query_mcp_mng(name=None):
 async def add_mcp_mng(**kwargs):
     """Asynchronously add an MCP management record."""
     from db.database import McpMng
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         mcp = McpMng(**kwargs)
         session.add(mcp)
-        await session.commit()
-        await session.refresh(mcp)
-        return mcp
+        session.flush()
+        return mcp.id
+    return await db_write_async(_do, description="async_add_mcp_mng")
 
 
 async def delete_map_preset_msg(msg_id):
     """Asynchronously delete a map preset message."""
     from db.database import MapPresetMsg
-    async with AsyncSessionLocal() as session:
-        stmt = delete(MapPresetMsg).where(MapPresetMsg.id == msg_id)
-        result = await session.execute(stmt)
-        if result.rowcount > 0:
-            await session.commit()
+    from db.write_queue import db_write_async
+    def _do(session):
+        rec = session.query(MapPresetMsg).filter_by(id=msg_id).first()
+        if rec:
+            session.delete(rec)
+    await db_write_async(_do, description="async_delete_map_preset_msg")
 
 
 async def query_map_preset_msg_all():
@@ -212,38 +212,37 @@ async def query_map_preset_msg_all():
 async def add_map_preset_msg(**kwargs):
     """Asynchronously add a map preset message."""
     from db.database import MapPresetMsg
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         msg = MapPresetMsg(**kwargs)
         session.add(msg)
-        await session.commit()
-        await session.refresh(msg)
-        return msg
+        session.flush()
+        return msg.id
+    return await db_write_async(_do, description="async_add_map_preset_msg")
 
 
 async def update_AiChatCfg_by_user_id(user_id, **kwargs):
     """Asynchronously update AiChatCfg by user ID."""
-    async with AsyncSessionLocal() as session:
-        stmt = select(AiChatCfg).where(AiChatCfg.user_id == user_id)
-        result = await session.execute(stmt)
-        record = result.scalar_one_or_none()
-
+    from db.write_queue import db_write_async
+    def _do(session):
+        record = session.query(AiChatCfg).filter_by(user_id=user_id).first()
         if record:
             for key, value in kwargs.items():
                 setattr(record, key, value)
-            await session.commit()
-
         return record
+    return await db_write_async(_do, description="async_update_AiChatCfg_by_user_id")
 
 
 async def add_function_mng(**kwargs):
     """Asynchronously add a function management record."""
     from db.database import FunctionMng
-    async with AsyncSessionLocal() as session:
+    from db.write_queue import db_write_async
+    def _do(session):
         func = FunctionMng(**kwargs)
         session.add(func)
-        await session.commit()
-        await session.refresh(func)
-        return func
+        session.flush()
+        return func.id
+    return await db_write_async(_do, description="async_add_function_mng")
 
 
 async def query_function_mng():

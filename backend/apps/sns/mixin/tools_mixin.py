@@ -192,7 +192,10 @@ class ToolsMixin:
                 except Exception:
                     pass
                 try:
-                    asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
+                    if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                        self._maybe_finish_human_command_if_idle(ask_content="")
+                    else:
+                        asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
                 except Exception:
                     pass
                 return
@@ -225,7 +228,10 @@ class ToolsMixin:
                     except Exception:
                         pass
                     try:
-                        asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
+                        if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                            self._maybe_finish_human_command_if_idle(ask_content="")
+                        else:
+                            asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
                     except Exception:
                         pass
                 return
@@ -249,7 +255,10 @@ class ToolsMixin:
                 pass
 
             try:
-                asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
+                if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                    self._maybe_finish_human_command_if_idle(ask_content="")
+                else:
+                    asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
             except Exception:
                 pass
         except Exception as e:
@@ -271,7 +280,10 @@ class ToolsMixin:
             except Exception:
                 pass
             try:
-                asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
+                if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                    self._maybe_finish_human_command_if_idle(ask_content="")
+                else:
+                    asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=""))
             except Exception:
                 pass
 
@@ -430,7 +442,13 @@ class ToolsMixin:
         self.write_task_process_to_pane(action_result + "\n\n")
         self.show_alert_on_map(action_result)
         ask_content = ""
-        asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content))
+        try:
+            if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                self._maybe_finish_human_command_if_idle(ask_content=ask_content)
+            else:
+                asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content))
+        except Exception:
+            pass
 
     async def generate_text_with_configured_tool(
         self,

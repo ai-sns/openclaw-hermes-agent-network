@@ -155,8 +155,24 @@ class FileUploader:
                 status="active",
                 expires_at=expires_at
             )
-            db.add(db_file)
-            db.commit()
+            from db.write_queue import db_write
+            _file_data = {
+                'file_id': file_id,
+                'original_name': original_name,
+                'stored_name': stored_name,
+                'file_path': file_path,
+                'file_size': file_size,
+                'mime_type': mime_type,
+                'file_hash': file_hash,
+                'user_id': user_id,
+                'session_id': session_id,
+                'status': 'active',
+                'expires_at': expires_at,
+            }
+            def _do(session):
+                rec = FileUploadModel(**_file_data)
+                session.add(rec)
+            db_write(_do, description="media_upload_file")
         finally:
             db.close()
 
@@ -227,8 +243,23 @@ class FileUploader:
                 status="active",
                 expires_at=expires_at
             )
-            db.add(db_file)
-            db.commit()
+            from db.write_queue import db_write
+            _file_data = {
+                'file_id': file_id,
+                'original_name': filename,
+                'stored_name': stored_name,
+                'file_path': file_path,
+                'file_size': len(content),
+                'mime_type': mime_type,
+                'file_hash': file_hash,
+                'user_id': user_id,
+                'status': 'active',
+                'expires_at': expires_at,
+            }
+            def _do(session):
+                rec = FileUploadModel(**_file_data)
+                session.add(rec)
+            db_write(_do, description="media_upload_from_bytes")
         finally:
             db.close()
 
@@ -262,8 +293,13 @@ class FileUploader:
 
             # Check expiration
             if file_record.expires_at and file_record.expires_at < datetime.now():
-                file_record.status = "expired"
-                db.commit()
+                from db.write_queue import db_write
+                _fid = file_id
+                def _do_expire(session):
+                    rec = session.query(FileUploadModel).filter(FileUploadModel.file_id == _fid).first()
+                    if rec:
+                        rec.status = "expired"
+                db_write(_do_expire, description="media_expire_file")
                 return None
 
             return file_record.file_path
@@ -289,9 +325,14 @@ class FileUploader:
                 os.remove(file_record.file_path)
 
             # Update status
-            file_record.status = "deleted"
-            file_record.deleted_at = datetime.now()
-            db.commit()
+            from db.write_queue import db_write
+            _fid = file_id
+            def _do_delete(session):
+                rec = session.query(FileUploadModel).filter(FileUploadModel.file_id == _fid).first()
+                if rec:
+                    rec.status = "deleted"
+                    rec.deleted_at = datetime.now()
+            db_write(_do_delete, description="media_delete_file")
 
             return True
         finally:

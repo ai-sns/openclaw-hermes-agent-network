@@ -21,13 +21,21 @@ class CRUDItem(CRUDBase[ModelTrainResult, ModelTrainResultCreate, ModelTrainResu
             "task_name": instance.task_train_record.name,
             "capacity": size
         }
-        db_private_model = PrivateModel(**private_model_dict)
-        instance.private_model = db_private_model
-        instance.status = ModelSaveStatus.saved.value
-        db.commit()
-        db.refresh(instance)
-
-        return instance
+        from db.write_queue import db_write
+        _model = self.model
+        _inst_id = instance.id
+        _pm_dict = private_model_dict
+        _status = ModelSaveStatus.saved.value
+        def _do(session):
+            rec = session.query(_model).filter(_model.id == _inst_id).first()
+            if rec:
+                pm = PrivateModel(**_pm_dict)
+                rec.private_model = pm
+                rec.status = _status
+                session.flush()
+                session.refresh(rec)
+            return rec
+        return db_write(_do, description="crud_save_model")
 
 
 CrudModelTrainResult = CRUDItem(ModelTrainResult)

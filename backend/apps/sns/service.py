@@ -201,17 +201,24 @@ class SNSService:
             ).first()
 
             if config:
-                message = AIChatMessages(
-                    conversation_id=f"{config.account}_{to_account}",
-                    flag=0,  # 0=send
-                    content=stored_content,
-                    owner_account=config.account,
-                    friend_account=to_account,
-                    owner_name=config.nickname or config.account,
-                    friend_name=to_account
-                )
-                self.db.add(message)
-                self.db.commit()
+                from db.write_queue import db_write
+                _config_account = config.account
+                _config_nickname = config.nickname or config.account
+                _to_account = to_account
+                _stored_content = stored_content
+
+                def _save_sent_msg(session):
+                    msg = AIChatMessages(
+                        conversation_id=f"{_config_account}_{_to_account}",
+                        flag=0,  # 0=send
+                        content=_stored_content,
+                        owner_account=_config_account,
+                        friend_account=_to_account,
+                        owner_name=_config_nickname,
+                        friend_name=_to_account
+                    )
+                    session.add(msg)
+                db_write(_save_sent_msg, description="service_sync_send_message")
 
             return {
                 "success": True,
@@ -270,20 +277,27 @@ class SNSService:
                 ).first()
 
                 if config:
+                    from db.write_queue import db_write
                     file_message = f"📎 File: {file.filename}\n{url}"
                     stored_file_message = format_internal_xmpp_message_for_storage(file_message)
-                    message = AIChatMessages(
-                        conversation_id=f"{config.account}_{to_account}",
-                        flag=0,  # 0=send
-                        content=stored_file_message,
-                        attachment_list=file.filename,
-                        owner_account=config.account,
-                        friend_account=to_account,
-                        owner_name=config.nickname or config.account,
-                        friend_name=to_account
-                    )
-                    self.db.add(message)
-                    self.db.commit()
+                    _ca = config.account
+                    _cn = config.nickname or config.account
+                    _ta = to_account
+                    _sfm = stored_file_message
+                    _fn = file.filename
+                    def _save_file_msg(session):
+                        msg = AIChatMessages(
+                            conversation_id=f"{_ca}_{_ta}",
+                            flag=0,
+                            content=_sfm,
+                            attachment_list=_fn,
+                            owner_account=_ca,
+                            friend_account=_ta,
+                            owner_name=_cn,
+                            friend_name=_ta
+                        )
+                        session.add(msg)
+                    db_write(_save_file_msg, description="service_sync_send_file")
 
                 return {
                     "success": True,
@@ -379,18 +393,23 @@ class SNSService:
                 config = AiChatCfg(user_id=user_id)
                 self.db.add(config)
 
-            # Update fields
-            for key, value in data.items():
-                if hasattr(config, key) and value is not None:
-                    setattr(config, key, value)
-
-            self.db.commit()
-            self.db.refresh(config)
+            # Update fields via write queue
+            from db.write_queue import db_write
+            _config_id = config.id
+            _data = {k: v for k, v in data.items() if v is not None}
+            def _update_cfg(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for key, value in _data.items():
+                        if hasattr(rec, key):
+                            setattr(rec, key, value)
+            db_write(_update_cfg, description="service_sync_update_ai_chat_config")
+            self.db.expire_all()
+            config = query.first()
 
             return {"success": True, "message": "Configuration updated successfully", "data": config}
         except Exception as e:
             logger.error(f"Error updating AI chat config: {e}")
-            self.db.rollback()
             return {"success": False, "message": str(e)}
 
     async def upload_avatar(self, user_id: str = None, file=None):
@@ -416,8 +435,14 @@ class SNSService:
 
             config = query.first()
             if config:
-                config.avatar = filename
-                self.db.commit()
+                from db.write_queue import db_write
+                _config_id = config.id
+                _filename = filename
+                def _set_avatar(session):
+                    rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                    if rec:
+                        rec.avatar = _filename
+                db_write(_set_avatar, description="service_sync_upload_avatar")
 
             return {
                 "success": True,
@@ -487,15 +512,29 @@ class SNSService:
             if 'sns_url' in data:
                 config.sns_url = data['sns_url']
             if 'agent_id' in data:
-                # Check if agent_id column exists
                 if hasattr(config, 'agent_id'):
                     config.agent_id = data['agent_id']
 
-            self.db.commit()
+            from db.write_queue import db_write
+            _config_id = config.id
+            _updates = {}
+            if 'nickname' in data:
+                _updates['nickname'] = data['nickname']
+            if 'sign' in data:
+                _updates['sign'] = data['sign']
+            if 'sns_url' in data:
+                _updates['sns_url'] = data['sns_url']
+            if 'agent_id' in data and hasattr(config, 'agent_id'):
+                _updates['agent_id'] = data['agent_id']
+            def _update_info(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for k, v in _updates.items():
+                        setattr(rec, k, v)
+            db_write(_update_info, description="service_sync_update_user_info")
             return {"success": True, "message": "User info updated successfully"}
         except Exception as e:
             logger.error(f"Error updating user info: {e}")
-            self.db.rollback()
             return {"success": False, "message": str(e)}
 
     def get_map_config(self):
@@ -602,7 +641,33 @@ class SNSService:
                     config.positiony = baidu_data.get("positiony", 0)
                     config.positionz = baidu_data.get("positionz", 0)
 
-            self.db.commit()
+            from db.write_queue import db_write
+            import copy
+            _config_id = config.id
+            _updates = {
+                'map_type': config.map_type,
+                'map_api_key': config.map_api_key,
+                'map_id': config.map_id,
+            }
+            if hasattr(config, 'memo'):
+                _updates['memo'] = config.memo
+            if map_type_changing:
+                _updates['route_start'] = config.route_start
+                _updates['route_end'] = config.route_end
+                _updates['route_current_position'] = config.route_current_position
+                _updates['route'] = config.route
+                _updates['route_status'] = config.route_status
+                _updates['home_position'] = config.home_position
+                _updates['positionx'] = config.positionx
+                _updates['positiony'] = config.positiony
+                _updates['positionz'] = config.positionz
+
+            def _update_map(session):
+                rec = session.query(AiChatCfg).filter_by(id=_config_id).first()
+                if rec:
+                    for k, v in _updates.items():
+                        setattr(rec, k, v)
+            db_write(_update_map, description="service_sync_update_map_config")
 
             # Replace in files
             self._replace_map_config_in_files(
@@ -614,7 +679,6 @@ class SNSService:
             return {"success": True, "message": "Map config updated successfully"}
         except Exception as e:
             logger.error(f"Error updating map config: {e}")
-            self.db.rollback()
             return {"success": False, "message": str(e)}
 
     def _replace_map_config_in_files(self, old_api_keys, old_map_ids, new_api_keys, new_map_ids):

@@ -203,7 +203,7 @@ class AISocialEngine(
         self.place_selected = None
         self.max_tool_usage = 4
         self.max_people_comm = 4  # Max number of people to communicate with
-        self.max_rounds_per_person = 6  # Max rounds per person
+        self.max_rounds_per_person = 10  # Max rounds per person
         self.max_place_arrived = 3  # Max places to arrive
         self.min_place_move_score = 80  # Min score to move to a place
         self.place_arrived_count = {}
@@ -245,7 +245,7 @@ class AISocialEngine(
 
         self.active_conversation = None
         self.conversation_inbox = {}
-        self.conversation_timeout_seconds = 60
+        self.conversation_timeout_seconds = 300
         self._conversation_last_activity_ts = 0.0
         self._conversation_timeout_task = None
 
@@ -263,6 +263,8 @@ class AISocialEngine(
             "communication": 0,
         }
 
+        self._human_command_inflight = False
+
         self.process_info_compact_every_n = 50
         self.process_info_plan_summary_every_n = 5
         self.tool_check_every_n = 0
@@ -271,9 +273,6 @@ class AISocialEngine(
         try:
             cfg = query_SystemCfg(is_delete=False)
             if cfg is not None:
-                v = getattr(cfg, "conversation_timeout_seconds", None)
-                if v is not None:
-                    self.conversation_timeout_seconds = int(v)
                 v = getattr(cfg, "contact_cooldown_seconds", None)
                 if v is not None:
                     self.contact_cooldown_seconds = int(v)
@@ -995,6 +994,13 @@ class AISocialEngine(
             logger.warning("Memory capture failed after action: %s", _mem_err)
 
         ask_content = instruction
+        try:
+            if bool(getattr(self, "_human_command_inflight", False)):
+                self._maybe_finish_human_command_if_idle(ask_content=ask_content)
+                return
+        except Exception:
+            pass
+
         asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content))
 
     def get_next_action(self, instruction):
@@ -1050,14 +1056,132 @@ class AISocialEngine(
     def human_message_received(self, instruction):
         if self.human_take_over:
             if self.human_talk_type == 0:
-                if self.agent_replying_flag:
-                    # TODO: Send a prompt to frontend: "Hint", "Agent is completing the previous task, please wait..."
+                if self.is_busy_for_human_command():
+                    try:
+                        self.taskmng_js.show_information(
+                            lt(
+                                "<b>Previous command is still running. Please wait.</b>",
+                                "<b>Previous command is still running. Please wait.</b>",
+                            )
+                        )
+                    except Exception:
+                        pass
                     return
                 self.taskmng_js.show_information(lt(f"Human:{instruction}", f"Human:{instruction}"))
                 self.write_on_going_process_to_pane(lt("Human take control...", "Human is in control..."))
                 self.handle_human_instruction(instruction)
             else:
                 self.sendMessage(instruction, True)
+
+    def is_busy_for_human_command(self) -> bool:
+        try:
+            if bool(getattr(self, "_human_command_inflight", False)):
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def is_idle_for_auto_activity(self) -> bool:
+        if not self._is_idle_except_human_command_inflight():
+            return False
+        try:
+            return not bool(getattr(self, "_human_command_inflight", False))
+        except Exception:
+            return False
+
+    def _is_idle_except_human_command_inflight(self) -> bool:
+        try:
+            if bool(getattr(self, "agent_replying_flag", False)):
+                return False
+        except Exception:
+            pass
+
+        try:
+            if bool(getattr(self, "command_status", "") or ""):
+                return False
+        except Exception:
+            pass
+
+        try:
+            if getattr(self, "active_conversation", None):
+                return False
+        except Exception:
+            pass
+
+        return True
+
+    def _maybe_resume_process_activity_if_idle(self, ask_content: str = "") -> None:
+        try:
+            if bool(getattr(self, "human_take_over", False)):
+                return
+        except Exception:
+            return
+
+        try:
+            if not bool(getattr(self, "started_flag", False)):
+                return
+        except Exception:
+            return
+
+        if not self.is_idle_for_auto_activity():
+            return
+
+        try:
+            asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=ask_content or ""))
+        except Exception:
+            pass
+
+    def _maybe_finish_human_command_if_idle(self, *, ask_content: str = "") -> None:
+        if not self._is_idle_except_human_command_inflight():
+            return
+
+        try:
+            self._human_command_inflight = False
+        except Exception:
+            pass
+
+        self._maybe_resume_process_activity_if_idle(ask_content=ask_content)
+
+    def _terminate_active_conversation_for_priority_action(self) -> None:
+        active = None
+        try:
+            active = getattr(self, "active_conversation", None)
+        except Exception:
+            active = None
+
+        if not active:
+            return
+
+        try:
+            acct = (active.get("account") or "").strip() if isinstance(active, dict) else ""
+        except Exception:
+            acct = ""
+
+        try:
+            if acct:
+                self.sendMessage("TERMINATE", False, acct, (active.get("nick_name") if isinstance(active, dict) else None), back_ground=True)
+        except Exception:
+            pass
+
+        try:
+            self.end_active_conversation(
+                reason="priority_action",
+                message="",
+                resume_activity=False,
+            )
+        except TypeError:
+            try:
+                self.end_active_conversation(
+                    reason="priority_action",
+                    message="",
+                    resume_activity=False,
+                    resume_ask_content="",
+                )
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     async def ask_agent_instruction_to_process_human_instruction(self, ask_content):
         self.show_status_on_map("thinking")
@@ -1176,12 +1300,25 @@ class AISocialEngine(
 
                 return
 
-            # Ensure engine is running and interrupt current tasks for priority execution
-            asyncio.create_task(self._ensure_engine_ready_for_priority_action())
+            try:
+                self._human_command_inflight = True
+            except Exception:
+                pass
+
+            try:
+                self._terminate_active_conversation_for_priority_action()
+            except Exception:
+                pass
 
             # Merge human instructions into full_ask_content
             self.human_instruction = human_instruction
             asyncio.create_task(self.taskmng.process_task(action="process_human_instruction", ask_content=human_instruction, human_send_flag=True))
+
+    def _mark_human_command_complete(self, *, ask_content: str = "") -> None:
+        try:
+            self._human_command_inflight = False
+        except Exception:
+            pass
 
     def check_and_handle_rebirth(self):
         """
@@ -1213,9 +1350,9 @@ class AISocialEngine(
                 try:
                     msg = (
                         f"Rebirth triggered (#{self._rebirth_count}). "
-                        f"Life: {life_before:.0f}% -> {float(self.aichatcfg_record.life_point or 0):.0f}%. "
-                        f"Energy: {energy_before:.0f}% -> {float(self.aichatcfg_record.energy_point or 0):.0f}%. "
-                        f"Money: ${money_before:.2f} -> ${float(self.aichatcfg_record.money or 0):.2f}."
+                        f"❤️Life: {life_before:.0f}% -> {float(self.aichatcfg_record.life_point or 0):.0f}%. "
+                        f"⚡Energy: {energy_before:.0f}% -> {float(self.aichatcfg_record.energy_point or 0):.0f}%. "
+                        f"💰Money: ${money_before:.2f} -> ${float(self.aichatcfg_record.money or 0):.2f}."
                     )
                     try:
                         if hasattr(self, "show_alert_on_map"):

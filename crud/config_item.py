@@ -6,9 +6,12 @@ from sqlalchemy.orm import Session
 
 class CRUDItem(CRUDBase[ConfigItem, ConfigItemCreate, ConfigItemUpdate]):
     def update_config_item(self, key, obj_in: ConfigItemUpdate, db: Session):
+        from db.write_queue import db_write
         data = obj_in.dict(exclude_unset=True)
-        db.query(self.model).filter(self.model.key == key).update(data)
-        db.commit()
+        _model = self.model
+        def _do(session):
+            session.query(_model).filter(_model.key == key).update(data)
+        db_write(_do, description="crud_update_config_item")
 
 
 CrudConfigItem = CRUDItem(ConfigItem)

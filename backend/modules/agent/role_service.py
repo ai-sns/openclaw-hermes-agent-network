@@ -60,9 +60,11 @@ class RoleConfigService:
         if role_data.get("is_default"):
             self._unset_other_defaults()
 
-        role = RoleConfig(**role_data)
-        self.db.add(role)
-        self.db.commit()
+        from db.write_queue import db_write
+        def _do(session):
+            r = RoleConfig(**role_data)
+            session.add(r)
+        db_write(_do, description="role_service_create")
 
         return role_id
 
@@ -86,8 +88,16 @@ class RoleConfigService:
         for key, value in update_data.items():
             setattr(role, key, value)
 
-        role.update_time = datetime.now()
-        self.db.commit()
+        from db.write_queue import db_write
+        _rid = role_id
+        _update_data = update_data
+        def _do(session):
+            rec = session.query(RoleConfig).filter(RoleConfig.role_id == _rid, RoleConfig.is_delete == False).first()
+            if rec:
+                for key, value in _update_data.items():
+                    setattr(rec, key, value)
+                rec.update_time = datetime.now()
+        db_write(_do, description="role_service_update")
 
     def delete(self, role_id: str):
         """Soft delete role configuration."""
@@ -103,8 +113,13 @@ class RoleConfigService:
         if role.is_preset:
             raise ValueError("Cannot delete preset roles. You can disable them instead.")
 
-        role.is_delete = True
-        self.db.commit()
+        from db.write_queue import db_write
+        _rid = role_id
+        def _do(session):
+            rec = session.query(RoleConfig).filter(RoleConfig.role_id == _rid, RoleConfig.is_delete == False).first()
+            if rec:
+                rec.is_delete = True
+        db_write(_do, description="role_service_delete")
 
     def import_configs(self, configs: List[RoleConfigCreate]) -> Dict[str, Any]:
         """Import multiple configurations."""
@@ -139,10 +154,15 @@ class RoleConfigService:
             query = query.filter(RoleConfig.id != exclude_id)
 
         roles = query.all()
-        for role in roles:
-            role.is_default = False
-
-        self.db.commit()
+        _ids = [r.id for r in roles]
+        if _ids:
+            from db.write_queue import db_write
+            def _do(session):
+                for _id in _ids:
+                    rec = session.query(RoleConfig).filter(RoleConfig.id == _id).first()
+                    if rec:
+                        rec.is_default = False
+            db_write(_do, description="role_service_unset_defaults")
 
     def _to_dict(self, role: RoleConfig) -> Dict[str, Any]:
         """Convert model to dict."""

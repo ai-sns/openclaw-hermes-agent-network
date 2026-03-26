@@ -70,6 +70,12 @@ class CommunicationMixin:
     def _touch_conversation_activity(self, account: str) -> None:
         if not account:
             return
+
+        try:
+            if bool(getattr(self, "_human_command_inflight", False)):
+                self._human_command_inflight = False
+        except Exception:
+            pass
         active_account = self._get_active_account()
         if active_account and active_account != account:
             return
@@ -138,6 +144,177 @@ class CommunicationMixin:
             logger.info("show_information_chat is canceled Temporarily")
         except Exception as e:
             logger.error(f"Failed to notify inbox message: {e}")
+
+    async def maybe_auto_reply_from_inbox(self) -> bool:
+        try:
+            if bool(getattr(self, "human_take_over", False)):
+                return False
+        except Exception:
+            return False
+
+        inbox = getattr(self, "conversation_inbox", None)
+        if inbox is None or not isinstance(inbox, dict) or (not inbox):
+            return False
+
+        now_ts = self._now_ts()
+        cutoff = now_ts - 240.0
+
+        per_account_candidate = []
+        accounts_to_drop = []
+        for account, items in list(inbox.items()):
+            account = (account or "").strip()
+            if not account:
+                continue
+            if items is None or not isinstance(items, list):
+                accounts_to_drop.append(account)
+                continue
+
+            newest_ts = -1.0
+            newest_content = None
+            recent_items = []
+            for item in items:
+                if item is None or not isinstance(item, dict):
+                    continue
+                ts = float(item.get("ts", 0.0) or 0.0)
+                if ts < cutoff:
+                    continue
+                content = item.get("content", "")
+                if content is None:
+                    content = ""
+                content = str(content)
+                recent_items.append({"ts": ts, "content": content})
+                if ts >= newest_ts:
+                    newest_ts = ts
+                    newest_content = content
+
+            if not recent_items:
+                accounts_to_drop.append(account)
+                continue
+
+            inbox[account] = recent_items
+
+            if newest_content is not None and newest_content.strip() == "TERMINATE":
+                accounts_to_drop.append(account)
+                continue
+
+            if newest_content is None:
+                continue
+
+            per_account_candidate.append((account, newest_ts, newest_content))
+
+        for account in accounts_to_drop:
+            try:
+                inbox.pop(account, None)
+            except Exception:
+                pass
+
+        if not per_account_candidate:
+            return False
+
+        best = None
+        best_key = None
+        for account, ts, content in per_account_candidate:
+            is_inquiry = "[AISNS_INT_003_INQUIRY]" in content
+            key = (1 if is_inquiry else 0, float(ts or 0.0))
+            if best is None or key > best_key:
+                best = (account, ts, content)
+                best_key = key
+
+        if best is None:
+            return False
+
+        account, _, content = best
+
+        try:
+            inbox.pop(account, None)
+        except Exception:
+            pass
+
+        try:
+            return await self._auto_reply_from_inbox_message(account, content)
+        except Exception:
+            logger.exception("Inbox auto-reply failed")
+            return False
+
+    async def _auto_reply_from_inbox_message(self, account: str, content: str) -> bool:
+        account = (account or "").strip()
+        if not account:
+            return False
+
+        person = None
+        try:
+            if hasattr(self, "_get_people_by_account"):
+                person = self._get_people_by_account(account)
+        except Exception:
+            person = None
+
+        nation_id = account
+        nick_name = account
+        if isinstance(person, dict):
+            nation_id = (person.get("nation_id") or "").strip() or nation_id
+            nick_name = (person.get("nick_name") or "").strip() or nick_name
+
+        talk_type = ""
+        try:
+            pending = getattr(self, "_pending_peer_talk_type", None)
+            if isinstance(pending, dict):
+                talk_type = (pending.get(account) or "").strip()
+        except Exception:
+            talk_type = ""
+
+        if not talk_type:
+            try:
+                active = getattr(self, "active_conversation", None) or {}
+                if isinstance(active, dict):
+                    talk_type = (active.get("talk_type") or "").strip()
+            except Exception:
+                talk_type = ""
+
+        if not talk_type:
+            talk_type = (getattr(self, "talk_type", "") or "").strip() or "communication"
+
+        objective = (getattr(self, "_pending_talk_objective", "") or "").strip()
+
+        try:
+            self.current_talk_history = []
+        except Exception:
+            pass
+
+        try:
+            self.current_talk_people = {
+                "nation_id": nation_id,
+                "account": account,
+                "nick_name": nick_name,
+                "talk_round": 0,
+            }
+        except Exception:
+            pass
+
+        try:
+            self.start_active_conversation(
+                talk_type=talk_type,
+                person={"nation_id": nation_id, "account": account, "nick_name": nick_name},
+                objective=objective,
+            )
+        except Exception:
+            pass
+
+        try:
+            if nation_id and hasattr(self, "send_msg_to_map"):
+                self.send_msg_to_map(("start_talk_to_it", nation_id, ""))
+        except Exception:
+            pass
+
+        await asyncio.sleep(0)
+
+        try:
+            if hasattr(self, "handle_receiveMessage"):
+                await self.handle_receiveMessage(content, account)
+                return True
+        except Exception:
+            logger.exception("Failed to process inbox message")
+
+        return False
 
     def _get_people_by_account(self, account: str) -> Optional[dict]:
         if not account:
@@ -479,6 +656,22 @@ class CommunicationMixin:
         except Exception:
             pass
 
+        try:
+            t = getattr(self, "_conversation_timeout_task", None)
+            if isinstance(t, asyncio.Task) and not t.done():
+                t.cancel()
+            self._conversation_timeout_task = None
+        except Exception:
+            pass
+
+        try:
+            t = getattr(self, "_conversation_first_message_task", None)
+            if isinstance(t, asyncio.Task) and not t.done():
+                t.cancel()
+            self._conversation_first_message_task = None
+        except Exception:
+            pass
+
         self.active_conversation = None
         self._conversation_last_activity_ts = 0.0
 
@@ -505,7 +698,10 @@ class CommunicationMixin:
 
         if resume_activity:
             try:
-                asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=resume_ask_content or ""))
+                if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                    self._maybe_finish_human_command_if_idle(ask_content=resume_ask_content or "")
+                else:
+                    asyncio.create_task(self.taskmng.process_task(action="process_activity", ask_content=resume_ask_content or ""))
             except Exception as e:
                 logger.error(f"Failed to resume activity after conversation end: {e}")
 
@@ -554,9 +750,12 @@ talk_to_a_people
                 )
             except Exception:
                 try:
-                    asyncio.create_task(
-                        self.taskmng.process_task(action="process_activity", ask_content=resume_ask_content or "")
-                    )
+                    if bool(getattr(self, "_human_command_inflight", False)) and hasattr(self, "_maybe_finish_human_command_if_idle"):
+                        self._maybe_finish_human_command_if_idle(ask_content=resume_ask_content or "")
+                    else:
+                        asyncio.create_task(
+                            self.taskmng.process_task(action="process_activity", ask_content=resume_ask_content or "")
+                        )
                 except Exception:
                     pass
             return
@@ -610,7 +809,13 @@ talk_to_a_people
                     except Exception:
                         pass
 
-            asyncio.create_task(_delayed_first_message())
+            try:
+                prev = getattr(self, "_conversation_first_message_task", None)
+                if isinstance(prev, asyncio.Task) and not prev.done():
+                    prev.cancel()
+            except Exception:
+                pass
+            self._conversation_first_message_task = asyncio.create_task(_delayed_first_message())
         else:
 
             ok = self.sendMessage(content, False, account, user_name)
