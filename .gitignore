@@ -168,3 +168,4 @@ scripts/js/baidu/BigBuckBunny.mp4
 node_modules
 cankao/**
 !cankao/main.py
+*.mp4
