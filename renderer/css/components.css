@@ -1293,6 +1293,17 @@ select.form-select optgroup {
     height: 100%;
     overflow-y: auto;
     background: #fff;
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+}
+
+.home-page * {
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
 }
 
 .home-content-wrapper {
@@ -2991,6 +3002,7 @@ body.theme-dark .thinking-log-nav-btn:hover {
 
 .input-wrapper {
     margin-bottom: 6px;
+    position: relative;
 }
 
 .agent-chat-input {
@@ -8663,11 +8675,64 @@ body.theme-dark .toggle-btn:hover:not(.active) {
     align-items: center;
     gap: 6px;
     padding-left: 8px;
+    position: relative;
     border-left: 1px solid var(--border-color);
 }
 
 body.theme-dark .control-input-wrapper {
     border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sns-human-input-suggestions {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: calc(100% + 8px);
+    display: none;
+    padding: 6px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+    backdrop-filter: blur(10px);
+    z-index: 20;
+}
+
+.sns-human-input-suggestion {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.16s ease, color 0.16s ease;
+}
+
+.sns-human-input-suggestion:hover,
+.sns-human-input-suggestion.active {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+}
+
+body.theme-dark .sns-human-input-suggestions {
+    background: rgba(24, 24, 27, 0.98);
+    border-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+}
+
+body.theme-dark .sns-human-input-suggestion {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+body.theme-dark .sns-human-input-suggestion:hover,
+body.theme-dark .sns-human-input-suggestion.active {
+    background: rgba(139, 92, 246, 0.18);
+    color: #c4b5fd;
 }
 
 .control-input {

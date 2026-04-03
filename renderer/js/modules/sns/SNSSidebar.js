@@ -1,3 +1,5 @@
+import snsHandlers from './snsHandlers.js';
+
 /**
  * SNS Module - Sidebar
  * SNS sidebar rendering
@@ -33,10 +35,12 @@ export default {
 
     contacts: [],
     trades: [],
+    visits: [],
     selectedContact: null,
     currentTab: 'chat',
     contactSearchQuery: '',
     tradeSearchQuery: '',
+    visitSearchQuery: '',
     _chatLinkListenerBound: false,
 
     _exploreNickname: '',
@@ -330,6 +334,7 @@ export default {
                 <!-- Chat / Trade tabs -->
                 <div class="sns-sidebar-tabs">
                     <button class="sidebar-tab active" data-tab="chat">Chat</button>
+                    <button class="sidebar-tab" data-tab="visit">Visit</button>
                     <button class="sidebar-tab" data-tab="trade">Trade</button>
                 </div>
                 <!-- Contact List -->
@@ -370,6 +375,24 @@ export default {
                     </div>
                     <div class="trade-list" id="tradeList"></div>
                 </div>
+                <!-- Visit List -->
+                <div class="trade-section tab-content" data-content="visit">
+                    <!-- Search Box -->
+                    <div class="sns-search-box">
+                        <div class="sns-search-wrapper">
+                            <svg class="sns-search-icon" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                            </svg>
+                            <input type="text" class="sns-search-input" id="visitSearchInput" placeholder="Search visits..." />
+                            <button class="sns-search-clear" id="visitSearchClear">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="trade-list" id="visitList"></div>
+                </div>
                 <!-- Chat Window -->
                 <div class="chat-window" id="chatWindow">
                     <div class="chat-header">
@@ -403,6 +426,7 @@ export default {
         await this.loadUserStats();
         await this.loadContacts();
         await this.loadTrades();
+        await this.loadVisits();
         this.renderRadarChart();
         this.setupThemeObserver();
         this.attachEventListeners();
@@ -459,8 +483,370 @@ export default {
                 this.handleTradeUpserted(message.data);
             } else if (message.type === 'trade_deleted') {
                 this.handleTradeDeleted(message.data);
+            } else if (message.type === 'visit_upserted') {
+                this.handleVisitUpserted(message.data);
+            } else if (message.type === 'visit_deleted') {
+                this.handleVisitDeleted(message.data);
             }
         });
+    },
+
+    handleVisitDeleted(payload) {
+        try {
+            const visitId = payload && (payload.visit_id || payload.visitId);
+            const coordKey = payload && (payload.coord_key || payload.coordKey);
+            if ((!visitId && !coordKey) || !Array.isArray(this.visits)) return;
+            const next = this.visits.filter(v => {
+                if (!v) return false;
+                if (visitId && String(v.visit_id || '') === String(visitId)) return false;
+                if (coordKey && String(v.coord_key || '') === String(coordKey)) return false;
+                return true;
+            });
+            if (next.length !== this.visits.length) {
+                this.visits = next;
+                this.renderVisits();
+            }
+        } catch (e) {
+        }
+    },
+
+    _ensureVisitContextMenu() {
+        if (this._visitContextMenu) return this._visitContextMenu;
+
+        const menu = document.createElement('div');
+        menu.className = 'trade-context-menu';
+        menu.style.display = 'none';
+        menu.innerHTML = `
+            <button class="trade-context-menu-item" data-action="delete">Delete</button>
+        `;
+
+        document.body.appendChild(menu);
+        this._visitContextMenu = menu;
+
+        menu.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const actionEl = e.target.closest('[data-action]');
+            const action = actionEl ? actionEl.dataset.action : '';
+            const visitId = menu.dataset.visitId || '';
+            this._hideVisitContextMenu();
+
+            if (action === 'delete' && visitId) {
+                await this.deleteVisit(visitId);
+            }
+        });
+
+        if (!this._visitContextMenuGlobalHandlersBound) {
+            document.addEventListener('click', () => this._hideVisitContextMenu());
+            document.addEventListener('scroll', () => this._hideVisitContextMenu(), true);
+            window.addEventListener('resize', () => this._hideVisitContextMenu());
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') this._hideVisitContextMenu();
+            });
+            this._visitContextMenuGlobalHandlersBound = true;
+        }
+
+        return menu;
+    },
+
+    _showVisitContextMenu(x, y, visitId) {
+        const menu = this._ensureVisitContextMenu();
+        menu.dataset.visitId = visitId;
+        menu.style.display = 'block';
+
+        const pad = 8;
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const rect = menu.getBoundingClientRect();
+        const left = Math.min(Math.max(pad, x), Math.max(pad, vw - rect.width - pad));
+        const top = Math.min(Math.max(pad, y), Math.max(pad, vh - rect.height - pad));
+        menu.style.left = `${left}px`;
+        menu.style.top = `${top}px`;
+        menu.style.position = 'fixed';
+        menu.style.zIndex = '2000000';
+    },
+
+    _hideVisitContextMenu() {
+        if (!this._visitContextMenu) return;
+        this._visitContextMenu.style.display = 'none';
+        this._visitContextMenu.dataset.visitId = '';
+    },
+
+    async deleteVisit(visitId) {
+        const id = String(visitId || '').trim();
+        if (!id) return;
+
+        const confirmed = await (async () => {
+            try {
+                if (window.Toast && typeof window.Toast.confirm === 'function') {
+                    return await window.Toast.confirm('Delete this visit?', {
+                        title: 'Delete Visit',
+                        confirmText: 'Delete',
+                        cancelText: 'Cancel'
+                    });
+                }
+            } catch (e) {
+            }
+            return false;
+        })();
+
+        if (!confirmed) return;
+
+        try {
+            const apiClient = getApiClient();
+            if (!apiClient || typeof apiClient.delete !== 'function') return;
+            await apiClient.delete(`/api/map/visits/${encodeURIComponent(id)}`);
+            this.visits = (this.visits || []).filter(v => v && v.visit_id !== id);
+            this.renderVisits();
+            try {
+                if (window.Toast && typeof window.Toast.success === 'function') {
+                    window.Toast.success('Visit deleted');
+                }
+            } catch (e) {
+            }
+        } catch (e) {
+            try {
+                if (window.Toast && typeof window.Toast.error === 'function') {
+                    window.Toast.error('Failed to delete visit');
+                }
+            } catch (err) {
+            }
+        }
+    },
+
+    _visitTsMs(visit) {
+        try {
+            const v = visit && visit.create_time;
+            if (!v) return 0;
+            const ms = Date.parse(v);
+            return Number.isFinite(ms) ? ms : 0;
+        } catch (e) {
+            return 0;
+        }
+    },
+
+    _getVisitByKey(visitKey) {
+        if (!visitKey || !Array.isArray(this.visits)) return null;
+        const key = String(visitKey);
+        return this.visits.find(v => v && (String(v.coord_key || '') === key || String(v.visit_id || '') === key)) || null;
+    },
+
+    async loadVisits() {
+        try {
+            const apiClient = getApiClient();
+            if (!apiClient) return;
+
+            const response = await apiClient.get('/api/map/visits');
+            if (response && Array.isArray(response)) {
+                this.visits = response;
+                this.renderVisits();
+            }
+        } catch (error) {
+            console.error('Failed to load visits:', error);
+        }
+    },
+
+    renderVisits() {
+        const visitList = document.getElementById('visitList');
+        if (!visitList) return;
+
+        if (!Array.isArray(this.visits) || this.visits.length === 0) {
+            visitList.innerHTML = '<div class="empty-message">No visits available</div>';
+            return;
+        }
+
+        const sorted = [...this.visits].sort((a, b) => this._visitTsMs(b) - this._visitTsMs(a));
+        const filtered = sorted.filter(v => {
+            if (!this.visitSearchQuery) return true;
+            const q = this.visitSearchQuery.toLowerCase();
+            const title = String(v.title || '').toLowerCase();
+            const addr = String(v.address || '').toLowerCase();
+            const url = String(v.url || '').toLowerCase();
+            return title.includes(q) || addr.includes(q) || url.includes(q);
+        });
+
+        if (filtered.length === 0) {
+            visitList.innerHTML = '<div class="empty-message">No visits found</div>';
+            return;
+        }
+
+        visitList.innerHTML = filtered.map(v => {
+            const rawKey = (v.coord_key || v.visit_id || v.id || '').toString();
+            const key = this.escapeHtml(rawKey);
+            const title = this.escapeHtml((v.title || 'Visited place').toString());
+            const detailRaw = (v.detail || '').toString();
+            const detail = this.escapeHtml(this._clipText(detailRaw, 160));
+            const timeText = v.create_time ? this.escapeHtml(this._formatTradeTime(v.create_time)) : '';
+            return `
+                <div class="trade-item" data-visit-key="${key}">
+                    <div class="trade-header">
+                        <span class="trade-title">${title}</span>
+                    </div>
+                    ${detail ? `<div class="trade-detail">${detail}</div>` : ''}
+                    <div class="trade-footer">
+                        <span class="trade-with">
+                            <span class="trade-with-name trade-with-link visit-open-link" data-visit-key="${key}">Visit</span>
+                            ${timeText ? `<span class="trade-time">${timeText}</span>` : ''}
+                        </span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        if (!this._visitListDelegationBound) {
+            visitList.addEventListener('click', (e) => {
+                const openLink = e.target.closest('.visit-open-link[data-visit-key]');
+                if (openLink) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const key = openLink.dataset.visitKey;
+                    const visit = this._getVisitByKey(key);
+                    if (!visit) return;
+                    this.openVisitOnMapAndIntro(visit);
+                    return;
+                }
+
+                const item = e.target.closest('.trade-item[data-visit-key]');
+                if (!item) return;
+                const key = item.dataset.visitKey;
+                const visit = this._getVisitByKey(key);
+                if (!visit) return;
+                this.showVisitDetails(visit);
+            });
+
+            visitList.addEventListener('contextmenu', (e) => {
+                const item = e.target.closest('.trade-item[data-visit-key]');
+                if (!item) return;
+                e.preventDefault();
+                const key = item.dataset.visitKey;
+                const visit = this._getVisitByKey(key);
+                const visitId = visit && visit.visit_id ? String(visit.visit_id) : '';
+                if (!visitId) return;
+                this._showVisitContextMenu(e.clientX, e.clientY, visitId);
+            });
+            this._visitListDelegationBound = true;
+        }
+    },
+
+    _clipText(text, maxLen) {
+        try {
+            const s = String(text || '');
+            const n = Number(maxLen || 0);
+            if (!n || s.length <= n) return s;
+            return `${s.slice(0, n)}...`;
+        } catch (e) {
+            return String(text || '');
+        }
+    },
+
+    showVisitDetails(visit) {
+        if (!visit) return;
+        const timeText = visit.create_time ? this._formatTradeTime(visit.create_time) : '';
+        const title = this.escapeHtml(visit.title || 'Visit Details');
+        const visitId = this.escapeHtml(String(visit.visit_id || ''));
+        const coordKey = this.escapeHtml(String(visit.coord_key || ''));
+        const lng = (visit.lng === undefined || visit.lng === null) ? '' : String(visit.lng);
+        const lat = (visit.lat === undefined || visit.lat === null) ? '' : String(visit.lat);
+        const placeType = this.escapeHtml(String(visit.place_type || ''));
+        const address = this.escapeHtml(String(visit.address || ''));
+        const url = this.escapeHtml(String(visit.url || ''));
+        const detail = this.escapeHtml(String(visit.detail || ''));
+
+        const content = `
+            <div style="display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;flex-wrap:wrap;gap:8px 16px;">
+                    ${visitId ? `<div><strong>ID:</strong> ${visitId}</div>` : ''}
+                    ${coordKey ? `<div><strong>Coord:</strong> ${coordKey}</div>` : ''}
+                    ${placeType ? `<div><strong>Type:</strong> ${placeType}</div>` : ''}
+                    ${(lng && lat) ? `<div><strong>Lng/Lat:</strong> ${this.escapeHtml(lng)}, ${this.escapeHtml(lat)}</div>` : ''}
+                    ${timeText ? `<div><strong>Time:</strong> ${this.escapeHtml(timeText)}</div>` : ''}
+                </div>
+                ${address ? `<div><strong>Address:</strong> ${address}</div>` : ''}
+                ${url ? `<div><strong>URL:</strong> <span style="word-break:break-all;">${url}</span></div>` : ''}
+                ${detail ? `
+                    <div>
+                        <strong>Detail:</strong>
+                        <pre style="margin-top:6px;white-space:pre-wrap;word-break:break-word;background:var(--bg-secondary,#f8f9fa);padding:10px;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);">${detail}</pre>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (window.Modal && typeof window.Modal.show === 'function') {
+            window.Modal.show({
+                title,
+                content,
+                showCancel: false,
+                confirmText: 'Close'
+            });
+        }
+    },
+
+    openVisitOnMapAndIntro(visit) {
+        try {
+            const lng = Number(visit && visit.lng);
+            const lat = Number(visit && visit.lat);
+            const url = (visit && visit.url) ? String(visit.url).trim() : '';
+
+            const iframe = document.querySelector('#mapContainer iframe');
+            if (iframe && iframe.contentWindow && Number.isFinite(lng) && Number.isFinite(lat)) {
+                const message = {
+                    type: 'mapGoTo',
+                    data: { lng, lat, zoom: 17 }
+                };
+                try {
+                    if (snsHandlers && typeof snsHandlers.safePostMessageToMap === 'function' && typeof snsHandlers.getMapIframeTargetOrigin === 'function') {
+                        snsHandlers.safePostMessageToMap(iframe, message, snsHandlers.getMapIframeTargetOrigin());
+                    } else {
+                        iframe.contentWindow.postMessage(message, '*');
+                    }
+                } catch (e) {
+                }
+            }
+
+            if (url && snsHandlers && typeof snsHandlers.handleOpenPlaceWebAddress === 'function') {
+                snsHandlers.handleOpenPlaceWebAddress(url);
+            }
+        } catch (e) {
+        }
+    },
+
+    handleVisitUpserted(visitData) {
+        try {
+            const v = visitData && typeof visitData === 'object' ? visitData : null;
+            if (!v) {
+                this.loadVisits();
+                return;
+            }
+
+            const key = String(v.coord_key || '').trim();
+            const visitId = String(v.visit_id || '').trim();
+            if (!key && !visitId) {
+                this.loadVisits();
+                return;
+            }
+
+            if (!Array.isArray(this.visits)) {
+                this.visits = [];
+            }
+
+            const idx = this.visits.findIndex(x => {
+                if (!x) return false;
+                const xKey = String(x.coord_key || '').trim();
+                const xVisitId = String(x.visit_id || '').trim();
+                if (key && xKey && xKey === key) return true;
+                if (visitId && xVisitId && xVisitId === visitId) return true;
+                return false;
+            });
+            if (idx >= 0) {
+                this.visits[idx] = { ...this.visits[idx], ...v };
+            } else {
+                this.visits.unshift(v);
+            }
+            this.renderVisits();
+        } catch (e) {
+            this.loadVisits();
+        }
     },
 
     handleTradeDeleted(payload) {
@@ -1282,6 +1668,29 @@ export default {
                     this.tradeSearchQuery = '';
                     this.renderTrades();
                     tradeSearchClear.classList.remove('visible');
+                }
+            });
+        }
+
+        // Visit search
+        const visitSearchInput = document.getElementById('visitSearchInput');
+        const visitSearchClear = document.getElementById('visitSearchClear');
+        if (visitSearchInput) {
+            visitSearchInput.addEventListener('input', (e) => {
+                this.visitSearchQuery = e.target.value;
+                this.renderVisits();
+                if (visitSearchClear) {
+                    visitSearchClear.classList.toggle('visible', e.target.value.length > 0);
+                }
+            });
+        }
+        if (visitSearchClear) {
+            visitSearchClear.addEventListener('click', () => {
+                if (visitSearchInput) {
+                    visitSearchInput.value = '';
+                    this.visitSearchQuery = '';
+                    this.renderVisits();
+                    visitSearchClear.classList.remove('visible');
                 }
             });
         }

@@ -162,6 +162,8 @@ class MapVisit(Base):
     address = Column(Text, doc="Address")
     lng = Column(Float, doc="Longitude")
     lat = Column(Float, doc="Latitude")
+    url = Column(Text, doc="Place intro URL")
+    coord_key = Column(String(80), doc="Normalized coordinate key")
     owner_name = Column(String(200), doc="Owner name")
     owner_account = Column(String(100), doc="Owner account")
     owner_type = Column(String(50), doc="Owner type")

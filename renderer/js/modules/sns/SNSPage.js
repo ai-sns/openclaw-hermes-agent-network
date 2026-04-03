@@ -147,7 +147,7 @@ export default {
                                             </div>
                                         </div>
                                         <div class="control-input-wrapper">
-                                            <input type="text" class="control-input" placeholder="Human input..." />
+                                            <input type="text" class="control-input" placeholder="Human input..." title="Type @ to show suggestions. Use ArrowUp/ArrowDown to browse input history." spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off" />
                                             <button class="control-send-btn">
                                                 <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
                                                     <line x1="22" y1="2" x2="11" y2="13"/>

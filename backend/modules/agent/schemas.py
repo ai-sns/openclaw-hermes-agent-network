@@ -15,6 +15,12 @@ class AgentConfig(BaseModel):
     # Agent type
     agent_type: Optional[str] = "local"  # local|remote
 
+    # Remote agent configuration
+    framework: Optional[str] = ""  # Openclaw|Langchain|Autogen|Autogpt|Other
+    framework_other: Optional[str] = ""  # When framework == 'Other'
+    llm_provider: Optional[str] = ""
+    model_description: Optional[str] = ""
+
     # LLM Configuration
     model_config_id: Optional[str] = None  # Reference to LLM config
     model: Optional[str] = "gpt-4"
@@ -69,6 +75,10 @@ class AgentResponse(BaseModel):
     name: str
     description: Optional[str] = ""
     agent_type: Optional[str] = "local"
+    framework: Optional[str] = ""
+    framework_other: Optional[str] = ""
+    llm_provider: Optional[str] = ""
+    model_description: Optional[str] = ""
     model: Optional[str] = "gpt-4"
     model_config_id: Optional[str] = None
     role_id: Optional[str] = None
@@ -84,6 +94,12 @@ class AgentUpdateConfig(BaseModel):
 
     # Agent type
     agent_type: Optional[str] = None
+
+    # Remote agent configuration
+    framework: Optional[str] = None
+    framework_other: Optional[str] = None
+    llm_provider: Optional[str] = None
+    model_description: Optional[str] = None
 
     # LLM Configuration
     model_config_id: Optional[str] = None

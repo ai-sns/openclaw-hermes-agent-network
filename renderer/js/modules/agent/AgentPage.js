@@ -144,7 +144,7 @@ const AgentPage = {
                     <div class="agent-chat-input-area">
                         <div style="display: none;" class="input-hint">Input @@ to load tools selector; Ctrl+i To load preset question; Ctrl+/ To insert chat template.</div>
                         <div class="input-wrapper">
-                            <textarea class="agent-chat-input" id="chatInput-${agent.id}" data-agent-id="${agent.id}" placeholder="Type a message..." spellcheck="false"></textarea>
+                            <textarea class="agent-chat-input" id="chatInput-${agent.id}" data-agent-id="${agent.id}" placeholder="Type a message..." title="Type @ to show suggestions. Use ArrowUp/ArrowDown to browse input history." spellcheck="false"></textarea>
                         </div>
                         <div class="input-toolbar">
                             <div class="toolbar-buttons">

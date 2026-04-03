@@ -47,6 +47,10 @@ class AgentService:
                 "name": agent.name,
                 "description": extra_data.get('description', ''),
                 "agent_type": extra_data.get('agent_type', 'local'),
+                "framework": extra_data.get('framework', ''),
+                "framework_other": extra_data.get('framework_other', ''),
+                "llm_provider": extra_data.get('llm_provider', ''),
+                "model_description": extra_data.get('model_description', ''),
                 "model": getattr(agent, 'defaultmodel', 'gpt-4'),
                 "model_config_id": extra_data.get('model_config_id', ''),
                 "role_id": extra_data.get('role_id', ''),
@@ -71,6 +75,10 @@ class AgentService:
         extra_data = {
             'description': kwargs.get('description', ''),
             'agent_type': kwargs.get('agent_type', 'local'),
+            'framework': kwargs.get('framework', ''),
+            'framework_other': kwargs.get('framework_other', ''),
+            'llm_provider': kwargs.get('llm_provider', ''),
+            'model_description': kwargs.get('model_description', ''),
             'model_config_id': kwargs.get('model_config_id', ''),
             'role_id': kwargs.get('role_id', ''),
             'url': kwargs.get('url', ''),
@@ -175,6 +183,10 @@ class AgentService:
             "name": agent.name,
             "description": extra_data.get('description', ''),
             "agent_type": extra_data.get('agent_type', 'local'),
+            "framework": extra_data.get('framework', ''),
+            "framework_other": extra_data.get('framework_other', ''),
+            "llm_provider": extra_data.get('llm_provider', ''),
+            "model_description": extra_data.get('model_description', ''),
             "model": getattr(agent, 'defaultmodel', 'gpt-4'),
             "model_config_id": extra_data.get('model_config_id', ''),
             "role_id": extra_data.get('role_id', ''),
@@ -229,7 +241,8 @@ class AgentService:
         for key in ['description', 'agent_type', 'url', 'version', 'protocol_version', 'capabilities',
                     'skills', 'default_input_modes', 'default_output_modes', 'security_schemes',
                     'provider_organization', 'provider_url', 'documentation_url',
-                    'icon_url', 'wallet_address', 'model_config_id', 'role_id']:
+                    'icon_url', 'wallet_address', 'model_config_id', 'role_id',
+                    'framework', 'framework_other', 'llm_provider', 'model_description']:
             if key in kwargs:
                 extra_data[key] = kwargs[key]
 

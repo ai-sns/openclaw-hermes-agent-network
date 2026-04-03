@@ -93,16 +93,14 @@ const AgentSettingsDialog = {
      * Render dialog content
      */
     renderDialogContent(agent) {
-        // Generate a unique ID to ensure elements are unique per instance
-        this.formId = 'agent-settings-form-' + Date.now();
-        const basicTabId = this.formId + '-basic';
-        const a2aTabId = this.formId + '-a2a';
-        const walletTabId = this.formId + '-wallet';
-
         const data = agent || {
             name: '',
             description: '',
             agent_type: 'local',
+            framework: '',
+            framework_other: '',
+            llm_provider: '',
+            model_description: '',
             model_config_id: '',
             role_id: '',
             url: '',
@@ -121,6 +119,10 @@ const AgentSettingsDialog = {
             default_input_modes: ['text'],
             default_output_modes: ['text']
         };
+
+        const basicTabId = this.formId + '-basic';
+        const a2aTabId = this.formId + '-a2a';
+        const walletTabId = this.formId + '-wallet';
 
         const isEdit = agent !== null;
         const agentType = (data.agent_type || 'local').toLowerCase();
@@ -155,6 +157,36 @@ const AgentSettingsDialog = {
                                 <option value="local" ${agentType === 'local' ? 'selected' : ''}>Local Agent</option>
                                 <option value="remote" ${agentType === 'remote' ? 'selected' : ''}>Remote Agent</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <div class="dialog-section agent-remote-only">
+                        <h4>Remote Configuration</h4>
+                        <div class="form-group">
+                            <label>Framework *</label>
+                            <select class="form-input" id="agentFramework">
+                                <option value="">Select a framework...</option>
+                                <option value="Openclaw" ${String(data.framework || '') === 'Openclaw' ? 'selected' : ''}>Openclaw</option>
+                                <option value="Langchain" ${String(data.framework || '') === 'Langchain' ? 'selected' : ''}>Langchain</option>
+                                <option value="Autogen" ${String(data.framework || '') === 'Autogen' ? 'selected' : ''}>Autogen</option>
+                                <option value="Autogpt" ${String(data.framework || '') === 'Autogpt' ? 'selected' : ''}>Autogpt</option>
+                                <option value="Other" ${String(data.framework || '') === 'Other' ? 'selected' : ''}>Other</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" id="agentFrameworkOtherGroup" style="display: ${String(data.framework || '') === 'Other' ? '' : 'none'};">
+                            <label>Other Framework *</label>
+                            <input type="text" class="form-input" id="agentFrameworkOther" value="${this.escapeHtml(data.framework_other || '')}" placeholder="Enter framework name">
+                        </div>
+
+                        <div class="form-group">
+                            <label>LLM Provider *</label>
+                            <input type="text" class="form-input" id="agentLLMProvider" value="${this.escapeHtml(data.llm_provider || '')}" placeholder="e.g. OpenAI">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Model Description *</label>
+                            <input type="text" class="form-input" id="agentModelDescription" value="${this.escapeHtml(data.model_description || '')}" placeholder="Describe the model used by your framework e.g. gpt-4o">
                         </div>
                     </div>
 
@@ -330,14 +362,14 @@ const AgentSettingsDialog = {
      */
     bindEvents(modalInstance) {
         console.log('AgentSettingsDialog: bindEvents called');
-        
+
         // Get current instance container
         const form = document.getElementById(this.formId);
         if (!form) {
             console.error('Form container not found');
             return;
         }
-        
+
         // Get current instance tab container
         const tabsContainer = form.querySelector('.settings-tabs');
         if (tabsContainer) {
@@ -345,7 +377,7 @@ const AgentSettingsDialog = {
             if (this._tabClickHandler) {
                 tabsContainer.removeEventListener('click', this._tabClickHandler);
             }
-            
+
             // Create a new event handler
             this._tabClickHandler = (e) => {
                 const target = e.target.closest('.settings-tab-btn');
@@ -357,7 +389,7 @@ const AgentSettingsDialog = {
                     this.switchTab(tab);
                 }
             };
-            
+
             // Bind events
             tabsContainer.addEventListener('click', this._tabClickHandler);
             console.log('Tab events bound using event delegation');
@@ -377,7 +409,17 @@ const AgentSettingsDialog = {
             agentTypeEl.addEventListener('change', this._agentTypeChangeHandler);
         }
 
+        const frameworkEl = form.querySelector('#agentFramework');
+        if (frameworkEl) {
+            if (this._frameworkChangeHandler) {
+                frameworkEl.removeEventListener('change', this._frameworkChangeHandler);
+            }
+            this._frameworkChangeHandler = () => this.applyFrameworkVisibility();
+            frameworkEl.addEventListener('change', this._frameworkChangeHandler);
+        }
+
         this.applyAgentTypeVisibility();
+        this.applyFrameworkVisibility();
     },
 
     /**
@@ -395,6 +437,10 @@ const AgentSettingsDialog = {
             el.style.display = isRemote ? 'none' : '';
         });
 
+        form.querySelectorAll('.agent-remote-only').forEach(el => {
+            el.style.display = isRemote ? '' : 'none';
+        });
+
         // Hide wallet tab button in remote mode
         const walletTabBtn = form.querySelector('.settings-tab-btn[data-tab="wallet"]');
         if (walletTabBtn) {
@@ -410,6 +456,27 @@ const AgentSettingsDialog = {
         }
     },
 
+    applyFrameworkVisibility() {
+        const form = document.getElementById(this.formId);
+        if (!form) return;
+
+        const agentTypeEl = form.querySelector('#agentType');
+        const agentType = (agentTypeEl ? agentTypeEl.value : 'local').toLowerCase();
+        const isRemote = agentType === 'remote';
+
+        const frameworkEl = form.querySelector('#agentFramework');
+        const otherGroup = form.querySelector('#agentFrameworkOtherGroup');
+        if (!frameworkEl || !otherGroup) return;
+
+        if (!isRemote) {
+            otherGroup.style.display = 'none';
+            return;
+        }
+
+        const framework = String(frameworkEl.value || '');
+        otherGroup.style.display = framework === 'Other' ? '' : 'none';
+    },
+
     /**
      * Bind wallet button events
      */
@@ -420,10 +487,10 @@ const AgentSettingsDialog = {
             console.error('Form container not found for wallet buttons');
             return;
         }
-        
+
         const createBtn = form.querySelector('#createWalletBtn');
         const importBtn = form.querySelector('#importWalletBtn');
-        
+
         if (createBtn) {
             if (this._createWalletHandler) {
                 createBtn.removeEventListener('click', this._createWalletHandler);
@@ -431,7 +498,7 @@ const AgentSettingsDialog = {
             this._createWalletHandler = () => this.createWallet();
             createBtn.addEventListener('click', this._createWalletHandler);
         }
-        
+
         if (importBtn) {
             if (this._importWalletHandler) {
                 importBtn.removeEventListener('click', this._importWalletHandler);
@@ -439,7 +506,7 @@ const AgentSettingsDialog = {
             this._importWalletHandler = () => this.importWallet();
             importBtn.addEventListener('click', this._importWalletHandler);
         }
-        
+
         console.log('Wallet button events bound successfully');
     },
 
@@ -456,7 +523,7 @@ const AgentSettingsDialog = {
         // Find the clicked button to get the target tab ID
         const clickedBtn = form.querySelector(`[data-tab="${tab}"].settings-tab-btn`);
         if (!clickedBtn) return;
-        
+
         const targetTabId = clickedBtn.getAttribute('data-target');
         if (!targetTabId) return;
 
@@ -682,6 +749,41 @@ const AgentSettingsDialog = {
                 return false;
             }
 
+            const framework = isRemote ? String(document.getElementById('agentFramework')?.value || '').trim() : '';
+            const frameworkOther = isRemote ? String(document.getElementById('agentFrameworkOther')?.value || '').trim() : '';
+            const llmProvider = isRemote ? String(document.getElementById('agentLLMProvider')?.value || '').trim() : '';
+            const modelDescription = isRemote ? String(document.getElementById('agentModelDescription')?.value || '').trim() : '';
+
+            if (isRemote) {
+                if (!framework) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Please select framework');
+                    }
+                    return false;
+                }
+
+                if (framework === 'Other' && !frameworkOther) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Please enter framework name');
+                    }
+                    return false;
+                }
+
+                if (!llmProvider) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Please enter LLM provider');
+                    }
+                    return false;
+                }
+
+                if (!modelDescription) {
+                    if (typeof Notification !== 'undefined') {
+                        Notification.error('Please enter model description');
+                    }
+                    return false;
+                }
+            }
+
             if (!isRemote) {
                 if (!modelConfigId) {
                     if (typeof Notification !== 'undefined') {
@@ -727,6 +829,13 @@ const AgentSettingsDialog = {
                 url,
                 is_active: true
             };
+
+            if (isRemote) {
+                data.framework = framework;
+                data.framework_other = framework === 'Other' ? frameworkOther : '';
+                data.llm_provider = llmProvider;
+                data.model_description = modelDescription;
+            }
 
             if (!isRemote) {
                 data.model_config_id = modelConfigId;

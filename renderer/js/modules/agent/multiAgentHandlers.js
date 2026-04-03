@@ -10,10 +10,390 @@ import AgentPage from './AgentPage.js';
 import Toast from '../../utils/toast.js';
 
 const multiAgentHandlers = {
+    _agentChatSuggestionCommands: ['Get the weather of', 'Search the web for'],
+    _agentChatInputHistoryByAgentId: new Map(),
+    _agentChatInputHistoryIndexByAgentId: new Map(),
+    _agentChatDraftBeforeHistoryBrowseByAgentId: new Map(),
+    _agentChatSuggestionGlobalClickBound: false,
+    _agentChatHistoryLoadedByAgentId: new Set(),
+
     matchesToolbarTitle(el, titles) {
         if (!el) return false;
         const t = String(el.getAttribute('title') || '').trim();
         return (titles || []).some(x => String(x).trim() === t);
+    },
+
+    async _loadAgentChatInputHistoryIfNeeded(agentId) {
+        const id = String(agentId);
+        if (this._agentChatHistoryLoadedByAgentId && this._agentChatHistoryLoadedByAgentId.has(id)) return;
+
+        if (!this._agentChatHistoryLoadedByAgentId) {
+            this._agentChatHistoryLoadedByAgentId = new Set();
+        }
+
+        this._agentChatHistoryLoadedByAgentId.add(id);
+
+        try {
+            if (!window.electronAPI || typeof window.electronAPI.readAgentChatInputHistory !== 'function') {
+                return;
+            }
+
+            const resp = await window.electronAPI.readAgentChatInputHistory(agentId);
+            if (!resp || resp.success !== true) {
+                return;
+            }
+
+            const raw = resp.data ? String(resp.data) : '';
+            const lines = raw
+                .split(/\r?\n/)
+                .map(v => String(v || '').trim())
+                .filter(v => !!v);
+
+            const maxEntries = 30;
+            const trimmed = lines.length > maxEntries ? lines.slice(lines.length - maxEntries) : lines;
+
+            const existing = this._agentChatInputHistoryByAgentId.get(id) || [];
+            if (existing.length) {
+                return;
+            }
+            this._agentChatInputHistoryByAgentId.set(id, trimmed);
+            this._agentChatInputHistoryIndexByAgentId.set(id, -1);
+            this._agentChatDraftBeforeHistoryBrowseByAgentId.set(id, '');
+        } catch (e) {
+        }
+    },
+
+    async _persistAgentChatInputHistory(agentId) {
+        try {
+            if (!window.electronAPI || typeof window.electronAPI.writeAgentChatInputHistory !== 'function') {
+                return;
+            }
+
+            const id = String(agentId);
+            const history = this._agentChatInputHistoryByAgentId.get(id) || [];
+            await window.electronAPI.writeAgentChatInputHistory(agentId, history);
+        } catch (e) {
+        }
+    },
+
+    _ensureAgentChatInputEnhancement(textarea) {
+        if (!textarea) return;
+        try {
+            if (textarea.dataset && textarea.dataset.agentChatInputEnhanced === 'true') {
+                return;
+            }
+            if (textarea.dataset) {
+                textarea.dataset.agentChatInputEnhanced = 'true';
+            }
+        } catch (e) {
+        }
+
+        const wrapper = textarea.closest('.input-wrapper');
+        if (!wrapper) return;
+
+        try {
+            const agentId = textarea.dataset ? parseInt(textarea.dataset.agentId) : NaN;
+            if (Number.isFinite(agentId)) {
+                this._loadAgentChatInputHistoryIfNeeded(agentId);
+            }
+        } catch (e) {
+        }
+
+        let suggestionMenu = wrapper.querySelector('.sns-human-input-suggestions');
+        if (!suggestionMenu) {
+            suggestionMenu = document.createElement('div');
+            suggestionMenu.className = 'sns-human-input-suggestions';
+            suggestionMenu.style.display = 'none';
+            suggestionMenu.setAttribute('role', 'listbox');
+            suggestionMenu.innerHTML = this._agentChatSuggestionCommands.map((command, index) => `
+                <button
+                    type="button"
+                    class="sns-human-input-suggestion"
+                    data-command="${command}"
+                    data-index="${index}"
+                    role="option"
+                >${command}</button>
+            `).join('');
+            wrapper.appendChild(suggestionMenu);
+        }
+
+        let activeSuggestionIndex = -1;
+
+        const isSuggestionVisible = () => suggestionMenu && suggestionMenu.style.display !== 'none';
+
+        const updateSuggestionSelection = () => {
+            if (!suggestionMenu) return;
+            suggestionMenu.querySelectorAll('.sns-human-input-suggestion').forEach((button, index) => {
+                const isActive = index === activeSuggestionIndex;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+            });
+        };
+
+        const hideSuggestionMenu = () => {
+            if (!suggestionMenu) return;
+            suggestionMenu.style.display = 'none';
+            activeSuggestionIndex = -1;
+            updateSuggestionSelection();
+        };
+
+        const showSuggestionMenu = () => {
+            if (!suggestionMenu) return;
+            suggestionMenu.style.display = 'block';
+            if (activeSuggestionIndex < 0) activeSuggestionIndex = 0;
+            updateSuggestionSelection();
+        };
+
+        const syncSuggestionMenu = () => {
+            if (textarea.value === '@') {
+                showSuggestionMenu();
+            } else {
+                hideSuggestionMenu();
+            }
+        };
+
+        const applySuggestion = (command) => {
+            textarea.value = `${command} `;
+            hideSuggestionMenu();
+            textarea.focus();
+            try {
+                const pos = textarea.value.length;
+                textarea.setSelectionRange(pos, pos);
+            } catch (e) {
+            }
+        };
+
+        try {
+            if (!suggestionMenu.dataset) suggestionMenu.dataset = {};
+            if (suggestionMenu.dataset.agentSuggestionHideBound !== 'true') {
+                suggestionMenu.dataset.agentSuggestionHideBound = 'true';
+                suggestionMenu.addEventListener('agent-chat-hide-suggestions', () => {
+                    hideSuggestionMenu();
+                });
+            }
+        } catch (e) {
+        }
+
+        const getAgentId = () => {
+            try {
+                const raw = textarea.dataset ? textarea.dataset.agentId : '';
+                const id = parseInt(raw);
+                return Number.isFinite(id) ? id : null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const ensureHistoryState = (agentId) => {
+            const id = String(agentId);
+            if (!this._agentChatInputHistoryByAgentId.has(id)) {
+                this._agentChatInputHistoryByAgentId.set(id, []);
+            }
+            if (!this._agentChatInputHistoryIndexByAgentId.has(id)) {
+                this._agentChatInputHistoryIndexByAgentId.set(id, -1);
+            }
+            if (!this._agentChatDraftBeforeHistoryBrowseByAgentId.has(id)) {
+                this._agentChatDraftBeforeHistoryBrowseByAgentId.set(id, '');
+            }
+        };
+
+        const browseHistory = (direction) => {
+            const agentId = getAgentId();
+            if (!agentId) return;
+            const id = String(agentId);
+            ensureHistoryState(agentId);
+
+            const history = this._agentChatInputHistoryByAgentId.get(id) || [];
+            if (!history.length) return;
+
+            const idx = this._agentChatInputHistoryIndexByAgentId.get(id);
+            if (idx === -1) {
+                this._agentChatDraftBeforeHistoryBrowseByAgentId.set(id, textarea.value);
+            }
+
+            if (direction < 0) {
+                const nextIndex = idx === -1 ? history.length - 1 : Math.max(0, idx - 1);
+                this._agentChatInputHistoryIndexByAgentId.set(id, nextIndex);
+                textarea.value = history[nextIndex];
+            } else {
+                if (idx === -1) return;
+                const nextIndex = idx + 1;
+                if (nextIndex >= history.length) {
+                    this._agentChatInputHistoryIndexByAgentId.set(id, -1);
+                    textarea.value = this._agentChatDraftBeforeHistoryBrowseByAgentId.get(id) || '';
+                } else {
+                    this._agentChatInputHistoryIndexByAgentId.set(id, nextIndex);
+                    textarea.value = history[nextIndex];
+                }
+            }
+
+            hideSuggestionMenu();
+            try {
+                const pos = textarea.value.length;
+                textarea.setSelectionRange(pos, pos);
+            } catch (e) {
+            }
+        };
+
+        const resetHistoryBrowse = () => {
+            const agentId = getAgentId();
+            if (!agentId) return;
+            const id = String(agentId);
+            ensureHistoryState(agentId);
+            this._agentChatInputHistoryIndexByAgentId.set(id, -1);
+            this._agentChatDraftBeforeHistoryBrowseByAgentId.set(id, textarea.value);
+        };
+
+        suggestionMenu.addEventListener('click', (event) => {
+            const suggestionButton = event.target.closest('.sns-human-input-suggestion');
+            if (!suggestionButton) return;
+            applySuggestion(suggestionButton.dataset.command || '');
+        });
+
+        textarea.addEventListener('input', () => {
+            const agentId = getAgentId();
+            if (agentId) {
+                ensureHistoryState(agentId);
+                this._agentChatInputHistoryIndexByAgentId.set(String(agentId), -1);
+                this._agentChatDraftBeforeHistoryBrowseByAgentId.set(String(agentId), textarea.value);
+            }
+            syncSuggestionMenu();
+        });
+
+        textarea.addEventListener('focus', () => {
+            syncSuggestionMenu();
+        });
+
+        textarea.addEventListener('blur', () => {
+            setTimeout(() => {
+                hideSuggestionMenu();
+            }, 120);
+        });
+
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowUp') {
+                if (isSuggestionVisible()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    activeSuggestionIndex = activeSuggestionIndex <= 0
+                        ? this._agentChatSuggestionCommands.length - 1
+                        : activeSuggestionIndex - 1;
+                    updateSuggestionSelection();
+                    return;
+                }
+
+                const atStart = (() => {
+                    try {
+                        return typeof textarea.selectionStart === 'number' && textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+                    } catch (e) {
+                        return textarea.value === '';
+                    }
+                })();
+
+                if (!atStart && textarea.value) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                browseHistory(-1);
+                return;
+            }
+
+            if (e.key === 'ArrowDown') {
+                if (isSuggestionVisible()) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    activeSuggestionIndex = activeSuggestionIndex >= this._agentChatSuggestionCommands.length - 1
+                        ? 0
+                        : activeSuggestionIndex + 1;
+                    updateSuggestionSelection();
+                    return;
+                }
+
+                const atEnd = (() => {
+                    try {
+                        const end = textarea.value.length;
+                        return typeof textarea.selectionStart === 'number' && textarea.selectionStart === end && textarea.selectionEnd === end;
+                    } catch (e) {
+                        return true;
+                    }
+                })();
+
+                if (!atEnd) {
+                    return;
+                }
+
+                e.preventDefault();
+                e.stopPropagation();
+                browseHistory(1);
+                return;
+            }
+
+            if (e.key === 'Escape' && isSuggestionVisible()) {
+                e.preventDefault();
+                e.stopPropagation();
+                hideSuggestionMenu();
+                return;
+            }
+
+            if (e.key === 'Enter' && !e.shiftKey) {
+                if (isSuggestionVisible() && activeSuggestionIndex >= 0) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applySuggestion(this._agentChatSuggestionCommands[activeSuggestionIndex]);
+                    return;
+                }
+                hideSuggestionMenu();
+                resetHistoryBrowse();
+                return;
+            }
+        });
+
+        if (!this._agentChatSuggestionGlobalClickBound) {
+            this._agentChatSuggestionGlobalClickBound = true;
+            document.addEventListener('click', (event) => {
+                const inAgentInputWrapper = event.target && event.target.closest && event.target.closest('.agent-chat-input-area .input-wrapper');
+                if (inAgentInputWrapper) return;
+
+                document.querySelectorAll('.agent-chat-input-area .input-wrapper .sns-human-input-suggestions').forEach(menu => {
+                    try {
+                        menu.dispatchEvent(new Event('agent-chat-hide-suggestions'));
+                    } catch (e) {
+                    }
+                });
+            });
+        }
+    },
+
+    _pushAgentChatInputHistory(agentId, message) {
+        if (!agentId || !message) return;
+        const id = String(agentId);
+        if (!this._agentChatInputHistoryByAgentId) {
+            this._agentChatInputHistoryByAgentId = new Map();
+        }
+        if (!this._agentChatInputHistoryIndexByAgentId) {
+            this._agentChatInputHistoryIndexByAgentId = new Map();
+        }
+        if (!this._agentChatDraftBeforeHistoryBrowseByAgentId) {
+            this._agentChatDraftBeforeHistoryBrowseByAgentId = new Map();
+        }
+
+        const history = this._agentChatInputHistoryByAgentId.get(id) || [];
+        if (!history.length || history[history.length - 1] !== message) {
+            history.push(message);
+        }
+
+        const maxEntries = 30;
+        const trimmed = history.length > maxEntries ? history.slice(history.length - maxEntries) : history;
+        this._agentChatInputHistoryByAgentId.set(id, trimmed);
+        this._agentChatInputHistoryIndexByAgentId.set(id, -1);
+        this._agentChatDraftBeforeHistoryBrowseByAgentId.set(id, '');
+
+        try {
+            this._persistAgentChatInputHistory(agentId);
+        } catch (e) {
+        }
     },
 
     async _deleteRendererPlugin(pluginId, agentId) {
@@ -1672,11 +2052,26 @@ const multiAgentHandlers = {
         // 2. Press Enter in input to send
         document.addEventListener('keydown', (e) => {
             const chatInput = e.target.closest('.agent-chat-input[data-agent-id]');
+            if (chatInput) {
+                this._ensureAgentChatInputEnhancement(chatInput);
+            }
             if (chatInput && e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 const agentId = parseInt(chatInput.dataset.agentId);
                 this.sendMessageForAgent(agentId);
             }
+        });
+
+        document.addEventListener('focusin', (e) => {
+            const chatInput = e.target.closest && e.target.closest('.agent-chat-input[data-agent-id]');
+            if (!chatInput) return;
+            this._ensureAgentChatInputEnhancement(chatInput);
+        });
+
+        document.addEventListener('input', (e) => {
+            const chatInput = e.target.closest && e.target.closest('.agent-chat-input[data-agent-id]');
+            if (!chatInput) return;
+            this._ensureAgentChatInputEnhancement(chatInput);
         });
 
         // 3. Model selector
@@ -3044,6 +3439,11 @@ const multiAgentHandlers = {
             return;
         }
 
+        try {
+            this._pushAgentChatInputHistory(agentId, message);
+        } catch (e) {
+        }
+
         // Get current agent info
         const currentAgent = agentState.getCurrentAgent();
         if (!currentAgent) {
@@ -3610,7 +4010,10 @@ const multiAgentHandlers = {
             const agentType = String(currentAgent?.agent_type || 'local').toLowerCase();
             if (this.isRemoteAgentType(agentType)) {
                 this.applyRemoteUiDisableForAgent(agentId, true);
-                modelSelector.innerHTML = '<option value="">Remote agent</option>';
+                const framework = String(currentAgent?.framework || '').trim();
+                const frameworkOther = String(currentAgent?.framework_other || '').trim();
+                const label = (framework === 'Other' ? frameworkOther : framework) || 'Remote agent';
+                modelSelector.innerHTML = `<option value="">${this.escapeHtml(label)}</option>`;
                 modelSelector.disabled = true;
                 return;
             }

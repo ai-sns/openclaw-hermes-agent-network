@@ -32,7 +32,7 @@ export class SNSMapConfigDialog {
             <div class="modal-overlay" id="snsMapConfigDialog">
                 <div class="modal-dialog" style="max-width: 700px;">
                     <div class="modal-header">
-                        <h3>Map Configuration</h3>
+                        <h3>Map Setting</h3>
                         <button class="modal-close" id="snsMapConfigDialogCloseBtn">&times;</button>
                     </div>
                     <div class="modal-body">

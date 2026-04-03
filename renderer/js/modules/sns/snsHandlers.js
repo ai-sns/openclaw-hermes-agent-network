@@ -16,6 +16,8 @@ export default {
     lastPlaceIntroUrl: '',
     _snsLoadedRendererPlugins: new Map(),
     _suppressSnsUpdates: false,
+    _snsHumanInputHistoryByMode: { ai: [], target: [] },
+    _snsHumanInputHistoryIndexByMode: { ai: -1, target: -1 },
 
     initSNSUserInfoUpdateListener() {
         if (this._snsUserInfoUpdateListenerInitialized) return;
@@ -1487,16 +1489,255 @@ export default {
         const sendBtn = actionBar.querySelector('.control-send-btn');
         const inputField = actionBar.querySelector('.control-input');
         if (sendBtn && inputField) {
+            try {
+                if (inputField.dataset && inputField.dataset.snsHumanInputEnhanced === 'true') {
+                    return;
+                }
+                if (inputField.dataset) {
+                    inputField.dataset.snsHumanInputEnhanced = 'true';
+                }
+            } catch (e) {
+            }
+
+            try {
+                inputField.spellcheck = false;
+                inputField.setAttribute('spellcheck', 'false');
+                inputField.setAttribute('autocomplete', 'off');
+                inputField.setAttribute('autocorrect', 'off');
+                inputField.setAttribute('autocapitalize', 'off');
+            } catch (e) {
+            }
+
+            const suggestionCommands = ['go around', 'talk to', 'promote to', 'buy from', 'walk to'];
+            const inputWrapper = inputField.closest('.control-input-wrapper');
+
+            let suggestionMenu = null;
+            if (inputWrapper) {
+                suggestionMenu = inputWrapper.querySelector('.sns-human-input-suggestions');
+                if (!suggestionMenu) {
+                    suggestionMenu = document.createElement('div');
+                    suggestionMenu.className = 'sns-human-input-suggestions';
+                    suggestionMenu.style.display = 'none';
+                    suggestionMenu.setAttribute('role', 'listbox');
+                    suggestionMenu.innerHTML = suggestionCommands.map((command, index) => `
+                        <button
+                            type="button"
+                            class="sns-human-input-suggestion"
+                            data-command="${command}"
+                            data-index="${index}"
+                            role="option"
+                        >${command}</button>
+                    `).join('');
+                    inputWrapper.appendChild(suggestionMenu);
+                }
+            }
+
+            let activeSuggestionIndex = -1;
+            let draftBeforeHistoryBrowse = '';
+
+            const getCurrentMode = () => {
+                const activeToggle = actionBar.querySelector('.toggle-btn.active');
+                return activeToggle ? activeToggle.dataset.mode : 'ai';
+            };
+
+            const toHistoryModeKey = (mode) => {
+                return mode === 'ai' ? 'ai' : 'target';
+            };
+
+            const getHistoryModeKey = () => toHistoryModeKey(getCurrentMode());
+
+            const ensureHistoryState = () => {
+                if (!this._snsHumanInputHistoryByMode || typeof this._snsHumanInputHistoryByMode !== 'object') {
+                    this._snsHumanInputHistoryByMode = { ai: [], target: [] };
+                }
+                if (!Array.isArray(this._snsHumanInputHistoryByMode.ai)) this._snsHumanInputHistoryByMode.ai = [];
+                if (!Array.isArray(this._snsHumanInputHistoryByMode.target)) this._snsHumanInputHistoryByMode.target = [];
+
+                if (!this._snsHumanInputHistoryIndexByMode || typeof this._snsHumanInputHistoryIndexByMode !== 'object') {
+                    this._snsHumanInputHistoryIndexByMode = { ai: -1, target: -1 };
+                }
+                if (!Number.isFinite(this._snsHumanInputHistoryIndexByMode.ai)) this._snsHumanInputHistoryIndexByMode.ai = -1;
+                if (!Number.isFinite(this._snsHumanInputHistoryIndexByMode.target)) this._snsHumanInputHistoryIndexByMode.target = -1;
+            };
+
+            const draftBeforeHistoryBrowseByMode = { ai: '', target: '' };
+
+            const persistHistoryToDisk = async (historyModeKey) => {
+                try {
+                    if (!window.electronAPI || typeof window.electronAPI.writeSnsHumanInputHistory !== 'function') return;
+                    ensureHistoryState();
+                    const lines = this._snsHumanInputHistoryByMode[historyModeKey] || [];
+                    await window.electronAPI.writeSnsHumanInputHistory(historyModeKey, lines);
+                } catch (e) {
+                    console.warn('[snsHandlers] Failed to persist human input history:', e);
+                }
+            };
+
+            const loadHistoryFromDisk = async (historyModeKey) => {
+                try {
+                    if (!window.electronAPI || typeof window.electronAPI.readSnsHumanInputHistory !== 'function') return;
+                    const resp = await window.electronAPI.readSnsHumanInputHistory(historyModeKey);
+                    if (!resp || resp.success !== true) return;
+
+                    const raw = (resp.data === undefined || resp.data === null) ? '' : String(resp.data);
+                    const lines = raw
+                        .split(/\r?\n/)
+                        .map(v => String(v || '').trim())
+                        .filter(v => !!v);
+
+                    ensureHistoryState();
+
+                    if ((this._snsHumanInputHistoryByMode[historyModeKey] || []).length) {
+                        return;
+                    }
+
+                    const maxEntries = 30;
+                    this._snsHumanInputHistoryByMode[historyModeKey] = lines.length > maxEntries
+                        ? lines.slice(lines.length - maxEntries)
+                        : lines;
+                    this._snsHumanInputHistoryIndexByMode[historyModeKey] = -1;
+                } catch (e) {
+                    console.warn('[snsHandlers] Failed to load human input history:', e);
+                }
+            };
+
+            ensureHistoryState();
+            loadHistoryFromDisk('ai');
+            loadHistoryFromDisk('target');
+
+            const isMyAiMode = () => getCurrentMode() === 'ai';
+
+            const isSuggestionVisible = () => !!(suggestionMenu && suggestionMenu.style.display !== 'none');
+
+            const updateSuggestionSelection = () => {
+                if (!suggestionMenu) return;
+                suggestionMenu.querySelectorAll('.sns-human-input-suggestion').forEach((button, index) => {
+                    const isActive = index === activeSuggestionIndex;
+                    button.classList.toggle('active', isActive);
+                    button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                });
+            };
+
+            const hideSuggestionMenu = () => {
+                if (!suggestionMenu) return;
+                suggestionMenu.style.display = 'none';
+                activeSuggestionIndex = -1;
+                updateSuggestionSelection();
+            };
+
+            const showSuggestionMenu = () => {
+                if (!suggestionMenu) return;
+                if (!isMyAiMode()) {
+                    hideSuggestionMenu();
+                    return;
+                }
+                suggestionMenu.style.display = 'block';
+                if (activeSuggestionIndex < 0) {
+                    activeSuggestionIndex = 0;
+                }
+                updateSuggestionSelection();
+            };
+
+            const shouldShowSuggestionMenu = () => {
+                if (!isMyAiMode()) return false;
+                return inputField.value === '@';
+            };
+
+            const applySuggestion = (command) => {
+                inputField.value = `${command} `;
+                hideSuggestionMenu();
+                inputField.focus();
+                try {
+                    const pos = inputField.value.length;
+                    inputField.setSelectionRange(pos, pos);
+                } catch (e) {
+                }
+            };
+
+            const syncSuggestionMenu = () => {
+                if (shouldShowSuggestionMenu()) {
+                    showSuggestionMenu();
+                } else {
+                    hideSuggestionMenu();
+                }
+            };
+
+            const resetHistoryBrowse = (historyModeKey) => {
+                ensureHistoryState();
+                const key = historyModeKey || getHistoryModeKey();
+                this._snsHumanInputHistoryIndexByMode[key] = -1;
+                draftBeforeHistoryBrowseByMode[key] = inputField.value;
+            };
+
+            const browseHistory = (direction) => {
+                ensureHistoryState();
+                const key = getHistoryModeKey();
+                const history = this._snsHumanInputHistoryByMode[key] || [];
+                if (!history.length) return;
+
+                if (this._snsHumanInputHistoryIndexByMode[key] === -1) {
+                    draftBeforeHistoryBrowseByMode[key] = inputField.value;
+                }
+
+                if (direction < 0) {
+                    const nextIndex = this._snsHumanInputHistoryIndexByMode[key] === -1
+                        ? history.length - 1
+                        : Math.max(0, this._snsHumanInputHistoryIndexByMode[key] - 1);
+                    this._snsHumanInputHistoryIndexByMode[key] = nextIndex;
+                    inputField.value = history[nextIndex];
+                } else {
+                    if (this._snsHumanInputHistoryIndexByMode[key] === -1) return;
+                    const nextIndex = this._snsHumanInputHistoryIndexByMode[key] + 1;
+                    if (nextIndex >= history.length) {
+                        this._snsHumanInputHistoryIndexByMode[key] = -1;
+                        inputField.value = draftBeforeHistoryBrowseByMode[key] || '';
+                    } else {
+                        this._snsHumanInputHistoryIndexByMode[key] = nextIndex;
+                        inputField.value = history[nextIndex];
+                    }
+                }
+
+                hideSuggestionMenu();
+                try {
+                    const pos = inputField.value.length;
+                    inputField.setSelectionRange(pos, pos);
+                } catch (e) {
+                }
+            };
+
+            const pushHistory = (message) => {
+                ensureHistoryState();
+                const key = getHistoryModeKey();
+                const history = this._snsHumanInputHistoryByMode[key] || [];
+
+                if (!history.length || history[history.length - 1] !== message) {
+                    history.push(message);
+                }
+
+                const maxEntries = 30;
+                if (history.length > maxEntries) {
+                    this._snsHumanInputHistoryByMode[key] = history.slice(history.length - maxEntries);
+                } else {
+                    this._snsHumanInputHistoryByMode[key] = history;
+                }
+
+                this._snsHumanInputHistoryIndexByMode[key] = -1;
+                draftBeforeHistoryBrowseByMode[key] = '';
+
+                persistHistoryToDisk(key);
+            };
+
             const handleSend = async () => {
                 const message = inputField.value.trim();
                 if (!message) return;
 
-                // Get current mode
-                const activeToggle = actionBar.querySelector('.toggle-btn.active');
-                const mode = activeToggle ? activeToggle.dataset.mode : 'ai';
+                pushHistory(message);
+
+                const mode = getCurrentMode();
 
                 // Clear input field
                 inputField.value = '';
+                hideSuggestionMenu();
 
                 try {
                     // Ensure backend state matches UI at send time.
@@ -1521,10 +1762,85 @@ export default {
             };
 
             sendBtn.addEventListener('click', handleSend);
-            inputField.addEventListener('keypress', (e) => {
+
+            if (suggestionMenu) {
+                suggestionMenu.addEventListener('click', (event) => {
+                    const suggestionButton = event.target.closest('.sns-human-input-suggestion');
+                    if (!suggestionButton) return;
+                    applySuggestion(suggestionButton.dataset.command || '');
+                });
+            }
+
+            inputField.addEventListener('input', () => {
+                ensureHistoryState();
+                const key = getHistoryModeKey();
+                this._snsHumanInputHistoryIndexByMode[key] = -1;
+                draftBeforeHistoryBrowseByMode[key] = inputField.value;
+                syncSuggestionMenu();
+            });
+
+            inputField.addEventListener('focus', () => {
+                syncSuggestionMenu();
+            });
+
+            inputField.addEventListener('blur', () => {
+                setTimeout(() => {
+                    hideSuggestionMenu();
+                }, 120);
+            });
+
+            inputField.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowUp') {
+                    if (isSuggestionVisible()) {
+                        e.preventDefault();
+                        activeSuggestionIndex = activeSuggestionIndex <= 0 ? suggestionCommands.length - 1 : activeSuggestionIndex - 1;
+                        updateSuggestionSelection();
+                        return;
+                    }
+                    e.preventDefault();
+                    browseHistory(-1);
+                    return;
+                }
+
+                if (e.key === 'ArrowDown') {
+                    if (isSuggestionVisible()) {
+                        e.preventDefault();
+                        activeSuggestionIndex = activeSuggestionIndex >= suggestionCommands.length - 1 ? 0 : activeSuggestionIndex + 1;
+                        updateSuggestionSelection();
+                        return;
+                    }
+                    e.preventDefault();
+                    browseHistory(1);
+                    return;
+                }
+
+                if (e.key === 'Escape' && isSuggestionVisible()) {
+                    e.preventDefault();
+                    hideSuggestionMenu();
+                    return;
+                }
+
                 if (e.key === 'Enter') {
+                    if (isSuggestionVisible() && activeSuggestionIndex >= 0) {
+                        e.preventDefault();
+                        applySuggestion(suggestionCommands[activeSuggestionIndex]);
+                        return;
+                    }
+                    e.preventDefault();
                     handleSend();
                 }
+            });
+
+            toggleBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    hideSuggestionMenu();
+                    resetHistoryBrowse(toHistoryModeKey(btn.dataset.mode || 'ai'));
+                });
+            });
+
+            document.addEventListener('click', (event) => {
+                if (inputWrapper && inputWrapper.contains(event.target)) return;
+                hideSuggestionMenu();
             });
         }
     },
@@ -3450,9 +3766,20 @@ export default {
         const text = (content === undefined || content === null) ? '' : String(content);
         const lines = text.split('\n');
         const coordRegex = /(-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)\s*,\s*(-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)/i;
+        const urlRegex = /(https?:\/\/[^\s<>"']+)/i;
+
+        let currentSection = '';
 
         for (const rawLine of lines) {
             const line = (rawLine === undefined || rawLine === null) ? '' : String(rawLine);
+
+            if (line.startsWith('☁️ Services List')) {
+                currentSection = 'services';
+            } else if (line.startsWith('🧑‍🤝‍🧑 People List')) {
+                currentSection = 'people';
+            } else if (line.startsWith('🗺️ Place List')) {
+                currentSection = 'places';
+            }
 
             const row = document.createElement('div');
             row.style.cssText = `
@@ -3510,6 +3837,44 @@ export default {
                 }
             }
 
+            if (currentSection === 'places') {
+                const urlMatch = urlRegex.exec(line);
+                if (urlMatch && urlMatch[1]) {
+                    const url = String(urlMatch[1]).trim();
+                    if (url) {
+                        const visitBtn = document.createElement('button');
+                        visitBtn.type = 'button';
+                        visitBtn.className = 'sns-visit-btn';
+                        visitBtn.dataset.url = url;
+                        visitBtn.textContent = 'Visit';
+                        visitBtn.style.cssText = `
+                            padding: 4px 10px;
+                            font-size: 12px;
+                            font-weight: 700;
+                            border-radius: 8px;
+                            border: 1px solid rgba(26, 115, 232, 0.28);
+                            background: rgba(26, 115, 232, 0.08);
+                            color: var(--color-primary, #1a73e8);
+                            cursor: pointer;
+                            letter-spacing: 0.2px;
+                        `;
+                        visitBtn.addEventListener('mouseenter', () => {
+                            visitBtn.style.filter = 'brightness(1.06)';
+                        });
+                        visitBtn.addEventListener('mouseleave', () => {
+                            visitBtn.style.filter = '';
+                        });
+                        visitBtn.addEventListener('mousedown', () => {
+                            visitBtn.style.transform = 'translateY(1px)';
+                        });
+                        visitBtn.addEventListener('mouseup', () => {
+                            visitBtn.style.transform = '';
+                        });
+                        row.appendChild(visitBtn);
+                    }
+                }
+            }
+
             wrapper.appendChild(row);
         }
 
@@ -3520,10 +3885,22 @@ export default {
             resourceSection.dataset.snsGoToBound = '1';
             resourceSection.addEventListener('click', (e) => {
                 const btn = e.target && e.target.closest ? e.target.closest('.sns-go-to-btn') : null;
-                if (!btn) return;
+                const visitBtn = e.target && e.target.closest ? e.target.closest('.sns-visit-btn') : null;
+                if (!btn && !visitBtn) return;
 
                 e.preventDefault();
                 e.stopPropagation();
+
+                if (visitBtn) {
+                    const url = String(visitBtn.dataset.url || '').trim();
+                    if (!url) return;
+                    try {
+                        self.handleOpenPlaceWebAddress(url);
+                    } catch (err) {
+                        console.warn('Failed to open place intro:', err);
+                    }
+                    return;
+                }
 
                 const lng = Number(btn.dataset.lng);
                 const lat = Number(btn.dataset.lat);

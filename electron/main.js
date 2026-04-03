@@ -162,6 +162,144 @@ ipcMain.handle('write-clipboard-text', async (event, text) => {
 
 });
 
+
+
+ipcMain.handle('read-sns-human-input-history', async (event, payload) => {
+
+    try {
+
+        const modeRaw = payload && payload.mode ? String(payload.mode).trim() : '';
+        const mode = (modeRaw === 'ai') ? 'ai' : ((modeRaw === 'friends' || modeRaw === 'target') ? 'target' : '');
+        if (!mode) {
+            return { success: false, error: 'Invalid mode' };
+        }
+
+        const filePath = path.join(app.getPath('userData'), `sns_human_input_history_${mode}.txt`);
+
+        try {
+            const raw = await fsp.readFile(filePath, 'utf-8');
+            return { success: true, data: raw };
+        } catch (e) {
+            if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) {
+                return { success: true, data: '' };
+            }
+            throw e;
+        }
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
+
+
+ipcMain.handle('write-sns-human-input-history', async (event, payload) => {
+
+    try {
+
+        const modeRaw = payload && payload.mode ? String(payload.mode).trim() : '';
+        const mode = (modeRaw === 'ai') ? 'ai' : ((modeRaw === 'friends' || modeRaw === 'target') ? 'target' : '');
+        if (!mode) {
+            return { success: false, error: 'Invalid mode' };
+        }
+
+        const inputLines = payload && Array.isArray(payload.lines) ? payload.lines : [];
+        const normalized = inputLines
+            .map(v => (v === undefined || v === null) ? '' : String(v).trim())
+            .filter(v => !!v);
+
+        const maxEntries = 30;
+        const trimmed = normalized.length > maxEntries
+            ? normalized.slice(normalized.length - maxEntries)
+            : normalized;
+
+        const filePath = path.join(app.getPath('userData'), `sns_human_input_history_${mode}.txt`);
+        await fsp.writeFile(filePath, trimmed.join('\n'), 'utf-8');
+
+        return { success: true };
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
+
+
+ipcMain.handle('read-agent-chat-input-history', async (event, payload) => {
+
+    try {
+
+        const agentIdRaw = payload && payload.agentId !== undefined && payload.agentId !== null
+            ? String(payload.agentId).trim()
+            : '';
+        const agentId = parseInt(agentIdRaw, 10);
+        if (!Number.isFinite(agentId) || agentId <= 0) {
+            return { success: false, error: 'Invalid agentId' };
+        }
+
+        const filePath = path.join(app.getPath('userData'), `agent_chat_input_history_${agentId}.txt`);
+
+        try {
+            const raw = await fsp.readFile(filePath, 'utf-8');
+            return { success: true, data: raw };
+        } catch (e) {
+            if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) {
+                return { success: true, data: '' };
+            }
+            throw e;
+        }
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
+
+
+ipcMain.handle('write-agent-chat-input-history', async (event, payload) => {
+
+    try {
+
+        const agentIdRaw = payload && payload.agentId !== undefined && payload.agentId !== null
+            ? String(payload.agentId).trim()
+            : '';
+        const agentId = parseInt(agentIdRaw, 10);
+        if (!Number.isFinite(agentId) || agentId <= 0) {
+            return { success: false, error: 'Invalid agentId' };
+        }
+
+        const inputLines = payload && Array.isArray(payload.lines) ? payload.lines : [];
+        const normalized = inputLines
+            .map(v => (v === undefined || v === null) ? '' : String(v).trim())
+            .filter(v => !!v);
+
+        const maxEntries = 30;
+        const trimmed = normalized.length > maxEntries
+            ? normalized.slice(normalized.length - maxEntries)
+            : normalized;
+
+        const filePath = path.join(app.getPath('userData'), `agent_chat_input_history_${agentId}.txt`);
+        await fsp.writeFile(filePath, trimmed.join('\n'), 'utf-8');
+
+        return { success: true };
+
+    } catch (e) {
+
+        return { success: false, error: e && e.message ? e.message : String(e) };
+
+    }
+
+});
+
 ipcMain.handle('open-path', async (event, filePath) => {
 
     try {

@@ -1685,6 +1685,37 @@ function end_chat(nation_id) {
 // Flag variable indicating whether an info window is currently being shown
 let showing_info_flag = false;
 
+ function __snsParseLevelNumber(levelValue) {
+     try {
+         const raw = (levelValue !== undefined && levelValue !== null) ? String(levelValue).trim() : '';
+         if (!raw) return NaN;
+         const match = raw.match(/(\d+)/);
+         if (!match) return NaN;
+         return parseInt(match[1], 10);
+     } catch (e) {
+         return NaN;
+     }
+ }
+
+ function __snsGetLevelBadgeInlineStyle(levelValue) {
+     const levelNum = __snsParseLevelNumber(levelValue);
+     const colorMap = {
+         2: '#FAC775',
+         3: '#534AB7',
+         4: '#639922',
+         5: '#F06BA0',
+         6: '#E8191A',
+         7: '#1D9E75',
+         8: '#5A0A0A',
+         9: '#EF9F27',
+     };
+
+     const hex = colorMap[levelNum];
+     if (!hex) return '';
+
+     return 'color: ' + hex + ';';
+ }
+
 function send_chat_msg(lng, lat, msg, send_person_name = "") {
     // Check whether a bubble is currently being shown
     if (showing_info_flag) {
@@ -1727,7 +1758,7 @@ function showprofile(nation_id) {
     console.log(person_point);
     let person = getPersonDataByNationId(nation_id);
 
-    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var agentType = (person && person["framework"] !== undefined && person["framework"] !== null && String(person["framework"]).trim() !== '') ? String(person["framework"]) : 'AI-SNS';
     var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
     var metaHTML = '<div style="padding-top: 1px; font-size: 12px; line-height: 1.2;">' +
         '<div>🤖 ' + agentType + '</div>' +
@@ -1735,7 +1766,8 @@ function showprofile(nation_id) {
         '</div>';
 
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
-    var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
+    var badgeStyle = __snsGetLevelBadgeInlineStyle(level);
+    var badgeHTML = '<span class="bubble-level-badge"' + (badgeStyle ? (' style="' + badgeStyle + '"') : '') + '>' + level + '</span>';
     var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
         '<div>' + metaHTML + '</div>' +
         '<div style="text-align: right;"><a href="#" class="bubble-action-btn" onclick="talk_to_it(\'' + nation_id + '\',\'\');return false;">Chat</a></div>' +
@@ -1781,7 +1813,7 @@ function showprofile3d(geoGroup) {
     let person = geoGroup.userData;
     var nation_id = (person && (person["nation_id"] || person["nationid"])) ? String(person["nation_id"] || person["nationid"]) : '';
 
-    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var agentType = (person && person["framework"] !== undefined && person["framework"] !== null && String(person["framework"]).trim() !== '') ? String(person["framework"]) : 'AI-SNS';
     var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
     var metaHTML = '<div style="padding-top: 3px; font-size: 12px; line-height: 1.2;">' +
         '<div>🤖 ' + agentType + '</div>' +
@@ -1789,7 +1821,8 @@ function showprofile3d(geoGroup) {
         '</div>';
 
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
-    var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
+    var badgeStyle = __snsGetLevelBadgeInlineStyle(level);
+    var badgeHTML = '<span class="bubble-level-badge"' + (badgeStyle ? (' style="' + badgeStyle + '"') : '') + '>' + level + '</span>';
     var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
         '<div>' + metaHTML + '</div>' +
         '<div style="text-align: right;"><a href="#" class="bubble-action-btn btn-danger" onclick="end_chat(\'' + nation_id + '\');return false;">End chat</a></div>' +
@@ -1839,70 +1872,70 @@ function showprofile3d(geoGroup) {
 //navigate places
 var keyFrames = [
     {
-        center: new BMapGL.Point(116.307092, 40.054922),
-        zoom: 20,
+        center: new BMapGL.Point(116.40433203402984, 39.90536360302584),
+        zoom: 19,
         tilt: 50,
         heading: 0,
         percentage: 0
     },
     {
-        center: new BMapGL.Point(116.307631, 40.055391),
-        zoom: 21,
+        center: new BMapGL.Point(116.40488075442856, 39.907165650827984),
+        zoom: 19,
         tilt: 70,
         heading: 0,
-        percentage: 0.1
+        percentage: 0.05
     },
     {
-        center: new BMapGL.Point(116.306858, 40.057887),
-        zoom: 21,
+        center: new BMapGL.Point(116.40359814250276, 39.919726087545186),
+        zoom: 19,
         tilt: 70,
-        heading: 0,
+        heading: 90,
         percentage: 0.25
     },
     {
-        center: new BMapGL.Point(116.306858, 40.057887),
-        zoom: 21,
+        center: new BMapGL.Point(116.39885961444442, 39.919512646707524),
+        zoom: 20,
+        tilt: 70,
+        heading: 0,
+        percentage: 0.30
+    },
+    {
+        center: new BMapGL.Point(116.39838406507184, 39.929042083087424),
+        zoom: 20,
         tilt: 70,
         heading: -90,
-        percentage: 0.35
+        percentage: 0.50
     },
     {
-        center: new BMapGL.Point(116.307904, 40.058118),
-        zoom: 21,
-        tilt: 70,
-        heading: -90,
-        percentage: 0.45
-    },
-    {
-        center: new BMapGL.Point(116.307904, 40.058118),
-        zoom: 21,
+        center: new BMapGL.Point(116.40795754727823, 39.92942333168713),
+        zoom: 20,
         tilt: 70,
         heading: -180,
-        percentage: 0.55
+        percentage: 0.60
     },
     {
-        center: new BMapGL.Point(116.308902, 40.055954),
-        zoom: 21,
-        tilt: 70,
-        heading: -180,
-        percentage: 0.75
-    },
-    {
-        center: new BMapGL.Point(116.308902, 40.055954),
-        zoom: 21,
+        center: new BMapGL.Point(116.40854720597433, 39.91993534134653),
+        zoom: 20,
         tilt: 70,
         heading: -270,
+        percentage: 0.80
+    },
+    {
+        center: new BMapGL.Point(116.40359004823112, 39.91977945254367),
+        zoom: 20,
+        tilt: 70,
+        heading: -180,
         percentage: 0.85
     },
     {
-        center: new BMapGL.Point(116.307779, 40.055754),
-        zoom: 21,
+        center: new BMapGL.Point(116.40488075442856, 39.907165650827984),
+        zoom: 20,
         tilt: 70,
-        heading: -360,
+        heading: -180,
         percentage: 0.95
     },
     {
-        center: new BMapGL.Point(116.307092, 40.054922),
+         center: new BMapGL.Point(116.40433203402984, 39.90536360302584),
         zoom: 20,
         tilt: 50,
         heading: -360,
@@ -1911,7 +1944,7 @@ var keyFrames = [
 ];
 
 var view_opts = {
-    duration: 50000,
+    duration: 80000,
     delay: 1500,
     interation: '2'
 };
@@ -2007,14 +2040,14 @@ async function toggleNavigate() {
 }
 
 function autoNavigate() {
-    map.centerAndZoom(new BMapGL.Point(116.307092, 40.054922), 20);  // Initialize map: center + zoom level
+    map.centerAndZoom(new BMapGL.Point(116.40433203402984, 39.90536360302584), 19);  // Initialize map: center + zoom level
     map.enableScrollWheelZoom(true);     // Enable mouse wheel zoom
     map.setTilt(50);      // Set initial tilt
 
     displayOptions = {
         indoor: false,
         poiText: true,
-        poiIcon: false,
+        poiIcon: true,
         building: true,
     }
     map.setDisplayOptions(displayOptions);
@@ -2041,9 +2074,9 @@ function cancelNavigate() {
     auto_navigate_flag = false;
     displayOptions = {
         indoor: false,
-        poiText: false,
-        poiIcon: false,
-        building: false,
+        poiText: true,
+        poiIcon: true,
+        building: true,
     }
     map.setDisplayOptions(displayOptions);
     map.cancelViewAnimation(view_animation);

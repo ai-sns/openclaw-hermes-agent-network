@@ -150,6 +150,22 @@ async def create_agent(
         Created agent ID
     """
     try:
+        agent_type = (config.agent_type or "local").lower()
+        if agent_type == "remote":
+            framework = (config.framework or "").strip()
+            framework_other = (config.framework_other or "").strip()
+            llm_provider = (config.llm_provider or "").strip()
+            model_description = (config.model_description or "").strip()
+
+            if not framework:
+                raise HTTPException(status_code=422, detail="Framework is required for remote agents")
+            if framework == "Other" and not framework_other:
+                raise HTTPException(status_code=422, detail="Other framework name is required when Framework is 'Other'")
+            if not llm_provider:
+                raise HTTPException(status_code=422, detail="LLM provider is required for remote agents")
+            if not model_description:
+                raise HTTPException(status_code=422, detail="Model description is required for remote agents")
+
         # Convert Pydantic model to dict, excluding unset fields
         agent_data = config.dict(exclude_unset=True)
         agent_id = service.create_agent(**agent_data)
@@ -176,6 +192,27 @@ async def update_agent(
         Success status
     """
     try:
+        existing_agent = service.get_agent(agent_id)
+        if not existing_agent:
+            raise HTTPException(status_code=404, detail="Agent not found")
+
+        agent_type = (config.agent_type if config.agent_type is not None else existing_agent.get("agent_type") or "local")
+        agent_type = str(agent_type).lower()
+        if agent_type == "remote":
+            framework = (config.framework if config.framework is not None else existing_agent.get("framework") or "").strip()
+            framework_other = (config.framework_other if config.framework_other is not None else existing_agent.get("framework_other") or "").strip()
+            llm_provider = (config.llm_provider if config.llm_provider is not None else existing_agent.get("llm_provider") or "").strip()
+            model_description = (config.model_description if config.model_description is not None else existing_agent.get("model_description") or "").strip()
+
+            if not framework:
+                raise HTTPException(status_code=422, detail="Framework is required for remote agents")
+            if framework == "Other" and not framework_other:
+                raise HTTPException(status_code=422, detail="Other framework name is required when Framework is 'Other'")
+            if not llm_provider:
+                raise HTTPException(status_code=422, detail="LLM provider is required for remote agents")
+            if not model_description:
+                raise HTTPException(status_code=422, detail="Model description is required for remote agents")
+
         # Only pass fields that are not None
         agent_data = config.dict(exclude_unset=True, exclude_none=True)
         service.update_agent(agent_id, **agent_data)

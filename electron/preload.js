@@ -232,7 +232,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
 
-    downloadAndOpen: (url, filename) => ipcRenderer.invoke('download-and-open', { url, filename })
+    downloadAndOpen: (url, filename) => ipcRenderer.invoke('download-and-open', { url, filename }),
+
+    readSnsHumanInputHistory: (mode) => ipcRenderer.invoke('read-sns-human-input-history', { mode }),
+
+    writeSnsHumanInputHistory: (mode, lines) => ipcRenderer.invoke('write-sns-human-input-history', { mode, lines }),
+
+    readAgentChatInputHistory: (agentId) => ipcRenderer.invoke('read-agent-chat-input-history', { agentId }),
+
+    writeAgentChatInputHistory: (agentId, lines) => ipcRenderer.invoke('write-agent-chat-input-history', { agentId, lines })
 
 });
 

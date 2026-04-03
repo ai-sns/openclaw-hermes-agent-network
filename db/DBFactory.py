@@ -3071,6 +3071,8 @@ class MapVisit(Base):
     address = Column(Text)
     lng = Column(Float)
     lat = Column(Float)
+    url = Column(Text)
+    coord_key = Column(String(80))
     owner_name = Column(String(200))
     owner_account = Column(String(100))
     owner_type = Column(String(50))

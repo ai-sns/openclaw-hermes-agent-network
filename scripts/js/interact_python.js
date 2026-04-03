@@ -995,7 +995,7 @@ function handle_map_setting_loaded(setting_json) {
     appendMessageToBoard("<b>3D Avatar:</b> <br>" + avatar3d,false);
     appendMessageToBoard("<b>Avatar:</b> <br>" + avatar,false);
     appendMessageToBoard("<b>XMPP Account:</b> <br>" + account,false);
-    appendMessageToBoard("<b>NickName:</b> <br>" + nick_name,false);
+    appendMessageToBoard("<b>Nickname:</b> <br>" + nick_name,false);
     appendMessageToBoard("<b>Nation ID:</b> <br>" + nationid,false);
     appendMessageToBoard("<b>CONFIGURATION LOADED !</b>");
 

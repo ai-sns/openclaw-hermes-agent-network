@@ -5,6 +5,37 @@ const INITIAL_RETRY_DELAY = 1000;
 const REQUEST_TIMEOUT = 80000;
 
 
+function __snsParseLevelNumber(levelValue) {
+    try {
+        const raw = (levelValue !== undefined && levelValue !== null) ? String(levelValue).trim() : '';
+        if (!raw) return NaN;
+        const match = raw.match(/(\d+)/);
+        if (!match) return NaN;
+        return parseInt(match[1], 10);
+    } catch (e) {
+        return NaN;
+    }
+}
+
+function __snsGetLevelBadgeInlineStyle(levelValue) {
+    const levelNum = __snsParseLevelNumber(levelValue);
+    const colorMap = {
+         2: '#FAC775',
+         3: '#534AB7',
+         4: '#639922',
+         5: '#F06BA0',
+         6: '#E8191A',
+         7: '#1D9E75',
+         8: '#5A0A0A',
+         9: '#EF9F27',
+    };
+
+    const hex = colorMap[levelNum];
+    if (!hex) return '';
+
+    return 'color: ' + hex + ';';
+}
+
 
 async function loadPersonsData(url, retries = FETCH_RETRIES, retryDelay = INITIAL_RETRY_DELAY) {
 
@@ -4761,9 +4792,10 @@ function showprofile(nation_id) {
 
     let person = getPersonDataByNationId(nation_id);
 
+    console.log("the person data:")
+    console.log(person)
 
-
-    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var agentType = (person && person["framework"] !== undefined && person["framework"] !== null && String(person["framework"]).trim() !== '') ? String(person["framework"]) : 'AI-SNS';
     var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
     var metaHTML = '<div style="padding-top: 3px; font-size: 12px; line-height: 1.2;">' +
         '<div>🤖 ' + agentType + '</div>' +
@@ -4772,7 +4804,8 @@ function showprofile(nation_id) {
 
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
 
-    var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
+    var badgeStyle = __snsGetLevelBadgeInlineStyle(level);
+    var badgeHTML = '<span class="bubble-level-badge"' + (badgeStyle ? (' style="' + badgeStyle + '"') : '') + '>' + level + '</span>';
 
     var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
         '<div>' + metaHTML + '</div>' +
@@ -4826,7 +4859,7 @@ function showprofile3d(geoGroup) {
 
 
 
-    var agentType = (person && person["agent_type"] !== undefined && person["agent_type"] !== null && String(person["agent_type"]).trim() !== '') ? String(person["agent_type"]) : 'AI-SNS';
+    var agentType = (person && person["framework"] !== undefined && person["framework"] !== null && String(person["framework"]).trim() !== '') ? String(person["framework"]) : 'AI-SNS';
     var modelName = (person && person["model"] !== undefined && person["model"] !== null && String(person["model"]).trim() !== '') ? String(person["model"]) : 'Openai';
     var metaHTML = '<div style="padding-top: 1px; font-size: 12px; line-height: 1.2;">' +
         '<div>🤖 ' + agentType + '</div>' +
@@ -4835,7 +4868,8 @@ function showprofile3d(geoGroup) {
 
     var level = (person["level"] !== undefined && person["level"] !== null && person["level"] !== '') ? person["level"] : 1;
 
-    var badgeHTML = '<span class="bubble-level-badge">' + level + '</span>';
+    var badgeStyle = __snsGetLevelBadgeInlineStyle(level);
+    var badgeHTML = '<span class="bubble-level-badge"' + (badgeStyle ? (' style="' + badgeStyle + '"') : '') + '>' + level + '</span>';
 
     var footerHTML = '<div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 0 0;">' +
         '<div>' + metaHTML + '</div>' +

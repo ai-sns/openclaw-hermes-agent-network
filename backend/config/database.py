@@ -165,6 +165,7 @@ def init_db():
         Base.metadata.create_all(bind=sync_engine)
 
         _ensure_aichat_cfg_goods_service_columns(settings.database.full_path)
+        _ensure_map_visit_columns(settings.database.full_path)
         logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -195,6 +196,37 @@ def _ensure_aichat_cfg_goods_service_columns(db_path: str) -> None:
             logger.info("Auto-migrated aichat_cfg: ensured goods/service columns")
     except Exception as e:
         logger.warning("Auto-migration for aichat_cfg goods/service columns failed: %s", e)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+def _ensure_map_visit_columns(db_path: str) -> None:
+    try:
+        conn = sqlite3.connect(db_path, timeout=60)
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(map_visit)")
+        columns = [row[1] for row in cursor.fetchall()]
+
+        changed = False
+        if "url" not in columns:
+            cursor.execute("ALTER TABLE map_visit ADD COLUMN url TEXT")
+            changed = True
+        if "coord_key" not in columns:
+            cursor.execute("ALTER TABLE map_visit ADD COLUMN coord_key TEXT")
+            changed = True
+
+        cursor.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_map_visit_coord_key ON map_visit(coord_key)"
+        )
+
+        if changed:
+            conn.commit()
+            logger.info("Auto-migrated map_visit: ensured url/coord_key columns")
+    except Exception as e:
+        logger.warning("Auto-migration for map_visit columns failed: %s", e)
     finally:
         try:
             conn.close()

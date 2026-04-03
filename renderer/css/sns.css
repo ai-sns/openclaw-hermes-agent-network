@@ -287,6 +287,10 @@
     display: block;
 }
 
+.contact-section.tab-content.active {
+    display: flex;
+}
+
 /* Search Box */
 .sns-search-box {
     margin-bottom: 12px;
@@ -360,6 +364,14 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+}
+
+.trade-section.tab-content {
+    display: none;
+}
+
+.trade-section.tab-content.active {
+    display: flex;
 }
 
 .trade-list {

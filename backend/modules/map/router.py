@@ -409,3 +409,82 @@ async def delete_trade(trade_id: str, db: Session = Depends(get_db_sync)):
         logger.error(f"Error deleting trade {trade_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ==================== Visits ====================
+
+
+@router.get("/visits")
+async def get_visits(db: Session = Depends(get_db_sync)):
+    """Get all visits from map_visit table."""
+    from backend.database.models.map import MapVisit
+
+    try:
+        visits = db.query(MapVisit).filter(
+            MapVisit.is_delete == False
+        ).order_by(MapVisit.create_time.desc()).all()
+
+        return [
+            {
+                "id": visit.id,
+                "visit_id": visit.visit_id,
+                "title": visit.title,
+                "detail": visit.detail,
+                "place_type": visit.place_type,
+                "address": visit.address,
+                "lng": visit.lng,
+                "lat": visit.lat,
+                "url": getattr(visit, "url", None),
+                "coord_key": getattr(visit, "coord_key", None),
+                "create_time": visit.create_time.isoformat() if visit.create_time else None,
+            }
+            for visit in visits
+        ]
+    except Exception as e:
+        logger.error(f"Error getting visits: {e}")
+        return []
+
+
+@router.delete("/visits/{visit_id}")
+async def delete_visit(visit_id: str, db: Session = Depends(get_db_sync)):
+    """Soft delete a visit by visit_id"""
+    from backend.database.models.map import MapVisit
+
+    visit_id = (visit_id or "").strip()
+    if not visit_id:
+        raise HTTPException(status_code=400, detail="visit_id is required")
+
+    try:
+        visit = db.query(MapVisit).filter(MapVisit.visit_id == visit_id).first()
+        if not visit:
+            raise HTTPException(status_code=404, detail="Visit not found")
+
+        from db.write_queue import db_write
+        _vid = visit_id
+        _coord_key = getattr(visit, "coord_key", None)
+
+        def _do(session):
+            rec = session.query(MapVisit).filter(MapVisit.visit_id == _vid).first()
+            if rec:
+                rec.is_delete = True
+
+        db_write(_do, description="map_router_delete_visit")
+
+        try:
+            await global_ws_manager.broadcast({
+                "type": "visit_deleted",
+                "data": {"visit_id": visit_id, "coord_key": _coord_key}
+            })
+        except Exception as e:
+            logger.warning(f"Failed to broadcast visit_deleted: {e}")
+
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        logger.error(f"Error deleting visit {visit_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -321,6 +321,10 @@ class UIDisplayMixin:
                 if description:
                     content += f"📖 {description}\n"
 
+                url = (place.get('url', '') or place.get('place_url', '') or '').strip()
+                if url:
+                    content += f"🔗 {url}\n"
+
                 # Separator line (except for the last place)
                 if i < len(place_list) - 1:
                     content += "\n──────────────────────────\n\n"

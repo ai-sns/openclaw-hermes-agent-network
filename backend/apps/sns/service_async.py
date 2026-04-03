@@ -1699,6 +1699,64 @@ class SNSService:
             if not base:
                 return {'success': False, 'message': 'ai_sns_server is not configured'}
 
+            derived_framework: Optional[str] = None
+            derived_model: Optional[str] = None
+            if agent_id is not None:
+                try:
+                    from backend.database.models.agent import AgentCfg
+                    from backend.database.models.system import LlmConfig
+
+                    agent_result = await self.db.execute(select(AgentCfg).where(AgentCfg.id == agent_id))
+                    agent_cfg = agent_result.scalar_one_or_none()
+
+                    if agent_cfg:
+                        memo_raw = getattr(agent_cfg, 'memo', None)
+                        memo_data: Dict[str, Any] = {}
+                        if isinstance(memo_raw, str) and memo_raw.strip():
+                            try:
+                                memo_data = json.loads(memo_raw)
+                            except Exception:
+                                memo_data = {}
+                        if not isinstance(memo_data, dict):
+                            memo_data = {}
+
+                        agent_type_value = str(memo_data.get('agent_type') or 'local').strip().lower() or 'local'
+
+                        if agent_type_value == 'local':
+                            derived_framework = 'AI-SNS'
+                        else:
+                            fw = str(memo_data.get('framework') or '').strip()
+                            fw_other = str(memo_data.get('framework_other') or '').strip()
+                            if fw == 'Other' and fw_other:
+                                derived_framework = fw_other
+                            elif fw:
+                                derived_framework = fw
+
+                        if agent_type_value == 'remote':
+                            md = str(memo_data.get('model_description') or '').strip()
+                            derived_model = md or None
+                        else:
+                            model_config_id = str(memo_data.get('model_config_id') or '').strip()
+                            if not model_config_id:
+                                model_config_id = str(getattr(agent_cfg, 'defaultmodel', '') or '').strip()
+
+                            if model_config_id:
+                                llm_result = await self.db.execute(
+                                    select(LlmConfig).where(LlmConfig.config_id == model_config_id)
+                                )
+                                llm_cfg = llm_result.scalar_one_or_none()
+                                if llm_cfg:
+                                    model_name = str(getattr(llm_cfg, 'model_name', '') or '').strip()
+                                    if model_name:
+                                        derived_model = model_name
+
+                            if not derived_model:
+                                fallback = str(getattr(agent_cfg, 'defaultmodel', '') or '').strip()
+                                if fallback and not fallback.startswith('llm_'):
+                                    derived_model = fallback
+                except Exception as e:
+                    logger.warning("Failed to derive framework/model from agent config: %s", e)
+
             async with httpx.AsyncClient(timeout=60.0) as client:
                 if should_upload_avatar:
                     avatar_map_path = Path('images') / 'avatars' / avatar_map
@@ -1729,6 +1787,8 @@ class SNSService:
                         'avatar_3d': avatar3d,
                         'profile': profile,
                         'sns_url': sns_url,
+                        **({'framework': derived_framework} if derived_framework else {}),
+                        **({'model': derived_model} if derived_model else {}),
                     },
                 )
                 if update_resp.status_code not in (200, 201):
@@ -2567,6 +2627,20 @@ class SNSService:
             # 3. Parse memo JSON to get model_config_id
             try:
                 memo_data = json.loads(memo)
+                agent_type = str(memo_data.get('agent_type') or '').strip().lower()
+
+                if agent_type == 'remote':
+                    provider_name = str(memo_data.get('llm_provider') or '').strip() or "N/A"
+                    model_name = str(memo_data.get('model_description') or '').strip() or "N/A"
+                    return {
+                        "success": True,
+                        "data": {
+                            "provider": provider_name,
+                            "model": model_name,
+                            "agent": agent_name
+                        }
+                    }
+
                 model_config_id = memo_data.get('model_config_id')
 
                 if not model_config_id:

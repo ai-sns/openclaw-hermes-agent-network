@@ -7,6 +7,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
+import asyncio
+
 import math
 import random
 
@@ -43,6 +45,15 @@ logger = logging.getLogger(__name__)
 
 class MapService:
     """Service for managing map functionality"""
+
+    @staticmethod
+    def _coord_key(lng: float, lat: float, decimals: int = 6) -> str:
+        try:
+            lng_norm = round(float(lng), int(decimals))
+            lat_norm = round(float(lat), int(decimals))
+            return f"{lng_norm},{lat_norm}"
+        except Exception:
+            return ""
 
     @staticmethod
     def _coerce_route_distance_m(cfg: Any) -> float:
@@ -186,6 +197,151 @@ class MapService:
             }
 
         url = (best.get("url") or "").strip()
+
+        coord_key = ""
+        visit_id_value = ""
+        if url:
+            try:
+                pos = best.get("place_position")
+                if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                    p_lng = float(pos[0])
+                    p_lat = float(pos[1])
+                    coord_key = cls._coord_key(p_lng, p_lat)
+            except Exception:
+                coord_key = ""
+
+        if url and coord_key:
+            try:
+                title = (
+                    (best.get("place_name") or "")
+                    or (best.get("title") or "")
+                    or (best.get("name") or "")
+                )
+                title = str(title).strip()
+            except Exception:
+                title = ""
+
+            try:
+                address = (
+                    (best.get("address") or "")
+                    or (best.get("place_address") or "")
+                )
+                address = str(address).strip()
+            except Exception:
+                address = ""
+
+            try:
+                place_type = (
+                    (best.get("place_type") or "")
+                    or (best.get("type") or "")
+                )
+                place_type = str(place_type).strip()
+            except Exception:
+                place_type = ""
+
+            try:
+                detail = best.get("description")
+                if detail is None or str(detail).strip() == "":
+                    detail = json.dumps(best, ensure_ascii=False)
+                detail = str(detail)
+            except Exception:
+                detail = ""
+
+            now = datetime.now()
+            try:
+                visit_id_value = f"visit_{int(now.timestamp() * 1000)}_{random.randint(1000, 9999)}"
+            except Exception:
+                visit_id_value = ""
+
+            try:
+                from db.write_queue import db_write
+                from db.DBFactory import MapVisit
+
+                _url = url
+                _coord_key = coord_key
+                _title = title
+                _address = address
+                _place_type = place_type
+                _detail = detail
+                _visit_id = visit_id_value
+                _now = now
+
+                def _do(session):
+                    existing = (
+                        session.query(MapVisit)
+                        .filter(MapVisit.is_delete == False)
+                        .filter(MapVisit.coord_key == _coord_key)
+                        .first()
+                    )
+                    if existing:
+                        existing.create_time = _now
+                        existing.url = _url
+                        existing.title = _title
+                        existing.address = _address
+                        existing.place_type = _place_type
+                        existing.detail = _detail
+                        try:
+                            pos = best.get("place_position")
+                            if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+                                existing.lng = float(pos[0])
+                                existing.lat = float(pos[1])
+                        except Exception:
+                            pass
+                        return existing.id
+
+                    rec = MapVisit(
+                        visit_id=_visit_id,
+                        title=_title,
+                        detail=_detail,
+                        place_type=_place_type,
+                        address=_address,
+                        lng=float(best.get("place_position")[0]),
+                        lat=float(best.get("place_position")[1]),
+                        url=_url,
+                        coord_key=_coord_key,
+                        create_time=_now,
+                        is_delete=False,
+                    )
+                    session.add(rec)
+                    session.flush()
+                    return rec.id
+
+                db_write(_do, description="map_service_upsert_map_visit")
+
+                try:
+                    visit = query_single_map_visit(coord_key=coord_key)
+                except Exception:
+                    visit = None
+
+                if visit:
+                    payload = {
+                        "id": getattr(visit, "id", None),
+                        "visit_id": getattr(visit, "visit_id", None),
+                        "title": getattr(visit, "title", None),
+                        "detail": getattr(visit, "detail", None),
+                        "place_type": getattr(visit, "place_type", None),
+                        "address": getattr(visit, "address", None),
+                        "lng": getattr(visit, "lng", None),
+                        "lat": getattr(visit, "lat", None),
+                        "url": getattr(visit, "url", None),
+                        "coord_key": getattr(visit, "coord_key", None),
+                        "create_time": visit.create_time.isoformat() if getattr(visit, "create_time", None) else None,
+                    }
+                    msg = {"type": "visit_upserted", "data": payload}
+
+                    try:
+                        from backend.shared.websocket_manager import manager as websocket_manager
+
+                        try:
+                            loop = asyncio.get_running_loop()
+                            loop.create_task(websocket_manager.broadcast(msg))
+                        except RuntimeError:
+                            asyncio.create_task(websocket_manager.broadcast(msg))
+                    except Exception as e:
+                        logger.warning("visit_upserted broadcast failed: %s", e)
+            except Exception as e:
+                logger.warning("Failed to persist map_visit: %s", e)
+
         return {
             "success": True,
             "data": {
