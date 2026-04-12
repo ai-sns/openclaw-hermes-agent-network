@@ -1020,30 +1020,31 @@ map.addEventListener('click', function (e) {
 });
 
 map.addEventListener('click', function (e) {
-    alert("in clicking");
+    console.log("in clicking");
     if (instruct_to_move_flag == true) {
-
+showAlert('Position updated.');
 
         my_point = getPersonPointByNationId(nation_id_me);
 
-        alert('My current coordinates: ' + my_point.lng + ',' + my_point.lat);
+        console.log('My current coordinates: ' + my_point.lng + ',' + my_point.lat);
 
-        alert('Clicked coordinates: ' + e.latlng.lng + ',' + e.latlng.lat);
+        console.log('New Position: ' + e.latlng.lng + ',' + e.latlng.lat);
+
 
 
         last_click_point = new BMapGL.Point(e.latlng.lng, e.latlng.lat);
 
         distance = map.getDistance(my_point, last_click_point);
-        alert('Distance from current location to clicked point: ' + distance);
+        console.log('Distance from current location to clicked point: ' + distance);
 
 
         centerpoint = map.getCenter();
-        alert('Map center coordinates: ' + centerpoint.lng + ',' + centerpoint.lat);
+        console.log('Map center coordinates: ' + centerpoint.lng + ',' + centerpoint.lat);
 
 
         Viewport = map.getViewport();
         viewcenter = Viewport.center;
-        alert('Viewport center coordinates: ' + viewcenter.lng + ',' + viewcenter.lat);
+        console.log('Viewport center coordinates: ' + viewcenter.lng + ',' + viewcenter.lat);
 
         // var list = cusLayer.getCustomOverlays();
         // console.log(list[0]);

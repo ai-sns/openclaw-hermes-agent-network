@@ -1396,6 +1396,7 @@ function initMap() {
 
 
         if (instruct_to_move_flag == true) {
+            showAlert('Position updated.');
 
             const tmpcenter = {lat: 39.71164, lng: 116.27882};
 
@@ -1404,6 +1405,7 @@ function initMap() {
             // overlay.setAnchor(tmpcenter);
 
             const coordinates = getLastClickPoint();
+
 
             // overlay.setAnchor(coordinates);
 
