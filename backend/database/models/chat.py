@@ -88,6 +88,7 @@ class AiChatCfg(Base):
     nickname = Column(String(100), doc="Nickname")
     sign = Column(String(200), doc="Signature")
     status = Column(String(100), doc="Online status")
+    membership = Column(Integer, doc="Membership")
     humantakeover = Column(Integer, default=0, doc="Human takeover")
     name = Column(String(200), doc="Name")
     borndate = Column(DateTime, default=datetime.now, doc="Birth date")

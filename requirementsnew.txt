@@ -7,6 +7,7 @@ aiosqlite==0.22.1
 annotated-doc==0.0.4
 annotated-types==0.7.0
 anyio==4.12.0
+aiofiles==25.1.0
 attrs==25.4.0
 backoff==2.2.1
 bce-python-sdk==0.9.55

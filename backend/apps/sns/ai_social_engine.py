@@ -269,6 +269,7 @@ class AISocialEngine(
         self.process_info_plan_summary_every_n = 5
         self.tool_check_every_n = 0
         self.tool_check_before_review_enabled = False
+        self.agent_card_before_review_enabled = False
 
         try:
             cfg = query_SystemCfg(is_delete=False)
@@ -293,6 +294,9 @@ class AISocialEngine(
                 v = getattr(cfg, "tool_check_before_review_enabled", None)
                 if v is not None:
                     self.tool_check_before_review_enabled = bool(int(v)) if isinstance(v, (int, float, str)) else bool(v)
+                v = getattr(cfg, "agent_card_before_review_enabled", None)
+                if v is not None:
+                    self.agent_card_before_review_enabled = bool(int(v)) if isinstance(v, (int, float, str)) else bool(v)
 
                 v = getattr(cfg, "memory_enabled", None)
                 if v is not None:
@@ -1428,6 +1432,61 @@ class AISocialEngine(
         # Update panel if the property is ongoing-process-related
         if property_name in process_pane_related_properties:
             self.write_on_going_process_to_pane(self.current_ongoing_content or "")
+
+        if property_name == 'current_position':
+            try:
+                self._invalidate_position_caches()
+            except Exception:
+                pass
+            try:
+                self._schedule_resource_refresh_after_position_change()
+            except Exception:
+                pass
+
+    def _invalidate_position_caches(self) -> None:
+        try:
+            for k in (
+                "_cached_service_list_pos_key",
+                "_cached_service_list_value",
+                "_cached_people_list_pos_key",
+                "_cached_people_list_value",
+                "_cached_place_list_pos_key",
+                "_cached_place_list_value",
+            ):
+                if hasattr(self, k):
+                    try:
+                        setattr(self, k, None)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    def _schedule_resource_refresh_after_position_change(self, *, debounce_ms: int = 500) -> None:
+        try:
+            if getattr(self, "_resource_refresh_timer", None):
+                return
+        except Exception:
+            pass
+
+        async def _do_refresh():
+            try:
+                await asyncio.sleep(max(0.05, float(debounce_ms) / 1000.0))
+            except Exception:
+                pass
+            try:
+                self.update_resource_display()
+            except Exception as e:
+                logger.warning("Failed to refresh Resource tab after position change: %s", e)
+            finally:
+                try:
+                    self._resource_refresh_timer = None
+                except Exception:
+                    pass
+
+        try:
+            self._resource_refresh_timer = asyncio.create_task(_do_refresh())
+        except Exception:
+            self._resource_refresh_timer = None
 
 
 class AiChatCfgManager:

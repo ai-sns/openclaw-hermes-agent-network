@@ -172,7 +172,7 @@ async function load_persons_data_and_show() {
 
     const normalizedBaseUrl = (resolvedBaseUrl || '').replace(/\/+$/, '');
 
-    const dataUrl = `${normalizedBaseUrl}/api/get_people_list/`;
+    const dataUrl = `${normalizedBaseUrl}/api/get_people_list/?include_me=1`;
 
     const nation_id = nation_id_me;
 
@@ -190,14 +190,46 @@ async function load_persons_data_and_show() {
 
 
 
+        const meNationId = String(nation_id || '').trim();
+        let mePerson = null;
+        if (Array.isArray(data) && meNationId) {
+            try {
+                mePerson = data.find(person => {
+                    const pid = (person && (person.nation_id || person.nationid)) ? String(person.nation_id || person.nationid).trim() : '';
+                    return pid === meNationId;
+                }) || null;
+            } catch (e) {
+                mePerson = null;
+            }
+        }
+
+        try {
+            if (mePerson && typeof person_data_me !== 'undefined' && person_data_me) {
+                if (mePerson.membership !== undefined) {
+                    person_data_me.membership = mePerson.membership;
+                }
+                if (mePerson.level !== undefined) {
+                    person_data_me.level = mePerson.level;
+                }
+
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'snsUserMeta',
+                        data: {
+                            nickname: person_data_me.nick_name,
+                            membership: person_data_me.membership,
+                            level: person_data_me.level,
+                        }
+                    }, '*');
+                }
+            }
+        } catch (e) {
+        }
+
         // Filter out items whose nation_id equals the input value
-
-        personsdata = data.filter(person => {
-
+        personsdata = (Array.isArray(data) ? data : []).filter(person => {
             const pid = (person && (person.nation_id || person.nationid)) ? String(person.nation_id || person.nationid).trim() : '';
-
-            return pid !== String(nation_id || '').trim();
-
+            return pid !== meNationId;
         });
 
 
@@ -256,6 +288,195 @@ var geoBoundObjects = new Set();
 var loader = new THREE.GLTFLoader();
 
 var loader2 = new THREE.GLTFLoader();
+
+// Active place model (loaded from places.url_3d)
+var __sns_active_place_model = null;
+var __sns_active_place_model_url = '';
+
+function __snsDisposeThreeObject(obj) {
+    try {
+        if (!obj) return;
+        obj.traverse((child) => {
+            if (!child) return;
+            try {
+                if (child.geometry && typeof child.geometry.dispose === 'function') {
+                    child.geometry.dispose();
+                }
+            } catch (e) {
+            }
+            try {
+                if (child.material) {
+                    const mats = Array.isArray(child.material) ? child.material : [child.material];
+                    mats.forEach((m) => {
+                        if (!m) return;
+                        try {
+                            if (m.map && typeof m.map.dispose === 'function') m.map.dispose();
+                        } catch (e) {
+                        }
+                        try {
+                            if (typeof m.dispose === 'function') m.dispose();
+                        } catch (e) {
+                        }
+                    });
+                }
+            } catch (e) {
+            }
+        });
+    } catch (e) {
+    }
+}
+
+async function __snsSetActivePlaceModel(url3d, placePosition) {
+    const nextUrl = (url3d && typeof url3d === 'string') ? url3d.trim() : '';
+    if (nextUrl === __sns_active_place_model_url) {
+        return;
+    }
+
+    const modelParams = (typeof parseModelParamsFromWebUrl === 'function')
+        ? (parseModelParamsFromWebUrl(nextUrl) || {
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            altitude: 0,
+            scaleMultiplier: 1,
+            animationIndex: 0
+        })
+        : {
+            rotationX: 0,
+            rotationY: 0,
+            rotationZ: 0,
+            altitude: 0,
+            scaleMultiplier: 1,
+            animationIndex: 0
+        };
+
+    // Remove previous model
+    try {
+        if (__sns_active_place_model && typeof overlay !== 'undefined' && overlay && overlay.scene) {
+            overlay.scene.remove(__sns_active_place_model);
+            __snsDisposeThreeObject(__sns_active_place_model);
+        }
+    } catch (e) {
+        console.warn('[snsPlaceModel] Failed to remove previous model:', e);
+    }
+    __sns_active_place_model = null;
+    __sns_active_place_model_url = '';
+
+    if (!nextUrl) {
+        try {
+            if (typeof overlay !== 'undefined' && overlay && typeof overlay.requestRedraw === 'function') {
+                overlay.requestRedraw();
+            }
+        } catch (e) {
+        }
+        return;
+    }
+
+    if (typeof overlay === 'undefined' || !overlay || !overlay.scene) {
+        console.warn('[snsPlaceModel] overlay is not ready; skip model load');
+        return;
+    }
+
+    try {
+        const gltf = await loadModelWithRetry(loader2, nextUrl);
+        const model = gltf && gltf.scene ? gltf.scene : null;
+        if (!model) {
+            console.warn('[snsPlaceModel] GLTF loaded but scene is empty:', nextUrl);
+            return;
+        }
+
+        // Place the model at the place coordinates (fallback to current map center)
+        let centerLat = null;
+        let centerLng = null;
+        try {
+            const rawPos = (placePosition && placePosition.place_position) ? placePosition.place_position : placePosition;
+            if (Array.isArray(rawPos) && rawPos.length >= 2) {
+                centerLng = rawPos[0];
+                centerLat = rawPos[1];
+            } else if (rawPos && typeof rawPos === 'object') {
+                centerLng = (rawPos.lng !== undefined) ? rawPos.lng : ((rawPos.lon !== undefined) ? rawPos.lon : null);
+                centerLat = (rawPos.lat !== undefined) ? rawPos.lat : null;
+            }
+        } catch (e) {
+        }
+
+        if (!Number.isFinite(Number(centerLat)) || !Number.isFinite(Number(centerLng))) {
+            try {
+                const c = map && typeof map.getCenter === 'function' ? map.getCenter() : null;
+                centerLat = c ? ((typeof c.lat === 'function') ? c.lat() : c.lat) : null;
+                centerLng = c ? ((typeof c.lng === 'function') ? c.lng() : c.lng) : null;
+            } catch (e) {
+            }
+        }
+
+        if (!Number.isFinite(Number(centerLat)) || !Number.isFinite(Number(centerLng))) {
+            console.warn('[snsPlaceModel] map center not available; skip positioning');
+            return;
+        }
+
+        try {
+            const box = new THREE.Box3().setFromObject(model);
+            const size = box.getSize(new THREE.Vector3());
+            const height = size && size.y ? size.y : 0;
+            if (height > 0) {
+                const desiredHeight = 120;
+                const scale = desiredHeight / height;
+                model.scale.set(scale, scale, scale);
+            }
+
+            if (modelParams && Number.isFinite(Number(modelParams.scaleMultiplier))) {
+                const k = Number(modelParams.scaleMultiplier) || 1;
+                model.scale.set(model.scale.x * k, model.scale.y * k, model.scale.z * k);
+            }
+
+            const box2 = new THREE.Box3().setFromObject(model);
+            if (box2 && box2.min && Number.isFinite(box2.min.y)) {
+                model.position.y -= box2.min.y;
+            }
+        } catch (e) {
+        }
+
+        try {
+            if (modelParams) {
+                model.rotation.x += THREE.MathUtils.degToRad(Number(modelParams.rotationX) || 0);
+                model.rotation.y += THREE.MathUtils.degToRad(Number(modelParams.rotationY) || 0);
+                model.rotation.z += THREE.MathUtils.degToRad(Number(modelParams.rotationZ) || 0);
+            }
+        } catch (e) {
+        }
+
+        const geo = {
+            lat: Number(centerLat),
+            lng: Number(centerLng),
+            altitude: (modelParams && Number.isFinite(Number(modelParams.altitude))) ? Number(modelParams.altitude) : 0
+        };
+        try {
+            overlay.latLngAltitudeToVector3(geo, model.position);
+        } catch (e) {
+        }
+
+        model.name = 'snsPlaceModel';
+        overlay.scene.add(model);
+        __sns_active_place_model = model;
+        __sns_active_place_model_url = nextUrl;
+
+        try {
+            if (typeof overlay.requestRedraw === 'function') {
+                overlay.requestRedraw();
+            }
+        } catch (e) {
+        }
+    } catch (e) {
+        console.warn('[snsPlaceModel] Model load failed:', e);
+    }
+}
+
+try {
+    if (typeof window !== 'undefined') {
+        window.__snsSetActivePlaceModel = __snsSetActivePlaceModel;
+    }
+} catch (e) {
+}
 
 
 
@@ -4813,11 +5034,28 @@ function showprofile(nation_id) {
         '</div>';
     var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
+    var membershipValue = (person && person["membership"] !== undefined && person["membership"] !== null)
+        ? parseInt(person["membership"], 10)
+        : 0;
+    membershipValue = isNaN(membershipValue) ? 0 : membershipValue;
+    var membershipInfoMap = {
+        1: { emoji: '\u{1F5E1}\uFE0F', tooltip: 'Explorer' },
+        2: { emoji: '\u2694\uFE0F', tooltip: 'Voyager' },
+        3: { emoji: '\u{1F3DB}\uFE0F', tooltip: 'Squire' },
+        4: { emoji: '\u{1F3F0}', tooltip: 'Baron' },
+        5: { emoji: '\u{1F451}', tooltip: 'Lord' },
+    };
+    var membershipInfo = membershipInfoMap[membershipValue];
+    var membershipPrefix = membershipInfo
+        ? ('<span class="bubble-membership-emoji" title="' + membershipInfo.tooltip + '">' + membershipInfo.emoji + '</span> ')
+        : '';
+    var displayNickName = membershipPrefix + (person['nick_name'] || '');
+
 
 
     openBubble({
 
-        title: person['nick_name'],
+        title: displayNickName,
 
         body: bodyHTML,
 
@@ -4877,11 +5115,28 @@ function showprofile3d(geoGroup) {
         '</div>';
     var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
+    var membershipValue = (person && person["membership"] !== undefined && person["membership"] !== null)
+        ? parseInt(person["membership"], 10)
+        : 0;
+    membershipValue = isNaN(membershipValue) ? 0 : membershipValue;
+    var membershipInfoMap = {
+        1: { emoji: '\u{1F5E1}\uFE0F', tooltip: 'Explorer' },
+        2: { emoji: '\u2694\uFE0F', tooltip: 'Voyager' },
+        3: { emoji: '\u{1F3DB}\uFE0F', tooltip: 'Squire' },
+        4: { emoji: '\u{1F3F0}', tooltip: 'Baron' },
+        5: { emoji: '\u{1F451}', tooltip: 'Lord' },
+    };
+    var membershipInfo = membershipInfoMap[membershipValue];
+    var membershipPrefix = membershipInfo
+        ? ('<span class="bubble-membership-emoji" title="' + membershipInfo.tooltip + '">' + membershipInfo.emoji + '</span> ')
+        : '';
+    var displayNickName = membershipPrefix + (person['nick_name'] || '');
+
 
 
     openBubble({
 
-        title: person['nick_name'],
+        title: displayNickName,
 
         body: bodyHTML,
 

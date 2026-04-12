@@ -35,6 +35,15 @@
     white-space: nowrap;
 }
 
+.sns-membership-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
 /* User Stats Panel */
 .user-stats-panel {
     padding: 12px;

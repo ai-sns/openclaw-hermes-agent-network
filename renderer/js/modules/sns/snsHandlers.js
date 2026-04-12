@@ -14,6 +14,9 @@ import { SNSGoalsDialog } from './SNSGoalsDialog.js';
 
 export default {
     lastPlaceIntroUrl: '',
+    lastPlaceIntroUrl3d: '',
+    lastPlaceIntroPosition: null,
+    lastPlaceIntroPositionByMap: null,
     _snsLoadedRendererPlugins: new Map(),
     _suppressSnsUpdates: false,
     _snsHumanInputHistoryByMode: { ai: [], target: [] },
@@ -1298,7 +1301,7 @@ export default {
                 }
                 if (state === 'pause') {
                     startBtn.classList.add('running');
-                    startBtn.title = 'Right click to get more control';
+                    startBtn.title = '';
                     startBtn.innerHTML = `<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg><span>Pause</span>`;
                     return;
                 }
@@ -1381,50 +1384,7 @@ export default {
                 }
             };
 
-            startBtn.addEventListener('contextmenu', (e) => {
-                const isRunning = startBtn.classList.contains('running');
-                const buttonText = startBtn.textContent.trim();
-                if (!(isRunning && buttonText === 'Pause')) return;
-
-                e.preventDefault();
-                e.stopPropagation();
-
-                if (typeof Modal === 'undefined') {
-                    console.error('Modal component not loaded');
-                    return;
-                }
-
-                Modal.show({
-                    title: 'Engine Control',
-                    content: `
-                        <form>
-                            <div style="display:flex; flex-direction:column; gap:12px;">
-                                <div>
-                                    <label for="engineActionSelect" style="display:block; margin-bottom:6px;">Action</label>
-                                    <select id="engineActionSelect" name="engine_action" style="width:100%; height:34px;">
-                                        <option value="pause">Pause</option>
-                                        <option value="stop">Stop</option>
-                                        <option value="restart">Restart</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </form>
-                    `,
-                    confirmText: 'Execute',
-                    cancelText: 'Cancel',
-                    onConfirm: async (modal) => {
-                        const data = modal.getFormData();
-                        const action = String(data.engine_action || '').trim();
-                        if (action === 'stop') {
-                            await stopEngine();
-                        } else if (action === 'restart') {
-                            await restartEngine();
-                        } else {
-                            await pauseEngine();
-                        }
-                    }
-                });
-            });
+            // Right-click context menu removed from pause button
 
             startBtn.addEventListener('click', async () => {
                 const isRunning = startBtn.classList.contains('running');
@@ -2934,13 +2894,42 @@ export default {
                         this.handleOpenSNSProfile(data.url);
                         break;
                     case 'openPlaceWebAddress':
-                        this.handleOpenPlaceWebAddress(data.url);
+                        this.handleOpenPlaceWebAddress(data.url, data.url_3d, data.place_position, data.place_position_by_map);
                         break;
                     case 'openUrl':
                         this.handleOpenUrl(data.url);
                         break;
                     case 'closeSNSProfile':
                         this.handleCloseSNSProfile();
+                        break;
+                    case 'snsUserMeta':
+                        try {
+                            const meta = (data && data.data && typeof data.data === 'object') ? data.data : {};
+                            const nickname = meta.nickname;
+                            const membership = meta.membership;
+                            const level = meta.level;
+
+                            try {
+                                window.dispatchEvent(new CustomEvent('sns-user-info-updated', {
+                                    detail: {
+                                        nickname: nickname,
+                                        membership: membership,
+                                        level: level,
+                                    }
+                                }));
+                            } catch (e) {
+                            }
+
+                            const payload = {};
+                            if (membership !== undefined) payload.membership = membership;
+                            if (level !== undefined) payload.level = level;
+                            if (nickname !== undefined) payload.nickname = nickname;
+
+                            if (Object.keys(payload).length > 0) {
+                                snsApi.updateUserInfo(payload).catch(() => null);
+                            }
+                        } catch (e) {
+                        }
                         break;
                     default:
                         console.log('Unknown message type:', data.type);
@@ -3057,6 +3046,46 @@ export default {
         }
         if (latElement && hasLat) {
             latElement.textContent = `${latNum}`;
+        }
+
+        try {
+            if (hasLng && hasLat) {
+                this._throttledRefreshResourceOverviewOnLocationUpdate();
+            }
+        } catch (e) {
+        }
+    },
+
+    _throttledRefreshResourceOverviewOnLocationUpdate() {
+        const now = Date.now();
+        const minIntervalMs = 1200;
+        if (this._lastResourceRefreshOnLocationUpdateAt && (now - this._lastResourceRefreshOnLocationUpdateAt) < minIntervalMs) {
+            return;
+        }
+        if (this._resourceRefreshOnLocationUpdateInFlight) {
+            return;
+        }
+
+        this._lastResourceRefreshOnLocationUpdateAt = now;
+        this._resourceRefreshOnLocationUpdateInFlight = true;
+
+        const doRefresh = async () => {
+            try {
+                const resp = await snsApi.getResourceOverview();
+                if (!resp || !resp.success) return;
+                const content = (resp.content || '').trim();
+                if (!content) return;
+                this.updateResourceTab(content);
+            } catch (e) {
+            } finally {
+                this._resourceRefreshOnLocationUpdateInFlight = false;
+            }
+        };
+
+        try {
+            Promise.resolve().then(doRefresh);
+        } catch (e) {
+            this._resourceRefreshOnLocationUpdateInFlight = false;
         }
     },
 
@@ -3846,6 +3875,17 @@ export default {
                         visitBtn.type = 'button';
                         visitBtn.className = 'sns-visit-btn';
                         visitBtn.dataset.url = url;
+
+                        const m = coordRegex.exec(line);
+                        if (m && m.length >= 3) {
+                            const lng = Number(m[1]);
+                            const lat = Number(m[2]);
+                            if (Number.isFinite(lng) && Number.isFinite(lat)) {
+                                visitBtn.dataset.lng = String(lng);
+                                visitBtn.dataset.lat = String(lat);
+                            }
+                        }
+
                         visitBtn.textContent = 'Visit';
                         visitBtn.style.cssText = `
                             padding: 4px 10px;
@@ -3895,7 +3935,10 @@ export default {
                     const url = String(visitBtn.dataset.url || '').trim();
                     if (!url) return;
                     try {
-                        self.handleOpenPlaceWebAddress(url);
+                        const lng = Number(visitBtn.dataset.lng);
+                        const lat = Number(visitBtn.dataset.lat);
+                        const placePosition = (Number.isFinite(lng) && Number.isFinite(lat)) ? [lng, lat] : null;
+                        self.handleOpenPlaceWebAddress(url, undefined, placePosition);
                     } catch (err) {
                         console.warn('Failed to open place intro:', err);
                     }
@@ -4361,6 +4404,11 @@ export default {
                 }
                 this.showToast(msg, t);
             },
+            openPlaceIntro: (url) => {
+                const u = url ? String(url).trim() : '';
+                if (!u) return;
+                this.handleOpenPlaceWebAddress(u);
+            },
             openUrl: (url) => {
                 const u = url ? String(url) : '';
                 if (!u) return;
@@ -4426,8 +4474,10 @@ export default {
     /**
      * Handle open Place intro tab request
      */
-    handleOpenPlaceWebAddress(url) {
+    handleOpenPlaceWebAddress(url, url3d, placePosition, placePositionByMap) {
         console.log('handleOpenPlaceWebAddress called with url:', url);
+
+        const normalizedUrl3d = (url3d && typeof url3d === 'string') ? url3d.trim() : '';
 
         // URL normalization
         if (!url || typeof url !== 'string') {
@@ -4483,6 +4533,34 @@ export default {
         const tabStillOpen = !!(placeTab && placePane);
         const urlUnchanged = (this.lastPlaceIntroUrl || '') === url;
         if (tabStillOpen && urlUnchanged) {
+            const url3dUnchanged = (this.lastPlaceIntroUrl3d || '') === normalizedUrl3d;
+
+            if (!url3dUnchanged) {
+                try {
+                    const mapIframe = document.querySelector('#mapContainer iframe');
+                    if (mapIframe && mapIframe.contentWindow) {
+                        this.safePostMessageToMap(mapIframe, {
+                            type: 'snsPlaceModel',
+                            data: {
+                                url_3d: normalizedUrl3d,
+                                url,
+                                place_position: placePosition || this.lastPlaceIntroPosition,
+                                place_position_by_map: placePositionByMap || this.lastPlaceIntroPositionByMap
+                            }
+                        }, this.getMapIframeTargetOrigin());
+                    }
+                } catch (e) {
+                    console.warn('Failed to send snsPlaceModel to map iframe:', e);
+                }
+                this.lastPlaceIntroUrl3d = normalizedUrl3d;
+                if (placePosition) {
+                    this.lastPlaceIntroPosition = placePosition;
+                }
+                if (placePositionByMap) {
+                    this.lastPlaceIntroPositionByMap = placePositionByMap;
+                }
+            }
+
             // Only switch to the tab without reloading.
             statusTabs.querySelectorAll('.status-tab').forEach(btn => {
                 btn.classList.toggle('active', btn === placeTab);
@@ -4519,6 +4597,24 @@ export default {
                 if (placeTab) placeTab.remove();
                 if (placePane) placePane.remove();
 
+                try {
+                    const mapIframe = document.querySelector('#mapContainer iframe');
+                    if (mapIframe && mapIframe.contentWindow) {
+                        self.safePostMessageToMap(mapIframe, {
+                            type: 'snsPlaceModel',
+                            data: {
+                                url_3d: '',
+                                url: ''
+                            }
+                        }, self.getMapIframeTargetOrigin());
+                    }
+                } catch (err) {
+                    console.warn('Failed to unload snsPlaceModel on close:', err);
+                }
+                self.lastPlaceIntroUrl3d = '';
+                self.lastPlaceIntroPosition = null;
+                self.lastPlaceIntroPositionByMap = null;
+
                 // Switch to the first tab (Process) — use exclusive toggle
                 // to avoid leaving stale 'active' class on other tabs.
                 const firstTab = statusTabs.querySelector('.status-tab');
@@ -4554,6 +4650,26 @@ export default {
         }
 
         this.lastPlaceIntroUrl = url;
+        this.lastPlaceIntroUrl3d = normalizedUrl3d;
+        this.lastPlaceIntroPosition = placePosition || null;
+        this.lastPlaceIntroPositionByMap = placePositionByMap || null;
+
+        try {
+            const mapIframe = document.querySelector('#mapContainer iframe');
+            if (mapIframe && mapIframe.contentWindow) {
+                this.safePostMessageToMap(mapIframe, {
+                    type: 'snsPlaceModel',
+                    data: {
+                        url_3d: normalizedUrl3d,
+                        url,
+                        place_position: placePosition || null,
+                        place_position_by_map: placePositionByMap || null
+                    }
+                }, this.getMapIframeTargetOrigin());
+            }
+        } catch (e) {
+            console.warn('Failed to send snsPlaceModel to map iframe:', e);
+        }
 
         // Switch to Place intro tab
         statusTabs.querySelectorAll('.status-tab').forEach(btn => {

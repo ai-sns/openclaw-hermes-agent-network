@@ -22,11 +22,16 @@ os.chdir(app_directory)
 
 # Add the backend directory to sys.path
 sys.path.insert(0, str(app_directory / 'backend'))
+ 
+ # Ensure project root is on sys.path (required for importing agent_platform.*)
+if str(app_directory) not in sys.path:
+    sys.path.insert(0, str(app_directory))
 
 import logging
 import copy
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, HTTPException
+from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -94,6 +99,7 @@ system_router = None
 plugins_router = None
 wallet_router = None
 sns_router = None
+a2a_router = None
 
 try:
     from backend.modules.agent.router import router as agent_router
@@ -143,6 +149,11 @@ try:
     from backend.apps.sns.router import router as sns_router
 except Exception as e:
     logger.warning(f"⚠ SNS module not available: {e}")
+
+try:
+    from agent_platform.protocols.a2a.router import a2a_router
+except Exception as e:
+    logger.warning(f"⚠ A2A module not available: {e}", exc_info=True)
 
 # Load configuration
 settings = get_settings()
@@ -237,6 +248,107 @@ if wallet_router:
 if sns_router:
     app.include_router(sns_router, prefix="/api/sns", tags=["SNS"])
     logger.info("✓ SNS Module registered")
+
+if a2a_router:
+    app.include_router(a2a_router, tags=["A2A Protocol"])
+    logger.info("✓ A2A Module registered")
+
+
+@app.get("/.well-known/agent.json")
+async def well_known_agent_json(
+    request: Request,
+    agent_id: str = "default",
+):
+    origin = str(getattr(request, "base_url", "") or "").rstrip("/")
+
+    card: dict = {}
+    try:
+        from agent_platform.protocols.a2a.router import get_agent_card as _get_agent_card
+        card = await _get_agent_card(agent_id=agent_id)
+    except Exception:
+        card = {}
+
+    if not isinstance(card, dict) or not card:
+        db_agent = None
+        try:
+            _aid = int(str(agent_id).strip())
+            from backend.modules.agent.service import AgentService
+            db_agent = AgentService.get_agent(_aid)
+        except Exception:
+            db_agent = None
+
+        if isinstance(db_agent, dict):
+            capabilities = db_agent.get("capabilities") if isinstance(db_agent.get("capabilities"), dict) else {
+                "streaming": True,
+                "pushNotifications": True,
+                "stateTransitionHistory": False,
+            }
+            skills = db_agent.get("skills") if isinstance(db_agent.get("skills"), list) else []
+            default_input_modes = db_agent.get("default_input_modes")
+            default_output_modes = db_agent.get("default_output_modes")
+
+            card = {
+                "name": str(db_agent.get("name") or "AI-SNS Agent"),
+                "description": str(db_agent.get("description") or ""),
+                "url": str(db_agent.get("url") or "").strip(),
+                "version": str(db_agent.get("version") or "1.0.0"),
+                "protocolVersion": str(db_agent.get("protocol_version") or "0.3"),
+                "capabilities": capabilities,
+                "skills": skills,
+                "defaultInputModes": default_input_modes if isinstance(default_input_modes, list) else ["text"],
+                "defaultOutputModes": default_output_modes if isinstance(default_output_modes, list) else ["text"],
+                "id": str(db_agent.get("id") or agent_id),
+            }
+        else:
+            card = {
+                "name": "AI-SNS Agent",
+                "description": "AI Agent Open Platform",
+                "url": "",
+                "version": "1.0.0",
+                "protocolVersion": "0.3",
+                "capabilities": {
+                    "streaming": True,
+                    "pushNotifications": True,
+                    "stateTransitionHistory": False,
+                },
+                "skills": [
+                    {
+                        "id": "chat",
+                        "name": "General Chat",
+                        "description": "General conversation and Q&A",
+                        "tags": ["conversation", "qa"],
+                        "examples": ["Hello!", "What can you do?"],
+                        "inputModes": ["text"],
+                        "outputModes": ["text"],
+                    }
+                ],
+                "defaultInputModes": ["text"],
+                "defaultOutputModes": ["text"],
+                "id": str(agent_id or "default"),
+            }
+
+    if origin:
+        url_val = str(card.get("url") or "").strip()
+        if (not url_val) or url_val.startswith("http://localhost:8000"):
+            card["url"] = f"{origin}/a2a"
+
+    return JSONResponse(content=jsonable_encoder(card))
+
+
+@app.get("/agent-card.json")
+async def agent_card_json(
+    request: Request,
+    agent_id: str = "default",
+):
+    return await well_known_agent_json(request=request, agent_id=agent_id)
+
+
+@app.get("/a2a/{agent_id}/.well-known/agent-card.json")
+async def a2a_agent_card_json(
+    request: Request,
+    agent_id: str,
+):
+    return await well_known_agent_json(request=request, agent_id=agent_id)
 
 # Health check endpoint (maintain backward compatibility)
 @app.get("/health")
@@ -356,9 +468,9 @@ async def get_news_list():
 
 
 @app.get("/api/get_people_list/")
-async def get_people_list(lng: float = None, lat: float = None):
+async def get_people_list(lng: float = None, lat: float = None, include_me: int = 0):
     remote_base = _get_remote_ai_sns_server_base()
-    exclude_nation_id = _get_current_nation_id_from_db()
+    exclude_nation_id = "" if include_me else _get_current_nation_id_from_db()
     if remote_base:
         try:
             import httpx

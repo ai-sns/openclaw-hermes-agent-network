@@ -161,8 +161,15 @@ class MapTaskManager:
         logger.warning(
             f"Invalid people selection result, retrying (talk_type={talk_type}, retry={retry_count + 1}/3, missing={missing_keys})."
         )
-        self._instruction_invalid_count += 1
-        self._update_iq_point_from_counters()
+        try:
+            if hasattr(self.parent, "_instruction_total_count"):
+                self.parent._instruction_total_count += 1
+            if hasattr(self.parent, "_instruction_invalid_count"):
+                self.parent._instruction_invalid_count += 1
+            if hasattr(self.parent, "_update_iq_point_from_counters"):
+                self.parent._update_iq_point_from_counters()
+        except Exception:
+            pass
 
         self.set_command_status(command_status)
         asyncio.create_task(self.parent.ask_agent_and_get_instruction(content_prompt, role_prompt))
@@ -779,6 +786,53 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 except Exception:
                     asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
 
+    async def _fetch_peer_agent_card(self) -> str:
+        """Fetch the agent card JSON from the peer's a2a_endpoint by invoking
+        the fetch_agent_card skill (modeled after echo_skill_sample).
+        The skill handles direct GET + /.well-known/agent.json fallback."""
+        try:
+            active = getattr(self.parent, "active_conversation", None) or {}
+            endpoint = (active.get("a2a_endpoint") or "").strip()
+            if not endpoint:
+                return ""
+
+            from backend.modules.skills_registry.service import get_docskills_service
+            svc = get_docskills_service()
+            result = await svc.run_skill("fetch_agent_card", {"url": endpoint})
+
+            if not result or not result.get("success"):
+                error_msg = result.get("error", "unknown") if result else "no result"
+                logger.debug("fetch_agent_card skill failed: %s", error_msg)
+                return ""
+
+            # The python_file runner puts parsed stdout JSON into result.result.parsed
+            inner = result.get("result") or {}
+            parsed = inner.get("parsed") or {}
+            if not isinstance(parsed, dict):
+                # Fallback: try parsing stdout directly
+                stdout = (inner.get("stdout") or "").strip()
+                if stdout:
+                    try:
+                        import json as _json
+                        parsed = _json.loads(stdout)
+                    except Exception:
+                        parsed = {}
+
+            if parsed.get("ok"):
+                card = (parsed.get("card") or "").strip()
+                source = parsed.get("source", "")
+                if card:
+                    logger.debug("Agent card fetched via skill (source=%s, %d chars)", source, len(card))
+                    return card
+
+            skill_error = parsed.get("error", "")
+            if skill_error:
+                logger.debug("fetch_agent_card skill returned error: %s", skill_error)
+
+        except Exception as e:
+            logger.warning("_fetch_peer_agent_card skill invocation error: %s", e)
+        return ""
+
     async def _run_tool_check_then_review(self, *, talk_history_str: str, effective_talk_type: str):
         """Run tool check before conversation review using chat_with_agent(use_tools=True).
         Runs outside the _process_lock. On completion, re-dispatches conversation_message_received
@@ -790,11 +844,30 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 logger.warning("Tool check prompt __tool_check_before_review__ not found, skipping")
                 # Fall through to re-dispatch
             else:
+                # Optionally fetch peer agent card and inject into context
+                agent_card_section = ""
+                if bool(getattr(self.parent, "agent_card_before_review_enabled", False)):
+                    try:
+                        card_json = await self._fetch_peer_agent_card()
+                        if card_json:
+                            agent_card_section = (
+                                "\n--- Peer Agent Card ---\n"
+                                + card_json
+                                + "\n--- End Peer Agent Card ---\n"
+                            )
+                            logger.info("Peer agent card fetched successfully (%d chars)", len(card_json))
+                    except Exception as ac_err:
+                        logger.warning("Failed to fetch peer agent card: %s", ac_err)
+
                 context_parts = [
                     tool_prompt,
+                ]
+                if agent_card_section:
+                    context_parts.append(agent_card_section)
+                context_parts.extend([
                     "\n--- Conversation History ---",
                     talk_history_str or "(empty)",
-                ]
+                ])
                 question = "\n".join(context_parts)
                 self.show_status_on_map("using-tool")
                 self.js_task_manager.show_information(lt(

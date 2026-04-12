@@ -242,6 +242,7 @@ export class SNSAvatarDialog {
                                         <input type="text" id="avatar3dCustomUrl" class="form-control" placeholder="Enter a .glb URL (https://...)" autocomplete="off">
                                         <div class="avatar3d-custom-hint">The URL must allow cross-origin requests (CORS). Consider hosting it via a CDN such as Cloudflare or jsDelivr.</div>
                                     </div>
+                                    <div class="avatar3d-face-customize-hint">You can customize your own 3D avatar using your face photo. <a href="#" id="avatar3dFaceDetailLink">detail</a></div>
                                 </div>
                             </div>
                         </div>
@@ -512,6 +513,38 @@ export class SNSAvatarDialog {
 
         const customAvatar3dUrlEl = this._q('#avatar3dCustomUrl');
         if (customAvatar3dUrlEl) customAvatar3dUrlEl.addEventListener('input', clear);
+
+        const avatar3dDetailLink = this._q('#avatar3dFaceDetailLink');
+        const openAvatar3dCustomizeDetail = (event) => {
+            try {
+                if (event && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
+            } catch (e) {
+            }
+
+            const url = 'http://www.ai-sns.org';
+            try {
+                if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                    window.electronAPI.openUrl(url);
+                    return;
+                }
+            } catch (e) {
+            }
+
+            try {
+                window.open(url, '_blank', 'noopener');
+            } catch (e) {
+            }
+        };
+        if (avatar3dDetailLink) {
+            avatar3dDetailLink.addEventListener('click', openAvatar3dCustomizeDetail);
+            avatar3dDetailLink.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    openAvatar3dCustomizeDetail(e);
+                }
+            });
+        }
 
         // Upload button
         const uploadBtn = this._q('#uploadAvatarBtn');
@@ -794,6 +827,21 @@ export class SNSAvatarDialog {
                 sns_url: snsUrl,
                 agent_id: agentId
             };
+
+            try {
+                const agentIdNum = agentId ? parseInt(String(agentId), 10) : null;
+                if (agentIdNum && Number.isFinite(agentIdNum)) {
+                    const agentResp = await fetch(this.resolve(`/api/agent/${agentIdNum}`));
+                    const agentResult = await agentResp.json();
+                    const agentData = agentResult && agentResult.success ? agentResult.data : null;
+                    const a2aUrl = agentData && agentData.url ? String(agentData.url).trim() : '';
+                    if (a2aUrl) {
+                        submitPayload.a2a_endpoint = a2aUrl;
+                    }
+                }
+            } catch (e) {
+                console.warn('[SNSAvatarDialog] Failed to resolve agent a2a endpoint:', e);
+            }
 
             try {
                 const accountToSubmit = xmppAccount || (this.existingConfig && this.existingConfig.account ? String(this.existingConfig.account) : '');

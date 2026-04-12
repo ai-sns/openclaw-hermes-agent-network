@@ -19,6 +19,7 @@ from captcha.image import ImageCaptcha
 from jose import jwt, JWTError
 import hashlib
 import hmac
+import json
 
 # FastAPI实例，配置文档路径
 app = FastAPI(
@@ -68,6 +69,7 @@ async def get_db():
 
 
 _USERS_TABLE_COLUMNS_CACHE: Optional[set[str]] = None
+_PLACES_TABLE_COLUMNS_CACHE: Optional[set[str]] = None
 
 
 async def _get_users_table_columns(db: AsyncSession) -> set[str]:
@@ -87,7 +89,17 @@ async def _get_users_table_columns(db: AsyncSession) -> set[str]:
         )
         _USERS_TABLE_COLUMNS_CACHE = {str(row[0]) for row in result.fetchall() if row and row[0]}
     except Exception:
-        _USERS_TABLE_COLUMNS_CACHE = set()
+        try:
+            pragma_result = await db.execute(text("PRAGMA table_info(users)"))
+            rows = pragma_result.mappings().all()
+            cols: set[str] = set()
+            for row in rows:
+                name = row.get("name")
+                if name:
+                    cols.add(str(name))
+            _USERS_TABLE_COLUMNS_CACHE = cols
+        except Exception:
+            _USERS_TABLE_COLUMNS_CACHE = set()
 
     return _USERS_TABLE_COLUMNS_CACHE
 
@@ -95,6 +107,80 @@ async def _get_users_table_columns(db: AsyncSession) -> set[str]:
 async def _users_supports_fields(db: AsyncSession, fields: List[str]) -> Dict[str, bool]:
     cols = await _get_users_table_columns(db)
     return {field: field in cols for field in fields}
+
+
+async def _get_places_table_columns(db: AsyncSession) -> set[str]:
+    global _PLACES_TABLE_COLUMNS_CACHE
+    if _PLACES_TABLE_COLUMNS_CACHE is not None:
+        return _PLACES_TABLE_COLUMNS_CACHE
+
+    try:
+        result = await db.execute(
+            text(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public' AND table_name = 'places'
+                """
+            )
+        )
+        _PLACES_TABLE_COLUMNS_CACHE = {str(row[0]) for row in result.fetchall() if row and row[0]}
+    except Exception:
+        try:
+            pragma_result = await db.execute(text("PRAGMA table_info(places)"))
+            rows = pragma_result.mappings().all()
+            cols: set[str] = set()
+            for row in rows:
+                name = row.get("name")
+                if name:
+                    cols.add(str(name))
+            _PLACES_TABLE_COLUMNS_CACHE = cols
+        except Exception:
+            _PLACES_TABLE_COLUMNS_CACHE = set()
+
+    return _PLACES_TABLE_COLUMNS_CACHE
+
+
+async def _places_supports_fields(db: AsyncSession, fields: List[str]) -> Dict[str, bool]:
+    cols = await _get_places_table_columns(db)
+    return {field: field in cols for field in fields}
+
+
+def _parse_place_position_by_map(value: Any) -> Optional[list]:
+    if value is None:
+        return None
+
+    if isinstance(value, list):
+        return value
+
+    if not isinstance(value, str):
+        return None
+
+    raw = value.strip()
+    if not raw:
+        return None
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return None
+
+    if not isinstance(parsed, list) or len(parsed) < 2:
+        return None
+
+    normalized: list = []
+    for item in parsed:
+        if not (isinstance(item, (list, tuple)) and len(item) >= 2):
+            normalized.append(item)
+            continue
+        try:
+            lng = float(item[0])
+            lat = float(item[1])
+            normalized.append([lng, lat])
+        except Exception:
+            normalized.append(list(item))
+
+    return normalized
 
 
 @app.get("/api/")
@@ -105,8 +191,11 @@ def read_root():
 @app.get("/api/get_initial_position/")
 async def get_initial_position(db: AsyncSession = Depends(get_db)):
     """Return a base coordinate used by clients to bootstrap current_position."""
-    lng = 116.3974
-    lat = 39.9093
+    DEFAULT_LNG = -121.88947550295555
+    DEFAULT_LAT = 37.33200027587634
+
+    lng = DEFAULT_LNG
+    lat = DEFAULT_LAT
 
     try:
         place_row = None
@@ -146,12 +235,12 @@ async def get_initial_position(db: AsyncSession = Depends(get_db)):
                 lng = float(user_row.get("lng"))
                 lat = float(user_row.get("lat"))
     except Exception:
-        lng = 116.3974
-        lat = 39.9093
+        lng = DEFAULT_LNG
+        lat = DEFAULT_LAT
 
     if not (-180.0 <= lng <= 180.0 and -90.0 <= lat <= 90.0):
-        lng = 116.3974
-        lat = 39.9093
+        lng = DEFAULT_LNG
+        lat = DEFAULT_LAT
 
     return {"success": True, "data": {"lng": lng, "lat": lat}}
 
@@ -226,6 +315,7 @@ class UserRegisterRequest(BaseModel):
     profile: str
     sns_url: str
     status: int
+    a2a_endpoint: Optional[str] = None
 
     @validator('password')
     def password_length(cls, v):
@@ -263,6 +353,7 @@ async def register_user(
         status: Annotated[int, Form()],
         framework: Annotated[Optional[str], Form()] = None,
         model: Annotated[Optional[str], Form()] = None,
+        a2a_endpoint: Annotated[Optional[str], Form()] = None,
         avatar_file: UploadFile = File(...),  # 接收上传的头像文件
         db: AsyncSession = Depends(get_db)
 ):
@@ -294,7 +385,7 @@ async def register_user(
 
     try:
 
-        supported = await _users_supports_fields(db, ["framework", "model"])
+        supported = await _users_supports_fields(db, ["framework", "model", "a2a_endpoint"])
         framework_value: Optional[str] = (framework.strip() if isinstance(framework, str) else framework)
         if framework_value is not None:
             framework_value = str(framework_value).strip() or None
@@ -302,6 +393,10 @@ async def register_user(
         model_value: Optional[str] = (model.strip() if isinstance(model, str) else model)
         if model_value is not None:
             model_value = str(model_value).strip() or None
+
+        a2a_endpoint_value: Optional[str] = (a2a_endpoint.strip() if isinstance(a2a_endpoint, str) else a2a_endpoint)
+        if a2a_endpoint_value is not None:
+            a2a_endpoint_value = str(a2a_endpoint_value).strip() or None
 
         default_framework = "AI-SNS"
         default_model = "gpt-4o-mini"
@@ -339,6 +434,9 @@ async def register_user(
             if supported.get("model") and model is not None:
                 set_parts.append("model = :model")
                 params["model"] = model_value
+            if supported.get("a2a_endpoint") and a2a_endpoint is not None:
+                set_parts.append("a2a_endpoint = :a2a_endpoint")
+                params["a2a_endpoint"] = a2a_endpoint_value
 
             sql = text(
                 f"""
@@ -385,6 +483,10 @@ async def register_user(
                 columns.append("model")
                 values.append(":model")
                 params["model"] = model_value or default_model
+            if supported.get("a2a_endpoint") and a2a_endpoint_value is not None:
+                columns.append("a2a_endpoint")
+                values.append(":a2a_endpoint")
+                params["a2a_endpoint"] = a2a_endpoint_value
 
             sql = text(
                 f"""
@@ -411,14 +513,18 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
 
-class NearbyUser(BaseModel):
+class UserResponse(BaseModel):
     nation_id: str
     account: str
+    location: List[float]
     nick_name: str
     avatar: str
-    distance_meters: float
-    location: List[float]  # 新增location字段
+    avatar_3d: str
+    profile: str
+    sns_url: str
+    a2a_endpoint: Optional[str] = None
     level: int = 0
+    membership: int = 0
     framework: Optional[str] = None
     model: Optional[str] = None
 
@@ -643,20 +749,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     return username
 
 
-class UserResponse(BaseModel):
-    nation_id: str
-    account: str
-    location: List[float]
-    nick_name: str
-    avatar: str
-    avatar_3d: str
-    profile: str
-    sns_url: str
-    level: int = 0
-    framework: Optional[str] = None
-    model: Optional[str] = None
-
-
 async def validate_geo_coordinates(longitude: float, latitude: float):
     """验证地理坐标是否有效"""
     if not (-180 <= longitude <= 180):
@@ -685,8 +777,12 @@ async def extract_location_params(
 
     lng_value = body.get("lng", body.get("longitude", lng))
     lat_value = body.get("lat", body.get("latitude", lat))
-    max_distance_value = body.get("max_distance", max_distance)
-    limit_value = body.get("limit", limit)
+    max_distance_value = body.get("max_distance")
+    if max_distance_value is None:
+        max_distance_value = max_distance
+    limit_value = body.get("limit")
+    if limit_value is None:
+        limit_value = limit
 
     if lng_value is None or lat_value is None:
         raise HTTPException(status_code=422, detail="lng and lat are required")
@@ -719,14 +815,18 @@ async def extract_location_params(
 
 async def execute_nearby_users_query(db: AsyncSession, longitude: float, latitude: float, max_distance: int, limit: int):
     """执行附近用户查询并返回结果"""
-    supported = await _users_supports_fields(db, ["level", "framework", "model"])
+    supported = await _users_supports_fields(db, ["level", "membership", "framework", "model", "a2a_endpoint"])
     extra_parts: List[str] = []
     if supported.get("level"):
         extra_parts.append("level")
+    if supported.get("membership"):
+        extra_parts.append("membership")
     if supported.get("framework"):
         extra_parts.append("framework")
     if supported.get("model"):
         extra_parts.append("model")
+    if supported.get("a2a_endpoint"):
+        extra_parts.append("a2a_endpoint")
     extra_select = "" if not extra_parts else ",\n        " + ",\n        ".join(extra_parts)
 
     query = text("""
@@ -737,7 +837,8 @@ async def execute_nearby_users_query(db: AsyncSession, longitude: float, latitud
         avatar,
         avatar_3d,
         profile,
-        sns_url{extra_select},
+        sns_url,
+        profession{extra_select},
         ST_X(location::geometry) AS longitude,
         ST_Y(location::geometry) AS latitude,
         ST_Distance(
@@ -766,8 +867,10 @@ async def execute_nearby_users_query(db: AsyncSession, longitude: float, latitud
     content = []
     for row in rows:
         level_value = int(row.get("level") or 0) if supported.get("level") else 0
+        membership_value = int(row.get("membership") or 0) if supported.get("membership") else 0
         framework_value = row.get("framework") if supported.get("framework") else None
         model_value = row.get("model") if supported.get("model") else None
+        a2a_endpoint_value = row.get("a2a_endpoint") if supported.get("a2a_endpoint") else None
         content.append(
             {
                 "nation_id": row.get("nation_id"),
@@ -778,7 +881,9 @@ async def execute_nearby_users_query(db: AsyncSession, longitude: float, latitud
                 "avatar_3d": row.get("avatar_3d"),
                 "profile": row.get("profile"),
                 "sns_url": row.get("sns_url"),
+                "a2a_endpoint": a2a_endpoint_value,
                 "level": level_value,
+                "membership": membership_value,
                 "framework": framework_value,
                 "model": model_value,
             }
@@ -845,6 +950,7 @@ async def update_user_post(
         sns_url: Optional[str] = Form(None),
         framework: Optional[str] = Form(None),
         model: Optional[str] = Form(None),
+        a2a_endpoint: Optional[str] = Form(None),
         db: AsyncSession = Depends(get_db)
 ):
     # 必须字段参数验证和处理
@@ -863,11 +969,13 @@ async def update_user_post(
     if sns_url is not None:
         update_fields["sns_url"] = sns_url
 
-    supported = await _users_supports_fields(db, ["framework", "model"])
+    supported = await _users_supports_fields(db, ["framework", "model", "a2a_endpoint"])
     if supported.get("framework") and framework is not None:
         update_fields["framework"] = framework
     if supported.get("model") and model is not None:
         update_fields["model"] = model
+    if supported.get("a2a_endpoint") and a2a_endpoint is not None:
+        update_fields["a2a_endpoint"] = a2a_endpoint
 
     if not update_fields:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -948,7 +1056,8 @@ async def get_service_list(
     返回 JSON 格式与原先固定数据一致
     """
     try:
-        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance, limit)
+        max_distance_value = 5000 if max_distance is None else max_distance
+        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance_value, limit)
         query = text("""
             SELECT 
                 service_id AS id,
@@ -1017,16 +1126,21 @@ async def get_people_list(
     返回 JSON 格式与原先固定数据一致
     """
     try:
-        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance, limit)
+        max_distance_value = 50000000 if max_distance is None else max_distance
+        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance_value, limit)
 
-        supported = await _users_supports_fields(db, ["level", "framework", "model"])
+        supported = await _users_supports_fields(db, ["level", "membership", "framework", "model", "a2a_endpoint"])
         extra_parts: List[str] = []
         if supported.get("level"):
             extra_parts.append("level")
+        if supported.get("membership"):
+            extra_parts.append("membership")
         if supported.get("framework"):
             extra_parts.append("framework")
         if supported.get("model"):
             extra_parts.append("model")
+        if supported.get("a2a_endpoint"):
+            extra_parts.append("a2a_endpoint")
         extra_select = "" if not extra_parts else ",\n                " + ",\n                ".join(extra_parts)
 
         query = text("""
@@ -1059,8 +1173,10 @@ async def get_people_list(
         content = []
         for row in result.mappings():
             level_value = int(row.get("level") or 0) if supported.get("level") else 0
+            membership_value = int(row.get("membership") or 0) if supported.get("membership") else 0
             framework_value = row.get("framework") if supported.get("framework") else None
             model_value = row.get("model") if supported.get("model") else None
+            a2a_endpoint_value = row.get("a2a_endpoint") if supported.get("a2a_endpoint") else None
             content.append({
                 "nation_id": row["nation_id"],
                 "account": row["account"],
@@ -1071,7 +1187,9 @@ async def get_people_list(
                 "profile": row["profile"],
                 "sns_url": row["sns_url"],
                 "profession": row["profession"],
+                "a2a_endpoint": a2a_endpoint_value,
                 "level": level_value,
+                "membership": membership_value,
                 "framework": framework_value,
                 "model": model_value,
             })
@@ -1091,14 +1209,18 @@ async def execute_nearest_profession_user_query(
         profession: str,
         exclude_nation_id: Optional[str] = None,
 ):
-    supported = await _users_supports_fields(db, ["level", "framework", "model"])
+    supported = await _users_supports_fields(db, ["level", "membership", "framework", "model", "a2a_endpoint"])
     extra_parts: List[str] = []
     if supported.get("level"):
         extra_parts.append("level")
+    if supported.get("membership"):
+        extra_parts.append("membership")
     if supported.get("framework"):
         extra_parts.append("framework")
     if supported.get("model"):
         extra_parts.append("model")
+    if supported.get("a2a_endpoint"):
+        extra_parts.append("a2a_endpoint")
     extra_select = "" if not extra_parts else ",\n            " + ",\n            ".join(extra_parts)
 
     query = text("""
@@ -1142,8 +1264,10 @@ async def execute_nearest_profession_user_query(
         return None
 
     level_value = int(row.get("level") or 0) if supported.get("level") else 0
+    membership_value = int(row.get("membership") or 0) if supported.get("membership") else 0
     framework_value = row.get("framework") if supported.get("framework") else None
     model_value = row.get("model") if supported.get("model") else None
+    a2a_endpoint_value = row.get("a2a_endpoint") if supported.get("a2a_endpoint") else None
 
     return {
         "nation_id": row["nation_id"],
@@ -1156,7 +1280,9 @@ async def execute_nearest_profession_user_query(
         "sns_url": row["sns_url"],
         "profession": row["profession"],
         "distance_meters": row["distance_meters"],
+        "a2a_endpoint": a2a_endpoint_value,
         "level": level_value,
+        "membership": membership_value,
         "framework": framework_value,
         "model": model_value,
     }
@@ -1242,14 +1368,23 @@ async def get_place_list(
     返回 JSON 格式与原先固定数据一致
     """
     try:
-        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance, limit)
+        max_distance_value = 5000 if max_distance is None else max_distance
+        lng, lat, max_distance, limit = await extract_location_params(request, lng, lat, max_distance_value, limit)
+        supported_places = await _places_supports_fields(db, ["url_3d", "place_position_by_map"])
+        place_extra_parts: List[str] = []
+        if supported_places.get("url_3d"):
+            place_extra_parts.append("url_3d")
+        if supported_places.get("place_position_by_map"):
+            place_extra_parts.append("place_position_by_map")
+        place_extra_select = "" if not place_extra_parts else ",\n                " + ",\n                ".join(place_extra_parts)
+
         query = text("""
             SELECT 
                 place_id,
                 place_name,
                 ST_X(place_position::geometry) AS lng,
                 ST_Y(place_position::geometry) AS lat,
-                url,
+                url{place_extra_select},
                 description,
                 ST_Distance(
                     ST_Transform(place_position::geometry, 3857),
@@ -1263,15 +1398,21 @@ async def get_place_list(
             )
             ORDER BY distance_meters ASC
             LIMIT :limit
-        """)
+        """.format(place_extra_select=place_extra_select))
+
         result = await db.execute(query, {"lon": lng, "lat": lat, "max_dist": max_distance, "limit": limit})
         content = []
         for row in result.mappings():
+            url_3d_value = row.get("url_3d") if supported_places.get("url_3d") else None
+            ppm_raw = row.get("place_position_by_map") if supported_places.get("place_position_by_map") else None
+            ppm_value = _parse_place_position_by_map(ppm_raw)
             content.append({
                 "place_id": row["place_id"],
                 "place_name": row["place_name"],
                 "place_position": [row["lng"], row["lat"]],
+                "place_position_by_map": ppm_value,
                 "url": row["url"],
+                "url_3d": url_3d_value,
                 "description": row["description"]
             })
         return JSONResponse(status_code=200, content=content)
@@ -1294,15 +1435,27 @@ async def get_guidance_lists(
         lng_value, lat_value, max_distance_value, _ = await extract_location_params(request, lng, lat, max_distance, limit=None)
         min_distance_meters = max_distance_value
 
-        supported = await _users_supports_fields(db, ["level", "framework", "model"])
+        supported = await _users_supports_fields(db, ["level", "membership", "framework", "model", "a2a_endpoint"])
         extra_parts: List[str] = []
         if supported.get("level"):
             extra_parts.append("level")
+        if supported.get("membership"):
+            extra_parts.append("membership")
         if supported.get("framework"):
             extra_parts.append("framework")
         if supported.get("model"):
             extra_parts.append("model")
+        if supported.get("a2a_endpoint"):
+            extra_parts.append("a2a_endpoint")
         extra_select = "" if not extra_parts else ",\n                " + ",\n                ".join(extra_parts)
+
+        supported_places = await _places_supports_fields(db, ["url_3d", "place_position_by_map"])
+        place_extra_parts: List[str] = []
+        if supported_places.get("url_3d"):
+            place_extra_parts.append("url_3d")
+        if supported_places.get("place_position_by_map"):
+            place_extra_parts.append("place_position_by_map")
+        place_extra_select = "" if not place_extra_parts else ",\n                " + ",\n                ".join(place_extra_parts)
 
         people_query = text("""
             SELECT
@@ -1337,6 +1490,7 @@ async def get_guidance_lists(
                 ST_X(place_position::geometry) AS lng,
                 ST_Y(place_position::geometry) AS lat,
                 description,
+                url{place_extra_select},
                 ST_Distance(
                     ST_Transform(place_position::geometry, 3857),
                     ST_Transform(ST_SetSRID(ST_MakePoint(:lon, :lat), 4326), 3857)
@@ -1348,7 +1502,7 @@ async def get_guidance_lists(
                 ) > :min_dist
             ORDER BY distance_meters ASC
             LIMIT 5
-        """)
+        """.format(place_extra_select=place_extra_select))
 
         params = {
             "lon": lng_value,
@@ -1360,8 +1514,10 @@ async def get_guidance_lists(
         people_list = []
         for row in people_result.mappings():
             level_value = int(row.get("level") or 0) if supported.get("level") else 0
+            membership_value = int(row.get("membership") or 0) if supported.get("membership") else 0
             framework_value = row.get("framework") if supported.get("framework") else None
             model_value = row.get("model") if supported.get("model") else None
+            a2a_endpoint_value = row.get("a2a_endpoint") if supported.get("a2a_endpoint") else None
             people_list.append({
                 "nation_id": row["nation_id"],
                 "account": row["account"],
@@ -1373,7 +1529,9 @@ async def get_guidance_lists(
                 "sns_url": row["sns_url"],
                 "profession": row["profession"],
                 "distance_meters": row["distance_meters"],
+                "a2a_endpoint": a2a_endpoint_value,
                 "level": level_value,
+                "membership": membership_value,
                 "framework": framework_value,
                 "model": model_value,
             })
@@ -1381,11 +1539,18 @@ async def get_guidance_lists(
         place_result = await db.execute(place_query, params)
         place_list = []
         for row in place_result.mappings():
+            url_3d_value = row.get("url_3d") if supported_places.get("url_3d") else None
+            url_value = row.get("url")
+            ppm_raw = row.get("place_position_by_map") if supported_places.get("place_position_by_map") else None
+            ppm_value = _parse_place_position_by_map(ppm_raw)
             place_list.append({
                 "place_id": row["place_id"],
                 "place_name": row["place_name"],
                 "place_position": [row["lng"], row["lat"]],
+                "place_position_by_map": ppm_value,
                 "description": row["description"],
+                "url": url_value,
+                "url_3d": url_3d_value,
                 "distance_meters": row["distance_meters"],
             })
 

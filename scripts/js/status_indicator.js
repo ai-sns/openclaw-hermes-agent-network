@@ -77,7 +77,7 @@
                 'moving': 'Moving',
                 'using-tool': 'Using Tool',
                 'idle': 'Idle',
-                'watching': 'Watching'
+                'watching': 'Awaiting reply'
             };
             this.textElement.textContent = customText || stateTexts[state] || 'Thinking';
 

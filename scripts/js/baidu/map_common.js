@@ -218,17 +218,53 @@ async function load_persons_data_and_show() {
         ? API_BASE_URL
         : ((typeof window !== 'undefined' && window.__AGENT_SERVER__) ? window.__AGENT_SERVER__ : '');
     const normalizedBaseUrl = (resolvedBaseUrl || '').replace(/\/+$/, '');
-    const dataUrl = `${normalizedBaseUrl}/api/get_people_list/`;
+    const dataUrl = `${normalizedBaseUrl}/api/get_people_list/?include_me=1`;
     const nation_id = nation_id_me;
     try {
         const data = await loadPersonsData(dataUrl); // Load person data
         console.log("Successfully loaded personnel data:", data);
         showAlert(`User data loaded successfully.`);
 
+        const meNationId = String(nation_id || '').trim();
+        let mePerson = null;
+        if (Array.isArray(data) && meNationId) {
+            try {
+                mePerson = data.find(person => {
+                    const pid = (person && (person.nation_id || person.nationid)) ? String(person.nation_id || person.nationid).trim() : '';
+                    return pid === meNationId;
+                }) || null;
+            } catch (e) {
+                mePerson = null;
+            }
+        }
+
+        try {
+            if (mePerson && typeof person_data_me !== 'undefined' && person_data_me) {
+                if (mePerson.membership !== undefined) {
+                    person_data_me.membership = mePerson.membership;
+                }
+                if (mePerson.level !== undefined) {
+                    person_data_me.level = mePerson.level;
+                }
+
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({
+                        type: 'snsUserMeta',
+                        data: {
+                            nickname: person_data_me.nick_name,
+                            membership: person_data_me.membership,
+                            level: person_data_me.level,
+                        }
+                    }, '*');
+                }
+            }
+        } catch (e) {
+        }
+
         // Filter out items whose nation_id equals the input value
-        personsdata = data.filter(person => {
+        personsdata = (Array.isArray(data) ? data : []).filter(person => {
             const pid = (person && (person.nation_id || person.nationid)) ? String(person.nation_id || person.nationid).trim() : '';
-            return pid !== String(nation_id || '').trim();
+            return pid !== meNationId;
         });
 
         // Show updated data points
@@ -323,6 +359,7 @@ function parseModelFilename(filename) {
  * @returns {object|null} Parsed params; returns null if parsing fails
  */
 function parseModelParamsFromWebUrl(url) {
+
     try {
         const rawUrl = String(url || '').trim();
         if (!rawUrl) return null;
@@ -1774,11 +1811,28 @@ function showprofile(nation_id) {
         '</div>';
     var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
+    var membershipValue = (person && person["membership"] !== undefined && person["membership"] !== null)
+        ? parseInt(person["membership"], 10)
+        : 0;
+    membershipValue = isNaN(membershipValue) ? 0 : membershipValue;
+    var membershipInfoMap = {
+        1: { emoji: '\u{1F5E1}\uFE0F', tooltip: 'Explorer' },
+        2: { emoji: '\u2694\uFE0F', tooltip: 'Voyager' },
+        3: { emoji: '\u{1F3DB}\uFE0F', tooltip: 'Squire' },
+        4: { emoji: '\u{1F3F0}', tooltip: 'Baron' },
+        5: { emoji: '\u{1F451}', tooltip: 'Lord' },
+    };
+    var membershipInfo = membershipInfoMap[membershipValue];
+    var membershipPrefix = membershipInfo
+        ? ('<span class="bubble-membership-emoji" title="' + membershipInfo.tooltip + '">' + membershipInfo.emoji + '</span> ')
+        : '';
+    var displayNickName = membershipPrefix + (person["nick_name"] || '');
+
     var point = getPersonPointByNationId(nation_id);
     console.log("the point", point);
 
     openBaiduBubble(point, {
-        title: person["nick_name"],
+        title: displayNickName,
         body: bodyHTML,
         showClose: true,
         offset: {x: 30, y: -50},
@@ -1829,6 +1883,23 @@ function showprofile3d(geoGroup) {
         '</div>';
     var bodyHTML = badgeHTML + person["profile"] + footerHTML;
 
+    var membershipValue = (person && person["membership"] !== undefined && person["membership"] !== null)
+        ? parseInt(person["membership"], 10)
+        : 0;
+    membershipValue = isNaN(membershipValue) ? 0 : membershipValue;
+    var membershipInfoMap = {
+        1: { emoji: '\u{1F5E1}\uFE0F', tooltip: 'Explorer' },
+        2: { emoji: '\u2694\uFE0F', tooltip: 'Voyager' },
+        3: { emoji: '\u{1F3DB}\uFE0F', tooltip: 'Squire' },
+        4: { emoji: '\u{1F3F0}', tooltip: 'Baron' },
+        5: { emoji: '\u{1F451}', tooltip: 'Lord' },
+    };
+    var membershipInfo = membershipInfoMap[membershipValue];
+    var membershipPrefix = membershipInfo
+        ? ('<span class="bubble-membership-emoji" title="' + membershipInfo.tooltip + '">' + membershipInfo.emoji + '</span> ')
+        : '';
+    var displayNickName = membershipPrefix + (person["nick_name"] || '');
+
     // Assume geoGroup.position x/y are Mercator coordinates
     const mercatorX = geoGroup.position.x;
     const mercatorY = geoGroup.position.y;
@@ -1848,7 +1919,7 @@ function showprofile3d(geoGroup) {
     console.log("bubble point:", point);
 
     openBaiduBubble(point, {
-        title: person["nick_name"],
+        title: displayNickName,
         body: bodyHTML,
         showClose: true,
         offset: {x: 30, y: -50},

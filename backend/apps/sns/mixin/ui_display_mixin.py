@@ -207,7 +207,7 @@ class UIDisplayMixin:
         # Format tool list
         if service_list:
             content += f"☁️ Services List (total {len(service_list)} items)\n"
-            content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            content += "══════════════════════════\n\n"
 
             for i, service in enumerate(service_list):
                 # Tool ID and name
@@ -256,7 +256,7 @@ class UIDisplayMixin:
         # Format people list
         if people_list:
             content += f"🧑‍🤝‍🧑 People List (total {len(people_list)} people)\n"
-            content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            content += "══════════════════════════\n"
 
             for i, person in enumerate(people_list):
                 # Name and profession
@@ -301,7 +301,7 @@ class UIDisplayMixin:
         # Format place list
         if place_list:
             content += f"🗺️ Place List (total {len(place_list)} places)\n"
-            content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            content += "══════════════════════════\n"
 
             for i, place in enumerate(place_list):
                 # Place name

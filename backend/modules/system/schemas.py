@@ -22,6 +22,7 @@ class SystemConfig(BaseModel):
     log_retention_days: Optional[int] = None
     tool_check_every_n: Optional[int] = None
     tool_check_before_review_enabled: Optional[bool] = None
+    agent_card_before_review_enabled: Optional[bool] = None
 
 
 class WebMngReorderItem(BaseModel):

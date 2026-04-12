@@ -74,11 +74,33 @@ class ToolsMixin:
 
         pos = self.aichatcfg_record.current_position
 
+        try:
+            lng_val = float(pos[0])
+            lat_val = float(pos[1])
+            pos_key = f"{round(lng_val, 6)},{round(lat_val, 6)}"
+        except Exception:
+            pos_key = ""
+
+        try:
+            cached_key = getattr(self, "_cached_service_list_pos_key", None)
+            cached_value = getattr(self, "_cached_service_list_value", None)
+            if pos_key and cached_key == pos_key and cached_value is not None:
+                return cached_value
+        except Exception:
+            pass
+
         params = {
             "lng": pos[0],
             "lat": pos[1]
         }
         service_list = self.http_request(url, params)
+
+        if isinstance(service_list, list) and pos_key:
+            try:
+                setattr(self, "_cached_service_list_pos_key", pos_key)
+                setattr(self, "_cached_service_list_value", service_list)
+            except Exception:
+                pass
         return service_list
 
     def update_service_list(self):

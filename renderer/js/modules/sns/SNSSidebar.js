@@ -44,6 +44,8 @@ export default {
     _chatLinkListenerBound: false,
 
     _exploreNickname: '',
+    _exploreMembership: 0,
+    _exploreLevel: null,
     _mapReloadListenersBound: false,
 
     escapeHtml(value) {
@@ -170,12 +172,63 @@ export default {
         return name;
     },
 
-    updateExploreTitle(nickname) {
+    _normalizeMembershipValue(rawMembership) {
+        const n = parseInt(rawMembership, 10);
+        return Number.isFinite(n) && !Number.isNaN(n) ? n : 0;
+    },
+
+    _normalizeLevelValue(rawLevel) {
+        const n = parseInt(rawLevel, 10);
+        return Number.isFinite(n) && !Number.isNaN(n) ? n : null;
+    },
+
+    updateExploreLevel(level) {
+        const normalized = this._normalizeLevelValue(level);
+        if (normalized === null) return;
+        this._exploreLevel = normalized;
+        const badgeEl = document.getElementById('levelBadge');
+        if (!badgeEl) return;
+        badgeEl.textContent = `LV.${normalized}`;
+    },
+
+    _getMembershipInfo(membershipValue) {
+        const v = this._normalizeMembershipValue(membershipValue);
+        const map = {
+            1: { emoji: '\u{1F5E1}\uFE0F', tooltip: 'Explorer' },
+            2: { emoji: '\u2694\uFE0F', tooltip: 'Voyager' },
+            3: { emoji: '\u{1F3DB}\uFE0F', tooltip: 'Squire' },
+            4: { emoji: '\u{1F3F0}', tooltip: 'Baron' },
+            5: { emoji: '\u{1F451}', tooltip: 'Lord' },
+        };
+        return map[v] || null;
+    },
+
+    _renderExploreTitleHTML(nickname, membershipValue) {
+        const safeName = this.escapeHtml(nickname);
+        const info = this._getMembershipInfo(membershipValue);
+        const prefix = info
+            ? `<span class="sns-membership-badge" title="${this.escapeHtml(info.tooltip)}">${info.emoji}</span> `
+            : '';
+        return `${prefix}${safeName}`;
+    },
+
+    updateExploreTitle(nickname, membership, level) {
         const formatted = this._formatExploreNickname(nickname);
         this._exploreNickname = formatted;
+        if (membership !== undefined) {
+            this._exploreMembership = this._normalizeMembershipValue(membership);
+        }
+        if (level !== undefined) {
+            this.updateExploreLevel(level);
+        }
         const titleEl = document.getElementById('snsExploreTitle');
         if (!titleEl) return;
-        titleEl.textContent = formatted ? `${formatted}` : 'Explore the Earth';
+
+        if (!formatted) {
+            titleEl.textContent = 'Explore the Earth';
+            return;
+        }
+        titleEl.innerHTML = this._renderExploreTitleHTML(formatted, this._exploreMembership);
     },
 
     async loadExploreNickname() {
@@ -184,7 +237,7 @@ export default {
             if (!apiClient || typeof apiClient.get !== 'function') return;
             const resp = await apiClient.get('/api/sns/user-info');
             if (resp && resp.success && resp.data) {
-                this.updateExploreTitle(resp.data.nickname);
+                this.updateExploreTitle(resp.data.nickname, resp.data.membership, resp.data.level);
             }
         } catch (e) {
             console.warn('[SNSSidebar] Failed to load explore nickname:', e);
@@ -437,7 +490,7 @@ export default {
         if (!this._exploreTitleListenerBound) {
             window.addEventListener('sns-user-info-updated', (event) => {
                 const detail = event && event.detail ? event.detail : {};
-                this.updateExploreTitle(detail.nickname);
+                this.updateExploreTitle(detail.nickname, detail.membership, detail.level);
             });
             this._exploreTitleListenerBound = true;
         }

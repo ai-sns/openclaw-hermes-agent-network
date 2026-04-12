@@ -189,6 +189,26 @@
     opacity: 0.9;
 }
 
+.avatar3d-face-customize-hint {
+    margin-top: 10px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
+.avatar3d-face-customize-hint a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.avatar3d-face-customize-hint a:focus-visible {
+    outline: 2px solid rgba(var(--color-primary-rgb, 79, 70, 229), 0.6);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
 .avatar3d-item.avatar3d-item-custom img {
     width: 100%;
     height: auto;

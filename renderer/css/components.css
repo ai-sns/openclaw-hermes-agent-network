@@ -5569,6 +5569,23 @@ body.theme-dark .chat-tree .tree-item.active {
     margin-bottom: 8px;
 }
 
+.setting-group label.setting-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.setting-group label.setting-checkbox input[type="checkbox"] {
+    margin: 0;
+}
+
+.setting-group label.setting-checkbox span {
+    line-height: 1.2;
+}
+
 .setting-select,
 .setting-input {
     width: 100%;

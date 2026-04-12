@@ -11,7 +11,7 @@ import json
 import inspect
 import re
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, text
 from sqlalchemy.orm import Session
 from typing import List, Optional, Any, Dict
 from fastapi import HTTPException
@@ -171,6 +171,13 @@ def apply_runtime_system_config(payload: dict) -> bool:
         except Exception:
             pass
 
+    if "agent_card_before_review_enabled" in payload and _social_engine_instance is not None:
+        try:
+            setattr(_social_engine_instance, "agent_card_before_review_enabled", bool(payload["agent_card_before_review_enabled"]))
+            changed = True
+        except Exception:
+            pass
+
     try:
         if changed and hasattr(_social_engine_instance, "_ensure_conversation_timeout_task"):
             active = getattr(_social_engine_instance, "active_conversation", None) or {}
@@ -226,6 +233,25 @@ class SNSService:
         )
         result = await self.db.execute(stmt)
         return result.scalars().first()
+
+    async def _get_membership_by_nationid(self, nationid: Optional[str]) -> int:
+        nid = (nationid or '').strip()
+        if not nid:
+            return 0
+
+        for col in ("nation_id", "nationid"):
+            try:
+                result = await self.db.execute(
+                    text(f"SELECT membership AS membership FROM users WHERE {col} = :nid LIMIT 1"),
+                    {"nid": nid},
+                )
+                row = result.mappings().first()
+                if row and row.get("membership") is not None:
+                    return int(row.get("membership") or 0)
+            except Exception:
+                continue
+
+        return 0
 
     @staticmethod
     def _parse_position(raw_value):
@@ -1757,6 +1783,8 @@ class SNSService:
                 except Exception as e:
                     logger.warning("Failed to derive framework/model from agent config: %s", e)
 
+            a2a_endpoint = (payload.get('a2a_endpoint') or '').strip()
+
             async with httpx.AsyncClient(timeout=60.0) as client:
                 if should_upload_avatar:
                     avatar_map_path = Path('images') / 'avatars' / avatar_map
@@ -1789,6 +1817,7 @@ class SNSService:
                         'sns_url': sns_url,
                         **({'framework': derived_framework} if derived_framework else {}),
                         **({'model': derived_model} if derived_model else {}),
+                        **({'a2a_endpoint': a2a_endpoint} if a2a_endpoint else {}),
                     },
                 )
                 if update_resp.status_code not in (200, 201):
@@ -1988,6 +2017,22 @@ class SNSService:
             if not config:
                 return {"success": False, "message": "No user config found"}
 
+            membership_value = 0
+            try:
+                if hasattr(config, 'membership') and getattr(config, 'membership', None) is not None:
+                    membership_value = int(getattr(config, 'membership') or 0)
+                else:
+                    membership_value = await self._get_membership_by_nationid(getattr(config, 'nationid', None))
+            except Exception:
+                membership_value = 0
+
+            level_value = 0
+            try:
+                if hasattr(config, 'level') and getattr(config, 'level', None) is not None:
+                    level_value = int(getattr(config, 'level') or 0)
+            except Exception:
+                level_value = 0
+
             return {
                 "success": True,
                 "data": {
@@ -1995,6 +2040,8 @@ class SNSService:
                     "nickname": config.nickname,
                     "sign": config.sign,
                     "sns_url": config.sns_url,
+                    "membership": membership_value,
+                    "level": level_value,
                     "agent_id": getattr(config, 'agent_id', None),
                     "profession": getattr(config, 'profession', None),
                     "handle_after_trade": getattr(config, 'handle_after_trade', None),
@@ -2240,6 +2287,18 @@ class SNSService:
                 if hasattr(config, 'agent_id'):
                     config.agent_id = data['agent_id']
 
+            if 'membership' in data and hasattr(config, 'membership'):
+                try:
+                    config.membership = int(data.get('membership') or 0)
+                except Exception:
+                    config.membership = 0
+
+            if 'level' in data and hasattr(config, 'level'):
+                try:
+                    config.level = int(data.get('level') or 0)
+                except Exception:
+                    config.level = 0
+
             profession_costs = {
                 "Doctor": 800,
                 "Restaurateur": 800
@@ -2344,6 +2403,10 @@ class SNSService:
                 _updates['sns_url'] = data['sns_url']
             if 'agent_id' in data and hasattr(config, 'agent_id'):
                 _updates['agent_id'] = data['agent_id']
+            if 'membership' in data and hasattr(config, 'membership'):
+                _updates['membership'] = getattr(config, 'membership', 0)
+            if 'level' in data and hasattr(config, 'level'):
+                _updates['level'] = getattr(config, 'level', 0)
             if 'profession' in data:
                 _updates['profession'] = config.profession
             if hasattr(config, 'money'):

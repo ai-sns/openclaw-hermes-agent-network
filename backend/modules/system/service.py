@@ -50,6 +50,7 @@ class SystemService:
             "log_retention_days": getattr(config, 'log_retention_days', 3),
             "tool_check_every_n": getattr(config, 'tool_check_every_n', 0),
             "tool_check_before_review_enabled": bool(getattr(config, 'tool_check_before_review_enabled', False)),
+            "agent_card_before_review_enabled": bool(getattr(config, 'agent_card_before_review_enabled', False)),
             "tools": {
                 "page_size": settings.tools.page_size
             }
@@ -79,6 +80,7 @@ class SystemService:
             "log_retention_days",
             "tool_check_every_n",
             "tool_check_before_review_enabled",
+            "agent_card_before_review_enabled",
         }
 
         payload = {k: v for k, v in kwargs.items() if k in allowed_keys}
@@ -128,6 +130,12 @@ class SystemService:
                 payload["tool_check_before_review_enabled"] = bool(payload["tool_check_before_review_enabled"])
             except Exception:
                 payload.pop("tool_check_before_review_enabled", None)
+
+        if "agent_card_before_review_enabled" in payload:
+            try:
+                payload["agent_card_before_review_enabled"] = bool(payload["agent_card_before_review_enabled"])
+            except Exception:
+                payload.pop("agent_card_before_review_enabled", None)
 
         # If memory is disabled, embedding must be disabled as well.
         if payload.get("memory_enabled") is False:

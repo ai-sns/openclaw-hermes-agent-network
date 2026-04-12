@@ -1067,6 +1067,7 @@ class AiChatCfg(Base):
     nickname = Column(String(100))
     sign = Column(String(200))
     status = Column(String(100))
+    membership = Column(Integer)
     humantakeover = Column(Integer, default=0)
     name = Column(String(200))
     borndate = Column(DateTime, default=datetime.now)
@@ -2323,6 +2324,7 @@ class SystemCfg(Base):
     log_retention_days = Column(Integer, default=3)
     tool_check_every_n = Column(Integer, default=0)
     tool_check_before_review_enabled = Column(Boolean, default=False)
+    agent_card_before_review_enabled = Column(Boolean, default=False)
     is_delete = Column(Boolean, default=False)
     create_time = Column(DateTime, default=datetime.now)
 
@@ -2354,6 +2356,8 @@ def _ensure_system_cfg_columns():
             cursor.execute("ALTER TABLE system_cfg ADD COLUMN tool_check_every_n INTEGER DEFAULT 0")
         if 'tool_check_before_review_enabled' not in columns:
             cursor.execute("ALTER TABLE system_cfg ADD COLUMN tool_check_before_review_enabled INTEGER DEFAULT 0")
+        if 'agent_card_before_review_enabled' not in columns:
+            cursor.execute("ALTER TABLE system_cfg ADD COLUMN agent_card_before_review_enabled INTEGER DEFAULT 0")
         conn.commit()
     except Exception:
         try:

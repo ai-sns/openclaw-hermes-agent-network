@@ -26,6 +26,44 @@ const homeHandlers = {
                 }
             });
         });
+
+        const openUrlInDefaultBrowser = (url) => {
+            const u = String(url || '').trim();
+            if (!u) return;
+
+            try {
+                if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                    window.electronAPI.openUrl(u);
+                    return;
+                }
+            } catch (e) {
+            }
+
+            try {
+                window.open(u, '_blank', 'noopener');
+            } catch (e) {
+            }
+        };
+
+        if (!this._homeContactLinkClickHandler) {
+            this._homeContactLinkClickHandler = (e) => {
+                const link = e && e.target && e.target.closest
+                    ? e.target.closest('a.contact-link[data-url]')
+                    : null;
+                if (!link) return;
+
+                try {
+                    e.preventDefault();
+                    e.stopPropagation();
+                } catch (err) {
+                }
+
+                const url = link.dataset ? link.dataset.url : link.getAttribute('href');
+                openUrlInDefaultBrowser(url);
+            };
+        }
+
+        document.addEventListener('click', this._homeContactLinkClickHandler);
     },
 
     showInitializationModal() {
@@ -105,6 +143,9 @@ const homeHandlers = {
                 const toolCheckBeforeReviewValue = (remoteCfg && remoteCfg.tool_check_before_review_enabled !== undefined && remoteCfg.tool_check_before_review_enabled !== null)
                     ? Boolean(remoteCfg.tool_check_before_review_enabled)
                     : false;
+                const agentCardBeforeReviewValue = (remoteCfg && remoteCfg.agent_card_before_review_enabled !== undefined && remoteCfg.agent_card_before_review_enabled !== null)
+                    ? Boolean(remoteCfg.agent_card_before_review_enabled)
+                    : false;
 
                 const memoryEnabledValue = (remoteCfg && remoteCfg.memory_enabled !== undefined && remoteCfg.memory_enabled !== null)
                     ? Boolean(remoteCfg.memory_enabled)
@@ -123,6 +164,8 @@ const homeHandlers = {
                 const logRetentionInput = modal.element?.querySelector('#homeCfgLogRetentionDays');
                 const toolCheckEveryInput = modal.element?.querySelector('#homeCfgToolCheckEveryN');
                 const toolCheckBeforeReviewInput = modal.element?.querySelector('#homeCfgToolCheckBeforeReviewEnabled');
+                const agentCardBeforeReviewInput = modal.element?.querySelector('#homeCfgAgentCardBeforeReviewEnabled');
+                const agentCardBeforeReviewRow = modal.element?.querySelector('#homeCfgAgentCardBeforeReviewRow');
                 const memoryEnabledInput = modal.element?.querySelector('#homeCfgMemoryEnabled');
                 const memoryEmbeddingEnabledInput = modal.element?.querySelector('#homeCfgMemoryEmbeddingEnabled');
                 const memoryEmbeddingRow = modal.element?.querySelector('#homeCfgMemoryEmbeddingRow');
@@ -152,6 +195,12 @@ const homeHandlers = {
                 }
                 if (toolCheckBeforeReviewInput) {
                     toolCheckBeforeReviewInput.checked = !!toolCheckBeforeReviewValue;
+                }
+                if (agentCardBeforeReviewInput) {
+                    agentCardBeforeReviewInput.checked = !!agentCardBeforeReviewValue;
+                }
+                if (agentCardBeforeReviewRow) {
+                    agentCardBeforeReviewRow.style.display = toolCheckBeforeReviewValue ? '' : 'none';
                 }
                 if (memoryEnabledInput) {
                     memoryEnabledInput.checked = !!memoryEnabledValue;
@@ -206,16 +255,28 @@ const homeHandlers = {
                         <input type="number" min="0" max="100000" step="1" class="setting-input" id="homeCfgToolCheckEveryN" value="" placeholder="0" />
                     </div>
                     <div class="setting-group">
-                        <label>Run Tool Before Conversation Review</label>
-                        <input type="checkbox" id="homeCfgToolCheckBeforeReviewEnabled" />
+                        <label class="setting-checkbox">
+                            <input type="checkbox" id="homeCfgToolCheckBeforeReviewEnabled" />
+                            <span>Run Tool Before Conversation Review</span>
+                        </label>
+                    </div>
+                    <div class="setting-group" id="homeCfgAgentCardBeforeReviewRow" style="display:none;">
+                        <label class="setting-checkbox">
+                            <input type="checkbox" id="homeCfgAgentCardBeforeReviewEnabled" />
+                            <span>Fetch Peer Agent Card Before Review</span>
+                        </label>
                     </div>
                     <div class="setting-group">
-                        <label>Enable Memory</label>
-                        <input type="checkbox" id="homeCfgMemoryEnabled" />
+                        <label class="setting-checkbox">
+                            <input type="checkbox" id="homeCfgMemoryEnabled" />
+                            <span>Enable Memory</span>
+                        </label>
                     </div>
                     <div class="setting-group" id="homeCfgMemoryEmbeddingRow" style="display:none;">
-                        <label>Enable Memory Embedding</label>
-                        <input type="checkbox" id="homeCfgMemoryEmbeddingEnabled" />
+                        <label class="setting-checkbox">
+                            <input type="checkbox" id="homeCfgMemoryEmbeddingEnabled" />
+                            <span>Enable Memory Embedding</span>
+                        </label>
                     </div>
                 </div>
             `,
@@ -244,6 +305,21 @@ const homeHandlers = {
                 }
 
                 await loadConfigIntoModal(modal);
+
+                const toolCheckBeforeReviewInputOnOpen = modal.element?.querySelector('#homeCfgToolCheckBeforeReviewEnabled');
+                const agentCardBeforeReviewRowOnOpen = modal.element?.querySelector('#homeCfgAgentCardBeforeReviewRow');
+                const agentCardBeforeReviewInputOnOpen = modal.element?.querySelector('#homeCfgAgentCardBeforeReviewEnabled');
+                if (toolCheckBeforeReviewInputOnOpen && agentCardBeforeReviewRowOnOpen) {
+                    const applyAgentCardRow = () => {
+                        const enabled = !!toolCheckBeforeReviewInputOnOpen.checked;
+                        agentCardBeforeReviewRowOnOpen.style.display = enabled ? '' : 'none';
+                        if (!enabled && agentCardBeforeReviewInputOnOpen) {
+                            agentCardBeforeReviewInputOnOpen.checked = false;
+                        }
+                    };
+                    toolCheckBeforeReviewInputOnOpen.addEventListener('change', applyAgentCardRow);
+                    applyAgentCardRow();
+                }
 
                 const memoryEnabledInput = modal.element?.querySelector('#homeCfgMemoryEnabled');
                 const memoryEmbeddingRow = modal.element?.querySelector('#homeCfgMemoryEmbeddingRow');
@@ -277,6 +353,10 @@ const homeHandlers = {
                     const logRetentionRaw = (modal.element?.querySelector('#homeCfgLogRetentionDays')?.value || '').trim();
                     const toolCheckEveryRaw = (modal.element?.querySelector('#homeCfgToolCheckEveryN')?.value || '').trim();
                     const tool_check_before_review_enabled = !!(modal.element?.querySelector('#homeCfgToolCheckBeforeReviewEnabled')?.checked);
+                    let agent_card_before_review_enabled = !!(modal.element?.querySelector('#homeCfgAgentCardBeforeReviewEnabled')?.checked);
+                    if (!tool_check_before_review_enabled) {
+                        agent_card_before_review_enabled = false;
+                    }
 
                     const memory_enabled = !!(modal.element?.querySelector('#homeCfgMemoryEnabled')?.checked);
 
@@ -340,6 +420,7 @@ const homeHandlers = {
                                 process_info_plan_summary_every_n,
                                 tool_check_every_n,
                                 tool_check_before_review_enabled,
+                                agent_card_before_review_enabled,
                                 memory_enabled,
                                 memory_embedding_enabled,
                                 log_retention_days: logRetentionRaw ? log_retention_days : null,
@@ -406,6 +487,12 @@ const homeHandlers = {
 
     destroy() {
         // Clean up event listeners
+        if (this._homeContactLinkClickHandler) {
+            try {
+                document.removeEventListener('click', this._homeContactLinkClickHandler);
+            } catch (e) {
+            }
+        }
     }
 };
 

@@ -18,6 +18,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirna
 
 from agent_platform.protocols.a2a.agent_card import (
     AgentCard,
+    AgentCapabilities,
+    AgentSkill,
     get_agent_card_manager
 )
 from agent_platform.protocols.a2a.task_manager import (
@@ -102,31 +104,132 @@ async def get_agent_card(
     This endpoint returns the Agent Card for the specified agent,
     following Google's A2A protocol specification.
     """
+    # Priority 1: registered in-memory cards
     manager = get_agent_card_manager()
     card = manager.get_card(agent_id)
+    if card:
+        return card.to_dict()
 
-    if not card:
-        # Return default card
-        from agent_platform.protocols.a2a.agent_card import EndpointConfig, AgentCapability
+    # Priority 2: map database agent_cfg into an A2A AgentCard
+    # agent_id is expected to be the DB AgentCfg.id (integer) in this project.
+    db_agent = None
+    try:
+        _aid = int(str(agent_id).strip())
+        from backend.modules.agent.service import AgentService
+        db_agent = AgentService.get_agent(_aid)
+    except Exception:
+        db_agent = None
+
+    if isinstance(db_agent, dict):
+        # Build a Google A2A compatible card from agent_cfg memo fields.
+        name = str(db_agent.get("name") or "AI-SNS Agent")
+        description = str(db_agent.get("description") or "")
+        url = str(db_agent.get("url") or "").strip()
+        if not url:
+            url = "http://localhost:8000/a2a"
+
+        version = str(db_agent.get("version") or "1.0.0")
+        protocol_version = str(db_agent.get("protocol_version") or "0.3")
+
+        cap_raw = db_agent.get("capabilities")
+        capabilities = AgentCapabilities()
+        if isinstance(cap_raw, dict):
+            try:
+                capabilities = AgentCapabilities(**cap_raw)
+            except Exception:
+                capabilities = AgentCapabilities()
+
+        skills_raw = db_agent.get("skills")
+        skills: List[AgentSkill] = []
+        if isinstance(skills_raw, list):
+            for item in skills_raw:
+                if not isinstance(item, dict):
+                    continue
+                sid = (item.get("id") or item.get("name") or "").strip()
+                if not sid:
+                    continue
+                try:
+                    skills.append(AgentSkill(**item, id=str(sid)))
+                except Exception:
+                    # best-effort coercion
+                    skills.append(
+                        AgentSkill(
+                            id=str(sid),
+                            name=str(item.get("name") or sid),
+                            description=str(item.get("description") or ""),
+                            tags=item.get("tags") if isinstance(item.get("tags"), list) else [],
+                            examples=item.get("examples") if isinstance(item.get("examples"), list) else [],
+                            inputModes=item.get("inputModes") if isinstance(item.get("inputModes"), list) else ["text"],
+                            outputModes=item.get("outputModes") if isinstance(item.get("outputModes"), list) else ["text"],
+                        )
+                    )
+
+        default_input_modes = db_agent.get("default_input_modes")
+        default_output_modes = db_agent.get("default_output_modes")
 
         card = AgentCard(
-            id=agent_id,
-            name="AI-SNS Agent",
-            description="AI Agent Open Platform",
-            endpoint=EndpointConfig(base_url="http://localhost:8000"),
-            capabilities=[
-                AgentCapability.CHAT.value,
-                AgentCapability.STREAMING.value,
-                AgentCapability.ASYNC_TASK.value
-            ]
+            id=str(db_agent.get("id") or agent_id),
+            name=name,
+            description=description,
+            url=url,
+            version=version,
+            protocolVersion=protocol_version,
+            capabilities=capabilities,
+            skills=skills,
+            defaultInputModes=default_input_modes if isinstance(default_input_modes, list) else ["text"],
+            defaultOutputModes=default_output_modes if isinstance(default_output_modes, list) else ["text"],
         )
+        return card.to_dict()
 
-    return card.to_dict()
+    # Priority 3: default fallback card (kept for backward compatibility)
+    return AgentCard(
+        id=str(agent_id or "default"),
+        name="AI-SNS Agent",
+        description="AI Agent Open Platform",
+        url="http://localhost:8000/a2a",
+        version="1.0.0",
+        protocolVersion="0.3",
+        capabilities=AgentCapabilities(),
+        skills=[
+            AgentSkill(
+                id="chat",
+                name="General Chat",
+                description="General conversation and Q&A",
+                tags=["conversation", "qa"],
+                examples=["Hello!", "What can you do?"],
+                inputModes=["text"],
+                outputModes=["text"],
+            )
+        ],
+        defaultInputModes=["text"],
+        defaultOutputModes=["text"],
+    ).to_dict()
 
 
 @a2a_router.get("/agents", response_model=List[Dict[str, Any]])
 async def list_agents():
     """List all registered agents"""
+    # If running under api_server.py, prefer DB agents for discovery.
+    try:
+        from backend.modules.agent.service import AgentService
+        agents = AgentService.get_all_agents()
+        out: List[Dict[str, Any]] = []
+        if isinstance(agents, list):
+            for a in agents:
+                if not isinstance(a, dict):
+                    continue
+                aid = a.get("id")
+                if aid is None:
+                    continue
+                try:
+                    out.append((await get_agent_card(agent_id=str(aid))))
+                except Exception:
+                    continue
+        if out:
+            return out
+    except Exception:
+        pass
+
     manager = get_agent_card_manager()
     return [card.to_dict() for card in manager.list_cards()]
 

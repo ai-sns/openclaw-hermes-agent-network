@@ -533,6 +533,18 @@ class CommunicationMixin:
         nation_id = (nation_id or "").strip() or account
         nick_name = (person or {}).get("nick_name")
         nick_name = (nick_name or "").strip() or account
+        a2a_endpoint = (person or {}).get("a2a_endpoint")
+        a2a_endpoint = (a2a_endpoint or "").strip() if isinstance(a2a_endpoint, str) else ""
+
+        if (not a2a_endpoint) and account:
+            try:
+                matched = self._get_people_by_account(account)
+                if isinstance(matched, dict):
+                    v = matched.get("a2a_endpoint")
+                    if isinstance(v, str) and v.strip():
+                        a2a_endpoint = v.strip()
+            except Exception:
+                pass
 
         if not account:
             return
@@ -563,6 +575,7 @@ class CommunicationMixin:
             "account": account,
             "nation_id": nation_id,
             "nick_name": nick_name,
+            "a2a_endpoint": a2a_endpoint,
             "objective": (objective or "").strip(),
             "started_at": self._now_ts(),
         }

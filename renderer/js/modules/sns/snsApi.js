@@ -86,6 +86,25 @@ export default {
         }
     },
 
+    async updateUserInfo(payload) {
+        try {
+            const response = await fetch(this.resolve('/api/sns/user-info'), {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload || {})
+            });
+            return await response.json();
+        } catch (error) {
+            console.error('Failed to update user info:', error);
+            return {
+                success: false,
+                message: error.message
+            };
+        }
+    },
+
     async getResourceOverview() {
         try {
             const response = await fetch(this.resolve('/api/sns/resource-overview'), {

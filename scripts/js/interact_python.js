@@ -110,9 +110,16 @@ async function _syncLocationOnce(lng, lat, maxDistanceM) {
     }
 
     const url = resp && resp.success && resp.data ? String(resp.data.url || '').trim() : '';
+    const url3d = resp && resp.success && resp.data ? String(resp.data.url_3d || '').trim() : '';
+    const placePosition = (resp && resp.success && resp.data && resp.data.place && resp.data.place.place_position)
+        ? resp.data.place.place_position
+        : null;
+    const placePositionByMap = (resp && resp.success && resp.data && resp.data.place && resp.data.place.place_position_by_map)
+        ? resp.data.place.place_position_by_map
+        : null;
     if (url) {
         try {
-            open_place_web_address(url);
+            open_place_web_address(url, url3d, placePosition, placePositionByMap);
         } catch (e) {
             console.warn('Failed to open nearest place url:', e);
         }
@@ -501,6 +508,63 @@ window.addEventListener('message', function(event) {
                 console.warn('[snsPluginCommand] sendImTo failed:', e);
             }
         }
+    } else if (event.data && event.data.type === 'snsPlaceModel') {
+        const payload = (event.data && typeof event.data === 'object') ? (event.data.data || {}) : {};
+        const url3d = (payload && payload.url_3d !== undefined && payload.url_3d !== null) ? String(payload.url_3d).trim() : '';
+
+        const placePosition = (payload && payload.place_position !== undefined && payload.place_position !== null)
+            ? payload.place_position
+            : ((payload && payload.position !== undefined && payload.position !== null) ? payload.position : null);
+
+        const placePositionByMap = (payload && payload.place_position_by_map !== undefined && payload.place_position_by_map !== null)
+            ? payload.place_position_by_map
+            : null;
+
+        const _parsePlacePositionByMap = (value) => {
+            if (!value) return null;
+            if (Array.isArray(value)) return value;
+            if (typeof value !== 'string') return null;
+            const raw = value.trim();
+            if (!raw) return null;
+            try {
+                const parsed = JSON.parse(raw);
+                return Array.isArray(parsed) ? parsed : null;
+            } catch (e) {
+                return null;
+            }
+        };
+
+        const _pickPlacePositionForCurrentMap = (posByMap) => {
+            const arr = _parsePlacePositionByMap(posByMap);
+            if (!arr || arr.length < 2) return null;
+
+            let isGoogle = false;
+            try {
+                if (typeof map_type !== 'undefined' && map_type !== null) {
+                    isGoogle = String(map_type).toLowerCase().includes('google');
+                }
+            } catch (e) {
+            }
+
+            const idx = isGoogle ? 0 : 1;
+            const picked = arr[idx];
+            if (Array.isArray(picked) && picked.length >= 2) return picked;
+            if (picked && typeof picked === 'object') return picked;
+            return null;
+        };
+
+        const effectivePosition = _pickPlacePositionForCurrentMap(placePositionByMap) || placePosition;
+
+        try {
+            if (typeof window.__snsSetActivePlaceModel === 'function') {
+                window.__snsSetActivePlaceModel(url3d, effectivePosition);
+                return;
+            }
+        } catch (e) {
+            console.warn('[snsPlaceModel] __snsSetActivePlaceModel failed:', e);
+        }
+
+        console.warn('[snsPlaceModel] No model loader installed for this map page.');
     }
     // Add handling for other message types here if needed
 });
@@ -814,6 +878,8 @@ async function loadMapSetting() {
             avatar: data.avatar,
             profile: data.profile,
             sns_url: data.sns_url,
+            membership: data.membership,
+            level: data.level,
             status: data.status,
             map_type: data.map_type,
             current_position: JSON.stringify(current_position_obj),
@@ -859,6 +925,8 @@ function handle_map_setting_loaded(setting_json) {
         avatar,
         profile,
         sns_url,
+        membership,
+        level,
         status,
         map_type,
         current_position,
@@ -1113,12 +1181,28 @@ function handle_map_setting_loaded(setting_json) {
         account: account,
         location: [current_position.lng, current_position.lat],
         nick_name: nick_name,
+        membership: membership,
+        level: level,
         avatar: avatar,
         avatar_3d: avatar3d,
         profile: profile,
         sns_url: sns_url,
         status: status
     };
+
+    try {
+        if (typeof window.parent !== 'undefined' && window.parent && window.parent !== window) {
+            window.parent.postMessage({
+                type: 'snsUserMeta',
+                data: {
+                    nickname: nick_name,
+                    membership: membership,
+                    level: level,
+                }
+            }, '*');
+        }
+    } catch (e) {
+    }
 
     loadModel(person_data_me);
     load_persons_data_and_show();
@@ -1326,14 +1410,17 @@ function mapcfgSetting() {
     console.log("mapcfgSetting");
 }
 
-function open_place_web_address(url) {
+function open_place_web_address(url, url3d, placePosition, placePositionByMap) {
     console.log("open_place_web_address", url);
 
     // Tell Electron frontend to add a Profile tab in the right status panel
     if (typeof window.parent !== 'undefined') {
         window.parent.postMessage({
             type: 'openPlaceWebAddress',
-            url: url
+            url: url,
+            url_3d: (url3d ? String(url3d).trim() : ''),
+            place_position: placePosition,
+            place_position_by_map: placePositionByMap
         }, '*');
     }
 }

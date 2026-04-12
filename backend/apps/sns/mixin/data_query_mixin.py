@@ -53,20 +53,70 @@ class DataQueryMixin:
 
     def get_place_list(self):
         url = f"{self._get_ai_sns_server_base()}/api/get_place_list/"
+
+        pos = self.aichatcfg_record.current_position
+        try:
+            lng_val = float(pos[0])
+            lat_val = float(pos[1])
+            pos_key = f"{round(lng_val, 6)},{round(lat_val, 6)}"
+        except Exception:
+            pos_key = ""
+
+        try:
+            cached_key = getattr(self, "_cached_place_list_pos_key", None)
+            cached_value = getattr(self, "_cached_place_list_value", None)
+            if pos_key and cached_key == pos_key and cached_value is not None:
+                return cached_value
+        except Exception:
+            pass
+
         params = {
-            "lng": self.aichatcfg_record.current_position[0],
-            "lat": self.aichatcfg_record.current_position[1]
+            "lng": pos[0],
+            "lat": pos[1]
         }
         place_list = self.http_request(url, params)
+
+        if isinstance(place_list, list) and pos_key:
+            try:
+                setattr(self, "_cached_place_list_pos_key", pos_key)
+                setattr(self, "_cached_place_list_value", place_list)
+            except Exception:
+                pass
         return place_list
 
     def get_people_list(self):
         url = f"{self._get_ai_sns_server_base()}/api/get_people_list/"
+
+        pos = self.aichatcfg_record.current_position
+        try:
+            lng_val = float(pos[0])
+            lat_val = float(pos[1])
+            pos_key = f"{round(lng_val, 6)},{round(lat_val, 6)}"
+        except Exception:
+            pos_key = ""
+
+        try:
+            cached_key = getattr(self, "_cached_people_list_pos_key", None)
+            cached_value = getattr(self, "_cached_people_list_value", None)
+            if pos_key and cached_key == pos_key and cached_value is not None:
+                data = cached_value
+            else:
+                data = None
+        except Exception:
+            data = None
+
         params = {
-            "lng": self.aichatcfg_record.current_position[0],
-            "lat": self.aichatcfg_record.current_position[1]
+            "lng": pos[0],
+            "lat": pos[1]
         }
-        data = self.http_request(url, params)
+        if data is None:
+            data = self.http_request(url, params)
+            if isinstance(data, list) and pos_key:
+                try:
+                    setattr(self, "_cached_people_list_pos_key", pos_key)
+                    setattr(self, "_cached_people_list_value", data)
+                except Exception:
+                    pass
         logger.info("loading pesons...")
         logger.info(data)
 

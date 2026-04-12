@@ -191,6 +191,7 @@ class MapService:
                 "success": True,
                 "data": {
                     "url": "",
+                    "url_3d": (best.get("url_3d") or "").strip() if isinstance(best, dict) else "",
                     "distance_m": round(float(best_dist), 2),
                     "place": best,
                 },
@@ -346,6 +347,7 @@ class MapService:
             "success": True,
             "data": {
                 "url": url,
+                "url_3d": (best.get("url_3d") or "").strip() if isinstance(best, dict) else "",
                 "distance_m": round(float(best_dist), 2),
                 "place": best,
             },
@@ -448,8 +450,8 @@ class MapService:
         if cls._has_valid_lng_lat(current_position):
             return current_position
 
-        base_lng = 116.3974
-        base_lat = 39.9093
+        base_lng = -121.88947550295555
+        base_lat = 37.33200027587634
         remote_base = cls._get_ai_sns_server_base()
         if remote_base:
             try:
@@ -517,6 +519,8 @@ class MapService:
                     "nationid": getattr(cfg, 'nationid', '123456'),
                     "account": getattr(cfg, 'account', 'user@example.com'),
                     "nick_name": getattr(cfg, 'nickname', 'User nickname'),
+                    "membership": getattr(cfg, 'membership', 0),
+                    "level": getattr(cfg, 'level', 0),
                     "avatar": getattr(cfg, 'avatar', 'avatar.png'),
                     "profile": getattr(cfg, 'sign', 'Bio'),
                     "sns_url": getattr(cfg, 'sns_url', 'https://example.com'),
@@ -543,6 +547,8 @@ class MapService:
                     "nationid": "123456",
                     "account": "user@example.com",
                     "nick_name": "User nickname",
+                    "membership": 0,
+                    "level": 0,
                     "avatar": "avatar.png",
                     "profile": "Bio",
                     "sns_url": "https://example.com",

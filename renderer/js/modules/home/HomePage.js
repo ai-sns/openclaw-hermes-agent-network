@@ -95,7 +95,7 @@ const HomePage = {
                     <div class="home-contact">
                         <h3 class="contact-title">Contact Us</h3>
                         <p class="contact-text">Welcome to visit our website for more information:
-                        <a href="https://www.ai-sns.org" target="_blank" class="contact-link">https://www.ai-sns.org</a>
+                        <a href="https://www.ai-sns.org" class="contact-link" data-url="https://www.ai-sns.org">https://www.ai-sns.org</a>
                         </p>
                     </div>
                 </div>
