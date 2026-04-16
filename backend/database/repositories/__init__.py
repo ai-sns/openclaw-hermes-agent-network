@@ -2,16 +2,11 @@
 from .base import BaseRepository
 from .agent_repository import (
     AgentCfgRepository,
-    AgentTaskRepository,
-    AgentTaskMultiRepository,
-    MutiAgentCfgRepository
 )
 from .chat_repository import (
     AIChatMessagesRepository,
     AIFriendRepository,
-    AIChatInformRepository,
-    AiChatCfgRepository,
-    HumanChatCfgRepository
+    AiChatCfgRepository
 )
 from .km_repository import (
     KMCfgRepository,
@@ -19,19 +14,13 @@ from .km_repository import (
     NoteMngRepository
 )
 from .map_repository import (
-    MapCfgRepository,
-    MapTaskRepository,
-    MapToolRepository,
     MapTradeRepository,
     MapVisitRepository,
     MapActivityRepository,
-    MapPresetMsgRepository,
-    ChatPresetMsgRepository
+    MapPresetMsgRepository
 )
 from .system_repository import (
     SystemCfgRepository,
-    LogsMngRepository,
-    SysConfigRepository,
     SystemInitRepository,
     KeyValueRepository,
     PluginMngRepository,
@@ -39,14 +28,9 @@ from .system_repository import (
     McpMngRepository,
     SkillMngRepository,
     WebMngRepository,
-    WorkflowMngRepository,
-    TaskScheduleRepository,
     PromptRepository,
-    PromptFrequentRepository,
-    LlmFrequentRepository,
-    QuestionRepository,
-    ModelMetricsRepository,
-    ToolListRepository
+    LlmConfigRepository,
+    RoleConfigRepository
 )
 
 __all__ = [
@@ -55,16 +39,11 @@ __all__ = [
 
     # Agent repositories
     'AgentCfgRepository',
-    'AgentTaskRepository',
-    'AgentTaskMultiRepository',
-    'MutiAgentCfgRepository',
 
     # Chat repositories
     'AIChatMessagesRepository',
     'AIFriendRepository',
-    'AIChatInformRepository',
     'AiChatCfgRepository',
-    'HumanChatCfgRepository',
 
     # KM repositories
     'KMCfgRepository',
@@ -72,19 +51,13 @@ __all__ = [
     'NoteMngRepository',
 
     # Map repositories
-    'MapCfgRepository',
-    'MapTaskRepository',
-    'MapToolRepository',
     'MapTradeRepository',
     'MapVisitRepository',
     'MapActivityRepository',
     'MapPresetMsgRepository',
-    'ChatPresetMsgRepository',
 
     # System repositories
     'SystemCfgRepository',
-    'LogsMngRepository',
-    'SysConfigRepository',
     'SystemInitRepository',
     'KeyValueRepository',
     'PluginMngRepository',
@@ -92,12 +65,7 @@ __all__ = [
     'McpMngRepository',
     'SkillMngRepository',
     'WebMngRepository',
-    'WorkflowMngRepository',
-    'TaskScheduleRepository',
     'PromptRepository',
-    'PromptFrequentRepository',
-    'LlmFrequentRepository',
-    'QuestionRepository',
-    'ModelMetricsRepository',
-    'ToolListRepository'
+    'LlmConfigRepository',
+    'RoleConfigRepository'
 ]

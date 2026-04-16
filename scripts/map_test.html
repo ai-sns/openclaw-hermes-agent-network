@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>百度地图 API & Style ID 测试工具</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <style>
+        body {
+            font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            margin: 20px;
+            background-color: #f0f2f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            background-color: #2f54eb;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #1d39c4;
+        }
+        #map-container {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ebeef5;
+            border-radius: 4px;
+            background-color: #f5f7fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #909399;
+        }
+        #status {
+            margin-top: 15px;
+            padding: 12px;
+            border-radius: 4px;
+            display: none;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .error { background-color: #fef0f0; color: #f56c6c; border: 1px solid #fde2e2; }
+        .success { background-color: #f0f9eb; color: #67c23a; border: 1px solid #e1f3d8; }
+        .info-box {
+            background-color: #e6f7ff;
+            border: 1px solid #91d5ff;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #003a8c;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>百度地图 API 测试工具</h2>
+    
+    <div class="input-group">
+        <label for="ak">浏览器端 AK (Access Key):</label>
+        <input type="text" id="ak" placeholder="在此输入你的百度地图 AK">
+    </div>
+
+    <div class="input-group">
+        <label for="styleId">个性化地图 Style ID (可选):</label>
+        <input type="text" id="styleId" placeholder="例如: 8e0a97af938520ad (在个性化地图编辑器中生成)">
+    </div>
+
+    <button onclick="loadBaiduMap()">加载百度地图</button>
+
+    <div id="status"></div>
+    <div id="map-container">地图将在此处显示</div>
+
+    <div class="info-box">
+        <strong>提示：</strong><br>
+        1. 请确保 AK 的应用类型为 <b>浏览器端</b>。<br>
+        2. 如果设置了“Referer白名单”，请确保当前访问地址（如 localhost 或 127.0.0.1）在白名单内。<br>
+        3. 本页面使用 <b>MapVGL / JavaScript API GL (v1.0)</b> 版本测试。
+    </div>
+</div>
+
+<script>
+    function showStatus(msg, type) {
+        const status = document.getElementById('status');
+        status.style.display = 'block';
+        status.className = type;
+        status.innerHTML = msg;
+    }
+
+    function loadBaiduMap() {
+        const ak = document.getElementById('ak').value.trim();
+        const styleId = document.getElementById('styleId').value.trim();
+        const mapContainer = document.getElementById('map-container');
+
+        if (!ak) {
+            alert('请输入百度地图 AK');
+            return;
+        }
+
+        // 清理现有的内容
+        mapContainer.innerHTML = '正在加载百度地图脚本...';
+        document.getElementById('status').style.display = 'none';
+
+        // 移除旧脚本
+        const oldScript = document.getElementById('baidu-script');
+        if (oldScript) oldScript.remove();
+        
+        // 百度地图全局变量清理（由于百度API设计，彻底清理较难，建议刷新页面重试如果多次切换AK）
+        
+        // 创建回调函数
+        window.onBMapCallback = function() {
+            try {
+                // 初始化地图
+                // BMapGL 适用于最新版个性化地图和 3D 效果
+                const map = new BMapGL.Map("map-container");
+                const point = new BMapGL.Point(116.404, 39.915); // 北京天安门
+                map.centerAndZoom(point, 12);
+                map.enableScrollWheelZoom(true);
+
+                // 添加一个标记
+                const marker = new BMapGL.Marker(point);
+                map.addOverlay(marker);
+
+                let statusMsg = "<strong>成功：</strong> 地图加载完成。";
+
+                // 如果提供了 Style ID，尝试应用
+                if (styleId) {
+                    map.setMapStyleV2({
+                        styleId: styleId
+                    });
+                    statusMsg += `<br>已尝试应用样式 ID: ${styleId}。若样式未生效，请检查 Style ID 是否属于该 AK 账号。`;
+                }
+
+                showStatus(statusMsg, 'success');
+
+            } catch (e) {
+                showStatus('地图初始化失败: ' + e.message, 'error');
+            }
+        };
+
+        // 动态加载百度地图脚本
+        // type=webgl 表示使用 GL 版（支持 Style ID）
+        const script = document.createElement('script');
+        script.id = 'baidu-script';
+        script.type = 'text/javascript';
+        script.src = `https://api.map.baidu.com/api?v=1.0&type=webgl&ak=${ak}&callback=onBMapCallback`;
+        
+        script.onerror = function() {
+            showStatus('脚本加载失败，请检查网络或 AK 是否正确。', 'error');
+        };
+
+        document.head.appendChild(script);
+    }
+</script>
+
+</body>
+</html>

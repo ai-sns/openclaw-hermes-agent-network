@@ -1,7 +1,6 @@
 """System configuration and management ORM models."""
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Float
 from backend.config.database import Base
 
 
@@ -23,26 +22,6 @@ class SystemCfg(Base):
     ai_sns_server = Column(Text, doc="ai-sns server url")
     is_delete = Column(Boolean, default=False, doc="Soft delete")
     create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
-class LogsMng(Base):
-    """Logs management model."""
-    __tablename__ = 'logsmng'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    logs_id = Column(String(100), doc="Log ID")
-    content = Column(Text, doc="Log content")
-    type = Column(String(200), doc="Log type")
-    is_delete = Column(Boolean, default=False, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
-class SysConfig(Base):
-    """System config model."""
-    __tablename__ = 'config'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    lang = Column(String(20), doc="Language")
 
 
 class SystemInit(Base):
@@ -67,7 +46,7 @@ class SystemInit(Base):
     map_id = Column(String(128), doc="Map ID")
     status = Column(Integer, doc="Status")
     is_delete = Column(Boolean, default=False, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.utcnow, doc="Create time")
+    create_time = Column(DateTime, default=datetime.now, doc="Create time")
 
 
 class KeyValue(Base):
@@ -199,50 +178,6 @@ class WebMng(Base):
     create_time = Column(DateTime, default=datetime.now, doc="Create time")
 
 
-class WorkflowMng(Base):
-    """Workflow management model."""
-    __tablename__ = 'workflow_mng'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    workflow_id = Column(String(100), doc="Workflow ID")
-    title = Column(String(100), doc="Title")
-    description = Column(Text, doc="Description")
-    instruction = Column(String(100), doc="Instruction")
-    workflow_event = Column(String(100), doc="Workflow event")
-    detail = Column(Text, doc="Detail")
-    timer_desc = Column(String(200), doc="Timer description")
-    timer_cron = Column(String(200), doc="Timer cron")
-    run_agent_name = Column(String(200), doc="Run agent name")
-    run_agent_id = Column(String(200), doc="Run agent ID")
-    creator = Column(String(100), doc="Creator")
-    is_delete = Column(Boolean, default=False, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
-class TaskSchedule(Base):
-    """Task schedule model."""
-    __tablename__ = 'task_schedule'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    title = Column(String(100), doc="Title")
-    description = Column(Text, doc="Description")
-    task_type = Column(String(100), doc="Task type")
-    task_id = Column(String(100), doc="Task ID")
-    org_id = Column(String(100), doc="Original ID")
-    parameter = Column(Text, doc="Parameter")
-    schedule_time = Column(DateTime, doc="Schedule time")
-    run_time = Column(DateTime, doc="Run time")
-    run_result = Column(Text, doc="Run result")
-    status = Column(String(100), default="0", doc="Status")
-    timer_desc = Column(String(200), doc="Timer description")
-    timer_cron = Column(String(200), doc="Timer cron")
-    run_agent_name = Column(String(200), doc="Run agent name")
-    run_agent_id = Column(String(200), doc="Run agent ID")
-    creator = Column(String(100), doc="Creator")
-    is_delete = Column(Boolean, default=False, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
 class Prompt(Base):
     """Prompt model."""
     __tablename__ = 'prompts'
@@ -255,86 +190,6 @@ class Prompt(Base):
     tags = Column(String, doc="Tags")
     model_name = Column(String(100), doc="Model name")
     position = Column(Integer, doc="Position")
-    prompt_frequents = relationship("PromptFrequent", back_populates="prompt")
-
-
-class PromptFrequent(Base):
-    """Prompt frequent model."""
-    __tablename__ = 'prompt_frequent'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    prompt_id = Column(String(100), ForeignKey('prompts.id'), doc="Prompt ID")
-    title = Column(String(100), doc="Title")
-    position = Column(Integer, doc="Position")
-    belong_to_agent_id = Column(String(100), doc="Belong to agent ID")
-    creator = Column(String(100), doc="Creator")
-    is_delete = Column(Boolean, default=0, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-    prompt = relationship("Prompt", back_populates="prompt_frequents")
-
-
-class LlmFrequent(Base):
-    """LLM frequent model."""
-    __tablename__ = 'llm_frequent'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    plugin_id = Column(String(100), doc="Plugin ID")
-    name = Column(String(100), doc="Name")
-    short_name = Column(String(100), doc="Short name")
-    model_type = Column(String(100), doc="Model type")
-    alias_name = Column(String(100), doc="Alias name")
-    position = Column(Integer, doc="Position")
-    belong_to_agent_id = Column(String(100), doc="Belong to agent ID")
-    creator = Column(String(100), doc="Creator")
-    is_delete = Column(Boolean, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
-class Question(Base):
-    """Question model."""
-    __tablename__ = 'question'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    question = Column(String, doc="Question")
-    tag = Column(String(20), doc="Tag")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-
-
-class ModelMetrics(Base):
-    """Model metrics model."""
-    __tablename__ = 'model_metrics'
-
-    id = Column(Integer, primary_key=True)
-    connector_name = Column(String, doc="Connector name")
-    model_name = Column(String, doc="Model name")
-    price = Column(Float, doc="Price")
-    speed = Column(Integer, doc="Speed")
-    understanding = Column(Integer, doc="Understanding")
-    summarizing = Column(Integer, doc="Summarizing")
-    knowledge = Column(Integer, doc="Knowledge")
-    logical_reasoning = Column(Integer, doc="Logical reasoning")
-    math = Column(Integer, doc="Math")
-    coding = Column(Integer, doc="Coding")
-    writing = Column(Integer, doc="Writing")
-    attachment = Column(Integer, doc="Attachment")
-    image_recognition = Column(Integer, doc="Image recognition")
-    image_generation = Column(Integer, doc="Image generation")
-    video_generation = Column(Integer, doc="Video generation")
-    video_recognition = Column(Integer, doc="Video recognition")
-    searching = Column(Integer, doc="Searching")
-    tool_ability = Column(String, doc="Tool ability")
-
-
-class ToolList(Base):
-    """Tool list view model."""
-    __tablename__ = 'tool_list'
-
-    id = Column(String, primary_key=True, doc="ID")
-    name = Column(String, doc="Name")
-    description = Column(Text, doc="Description")
-    plugin_type = Column(String, doc="Plugin type")
-    confirm_needed = Column(Boolean, doc="Confirm needed")
-    can_be_sold = Column(Boolean, doc="Can be sold")
 
 
 class LlmConfig(Base):

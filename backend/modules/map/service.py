@@ -18,16 +18,6 @@ from db.DBFactory import (
     query_AiChatCfg_map,
     query_AiChatCfg_map_setting,
     update_AiChatCfg_map,
-    add_map_task,
-    query_map_tasks,
-    query_single_map_task,
-    update_map_task,
-    delete_map_task,
-    add_map_tool,
-    query_map_tools,
-    query_single_map_tool,
-    update_map_tool,
-    delete_map_tool,
     add_map_trade,
     query_map_trades,
     query_single_map_trade,
@@ -528,33 +518,6 @@ class MapService:
                 }
             }
 
-        # Default configuration
-        return {
-                "success": True,
-                "data": {
-                    "map_type": "baidu",
-                    "map_api_key": "",
-                    "map_id": "",
-                    "current_position": {"lng": 116.3974, "lat": 39.9093},
-                    "home_position": {},
-                    "route_status": "stopped",
-                    "route_start": "",
-                    "route_end": "",
-                    "route_current_position": {},
-                    "route_distance": 0.0,
-                    "route_points": "",
-                    "avatar3d": "default.glb",
-                    "nationid": "123456",
-                    "account": "user@example.com",
-                    "nick_name": "User nickname",
-                    "membership": 0,
-                    "level": 0,
-                    "avatar": "avatar.png",
-                    "profile": "Bio",
-                    "sns_url": "https://example.com",
-                    "status": "online"
-                }
-        }
 
     @staticmethod
     def update_map_settings(config: Optional[Dict[str, Any]] = None, **kwargs) -> Dict[str, Any]:

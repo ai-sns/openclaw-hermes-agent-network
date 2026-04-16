@@ -24,7 +24,7 @@ class MapConfig(BaseModel):
 class MapMarker(BaseModel):
     """Map marker"""
     id: Optional[str] = None
-    location: Dict[str, float]  # {"lng": 116.3974, "lat": 39.9093}
+    location: Dict[str, float]
     type: Optional[str] = "person"
     data: Optional[Dict[str, Any]] = None
     visible: Optional[bool] = True

@@ -16,6 +16,13 @@ from PIL import Image, ImageChops, ImageDraw, ImageOps
 
 from db.DBFactory import query_SystemCfg, update_SystemCfg, Session, SystemCfg as DBSystemCfg
 from backend.config.settings import get_settings
+from backend.modules.map.file_replace import (
+    GOOGLE_KEY_PLACEHOLDER,
+    BAIDU_KEY_PLACEHOLDER,
+    GOOGLE_MAP_ID_PLACEHOLDER,
+    BAIDU_MAP_ID_SENTINEL,
+    replace_map_config_in_files,
+)
 from backend.database.repositories import WebMngRepository, SystemInitRepository, AiChatCfgRepository
 from backend.database.models.system import WebMng
 
@@ -260,13 +267,18 @@ class SystemInitWizardService:
             return ""
         parts = value.split(',')
         if map_type == "Google":
-            if len(parts) >= 1 and parts[0] != "N/A":
+            if len(parts) >= 1 and parts[0] not in ("N/A", GOOGLE_KEY_PLACEHOLDER, GOOGLE_MAP_ID_PLACEHOLDER):
                 return parts[0]
             return ""
-        if len(parts) >= 2 and parts[1] not in ("N/A", "do_not_need_map_id"):
+        if len(parts) >= 2 and parts[1] not in (
+            "N/A",
+            BAIDU_KEY_PLACEHOLDER,
+            GOOGLE_MAP_ID_PLACEHOLDER,
+            BAIDU_MAP_ID_SENTINEL,
+        ):
             return parts[1]
-        if len(parts) >= 2 and parts[1] == "do_not_need_map_id":
-            return "do_not_need_map_id"
+        if len(parts) >= 2 and parts[1] == BAIDU_MAP_ID_SENTINEL:
+            return BAIDU_MAP_ID_SENTINEL
         return ""
 
     @staticmethod
@@ -275,12 +287,12 @@ class SystemInitWizardService:
         map_id = (map_id or "").strip()
         if map_type == "Google":
             return {
-                "map_api_key": f"{map_api_key},N/A",
-                "map_id": f"{map_id},N/A",
+                "map_api_key": f"{map_api_key},{BAIDU_KEY_PLACEHOLDER}",
+                "map_id": f"{map_id},{BAIDU_MAP_ID_SENTINEL}",
             }
         return {
-            "map_api_key": f"N/A,{map_api_key}",
-            "map_id": "N/A,do_not_need_map_id",
+            "map_api_key": f"{GOOGLE_KEY_PLACEHOLDER},{map_api_key}",
+            "map_id": f"{GOOGLE_MAP_ID_PLACEHOLDER},{BAIDU_MAP_ID_SENTINEL}",
         }
 
     def get_draft(self) -> Dict[str, Any]:
@@ -683,10 +695,10 @@ class SystemInitWizardService:
         map_api_key = (map_api_key or "").strip()
         map_id = (map_id or "").strip()
 
-        if not map_api_key:
+        if not map_api_key or map_api_key in (GOOGLE_KEY_PLACEHOLDER, BAIDU_KEY_PLACEHOLDER):
             return {"success": False, "message": "Map API Key cannot be empty"}
 
-        if map_type == "Google" and not map_id:
+        if map_type == "Google" and (not map_id or map_id == GOOGLE_MAP_ID_PLACEHOLDER):
             return {"success": False, "message": "Map ID cannot be empty"}
 
         if map_type == "Baidu":
@@ -741,7 +753,11 @@ class SystemInitWizardService:
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(register_url, data=data, files=files)
             if resp.status_code not in (200, 201):
-                raise ValueError(f"Remote register failed: {resp.status_code} - {resp.text}")
+                raise httpx.HTTPStatusError(
+                    f"Remote register failed: {resp.status_code}",
+                    request=resp.request,
+                    response=resp,
+                )
             return resp.json()
 
     def submit(self, draft: Dict[str, Any], nation_id: str) -> None:
@@ -751,10 +767,14 @@ class SystemInitWizardService:
         self.system_init_repo.update(record.id, status=1)
 
         sns_record = self.ai_chat_cfg_repo.get_map_config()
+        old_api_keys = (getattr(sns_record, 'map_api_key', '') or '').split(',') if getattr(sns_record, 'map_api_key', None) else ['', '']
+        old_map_ids = (getattr(sns_record, 'map_id', '') or '').split(',') if getattr(sns_record, 'map_id', None) else ['', '']
+
+        map_type_text = draft.get("map") or record.map or "Google"
+        map_type_value = "0" if map_type_text == "Google" else "1"
+        combined = self._combine_map_values(map_type_text, draft.get("map_api_key") or "", draft.get("map_id") or "")
+
         if sns_record:
-            map_type_text = draft.get("map") or record.map or "Google"
-            map_type_value = "0" if map_type_text == "Google" else "1"
-            combined = self._combine_map_values(map_type_text, draft.get("map_api_key") or "", draft.get("map_id") or "")
             self.ai_chat_cfg_repo.update(
                 sns_record.id,
                 nationid=nation_id,
@@ -770,3 +790,25 @@ class SystemInitWizardService:
                 map_api_key=combined["map_api_key"],
                 map_id=combined["map_id"],
             )
+        else:
+            self.ai_chat_cfg_repo.create_with_id(
+                nationid=nation_id,
+                avatar=record.avatar,
+                name=record.name,
+                nationpassword=record.password,
+                sign=record.profile,
+                avatar3d=record.avatar3d,
+                account=record.account,
+                password=record.account_password,
+                sns_url=record.sns_url,
+                map_type=map_type_value,
+                map_api_key=combined["map_api_key"],
+                map_id=combined["map_id"],
+            )
+
+        try:
+            new_api_keys = combined.get("map_api_key", "").split(',') if combined.get("map_api_key") else ['', '']
+            new_map_ids = combined.get("map_id", "").split(',') if combined.get("map_id") else ['', '']
+            replace_map_config_in_files(old_api_keys, old_map_ids, new_api_keys, new_map_ids, logger)
+        except Exception as e:
+            logger.error("Failed to update local map files after init submit: %s", e)

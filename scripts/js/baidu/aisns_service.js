@@ -10,8 +10,7 @@ const layerManager = {
 
 /* 1. Ground overlay initialization */
 function initGroundOverlay() {
-    // const pStart = new BMapGL.Point(116.22749734234506, 40.00624462450565);
-    // const pEnd = new BMapGL.Point(116.24508640812037, 40.03867303424458);
+
     const pStart = new BMapGL.Point(-122.40210571869962, 37.55816843366316);
     const pEnd = new BMapGL.Point(-122.43508166111967, 37.57643015650198);
     const bounds = new BMapGL.Bounds(
@@ -317,8 +316,6 @@ function loadCubeModel(threeLayer) {
 
     const geometry = new THREE.BoxGeometry(100, 100, 100);
     const cube = new THREE.Mesh(geometry, material);
-
-    // const mcpoint = convertCoords([116.19042703542924, 39.97619992566233]);
 
     const mcpoint = convertCoords([-122.47283866789105, 37.530317234458025]);
     cube.position.set(mcpoint.lng, mcpoint.lat, 50);

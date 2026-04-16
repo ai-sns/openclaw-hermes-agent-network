@@ -21,9 +21,9 @@ import re
 
 log = logging.getLogger(__name__)
 from db.DBFactory import (query_AgentCfg, add_AIChatMessages, get_prompt_by_title, query_function_mng,
-                          add_function_mng, update_map_task, add_map_visit, get_key_value,
-                          update_map_trade, add_map_trade, add_map_tool, query_single_map_trade, update_AiChatCfg_by_user_id, update_AiChatCfg_map, query_AiChatCfg_map, add_mcp_mng, query_mcp_mng,
-                          delete_map_preset_msg, query_map_preset_msg_all, add_map_preset_msg, query_tool_list, query_single_tool, query_AiChatCfg_map_setting)
+                          add_function_mng, add_map_visit, get_key_value,
+                          update_map_trade, add_map_trade, query_single_map_trade, update_AiChatCfg_by_user_id, update_AiChatCfg_map, query_AiChatCfg_map, add_mcp_mng, query_mcp_mng,
+                          delete_map_preset_msg, query_map_preset_msg_all, add_map_preset_msg, query_AiChatCfg_map_setting)
 from util import (generate_random_id, add_memory_list)
 from i18n import lt
 from enum import Enum
@@ -210,12 +210,17 @@ class XmppMixin:
         """
         Send XMPP message via XMPPClientManager.
 
+        send_message_to_jid is now async (performs subscription check),
+        so we schedule it as a fire-and-forget coroutine on the running
+        event loop. The subscription wait (up to 30s) and actual send
+        happen asynchronously without blocking the engine.
+
         Args:
             to_jid: Receiver JID
             content: Message content
 
         Returns:
-            bool: True on success, False on failure
+            bool: True on success (task scheduled), False on failure
         """
         try:
             client = self.xmpp_manager.get_client()
@@ -223,8 +228,8 @@ class XmppMixin:
                 logger.error("XMPP client not connected")
                 return False
 
-            client.send_message_to_jid(to_jid, content)
-            logger.debug(f"XMPP message sent to {to_jid}")
+            asyncio.ensure_future(client.send_message_to_jid(to_jid, content))
+            logger.debug(f"XMPP message send scheduled for {to_jid}")
             return True
         except Exception as e:
             logger.error(f"Failed to send XMPP message to {to_jid}: {e}")

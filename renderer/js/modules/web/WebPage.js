@@ -8,6 +8,13 @@ const WebPage = {
     _lastConnectFailAt: 0,
     _lastConnectFailUrl: null,
 
+    _isAbortError(errorCode, errorDescription) {
+        if (errorCode === -3) return true;
+        const d = String(errorDescription || '');
+        if (!d) return false;
+        return d.includes('ERR_ABORTED') || d.toLowerCase().includes('aborted');
+    },
+
     _notifyConnectFailed(url) {
         const now = Date.now();
         const normalizedUrl = url || null;
@@ -58,6 +65,9 @@ const WebPage = {
                     this._loadFailedBound = true;
                     window.electronAPI.onBrowserViewLoadFailed((payload) => {
                         console.error('[WebPage] BrowserView load failed:', payload);
+                        if (payload && this._isAbortError(payload.errorCode, payload.errorDescription)) {
+                            return;
+                        }
                         this._notifyConnectFailed(payload && payload.url);
                         this.currentUrl = null;
                         const emptyState = document.getElementById('webEmptyState');
@@ -68,6 +78,9 @@ const WebPage = {
                 }
 
                 const result = await window.electronAPI.loadUrlInBrowserView(url);
+                if (result && result.canceled) {
+                    return;
+                }
                 if (result.success) {
                     this.currentUrl = url;
                     const emptyState = document.getElementById('webEmptyState');
@@ -85,6 +98,9 @@ const WebPage = {
                 }
             } catch (error) {
                 console.error('Error loading URL in BrowserView:', error);
+                if (this._isAbortError(error && error.code, error && error.message)) {
+                    return;
+                }
                 this._notifyConnectFailed(url);
                 this.currentUrl = null;
                 const emptyState = document.getElementById('webEmptyState');

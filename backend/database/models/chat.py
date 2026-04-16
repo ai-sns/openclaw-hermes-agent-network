@@ -59,24 +59,6 @@ class AIFriend(Base):
     create_time = Column(DateTime, default=datetime.now, doc="Create time")
 
 
-class AIChatInform(Base):
-    """AI chat notification model."""
-    __tablename__ = 'ai_chat_inform'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    inform_id = Column(String(50), doc="Notification ID")
-    title = Column(Text, default=None, doc="Title")
-    content = Column(Text, doc="Content")
-    type = Column(String(100), doc="Type")
-    status = Column(String(100), doc="Status")
-    owner_name = Column(String(100), doc="Owner name")
-    owner_account = Column(String(100), doc="Owner account")
-    friend_name = Column(String(100), doc="Friend name")
-    friend_account = Column(String(100), doc="Friend account")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")
-    is_delete = Column(Boolean, default=False, doc="Soft delete")
-
-
 class AiChatCfg(Base):
     """AI chat configuration model."""
     __tablename__ = 'aichat_cfg'
@@ -175,48 +157,3 @@ class AiChatCfg(Base):
     event_before_use_tool = Column(String(200), doc="Event before use tool")
     event_after_use_tool = Column(String(200), doc="Event after use tool")
     agent_id = Column(Integer, doc="Associated agent ID")
-
-
-class HumanChatCfg(Base):
-    """Human chat configuration model."""
-    __tablename__ = 'humanchat_cfg'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(String(100), doc="User ID")
-    account = Column(String(100), doc="Account")
-    password = Column(String(256), doc="Password hash")
-    nickname = Column(String(100), doc="Nickname")
-    sign = Column(String(200), doc="Signature")
-    status = Column(String(100), doc="Online status")
-    name = Column(String(200), doc="Name")
-    borndate = Column(DateTime, default=datetime.now, doc="Birth date")
-    gender = Column(Integer, doc="Gender")
-    area = Column(String(100), doc="Area")
-    city = Column(String(100), doc="City")
-    address = Column(String(200), doc="Address")
-    mail = Column(String(100), doc="Email")
-    imaccount = Column(String(100), doc="IM account")
-    phone = Column(String(100), doc="Phone")
-    organization = Column(String(200), doc="Organization")
-    title = Column(String(100), doc="Title")
-    orgposition = Column(String(100), doc="Position")
-    memo = Column(String(200), doc="Memo")
-    serveraddress = Column(String(100), doc="Server address")
-    port = Column(Integer, doc="Port")
-    ssl = Column(Boolean, doc="SSL")
-    resource = Column(String(100), doc="Resource")
-    proxyused = Column(Boolean, doc="Proxy used")
-    proxyaddress = Column(String(100), doc="Proxy address")
-    proxyport = Column(Integer, doc="Proxy port")
-    proxyssl = Column(Boolean, doc="Proxy SSL")
-    savepasswordlocal = Column(Boolean, default=True, doc="Save password locally")
-    autoconnect = Column(Boolean, default=True, doc="Auto connect")
-    sendreceipt = Column(Boolean, default=True, doc="Send receipt")
-    sendreadflag = Column(Boolean, default=True, doc="Send read flag")
-    sendchatstatus = Column(Boolean, default=True, doc="Send chat status")
-    sendgroupchatstatus = Column(Boolean, default=True, doc="Send group chat status")
-    autoaway = Column(Boolean, default=True, doc="Auto away")
-    autona = Column(Boolean, default=True, doc="Auto N/A")
-    agreeallfriendrequest = Column(Boolean, default=True, doc="Agree all friend requests")
-    is_delete = Column(Boolean, default=False, doc="Soft delete")
-    create_time = Column(DateTime, default=datetime.now, doc="Create time")

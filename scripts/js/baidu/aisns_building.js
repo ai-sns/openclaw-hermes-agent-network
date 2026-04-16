@@ -621,7 +621,7 @@ function createVideoScreen() {
     const { height: buildingHeight, depth } = BUILDING_CONFIG.dimensions;
     const { spacing } = BUILDING_CONFIG.window;
 
-    const videoScreen = new VideoScreen(width, height, 'cjrok2.webm');
+    const videoScreen = new VideoScreen(width, height, 'aisns.webm');
     videoScreen.position.set(0, buildingHeight - spacing - height / 2, depth / 2 + 0.125);
 
     return videoScreen;

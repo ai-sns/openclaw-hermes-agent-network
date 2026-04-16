@@ -1,8 +1,0 @@
-{
-	"mcpServers": {
-		"gaodemap-server": {
-			"type": "sse",
-			"url": "https://mcp.amap.com/sse?key=7fc37a76dc85ef53542b4424841686df"
-		}
-	}
-}

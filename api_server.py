@@ -22,10 +22,6 @@ os.chdir(app_directory)
 
 # Add the backend directory to sys.path
 sys.path.insert(0, str(app_directory / 'backend'))
- 
- # Ensure project root is on sys.path (required for importing agent_platform.*)
-if str(app_directory) not in sys.path:
-    sys.path.insert(0, str(app_directory))
 
 import logging
 import copy
@@ -97,7 +93,6 @@ map_router = None
 km_router = None
 system_router = None
 plugins_router = None
-wallet_router = None
 sns_router = None
 a2a_router = None
 
@@ -141,19 +136,9 @@ except Exception as e:
     logger.warning(f"⚠ Plugins module not available: {e}")
 
 try:
-    from backend.modules.wallet.router import router as wallet_router
-except Exception as e:
-    logger.warning(f"⚠ Wallet module not available: {e}")
-
-try:
     from backend.apps.sns.router import router as sns_router
 except Exception as e:
     logger.warning(f"⚠ SNS module not available: {e}")
-
-try:
-    from agent_platform.protocols.a2a.router import a2a_router
-except Exception as e:
-    logger.warning(f"⚠ A2A module not available: {e}", exc_info=True)
 
 # Load configuration
 settings = get_settings()
@@ -241,17 +226,9 @@ if plugins_router:
     app.include_router(plugins_router, prefix="/api/plugins", tags=["Plugins"])
     logger.info("✓ Plugins Module registered")
 
-if wallet_router:
-    app.include_router(wallet_router, prefix="/api/wallet", tags=["Blockchain Wallet"])
-    logger.info("✓ Wallet Module registered")
-
 if sns_router:
     app.include_router(sns_router, prefix="/api/sns", tags=["SNS"])
     logger.info("✓ SNS Module registered")
-
-if a2a_router:
-    app.include_router(a2a_router, tags=["A2A Protocol"])
-    logger.info("✓ A2A Module registered")
 
 
 @app.get("/.well-known/agent.json")
@@ -262,11 +239,6 @@ async def well_known_agent_json(
     origin = str(getattr(request, "base_url", "") or "").rstrip("/")
 
     card: dict = {}
-    try:
-        from agent_platform.protocols.a2a.router import get_agent_card as _get_agent_card
-        card = await _get_agent_card(agent_id=agent_id)
-    except Exception:
-        card = {}
 
     if not isinstance(card, dict) or not card:
         db_agent = None
@@ -330,7 +302,7 @@ async def well_known_agent_json(
     if origin:
         url_val = str(card.get("url") or "").strip()
         if (not url_val) or url_val.startswith("http://localhost:8000"):
-            card["url"] = f"{origin}/a2a"
+            card["url"] = origin
 
     return JSONResponse(content=jsonable_encoder(card))
 
@@ -866,8 +838,7 @@ async def root():
             "km": "Knowledge management module",
             "system": "System configuration module",
             "plugins": "Plugin management module",
-            "tools": "Tools management module (Plugins, MCP, Functions, Skills)",
-            "wallet": "Blockchain wallet module"
+            "tools": "Tools management module (Plugins, MCP, Functions, Skills)"
         },
         "endpoints": {
             "health": "GET /health - Health check endpoint",
@@ -920,7 +891,6 @@ async def startup_event():
     logger.info("  - System Module")
     logger.info("  - Plugins Module")
     logger.info("  - Tools Module")
-    logger.info("  - Wallet Module")
     logger.info("  - SNS Module")
     logger.info("="*60)
 

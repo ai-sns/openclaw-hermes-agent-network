@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy import desc, asc, or_, func
 from sqlalchemy.orm import aliased
 from .base import BaseRepository
-from ..models.chat import AIChatMessages, AIFriend, AIChatInform, AiChatCfg, HumanChatCfg
+from ..models.chat import AIChatMessages, AIFriend, AiChatCfg
 from backend.config.database import get_db_session as get_session
 
 
@@ -268,13 +268,6 @@ class AIFriendRepository(BaseRepository[AIFriend]):
         self.update_by_filter(filters, **kwargs)
 
 
-class AIChatInformRepository(BaseRepository[AIChatInform]):
-    """AI chat notification repository."""
-
-    def __init__(self):
-        super().__init__(AIChatInform)
-
-
 class AiChatCfgRepository(BaseRepository[AiChatCfg]):
     """AI chat configuration repository."""
 
@@ -384,10 +377,3 @@ class AiChatCfgRepository(BaseRepository[AiChatCfg]):
                 for key, value in kwargs.items():
                     setattr(record, key, value)
         db_write(_do, description="repo_update_map_config")
-
-
-class HumanChatCfgRepository(BaseRepository[HumanChatCfg]):
-    """Human chat configuration repository."""
-
-    def __init__(self):
-        super().__init__(HumanChatCfg)

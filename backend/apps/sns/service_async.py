@@ -20,6 +20,14 @@ from backend.database.models.system import Prompt
 from backend.database.models.system import SystemCfg
 from backend.apps.sns.xmpp_client import XMPPClientManager
 from backend.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+
+from backend.modules.map.file_replace import (
+    GOOGLE_KEY_PLACEHOLDER,
+    BAIDU_KEY_PLACEHOLDER,
+    GOOGLE_MAP_ID_PLACEHOLDER,
+    BAIDU_MAP_ID_SENTINEL,
+    replace_map_config_in_files,
+)
 from backend.config.database import get_db_sync
 from backend.shared.websocket_manager import manager as websocket_manager
 
@@ -439,7 +447,7 @@ class SNSService:
                     "message": "XMPP client not connected"
                 }
 
-            client.send_message_to_jid(to_account, content)
+            await client.send_message_to_jid(to_account, content)
             stored_content = format_internal_xmpp_message_for_storage(content)
 
             stmt = select(AiChatCfg).where(AiChatCfg.is_delete == False)
@@ -1481,7 +1489,7 @@ class SNSService:
                         if hasattr(rec, key):
                             setattr(rec, key, value)
             await db_write_async(_update_cfg, description="service_async_update_ai_chat_config")
-            await self.db.expire_all()
+            self.db.expire_all()
             result2 = await self.db.execute(stmt)
             config = result2.scalars().first()
 
@@ -2464,7 +2472,6 @@ class SNSService:
 
     async def update_map_config(self, data: dict):
         """Update map configuration in aichat_cfg and replace in files"""
-        import re
         import json
 
         try:
@@ -2479,14 +2486,25 @@ class SNSService:
             old_map_ids = config.map_id.split(',') if config.map_id else ['', '']
             old_map_type = config.map_type
 
-            google_api_key = data.get('google_api_key', 'N/A')
-            google_map_id = data.get('google_map_id', 'N/A')
-            baidu_api_key = data.get('baidu_api_key', 'N/A')
-            baidu_map_id = data.get('baidu_map_id', 'N/A')
-            map_type = data.get('map_type', '0')
+            map_type = str(data.get('map_type', '0')).strip() or '0'
+            google_api_key = str(data.get('google_api_key', '') or '').strip()
+            google_map_id = str(data.get('google_map_id', '') or '').strip()
+            baidu_api_key = str(data.get('baidu_api_key', '') or '').strip()
 
-            map_api_key = f"{google_api_key},{baidu_api_key}"
-            map_id = f"{google_map_id},{baidu_map_id}"
+            if map_type == '0':
+                if (not google_api_key) or google_api_key == GOOGLE_KEY_PLACEHOLDER:
+                    return {"success": False, "message": "Google Maps API key is required."}
+                if (not google_map_id) or google_map_id == GOOGLE_MAP_ID_PLACEHOLDER:
+                    return {"success": False, "message": "Google map ID is required."}
+
+                map_api_key = f"{google_api_key},{BAIDU_KEY_PLACEHOLDER}"
+                map_id = f"{google_map_id},{BAIDU_MAP_ID_SENTINEL}"
+            else:
+                if (not baidu_api_key) or baidu_api_key == BAIDU_KEY_PLACEHOLDER:
+                    return {"success": False, "message": "Baidu Maps API key is required."}
+
+                map_api_key = f"{GOOGLE_KEY_PLACEHOLDER},{baidu_api_key}"
+                map_id = f"{GOOGLE_MAP_ID_PLACEHOLDER},{BAIDU_MAP_ID_SENTINEL}"
 
             map_type_changing = (old_map_type != map_type)
 
@@ -2557,11 +2575,16 @@ class SNSService:
                         setattr(rec, k, v)
             await db_write_async(_update_map, description="service_async_update_map_config")
 
-            self._replace_map_config_in_files(
-                old_api_keys, old_map_ids,
-                [google_api_key, baidu_api_key],
-                [google_map_id, baidu_map_id]
-            )
+            try:
+                replace_map_config_in_files(
+                    old_api_keys,
+                    old_map_ids,
+                    map_api_key.split(',') if map_api_key else ['', ''],
+                    map_id.split(',') if map_id else ['', ''],
+                    logger,
+                )
+            except Exception as e:
+                logger.error("Failed to update local map files: %s", e)
 
             return {"success": True, "message": "Map config updated successfully"}
         except Exception as e:
@@ -2569,66 +2592,8 @@ class SNSService:
             return {"success": False, "message": str(e)}
 
     def _replace_map_config_in_files(self, old_api_keys, old_map_ids, new_api_keys, new_map_ids):
-        """Replace map configuration in HTML/JS files"""
-        import re
-
-        def replace_in_file(filepath, replacements):
-            if not os.path.exists(filepath):
-                logger.warning(f"File not found: {filepath}")
-                return False
-
-            try:
-                with open(filepath, "r", encoding="utf-8") as f:
-                    content = f.read()
-
-                original_content = content
-
-                for old_value, new_value in replacements.items():
-                    if not old_value or old_value == new_value or old_value == "N/A" or not new_value or new_value == "N/A":
-                        continue
-
-                    patterns = []
-                    if 'googlemap' in filepath or 'google' in filepath:
-                        patterns.append((
-                            r'(maps\.googleapis\.com/maps/api/js\?[^"\']*key=)' + re.escape(old_value),
-                            r'\1' + new_value
-                        ))
-                        patterns.append((
-                            r'(mapId:\s*["\'])' + re.escape(old_value) + r'(["\'])',
-                            r'\1' + new_value + r'\2'
-                        ))
-                    elif 'map.html' in filepath or 'baidu' in filepath:
-                        patterns.append((
-                            r'(api\.map\.baidu\.com/api\?[^"\']*ak=)' + re.escape(old_value),
-                            r'\1' + new_value
-                        ))
-
-                    for pattern, replacement in patterns:
-                        content = re.sub(pattern, replacement, content)
-
-                if content != original_content:
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        f.write(content)
-                    logger.info(f"Updated file: {filepath}")
-
-                return True
-            except Exception as e:
-                logger.error(f"Error replacing in file {filepath}: {e}")
-                return False
-
-        if new_api_keys[0] != 'N/A' or new_map_ids[0] != 'N/A':
-            google_replacements = {
-                old_api_keys[0]: new_api_keys[0],
-                old_map_ids[0]: new_map_ids[0],
-            }
-            replace_in_file("scripts/googlemap3d.html", google_replacements)
-            replace_in_file("scripts/js/google/map_common.js", google_replacements)
-
-        if new_api_keys[1] != 'N/A':
-            baidu_replacements = {
-                old_api_keys[1]: new_api_keys[1],
-            }
-            replace_in_file("scripts/map.html", baidu_replacements)
+        """Backward compatible wrapper."""
+        replace_map_config_in_files(old_api_keys, old_map_ids, new_api_keys, new_map_ids, logger)
 
     async def get_model_info(self):
         """

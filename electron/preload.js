@@ -194,14 +194,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
 
 
-    // Map configuration
-
-    loadMapSetting: () => ipcRenderer.invoke('load-map-setting'),
-
-    saveMapSetting: (setting) => ipcRenderer.invoke('save-map-setting', setting),
-
-
-
     // Map chat
 
     sendMapChatMessage: (from, to, msg) => {

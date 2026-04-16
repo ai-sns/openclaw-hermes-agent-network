@@ -66,15 +66,6 @@ class RateLimitConfig:
 
 
 @dataclass
-class BlockchainConfig:
-    """Blockchain configuration"""
-    network: str = "sepolia"
-    infura_api_key: str = ""
-    private_key: str = ""
-    escrow_contract_address: str = ""
-
-
-@dataclass
 class StorageConfig:
     """File storage configuration"""
     upload_dir: str = field(default_factory=lambda: os.path.join(
@@ -118,7 +109,6 @@ class Settings:
         self.server = self._load_server_config()
         self.security = self._load_security_config()
         self.rate_limit = self._load_rate_limit_config()
-        self.blockchain = self._load_blockchain_config()
         self.storage = self._load_storage_config()
         self.tools = self._load_tools_config()
 
@@ -202,17 +192,6 @@ class Settings:
 
         config.default_limit = int(os.environ.get('RATE_LIMIT', str(config.default_limit)))
         config.window_seconds = int(os.environ.get('RATE_LIMIT_WINDOW', str(config.window_seconds)))
-
-        return config
-
-    def _load_blockchain_config(self) -> BlockchainConfig:
-        """Load blockchain configuration"""
-        config = BlockchainConfig()
-
-        config.network = os.environ.get('BLOCKCHAIN_NETWORK', config.network)
-        config.infura_api_key = os.environ.get('INFURA_API_KEY', config.infura_api_key)
-        config.private_key = os.environ.get('BLOCKCHAIN_PRIVATE_KEY', config.private_key)
-        config.escrow_contract_address = os.environ.get('ESCROW_CONTRACT_ADDRESS', config.escrow_contract_address)
 
         return config
 

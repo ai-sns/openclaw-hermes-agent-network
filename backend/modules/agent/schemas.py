@@ -62,9 +62,6 @@ class AgentConfig(BaseModel):
     documentation_url: Optional[str] = ""
     icon_url: Optional[str] = ""
 
-    # Blockchain Wallet
-    wallet_address: Optional[str] = ""  # Ethereum wallet address
-
     # Status
     is_active: Optional[bool] = True
 
@@ -83,7 +80,6 @@ class AgentResponse(BaseModel):
     model_config_id: Optional[str] = None
     role_id: Optional[str] = None
     url: Optional[str] = ""
-    wallet_address: Optional[str] = ""
     is_active: Optional[bool] = True
 
 
@@ -137,9 +133,6 @@ class AgentUpdateConfig(BaseModel):
     # Documentation
     documentation_url: Optional[str] = None
     icon_url: Optional[str] = None
-
-    # Blockchain Wallet
-    wallet_address: Optional[str] = None
 
     # Status
     is_active: Optional[bool] = None

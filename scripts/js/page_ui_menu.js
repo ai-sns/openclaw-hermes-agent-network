@@ -748,7 +748,7 @@ function findHim() {
         user_current_point = getPersonPointByNationId(nation_id_me);
     } else {
         console.error("nation_id_me is undefined or invalid");
-        user_current_point = new BMapGL.Point(116.397428, 39.90923); // Fallback to default location
+        user_current_point = new BMapGL.Point(-121.88947550295555, 37.33200027587634); // Fallback to default location
     }
 
     // Auto-compat for Baidu (properties) and Google (methods)

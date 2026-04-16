@@ -1019,7 +1019,7 @@ function toggleTrack() {
                 const useEl = icon.querySelector('use');
                 const href = (typeof window !== 'undefined' && window && typeof window.__getUiIconHref === 'function')
                     ? window.__getUiIconHref(iconName)
-                    : `mapIcons/menu-icons.svg#icon-${iconName}`;
+                    : null;
                 useEl && useEl.setAttribute('href', href);
                 return;
             }

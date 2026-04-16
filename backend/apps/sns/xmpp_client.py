@@ -2,7 +2,7 @@
 import logging
 import asyncio
 import slixmpp
-from typing import Optional
+from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from backend.config.database import get_db_sync
 from backend.database.models.chat import AiChatCfg, AIFriend, AIChatMessages
@@ -24,6 +24,7 @@ class XMPPClient(slixmpp.ClientXMPP):
         self.add_event_handler("message", self.on_message)
         self.add_event_handler("presence_subscribe", self.on_presence_subscribe)
         self.add_event_handler("roster_update", self.on_roster_update)
+        self.add_event_handler("presence_subscribed", self.on_presence_subscribed)
         self.add_event_handler("disconnected", self.on_disconnected)
         self.add_event_handler("connection_failed", self.on_connection_failed)
 
@@ -31,6 +32,12 @@ class XMPPClient(slixmpp.ClientXMPP):
         self.register_plugin('xep_0030')  # Service Discovery
         self.register_plugin('xep_0199', {'keepalive': False})  # XMPP Ping (we manage our own heartbeat)
         self.register_plugin('xep_0363')  # HTTP File Upload
+
+        # Subscription waiter infrastructure
+        self._subscription_waiters: Dict[str, asyncio.Event] = {}
+
+        self._roster_cleanup_task: Optional[asyncio.Task] = None
+        self._last_roster_dump_ts: float = 0.0
 
         # Heartbeat configuration
         self.heartbeat_interval = 30  # seconds between pings
@@ -45,6 +52,12 @@ class XMPPClient(slixmpp.ClientXMPP):
         self.send_presence()
         await self.get_roster()
 
+        try:
+            if self._roster_cleanup_task is None or self._roster_cleanup_task.done():
+                self._roster_cleanup_task = asyncio.create_task(self._delayed_roster_cleanup())
+        except Exception as e:
+            logger.error(f"Failed to schedule roster cleanup task: {e}")
+
         # Reset reconnect backoff on successful session
         try:
             manager = XMPPClientManager.get_instance()
@@ -54,6 +67,185 @@ class XMPPClient(slixmpp.ClientXMPP):
 
         # Start heartbeat
         self.heartbeat_task = asyncio.create_task(self.heartbeat())
+
+    async def _delayed_roster_cleanup(self):
+        try:
+            await asyncio.sleep(20)
+            await self.cleanup_roster_if_needed(max_contacts=250)
+        except asyncio.CancelledError:
+            return
+        except Exception as e:
+            logger.error(f"Roster cleanup task crashed: {e}")
+
+    def _find_roster_item(self, bare_jid: str):
+        try:
+            for k in self.client_roster.keys():
+                if str(k).split('/')[0] == bare_jid:
+                    try:
+                        return self.client_roster[k]
+                    except Exception:
+                        return None
+        except Exception:
+            return None
+        return None
+
+    @staticmethod
+    def _read_roster_field(item, field: str, default=None):
+        """Read a field from a roster item using bracket access first.
+
+        slixmpp RosterItem exposes state via __getitem__ (bracket access),
+        NOT via .get() or getattr(). Plain dicts work with all three.
+        """
+        if item is None:
+            return default
+        # 1) bracket access – works for both slixmpp RosterItem and plain dict
+        try:
+            val = item[field]
+            if val is not None:
+                return val
+        except (KeyError, TypeError, IndexError):
+            pass
+        # 2) .get() – works for plain dicts
+        try:
+            val = item.get(field)
+            if val is not None:
+                return val
+        except (AttributeError, TypeError):
+            pass
+        # 3) getattr – last resort
+        try:
+            val = getattr(item, field, None)
+            if val is not None:
+                return val
+        except Exception:
+            pass
+        return default
+
+    def _get_roster_jids(self):
+        jids = set()
+        try:
+            groups = self.client_roster.groups()
+            for group in groups:
+                for jid in groups[group]:
+                    bare = str(jid).split('/')[0]
+                    if bare and bare != self.jid_str:
+                        jids.add(bare)
+        except Exception:
+            pass
+
+        if not jids:
+            try:
+                for jid in self.client_roster.keys():
+                    bare = str(jid).split('/')[0]
+                    if bare and bare != self.jid_str:
+                        jids.add(bare)
+            except Exception:
+                pass
+
+        return list(jids)
+
+    async def cleanup_roster_if_needed(self, max_contacts: int = 250):
+        jids = self._get_roster_jids()
+        roster_size = len(jids)
+
+        if roster_size <= max_contacts:
+            logger.info(f"Roster cleanup skipped: roster_size={roster_size} <= max_contacts={max_contacts}")
+            return
+
+        remove_count = roster_size - max_contacts
+        logger.info(
+            "Roster cleanup starting: roster_size=%s, max_contacts=%s, remove_count=%s",
+            roster_size,
+            max_contacts,
+            remove_count,
+        )
+
+        activity_map: Dict[str, Optional[object]] = {}
+        try:
+            config = self.db.query(AiChatCfg).filter(
+                AiChatCfg.is_delete == False
+            ).first()
+            owner = config.account if config else None
+
+            if owner:
+                friends = self.db.query(AIFriend).filter(
+                    AIFriend.owner_sns_account == owner,
+                    AIFriend.account.in_(jids),
+                ).all()
+                for f in friends:
+                    activity_map[f.account] = f.last_message_time
+        except Exception as e:
+            logger.error(f"Roster cleanup failed to read activity from DB: {e}")
+
+        def _activity_key(jid: str):
+            ts = activity_map.get(jid)
+            if ts is None:
+                return 0
+            try:
+                return ts.timestamp()
+            except Exception:
+                return 0
+
+        candidates = sorted(jids, key=_activity_key)
+        to_remove = candidates[:remove_count]
+
+        removed = 0
+        failed = 0
+        for idx, jid in enumerate(to_remove, start=1):
+            try:
+                try:
+                    self.del_roster_item(jid)
+                except Exception:
+                    iq = self.Iq()
+                    iq['type'] = 'set'
+                    query = slixmpp.xmlstream.ET.Element('{jabber:iq:roster}query')
+                    item = slixmpp.xmlstream.ET.Element('item', {'jid': jid, 'subscription': 'remove'})
+                    query.append(item)
+                    iq.xml.append(query)
+                    iq.send(now=True)
+
+                self.send_presence(pto=jid, ptype='unsubscribe')
+                self.send_presence(pto=jid, ptype='unsubscribed')
+
+                try:
+                    from db.write_queue import db_write
+
+                    _jid = jid
+
+                    def _set_none(session):
+                        try:
+                            cfg = session.query(AiChatCfg).filter(
+                                AiChatCfg.is_delete == False
+                            ).first()
+                            if not cfg:
+                                return
+                            friend = session.query(AIFriend).filter(
+                                AIFriend.owner_sns_account == cfg.account,
+                                AIFriend.account == _jid,
+                            ).first()
+                            if friend:
+                                friend.subscription = 'none'
+                        except Exception:
+                            return
+
+                    db_write(_set_none, description="xmpp_client_roster_cleanup")
+                except Exception as e:
+                    logger.error(f"Roster cleanup failed to update DB for {jid}: {e}")
+
+                removed += 1
+            except Exception as e:
+                failed += 1
+                logger.error(f"Roster cleanup failed for {jid}: {e}")
+
+            if (idx % 10) == 0:
+                await asyncio.sleep(0)
+
+        logger.info(
+            "Roster cleanup finished: attempted=%s removed=%s failed=%s",
+            len(to_remove),
+            removed,
+            failed,
+        )
 
     async def on_message(self, msg):
         """Handle incoming messages"""
@@ -173,22 +365,53 @@ class XMPPClient(slixmpp.ClientXMPP):
             logger.error(f"Error broadcasting message: {e}")
 
     async def on_presence_subscribe(self, presence):
-        """Handle subscription requests"""
-        from_jid = str(presence['from'])
+        """Handle incoming subscription requests: accept and reciprocate immediately."""
+        from_jid = str(presence['from']).split('/')[0]
         logger.info(f"Subscription request from {from_jid}")
 
-        # Auto-accept subscription requests
+        # Always accept the inbound subscription request.
         self.send_presence(pto=from_jid, ptype='subscribed')
-        self.send_presence(pto=from_jid, ptype='subscribe')
+
+        # Reciprocate only if we are not already subscribed to them.
+        # This avoids potential subscribe ping-pong when both sides auto-reciprocate.
+        current_sub = None
+        try:
+            roster_item = self._find_roster_item(from_jid)
+            current_sub = self._read_roster_field(roster_item, 'subscription')
+        except Exception:
+            current_sub = None
+
+        if (current_sub or '').strip() not in ('to', 'both'):
+            self.send_presence(pto=from_jid, ptype='subscribe')
+
+        # Sync roster to DB and notify waiters
+        try:
+            self.update_roster_local(from_jid)
+            self._notify_subscription_waiters(from_jid)
+        except Exception as e:
+            logger.error(f"Error syncing roster after subscribe from {from_jid}: {e}")
+
+    async def on_presence_subscribed(self, presence):
+        """Handle acknowledgement that our subscription request was accepted."""
+        from_jid = str(presence['from']).split('/')[0]
+        logger.info(f"Subscription accepted by {from_jid}")
+
+        # Sync roster to DB and notify waiters
+        try:
+            self.update_roster_local(from_jid)
+            self._notify_subscription_waiters(from_jid)
+        except Exception as e:
+            logger.error(f"Error syncing roster after subscribed from {from_jid}: {e}")
 
     async def on_roster_update(self, event):
-        """Handle roster updates"""
+        """Handle roster updates and notify subscription waiters."""
         logger.info("Roster updated")
         groups = self.client_roster.groups()
 
         for group in groups:
             for jid in groups[group]:
                 self.update_roster_local(jid)
+                self._notify_subscription_waiters(str(jid).split('/')[0])
 
     def update_roster_local(self, jid: str):
         """Update local database with roster information"""
@@ -200,20 +423,18 @@ class XMPPClient(slixmpp.ClientXMPP):
             return
 
         try:
-            roster_item = self.client_roster[jid]
-            account = jid
+            account = str(jid).split('/')[0]
+            roster_item = self._find_roster_item(account)
+            if roster_item is None:
+                roster_item = self.client_roster[jid]
 
-            # Handle both dict and object access patterns for RosterItem
-            if isinstance(roster_item, dict):
-                nick_name = roster_item.get('name', jid) or jid
-                groups = ','.join(roster_item.get('groups', set())) if roster_item.get('groups') else ""
-                subscription = roster_item.get('subscription', 'none') or 'none'
+            nick_name = self._read_roster_field(roster_item, 'name', jid) or jid
+            raw_groups = self._read_roster_field(roster_item, 'groups')
+            if isinstance(raw_groups, (set, list, tuple)):
+                groups = ','.join([str(g) for g in raw_groups]) if raw_groups else ""
             else:
-                # Access as object attributes
-                nick_name = getattr(roster_item, 'name', jid) or jid
-                groups_set = getattr(roster_item, 'groups', set())
-                groups = ','.join(groups_set) if groups_set else ""
-                subscription = getattr(roster_item, 'subscription', 'none') or 'none'
+                groups = str(raw_groups) if raw_groups else ""
+            subscription = self._read_roster_field(roster_item, 'subscription', 'none') or 'none'
 
             config = self.db.query(AiChatCfg).filter(
                 AiChatCfg.is_delete == False
@@ -291,8 +512,9 @@ class XMPPClient(slixmpp.ClientXMPP):
                         pass
                     return
 
-    def send_message_to_jid(self, to_jid: str, content: str):
-        """Send a message"""
+    async def send_message_to_jid(self, to_jid: str, content: str):
+        """Send a message after ensuring mutual subscription."""
+        await self.ensure_mutual_subscription(to_jid)
         self.send_presence()
         self.send_message(
             mto=to_jid,
@@ -302,6 +524,7 @@ class XMPPClient(slixmpp.ClientXMPP):
 
     async def upload_and_send_file(self, to_jid: str, file_path: str, filename: str):
         """Upload file via XEP-0363 and send URL to recipient"""
+        await self.ensure_mutual_subscription(to_jid)
         try:
             import os
             import mimetypes
@@ -321,14 +544,188 @@ class XMPPClient(slixmpp.ClientXMPP):
                     input_file=file_handle
                 )
 
-            # Send URL to recipient
+            # Send URL to recipient (subscription already ensured above)
             file_message = f"📎 File: {filename}\n{url}"
-            self.send_message_to_jid(to_jid, file_message)
+            self.send_presence()
+            self.send_message(
+                mto=to_jid,
+                mbody=file_message,
+                mtype='chat'
+            )
 
             return url
         except Exception as e:
             logger.error(f"Error uploading file via XEP-0363: {e}")
             raise
+
+    async def ensure_mutual_subscription(self, to_jid: str, timeout: float = 30.0) -> bool:
+        """Ensure mutual subscription with the target JID before sending.
+
+        Checks DB for subscription=='both'. If not, sends subscribe +
+        subscribed stanzas and waits up to *timeout* seconds for the
+        remote side to reciprocate. Returns True if mutual subscription
+        is confirmed, False on timeout (caller should still send).
+        """
+        bare_jid = str(to_jid).split('/')[0]
+        try:
+            # Prefer in-memory roster state when available.
+            # DB may lag behind roster updates (e.g. due to async write queue).
+            try:
+                roster_item = self._find_roster_item(bare_jid)
+                roster_sub = (str(self._read_roster_field(roster_item, 'subscription') or '')).strip()
+                if roster_sub == 'both':
+                    try:
+                        self.update_roster_local(bare_jid)
+                    except Exception:
+                        pass
+                    return True
+            except Exception:
+                pass
+
+            sub = self._get_subscription_from_db(bare_jid)
+            if sub == 'both':
+                return True
+
+            logger.info(f"Subscription with {bare_jid} is '{sub}', requesting mutual subscription")
+            try:
+                self._dump_roster_to_logs(reason=f"ensure_mutual_subscription:{bare_jid}:{sub}")
+            except Exception:
+                pass
+            self.send_presence(pto=bare_jid, ptype='subscribe')
+
+            event = self._subscription_waiters.get(bare_jid)
+            if event is None:
+                event = asyncio.Event()
+                self._subscription_waiters[bare_jid] = event
+
+            try:
+                await asyncio.wait_for(event.wait(), timeout=timeout)
+                logger.info(f"Mutual subscription established with {bare_jid}")
+                return True
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Subscription wait timed out after {timeout}s for {bare_jid}, proceeding anyway"
+                )
+                return False
+            finally:
+                self._subscription_waiters.pop(bare_jid, None)
+        except Exception as e:
+            logger.error(f"Error in ensure_mutual_subscription for {bare_jid}: {e}")
+            self._subscription_waiters.pop(bare_jid, None)
+            return False
+
+    def _get_subscription_from_db(self, bare_jid: str) -> str:
+        """Read the subscription field for a JID from the ai_friend table."""
+        try:
+            try:
+                self.db.expire_all()
+            except Exception:
+                pass
+            config = self.db.query(AiChatCfg).filter(
+                AiChatCfg.is_delete == False
+            ).first()
+            if not config:
+                return 'none'
+            friend = self.db.query(AIFriend).filter(
+                AIFriend.account == bare_jid,
+                AIFriend.owner_sns_account == config.account,
+                AIFriend.is_delete == False,
+            ).first()
+            if friend:
+                return (friend.subscription or 'none').strip()
+            return 'none'
+        except Exception as e:
+            logger.error(f"Error reading subscription from DB for {bare_jid}: {e}")
+            return 'none'
+
+    def _notify_subscription_waiters(self, bare_jid: str):
+        """If a waiter exists for the given JID and subscription is now 'both', signal it."""
+        bare_jid = str(bare_jid).split('/')[0]
+        event = self._subscription_waiters.get(bare_jid)
+        if event is None:
+            return
+        try:
+            sub = self._get_subscription_from_db(bare_jid)
+            if sub == 'both':
+                event.set()
+                logger.info(f"Subscription waiter notified for {bare_jid} (now 'both')")
+        except Exception as e:
+            logger.error(f"Error notifying subscription waiter for {bare_jid}: {e}")
+
+    def _dump_roster_to_logs(self, reason: str = ""):
+        now = 0.0
+        try:
+            import time
+
+            now = time.time()
+        except Exception:
+            now = 0.0
+
+        # Throttle full roster dumps to avoid excessive log spam.
+        # This is diagnostic-only and should not impact service performance.
+        if now and (now - (self._last_roster_dump_ts or 0.0)) < 60.0:
+            return
+
+        self._last_roster_dump_ts = now or 0.0
+
+        try:
+            roster_keys = []
+            try:
+                roster_keys = list(self.client_roster.keys())
+            except Exception:
+                roster_keys = []
+
+            logger.info(
+                "XMPP roster dump start (reason=%s, jid=%s, items=%s)",
+                reason or "",
+                self.jid_str,
+                len(roster_keys),
+            )
+
+            for jid in roster_keys:
+                bare = str(jid).split('/')[0]
+                if not bare or bare == self.jid_str:
+                    continue
+                try:
+                    item = self.client_roster[jid]
+                except Exception as e:
+                    logger.info("XMPP roster item jid=%s error=%s", bare, e)
+                    continue
+
+                try:
+                    name = self._read_roster_field(item, 'name')
+                    subscription = self._read_roster_field(item, 'subscription')
+                    ask = self._read_roster_field(item, 'ask')
+                    approved = self._read_roster_field(item, 'approved')
+                    groups = self._read_roster_field(item, 'groups')
+
+                    groups_str = None
+                    try:
+                        if isinstance(groups, (set, list, tuple)):
+                            groups_str = ','.join([str(g) for g in groups])
+                        elif groups is None:
+                            groups_str = ''
+                        else:
+                            groups_str = str(groups)
+                    except Exception:
+                        groups_str = ''
+
+                    logger.info(
+                        "XMPP roster item jid=%s subscription=%s ask=%s approved=%s name=%s groups=%s raw=%s",
+                        bare,
+                        (str(subscription) if subscription is not None else ''),
+                        (str(ask) if ask is not None else ''),
+                        (str(approved) if approved is not None else ''),
+                        (str(name) if name is not None else ''),
+                        groups_str,
+                        repr(item),
+                    )
+                except Exception as e:
+                    logger.info("XMPP roster item jid=%s parse_error=%s raw=%s", bare, e, repr(item))
+
+            logger.info("XMPP roster dump end (reason=%s)", reason or "")
+        except Exception as e:
+            logger.error(f"XMPP roster dump failed: {e}")
 
     def is_client_connected(self) -> bool:
         """Check if client is connected"""

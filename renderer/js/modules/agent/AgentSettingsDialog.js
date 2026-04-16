@@ -1,6 +1,6 @@
 /**
  * Agent Settings Dialog
- * Agent settings dialog - supports Google A2A protocol and blockchain wallet
+ * Agent settings dialog - supports Google A2A protocol
  */
 
 const AgentSettingsDialog = {
@@ -47,9 +47,6 @@ const AgentSettingsDialog = {
 
         // Generate a unique ID to ensure elements are unique per instance
         this.formId = 'agent-settings-form-' + Date.now();
-        const basicTabId = this.formId + '-basic';
-        const a2aTabId = this.formId + '-a2a';
-        const walletTabId = this.formId + '-wallet';
 
         const content = this.renderDialogContent(agent);
 
@@ -110,7 +107,6 @@ const AgentSettingsDialog = {
             provider_url: 'https://ai-sns.com',
             documentation_url: '',
             icon_url: '',
-            wallet_address: '',
             capabilities: {
                 streaming: true,
                 pushNotifications: true,
@@ -122,7 +118,6 @@ const AgentSettingsDialog = {
 
         const basicTabId = this.formId + '-basic';
         const a2aTabId = this.formId + '-a2a';
-        const walletTabId = this.formId + '-wallet';
 
         const isEdit = agent !== null;
         const agentType = (data.agent_type || 'local').toLowerCase();
@@ -134,7 +129,6 @@ const AgentSettingsDialog = {
                 <div class="settings-tabs">
                     <button class="settings-tab-btn active" data-tab="basic" data-target="${basicTabId}">Basic Information</button>
                     <button class="settings-tab-btn" data-tab="a2a" data-target="${a2aTabId}">A2A Protocol</button>
-                    <button class="settings-tab-btn" data-tab="wallet" data-target="${walletTabId}">Blockchain Wallet</button>
                 </div>
 
                 <!-- Basic Information tab -->
@@ -316,43 +310,6 @@ const AgentSettingsDialog = {
                         </div>
                     </div>
                 </div>
-
-                <!-- Blockchain Wallet tab -->
-                <div class="settings-tab-pane agent-local-only" id="${walletTabId}" data-tab="wallet">
-                    <div class="dialog-section">
-                        <h4>Wallet Management</h4>
-                        <div class="form-group">
-                            <label>Wallet Address</label>
-                            <div class="input-with-buttons">
-                                <input type="text" class="form-input" id="agentWalletAddress" value="${this.escapeHtml(data.wallet_address || '')}" placeholder="0x..." readonly>
-                                <button type="button" class="btn-secondary" id="createWalletBtn">Create New Wallet</button>
-                                <button type="button" class="btn-secondary" id="importWalletBtn">Import Wallet</button>
-                            </div>
-                            <small class="form-hint">Ethereum wallet address for blockchain transactions and identity verification</small>
-                        </div>
-                    </div>
-
-                    <div id="walletInfo" class="wallet-info" style="display: none;">
-                        <div class="info-card">
-                            <h4>Wallet Information</h4>
-                            <div class="info-row">
-                                <span class="info-label">Address:</span>
-                                <span class="info-value" id="walletAddressDisplay"></span>
-                            </div>
-                            <div class="info-row">
-                                <span class="info-label">Public Key:</span>
-                                <span class="info-value" id="walletPublicKey"></span>
-                            </div>
-                            <div class="info-row" id="walletPrivateKeyRow" style="display: none;">
-                                <span class="info-label">Private Key:</span>
-                                <span class="info-value warning" id="walletPrivateKey"></span>
-                            </div>
-                            <div class="warning-box" id="privateKeyWarning" style="display: none;">
-                                ⚠️ Please save the private key securely! Losing the private key will result in an unrecoverable wallet.
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
         `;
     },
@@ -397,9 +354,6 @@ const AgentSettingsDialog = {
             console.error('Tabs container not found');
         }
 
-        // Wallet button events (handled the same way)
-        this.bindWalletButtons();
-
         const agentTypeEl = form.querySelector('#agentType');
         if (agentTypeEl) {
             if (this._agentTypeChangeHandler) {
@@ -440,20 +394,6 @@ const AgentSettingsDialog = {
         form.querySelectorAll('.agent-remote-only').forEach(el => {
             el.style.display = isRemote ? '' : 'none';
         });
-
-        // Hide wallet tab button in remote mode
-        const walletTabBtn = form.querySelector('.settings-tab-btn[data-tab="wallet"]');
-        if (walletTabBtn) {
-            walletTabBtn.style.display = isRemote ? 'none' : '';
-        }
-
-        // If current tab is wallet while remote, switch back to basic
-        if (isRemote) {
-            const activeBtn = form.querySelector('.settings-tab-btn.active');
-            if (activeBtn && activeBtn.dataset.tab === 'wallet') {
-                this.switchTab('basic');
-            }
-        }
     },
 
     applyFrameworkVisibility() {
@@ -475,39 +415,6 @@ const AgentSettingsDialog = {
 
         const framework = String(frameworkEl.value || '');
         otherGroup.style.display = framework === 'Other' ? '' : 'none';
-    },
-
-    /**
-     * Bind wallet button events
-     */
-    bindWalletButtons() {
-        // Get current instance container
-        const form = document.getElementById(this.formId);
-        if (!form) {
-            console.error('Form container not found for wallet buttons');
-            return;
-        }
-
-        const createBtn = form.querySelector('#createWalletBtn');
-        const importBtn = form.querySelector('#importWalletBtn');
-
-        if (createBtn) {
-            if (this._createWalletHandler) {
-                createBtn.removeEventListener('click', this._createWalletHandler);
-            }
-            this._createWalletHandler = () => this.createWallet();
-            createBtn.addEventListener('click', this._createWalletHandler);
-        }
-
-        if (importBtn) {
-            if (this._importWalletHandler) {
-                importBtn.removeEventListener('click', this._importWalletHandler);
-            }
-            this._importWalletHandler = () => this.importWallet();
-            importBtn.addEventListener('click', this._importWalletHandler);
-        }
-
-        console.log('Wallet button events bound successfully');
     },
 
     /**
@@ -579,142 +486,6 @@ const AgentSettingsDialog = {
 
         // Activate current button
         tabBtn.classList.add('active');
-    },
-
-    /**
-     * Create wallet
-     */
-    async createWallet() {
-        try {
-            const response = await fetch(this.resolve('/api/wallet/create'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ label: 'Agent Wallet' })
-            });
-
-            const result = await response.json();
-
-            if (result.success && result.data) {
-                const wallet = result.data;
-
-                // Update wallet address input
-                document.getElementById('agentWalletAddress').value = wallet.address;
-
-                // Show wallet info
-                this.displayWalletInfo(wallet, true);
-
-                if (typeof Notification !== 'undefined') {
-                    Notification.success('Wallet created successfully! Please save the private key.');
-                }
-            } else {
-                throw new Error(result.error || 'Failed to create wallet');
-            }
-        } catch (error) {
-            console.error('Failed to create wallet:', error);
-            if (typeof Notification !== 'undefined') {
-                Notification.error('Failed to create wallet: ' + error.message);
-            }
-        }
-    },
-
-    /**
-     * Import wallet
-     */
-    importWallet() {
-        if (typeof Modal === 'undefined') {
-            console.error('Modal component not loaded');
-            return;
-        }
-
-        Modal.show({
-            title: 'Import Wallet',
-            content: `
-                <div class="form-group">
-                    <label>Private Key *</label>
-                    <input type="password" class="form-input" id="importPrivateKey" placeholder="Enter private key (with or without 0x prefix)">
-                    <small class="form-hint">Private key will be used to restore your wallet, please ensure you are in a secure environment</small>
-                </div>
-            `,
-            confirmText: 'Import',
-            showCancel: true,
-            onConfirm: async () => {
-                const privateKey = document.getElementById('importPrivateKey').value.trim();
-
-                if (!privateKey) {
-                    if (typeof Notification !== 'undefined') {
-                        Notification.error('Please enter private key');
-                    }
-                    return false;
-                }
-
-                try {
-                    const response = await fetch(this.resolve('/api/wallet/import'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            private_key: privateKey,
-                            label: 'Agent Wallet'
-                        })
-                    });
-
-                    const result = await response.json();
-
-                    if (result.success && result.data) {
-                        const wallet = result.data;
-
-                        // Update wallet address input
-                        document.getElementById('agentWalletAddress').value = wallet.address;
-
-                        // Show wallet info (do not show private key)
-                        this.displayWalletInfo(wallet, false);
-
-                        if (typeof Notification !== 'undefined') {
-                            Notification.success('Wallet imported successfully!');
-                        }
-
-                        return true; // Close dialog
-                    } else {
-                        throw new Error(result.error || 'Failed to import wallet');
-                    }
-                } catch (error) {
-                    console.error('Failed to import wallet:', error);
-                    if (typeof Notification !== 'undefined') {
-                        Notification.error('Failed to import wallet: ' + error.message);
-                    }
-                    return false; // Keep dialog open
-                }
-            }
-        });
-    },
-
-    /**
-     * Display wallet info
-     */
-    displayWalletInfo(wallet, showPrivateKey = false) {
-        // Use formId to get the correct elements
-        const form = document.getElementById(this.formId);
-        if (!form) return;
-
-        const walletTabId = this.formId + '-wallet';
-        const walletInfo = form.querySelector(`#${walletTabId}-info`);
-        const addressDisplay = form.querySelector(`#${walletTabId}-address`);
-        const publicKey = form.querySelector(`#${walletTabId}-public-key`);
-        const privateKeyRow = form.querySelector(`#${walletTabId}-private-key-row`);
-        const privateKey = form.querySelector(`#${walletTabId}-private-key`);
-        const privateKeyWarning = form.querySelector(`#${walletTabId}-private-key-warning`);
-
-        if (walletInfo) walletInfo.style.display = 'block';
-        if (addressDisplay) addressDisplay.textContent = wallet.address;
-        if (publicKey) publicKey.textContent = wallet.public_key;
-
-        if (showPrivateKey && wallet.private_key) {
-            if (privateKeyRow) privateKeyRow.style.display = 'flex';
-            if (privateKey) privateKey.textContent = wallet.private_key;
-            if (privateKeyWarning) privateKeyWarning.style.display = 'block';
-        } else {
-            if (privateKeyRow) privateKeyRow.style.display = 'none';
-            if (privateKeyWarning) privateKeyWarning.style.display = 'none';
-        }
     },
 
     /**
@@ -817,9 +588,6 @@ const AgentSettingsDialog = {
             const docUrl = isRemote ? undefined : document.getElementById('agentDocUrl')?.value?.trim();
             const iconUrl = isRemote ? undefined : document.getElementById('agentIconUrl')?.value?.trim();
 
-            // Collect wallet address
-            const walletAddress = isRemote ? undefined : document.getElementById('agentWalletAddress')?.value?.trim();
-
             // Build request data
             const data = {
                 name,
@@ -849,7 +617,6 @@ const AgentSettingsDialog = {
                 data.provider_url = providerUrl;
                 data.documentation_url = docUrl;
                 data.icon_url = iconUrl;
-                data.wallet_address = walletAddress;
             }
 
             // Send request

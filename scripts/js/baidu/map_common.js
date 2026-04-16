@@ -8,7 +8,7 @@ function initializeMapCenter() {
         centerPoint = new BMapGL.Point(window.current_position.lng, window.current_position.lat);
         console.log("Initialize the map using the configured location:", window.current_position);
     } else {
-        centerPoint = new BMapGL.Point(116.28882, 39.71164);
+        centerPoint = new BMapGL.Point(-121.88947550295555, 37.33200027587634);
         console.log("Initialize the map using the default location.");
     }
     map.centerAndZoom(centerPoint, 16);
@@ -1072,17 +1072,6 @@ showAlert('Position updated.');
             console.warn('Failed to sync location to backend:', err);
         }
 
-        service = getServiceForUser();
-        if (service !== null) {
-            const userConfirmed = confirm("There is an associated app service here. Do you want to continue?");
-            if (userConfirmed) {
-                alert("You clicked OK.");
-                open_place_web_address(service.address);
-            } else {
-                return;
-            }
-
-        }
 
         // map.setDefaultCursor("url(http://webmap0.bdimg.com/image/api/openhand.cur) 8 8,default");
         // instruct_to_move_flag = false;
@@ -1597,7 +1586,7 @@ function talk_to_it(nation_id, content) {
 
     rotateMyModel180AfterTalkMove(nation_id);
     if (false) {
-        // var point = new BMapGL.Point(116.28882, 39.72164);
+
         let point = my_new_point;
 
         let opts = {
@@ -1614,7 +1603,7 @@ function talk_to_it(nation_id, content) {
 
             send_im(person_data_me["account"], person_target["account"], hello_msg);
         }
-        // var point2 = new BMapGL.Point(116.28882, 39.71564);
+
         point2 = person_target_point;
 
         let opts2 = {

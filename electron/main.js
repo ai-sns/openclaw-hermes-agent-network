@@ -26,6 +26,8 @@ let mapWindow = null;
 
 let browserView = null;
 
+let browserViewLoadSeq = 0;
+
 
 
 // Azure OpenAI config has been moved to the backend API Server (api_server.py)
@@ -1166,8 +1168,6 @@ ipcMain.on('maximize-map-window', () => {
 
 });
 
-
-
 ipcMain.on('minimize-map-window', () => {
 
     if (mapWindow) {
@@ -1177,8 +1177,6 @@ ipcMain.on('minimize-map-window', () => {
     }
 
 });
-
-
 
 // Map operation IPC
 
@@ -1192,44 +1190,6 @@ ipcMain.on('map-command', (event, data) => {
 
 });
 
-
-
-// Map configuration IPC
-
-ipcMain.handle('load-map-setting', async () => {
-
-    // TODO: Load map settings from a config file or database
-
-    return {
-
-        mapType: 'baidu',
-
-        center: { lng: 116.3974, lat: 39.9093 },
-
-        zoom: 13,
-
-        homePosition: null,
-
-        route: null
-
-    };
-
-});
-
-
-
-ipcMain.handle('save-map-setting', async (event, setting) => {
-
-    // TODO: Save map settings to a config file or database
-
-    console.log('Saving map setting:', setting);
-
-    return true;
-
-});
-
-
-
 // Map chat IPC
 
 ipcMain.on('map-chat-message', (event, data) => {
@@ -1241,8 +1201,6 @@ ipcMain.on('map-chat-message', (event, data) => {
     }
 
 });
-
-
 
 // Open URL IPC
 
@@ -1654,19 +1612,45 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
     if (!mainWindow) return;
 
+    const requestSeq = ++browserViewLoadSeq;
+
+    const isAbortError = (errorCode, errorDescription) => {
+        if (errorCode === -3) return true;
+        const d = String(errorDescription || '');
+        if (!d) return false;
+        return d.includes('ERR_ABORTED') || d.toLowerCase().includes('aborted');
+    };
+
 
 
     try {
 
         // If a BrowserView already exists, remove it first
 
-        if (browserView) {
+        const oldView = browserView;
+        if (oldView) {
 
-            mainWindow.removeBrowserView(browserView);
+            try {
+                oldView.webContents.removeAllListeners('did-fail-provisional-load');
+                oldView.webContents.removeAllListeners('did-fail-load');
+                oldView.webContents.removeAllListeners('render-process-gone');
+                oldView.webContents.removeAllListeners('context-menu');
+            } catch (e) {
+            }
 
-            browserView.webContents.destroy();
+            try {
+                mainWindow.removeBrowserView(oldView);
+            } catch (e) {
+            }
 
-            browserView = null;
+            try {
+                oldView.webContents.destroy();
+            } catch (e) {
+            }
+
+            if (browserView === oldView) {
+                browserView = null;
+            }
 
         }
 
@@ -1674,7 +1658,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         // Create a new BrowserView
 
-        browserView = new BrowserView({
+        const view = new BrowserView({
 
             webPreferences: {
 
@@ -1688,9 +1672,11 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         });
 
+        browserView = view;
 
 
-        registerDevToolsHotkeysForWebContents(browserView.webContents);
+
+        registerDevToolsHotkeysForWebContents(view.webContents);
 
 
 
@@ -1698,11 +1684,11 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         const cleanupBrowserView = () => {
 
-            if (browserView && mainWindow) {
+            if (view && mainWindow) {
 
                 try {
 
-                    mainWindow.removeBrowserView(browserView);
+                    mainWindow.removeBrowserView(view);
 
                 } catch (e) {
 
@@ -1712,7 +1698,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
                 try {
 
-                    browserView.webContents.destroy();
+                    view.webContents.destroy();
 
                 } catch (e) {
 
@@ -1720,7 +1706,9 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-                browserView = null;
+                if (browserView === view) {
+                    browserView = null;
+                }
 
             }
 
@@ -1732,13 +1720,15 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
             if (loadFailedNotified) return;
 
+            if (requestSeq !== browserViewLoadSeq) return;
+
             loadFailedNotified = true;
 
 
 
             if (mainWindow && !mainWindow.isDestroyed()) {
 
-                mainWindow.webContents.send('browserview-load-failed', payload);
+                mainWindow.webContents.send('browserview-load-failed', { ...payload, requestSeq });
 
             }
 
@@ -1748,6 +1738,10 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         const handleLoadFailed = (payload) => {
 
+            if (payload && isAbortError(payload.errorCode, payload.errorDescription)) {
+                return;
+            }
+
             notifyLoadFailed(payload);
 
             cleanupBrowserView();
@@ -1756,7 +1750,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.webContents.on('did-fail-provisional-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        view.webContents.on('did-fail-provisional-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
 
             if (!isMainFrame) return;
 
@@ -1766,7 +1760,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        view.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
 
             if (!isMainFrame) return;
 
@@ -1776,7 +1770,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.webContents.on('render-process-gone', (event, details) => {
+        view.webContents.on('render-process-gone', (event, details) => {
 
             handleLoadFailed({ url, errorCode: details && details.exitCode, errorDescription: details && details.reason });
 
@@ -1784,15 +1778,15 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.webContents.on('context-menu', (event, params) => {
+        view.webContents.on('context-menu', (event, params) => {
 
             if (!mainWindow || !browserView) return;
 
 
 
-            const wc = browserView.webContents;
+            const wc = view.webContents;
 
-            const bounds = browserView.getBounds();
+            const bounds = view.getBounds();
 
             const hasLink = !!params.linkURL;
 
@@ -1908,7 +1902,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        mainWindow.addBrowserView(browserView);
+        mainWindow.addBrowserView(view);
 
 
 
@@ -1922,7 +1916,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.setBounds({
+        view.setBounds({
 
             x: sidebarWidth,
 
@@ -1936,7 +1930,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
 
 
-        browserView.setAutoResize({
+        view.setAutoResize({
 
             width: true,
 
@@ -1948,21 +1942,35 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         // Load URL
 
-        await browserView.webContents.loadURL(url);
+        await view.webContents.loadURL(url);
+
+        if (requestSeq !== browserViewLoadSeq) {
+            return { success: false, canceled: true, requestSeq };
+        }
 
 
 
-        return { success: true };
+        return { success: true, requestSeq };
 
     } catch (error) {
 
         console.error('Failed to load URL in BrowserView:', error);
 
+        if (requestSeq !== browserViewLoadSeq) {
+            return { success: false, canceled: true, requestSeq };
+        }
+
+        const errorCode = error && (error.code !== undefined ? error.code : error.errorCode);
+        const errorDescription = error && (error.message ? error.message : String(error));
+        if (isAbortError(errorCode, errorDescription)) {
+            return { success: false, canceled: true, requestSeq };
+        }
+
         if (browserView && mainWindow) {
 
             try {
 
-                mainWindow.webContents.send('browserview-load-failed', { url, errorCode: error && error.code, errorDescription: error && error.message });
+                mainWindow.webContents.send('browserview-load-failed', { url, errorCode, errorDescription, requestSeq });
 
             } catch (e) {
 
@@ -1994,7 +2002,7 @@ ipcMain.handle('load-url-in-browserview', async (event, url) => {
 
         }
 
-        return { success: false, error: error.message };
+        return { success: false, error: error.message, requestSeq };
 
     }
 

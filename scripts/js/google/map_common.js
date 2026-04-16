@@ -585,10 +585,6 @@ function end_chat(nation_id) {
 
 function initMap() {
 
-
-
-
-
     // Prefer window.current_position as the map center
 
     let center;
@@ -603,7 +599,7 @@ function initMap() {
 
     } else {
 
-        center = {lng: 116.27882, lat: 39.71164, altitude: 0};
+        center = {lng: -121.88947550295555, lat: 37.33200027587634, altitude: 0};
 
         console.log("Initializing Google map with default position");
 
@@ -636,8 +632,6 @@ function initMap() {
     const mapOptions = {
 
         center,
-
-        // mapId: "7057886e21226ff7", // without road names and related labels
 
         mapId: "b8fc4b5a8471b933",
 
@@ -777,7 +771,13 @@ function initMap() {
 
     initialize_route();
 
-    const tmpcenter = {lat: 39.71164, lng: 116.27882};
+    const initialOverlayAnchor = {
+
+        lat: Number(center && center.lat),
+
+        lng: Number(center && center.lng),
+
+    };
 
     // overlay = new google.maps.plugins.three.ThreeJSOverlayView({map, anchor: center, upAxis: "Y"});
 
@@ -785,7 +785,7 @@ function initMap() {
 
         map,
 
-        anchor: tmpcenter,
+        anchor: initialOverlayAnchor,
 
         upAxis: "Y"
 
@@ -795,11 +795,11 @@ function initMap() {
 
     let overlayAnchor = {
 
-        lat: Number(tmpcenter.lat),
+        lat: Number(initialOverlayAnchor.lat),
 
-        lng: Number(tmpcenter.lng),
+        lng: Number(initialOverlayAnchor.lng),
 
-        altitude: 0,
+        altitude: Number(center && center.altitude) || 0,
 
     };
 
@@ -1398,16 +1398,11 @@ function initMap() {
         if (instruct_to_move_flag == true) {
             showAlert('Position updated.');
 
-            const tmpcenter = {lat: 39.71164, lng: 116.27882};
 
-            // overlay = new google.maps.plugins.three.ThreeJSOverlayView({map, anchor: center, upAxis: "Y"});
-
-            // overlay.setAnchor(tmpcenter);
 
             const coordinates = getLastClickPoint();
 
 
-            // overlay.setAnchor(coordinates);
 
             try {
 
@@ -2190,22 +2185,6 @@ function initMap() {
 
     const imageBounds = {
 
-        // north: 40.773941,
-
-        // south: 40.712216,
-
-        // east: -74.12544,
-
-        // west: -74.22655,
-
-        // north: 40.03867303424458,
-
-        // south: 40.00624462450565,
-
-        // east: 116.24508640812037,
-
-        // west: 116.22749734234506,
-
         north: 37.57643015650198,
 
         south: 37.55816843366316,
@@ -2637,8 +2616,6 @@ function checkAnimationStart() {
 
     if (modelLoadStatus.building &&
 
-        modelLoadStatus.house &&
-
         modelLoadStatus.girl &&
 
         modelLoadStatus.boy) {
@@ -2649,7 +2626,7 @@ function checkAnimationStart() {
 
         animationStarted = true;
 
-        console.log("All models loaded. Starting animation");
+        console.log("Core models loaded. Starting animation");
 
     }
 
@@ -4275,14 +4252,7 @@ function start_talk_to_it(nation_id, content) {
 
     rotateMyModel180AfterTalkMove(__nationId);
 
-    // return true;
-
-    // var point = new BMapGL.Point(116.28882, 39.72164);
-
     let person_point = my_new_point;
-
-
-
 
 
     let hello_msg = "Hello";

@@ -4,10 +4,9 @@ from datetime import datetime
 from sqlalchemy import desc, asc, or_
 from .base import BaseRepository
 from ..models.system import (
-    SystemCfg, LogsMng, SysConfig, SystemInit, KeyValue,
-    PluginMng, FunctionMng, McpMng, SkillMng, WebMng, WorkflowMng,
-    TaskSchedule, Prompt, PromptFrequent, LlmFrequent,
-    Question, ModelMetrics, ToolList
+    SystemCfg, SystemInit, KeyValue,
+    PluginMng, FunctionMng, McpMng, SkillMng, WebMng,
+    Prompt, LlmConfig, RoleConfig
 )
 from backend.config.database import get_db_session as get_session
 
@@ -17,40 +16,6 @@ class SystemCfgRepository(BaseRepository[SystemCfg]):
 
     def __init__(self):
         super().__init__(SystemCfg)
-
-
-class LogsMngRepository(BaseRepository[LogsMng]):
-    """Logs management repository."""
-
-    def __init__(self):
-        super().__init__(LogsMng)
-
-
-class SysConfigRepository(BaseRepository[SysConfig]):
-    """System config repository."""
-
-    def __init__(self):
-        super().__init__(SysConfig)
-
-    def get_language(self, **kwargs) -> Optional[str]:
-        """Get system language."""
-        session = get_session()
-        try:
-            record = session.query(self.model).filter_by(**kwargs).first()
-            return record.lang if record else None
-        finally:
-            session.close()
-
-    def update_language(self, lang: str, **kwargs):
-        """Update system language."""
-        from db.write_queue import db_write
-        _model = self.model
-        _kwargs = kwargs
-        def _do(session):
-            record = session.query(_model).filter_by(**_kwargs).first()
-            if record:
-                record.lang = lang
-        db_write(_do, description="repo_update_language")
 
 
 class SystemInitRepository(BaseRepository[SystemInit]):
@@ -261,66 +226,6 @@ class WebMngRepository(BaseRepository[WebMng]):
         self.update_by_filter({'web_id': web_id}, **kwargs)
 
 
-class WorkflowMngRepository(BaseRepository[WorkflowMng]):
-    """Workflow management repository."""
-
-    def __init__(self):
-        super().__init__(WorkflowMng)
-
-    def create_with_id(self, **kwargs) -> int:
-        """Create workflow and return its ID."""
-        from db.write_queue import db_write
-        _model = self.model
-        def _do(session):
-            workflow = _model(**kwargs)
-            session.add(workflow)
-            session.flush()
-            return workflow.id
-        return db_write(_do, description="repo_create_workflow_mng")
-
-    def copy_workflow(self, workflow_id: str, new_workflow_id: str) -> Optional[WorkflowMng]:
-        """Copy workflow record."""
-        from db.write_queue import db_write
-        def _do(session):
-            original = session.query(WorkflowMng).filter_by(workflow_id=workflow_id).first()
-            if not original:
-                return None
-            new_workflow = WorkflowMng(
-                workflow_id=new_workflow_id,
-                title=original.title + "-Copy",
-                description=original.description,
-                instruction=original.instruction,
-                workflow_event=original.workflow_event,
-                detail=original.detail,
-                timer_desc=original.timer_desc,
-                timer_cron=original.timer_cron,
-                creator=original.creator,
-                is_delete=False,
-                create_time=datetime.now()
-            )
-            session.add(new_workflow)
-            return new_workflow
-        return db_write(_do, description="repo_copy_workflow")
-
-
-class TaskScheduleRepository(BaseRepository[TaskSchedule]):
-    """Task schedule repository."""
-
-    def __init__(self):
-        super().__init__(TaskSchedule)
-
-    def create_with_id(self, **kwargs) -> int:
-        """Create task schedule and return its ID."""
-        from db.write_queue import db_write
-        _model = self.model
-        def _do(session):
-            schedule = _model(**kwargs)
-            session.add(schedule)
-            session.flush()
-            return schedule.id
-        return db_write(_do, description="repo_create_task_schedule")
-
-
 class PromptRepository(BaseRepository[Prompt]):
     """Prompt repository."""
 
@@ -367,130 +272,15 @@ class PromptRepository(BaseRepository[Prompt]):
             session.close()
 
 
-class PromptFrequentRepository(BaseRepository[PromptFrequent]):
-    """Prompt frequent repository."""
+class LlmConfigRepository(BaseRepository[LlmConfig]):
+    """LLM config repository."""
 
     def __init__(self):
-        super().__init__(PromptFrequent)
-
-    def create_with_id(self, **kwargs) -> int:
-        """Create prompt frequent and return its ID."""
-        from db.write_queue import db_write
-        _model = self.model
-        def _do(session):
-            frequent = _model(**kwargs)
-            session.add(frequent)
-            session.flush()
-            return frequent.id
-        return db_write(_do, description="repo_create_prompt_frequent")
-
-    def get_all_ordered(self, **kwargs) -> List[PromptFrequent]:
-        """Get all prompt frequents ordered by position."""
-        session = get_session()
-        try:
-            filter_expr = [getattr(self.model, key) == value for key, value in kwargs.items()]
-            return session.query(self.model).filter(*filter_expr).order_by(asc(PromptFrequent.position)).all()
-        finally:
-            session.close()
-
-    def get_by_agent_id(self, agent_id: str) -> List[dict]:
-        """Get prompt frequents by agent ID with prompt details."""
-        session = get_session()
-        try:
-            query_result = session.query(self.model).filter(
-                PromptFrequent.is_delete == 0,
-                PromptFrequent.belong_to_agent_id == agent_id
-            ).join(Prompt).order_by(PromptFrequent.position.asc()).all()
-
-            return [
-                {
-                    "id": pf.id,
-                    "prompt_id": pf.prompt_id,
-                    "title": pf.prompt.title,
-                    "content": pf.prompt.content,
-                    "tags": pf.prompt.tags,
-                    "creator": pf.creator,
-                    "create_time": pf.create_time,
-                    "is_delete": pf.is_delete
-                }
-                for pf in query_result
-            ]
-        finally:
-            session.close()
+        super().__init__(LlmConfig)
 
 
-class LlmFrequentRepository(BaseRepository[LlmFrequent]):
-    """LLM frequent repository."""
+class RoleConfigRepository(BaseRepository[RoleConfig]):
+    """Role config repository."""
 
     def __init__(self):
-        super().__init__(LlmFrequent)
-
-    def create_with_id(self, **kwargs) -> int:
-        """Create LLM frequent and return its ID."""
-        from db.write_queue import db_write
-        _model = self.model
-        def _do(session):
-            frequent = _model(**kwargs)
-            session.add(frequent)
-            session.flush()
-            return frequent.id
-        return db_write(_do, description="repo_create_llm_frequent")
-
-    def get_all_ordered(self, **kwargs) -> List[LlmFrequent]:
-        """Get all LLM frequents ordered by position."""
-        session = get_session()
-        try:
-            filter_expr = [getattr(self.model, key) == value for key, value in kwargs.items()]
-            return session.query(self.model).filter(*filter_expr).order_by(asc(LlmFrequent.position)).all()
-        finally:
-            session.close()
-
-
-class QuestionRepository(BaseRepository[Question]):
-    """Question repository."""
-
-    def __init__(self):
-        super().__init__(Question)
-
-    def get_limited(self, num: int = 0, **kwargs) -> List[Question]:
-        """Get questions with optional limit."""
-        session = get_session()
-        try:
-            query = session.query(self.model).filter_by(**kwargs)
-            if num > 0:
-                query = query.limit(num)
-            return query.all()
-        finally:
-            session.close()
-
-
-class ModelMetricsRepository(BaseRepository[ModelMetrics]):
-    """Model metrics repository."""
-
-    def __init__(self):
-        super().__init__(ModelMetrics)
-
-
-class ToolListRepository:
-    """Tool list view repository (read-only)."""
-
-    def __init__(self):
-        self.model = ToolList
-
-    def get_all(self, **kwargs) -> List[ToolList]:
-        """Get all tools from view."""
-        session = get_session()
-        try:
-            filter_expr = [getattr(self.model, key) == value for key, value in kwargs.items()]
-            return session.query(self.model).filter(*filter_expr).order_by(desc(ToolList.id)).all()
-        finally:
-            session.close()
-
-    def get_single(self, **kwargs) -> Optional[ToolList]:
-        """Get single tool from view."""
-        session = get_session()
-        try:
-            filter_expr = [getattr(self.model, key) == value for key, value in kwargs.items()]
-            return session.query(self.model).filter(*filter_expr).order_by(desc(ToolList.id)).first()
-        finally:
-            session.close()
+        super().__init__(RoleConfig)

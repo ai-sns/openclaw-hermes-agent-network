@@ -1,6 +1,5 @@
 import json
 import asyncio
-from db.DBFactory import query_single_map_task, update_map_task
 from db.DBFactory import get_prompt_by_title, upsert_prompt_by_title
 from i18n import lt
 from typing import Dict, Any, Optional
@@ -35,7 +34,6 @@ class MapTaskManager:
         self.process_info_list = []
         self.process_list = []
         self.current_process = None
-
         self.current_situation = ""
 
         self._process_info_compacting = False
@@ -206,9 +204,7 @@ class MapTaskManager:
         self._resume_after_tool_check = None
 
         self.js_task_manager = self.parent.taskmng_js
-        self.current_task_record = query_single_map_task(status=1)
-        if self.current_task_record:
-            self.main_task = self.current_task_record.detail
+        self.current_task_record = None
 
         self.current_objective = ""
         self.init_flag = True

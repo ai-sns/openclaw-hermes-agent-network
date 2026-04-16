@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends, Request, UploadFile, File
 from fastapi.responses import Response
 from typing import List
+import httpx
 
 from .schemas import SystemConfig, WebMngReorderItem, SystemInitDraft, SystemInitSubmit, SystemInitTestLLM, SystemInitTestXMPP, SystemInitTestMap
 from .service import SystemService, SystemInitWizardService
@@ -203,7 +204,7 @@ async def reorder_web_mng(
 ):
     """
     Reorder web management items
-    
+
     IMPORTANT: This route must be defined BEFORE /web-mng/{item_id}
     to avoid FastAPI matching 'reorder' as an item_id
 
@@ -217,17 +218,17 @@ async def reorder_web_mng(
         items = await request.json()
         logger.info(f"Received reorder request: {items}")
         logger.info(f"Items type: {type(items)}")
-        
+
         # Validate items
         if not isinstance(items, list):
             error_msg = f"Expected a list of items, got {type(items).__name__}"
             logger.error(error_msg)
             raise HTTPException(status_code=422, detail=error_msg)
-        
+
         if len(items) == 0:
             logger.warning("Empty items list received")
             return {"success": True}
-        
+
         for idx, item in enumerate(items):
             logger.info(f"Item {idx}: {item} (type: {type(item).__name__})")
             if not isinstance(item, dict):
@@ -242,7 +243,7 @@ async def reorder_web_mng(
                 error_msg = f"Item {idx} missing 'position' field. Keys: {list(item.keys())}"
                 logger.error(error_msg)
                 raise HTTPException(status_code=422, detail=error_msg)
-        
+
         service.reorder_web_mng(items)
         logger.info("Reorder completed successfully")
         return {"success": True}
@@ -372,12 +373,19 @@ async def submit_system_init(
     service: SystemInitWizardService = Depends(get_system_init_wizard_service)
 ):
     try:
-        draft = payload.dict(exclude_unset=True)
-        service.save_draft(draft)
-
         record = service.get_draft()
         if not record or not record.get("avatar"):
             raise HTTPException(status_code=400, detail="Avatar not set")
+
+        map_type = record.get("map") or ""
+        has_map_api_key = bool(str(record.get("map_api_key") or "").strip())
+        has_map_id = bool(str(record.get("map_id") or "").strip())
+        logger.info(
+            "Init-wizard submit: map_type=%s, has_map_api_key=%s, has_map_id=%s",
+            map_type,
+            has_map_api_key,
+            has_map_id,
+        )
 
         avatar_map_filename = service._generate_avatar_map(record["avatar"])
 
@@ -385,8 +393,8 @@ async def submit_system_init(
             "nation_id": "",
             "password": record.get("password", ""),
             "account": record.get("account", ""),
-            "longitude": payload.longitude if payload.longitude is not None else 116.27882,
-            "latitude": payload.latitude if payload.latitude is not None else 39.71164,
+            "longitude": payload.longitude if payload.longitude is not None else -121.88947550295555,
+            "latitude": payload.latitude if payload.latitude is not None else 37.33200027587634,
             "captcha_id": payload.captcha_id,
             "captcha_code": payload.captcha_code,
             "nick_name": record.get("name", ""),
@@ -399,8 +407,17 @@ async def submit_system_init(
 
         remote_res = await service.register_remote(register_data, avatar_map_filename)
         nation_id = remote_res.get("nation_id") or remote_res.get("nationId") or remote_res.get("nationid") or ""
-        service.submit(draft, nation_id)
+        service.submit(record, nation_id)
         return {"success": True, "data": remote_res}
+    except httpx.HTTPStatusError as e:
+        status_code = getattr(e.response, 'status_code', 502) if getattr(e, 'response', None) is not None else 502
+        detail = "Remote register failed"
+        try:
+            if getattr(e, 'response', None) is not None:
+                detail = e.response.text
+        except Exception:
+            detail = str(e)
+        raise HTTPException(status_code=status_code, detail=detail)
     except HTTPException:
         raise
     except Exception as e:

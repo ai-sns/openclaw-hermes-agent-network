@@ -22,7 +22,7 @@ function getPersonPointByNationId(nation_id) {
     if (!persondata || !persondata["location"]) {
         console.error("Unable to get user data or location info, nation_id:", nation_id);
         // Return a default position, e.g. the map center
-        return new BMapGL.Point(116.397428, 39.90923);
+        return new BMapGL.Point(-121.88947550295555, 37.33200027587634);
     }
     let location = persondata["location"];
 

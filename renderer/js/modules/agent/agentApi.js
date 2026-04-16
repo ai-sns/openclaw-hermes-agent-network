@@ -671,66 +671,6 @@ const agentApi = {
     },
 
     /**
-     * Create blockchain wallet
-     */
-    async createWallet(label = '') {
-        try {
-            const response = await fetch(this.resolve('/api/wallet/create'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ label })
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to create wallet:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Import blockchain wallet
-     */
-    async importWallet(privateKey, label = '') {
-        try {
-            const response = await fetch(this.resolve('/api/wallet/import'), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ private_key: privateKey, label })
-            });
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to import wallet:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Get wallet list
-     */
-    async listWallets() {
-        try {
-            const response = await fetch(this.resolve('/api/wallet/list'));
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to get wallet list:', error);
-            throw error;
-        }
-    },
-
-    /**
-     * Get wallet info
-     */
-    async getWallet(address) {
-        try {
-            const response = await fetch(this.resolve(`/api/wallet/${encodeURIComponent(address)}`));
-            return await response.json();
-        } catch (error) {
-            console.error('Failed to get wallet info:', error);
-            throw error;
-        }
-    },
-
-    /**
      * Update agent config
      */
     async updateAgent(agentId, agentData) {

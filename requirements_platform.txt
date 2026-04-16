@@ -19,10 +19,6 @@ sse-starlette>=1.8.0
 # ========== Database ==========
 sqlalchemy>=2.0.0
 
-# ========== Blockchain (Ethereum) ==========
-web3>=6.0.0
-eth-account>=0.10.0
-
 # ========== gRPC (A2A Protocol v0.3) ==========
 grpcio>=1.60.0
 grpcio-tools>=1.60.0

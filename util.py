@@ -15,7 +15,7 @@ import requests
 from mem0 import MemoryClient
 
 from i18n import lt
-from db.DBFactory import query_workflow_mng_all,query_PluginMng_All,query_PluginMng_All_Tool,query_function_mng_all,query_mcp_mng_all,query_skill_mng_all
+from db.DBFactory import query_PluginMng_All,query_PluginMng_All_Tool,query_function_mng_all,query_mcp_mng_all,query_skill_mng_all
 
 def convert_unicode_to_chinese(unicode_string):
     """
@@ -623,40 +623,17 @@ def add_memory_thread(messages):
 
 def get_tool_list():
 
-    workflow_list = get_workflow_list()
     # llm_list = get_llm_list()
     plugin_list = get_plugin_list()
     function_list = get_function_list()
     skill_list = get_skill_list()
     mcp_list = get_mcp_list()
 
-    tool_list = workflow_list+plugin_list+function_list+skill_list+mcp_list
+    tool_list = plugin_list+function_list+skill_list+mcp_list
     print("tool_list:",tool_list)
     return tool_list
 
 
-
-def get_workflow_list():
-
-    # 查询所有工作流程记录
-    records = query_workflow_mng_all()
-
-    # 如果没有记录，返回空列表
-    if not records:
-        return []
-
-    # 使用列表推导式构建字典列表
-    result_list = [
-        {
-            "id": record.workflow_id,  # 设置工作流程的ID
-            "name": record.title,  # 设置工作流程的名称
-            "description": record.description,  # 设置工作流程的描述
-            "type": "workflow"  # 设置工作流程的类型，固定为"workflow"
-        }
-        for record in records  # 遍历所有记录
-    ]
-
-    return result_list  # 返回构建好的字典列表
 
 def get_llm_list():
 

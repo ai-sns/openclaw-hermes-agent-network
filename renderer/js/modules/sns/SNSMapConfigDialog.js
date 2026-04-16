@@ -109,7 +109,12 @@ export class SNSMapConfigDialog {
                 const normalize = (v) => {
                     const s = (v === null || v === undefined) ? '' : String(v);
                     const t = s.trim();
-                    return (t && t !== 'N/A') ? t : '';
+                    if (!t) return '';
+                    if (t === 'N/A') return '';
+                    if (t === 'your_api_key') return '';
+                    if (t === 'your_map_id') return '';
+                    if (t === 'do_not_need_map_id') return '';
+                    return t;
                 };
 
                 // Store original map type for comparison
@@ -179,17 +184,17 @@ export class SNSMapConfigDialog {
             // Validate required fields based on selected map
             if (mapType === '0') {
                 // Google Map selected
-                if (!googleApiKey) {
+                if (!googleApiKey || googleApiKey === 'your_api_key') {
                     alert('Google Maps API key is required.');
                     return;
                 }
-                if (!googleMapId) {
+                if (!googleMapId || googleMapId === 'your_map_id') {
                     alert('Google map ID is required.');
                     return;
                 }
             } else {
                 // Baidu Map selected
-                if (!baiduApiKey) {
+                if (!baiduApiKey || baiduApiKey === 'your_api_key') {
                     alert('Baidu Maps API key is required.');
                     return;
                 }

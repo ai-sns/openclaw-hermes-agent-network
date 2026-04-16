@@ -798,7 +798,7 @@ function createVideoScreen() {
     const { height: buildingHeight, depth } = BUILDING_CONFIG.dimensions;
     const { spacing } = BUILDING_CONFIG.window;
 
-    const videoScreen = new VideoScreen(width, height, 'cjrok2.webm');
+    const videoScreen = new VideoScreen(width, height, 'aisns.webm');
 
     // Position the screen
     videoScreen.position.set(
@@ -878,14 +878,6 @@ const initializeBuilding = async () => {
  */
 function animate(time) {
     requestAnimationFrame(animate);
-
-    // Check model load status (allow 'failed' status to pass through so
-    // successfully loaded models still render when others fail to load)
-    if (typeof modelLoadStatus !== 'undefined' &&
-        (!modelLoadStatus.building || !modelLoadStatus.house ||
-         !modelLoadStatus.girl || !modelLoadStatus.boy)) {
-        return;
-    }
 
     const now = performance.now();
 

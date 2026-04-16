@@ -258,8 +258,8 @@ export class SNSAvatarDialog {
                                             <input type="text" id="userNickname" class="form-control" placeholder="Enter a nickname">
                                         </div>
                                         <div class="form-group">
-                                            <label for="userSign">Profile<span class="required-asterisk">*</span></label>
-                                            <input type="text" id="userSign" class="form-control" placeholder="Enter a profile">
+                                            <label for="userSign">Bio<span class="required-asterisk">*</span></label>
+                                            <input type="text" id="userSign" class="form-control" placeholder="Introduce yourself">
                                         </div>
                                         <div class="form-group">
                                             <label for="userSnsUrl">SNS URL</label>

@@ -53,6 +53,41 @@ const InitializationWizard = {
         el.style.color = ok ? 'rgba(46, 204, 113, 0.95)' : 'rgba(231, 76, 60, 0.95)';
     },
 
+    setTestingState(kind, isTesting) {
+        if (!this.modal || !this.modal.element) {
+            return;
+        }
+        const root = this.modal.element.querySelector('#initWizard');
+        if (!root) {
+            return;
+        }
+
+        const map = {
+            llm: { btn: '#initTestLlmBtn', indicator: '#initLlmTestingIndicator' },
+            xmpp: { btn: '#initTestXmppBtn', indicator: '#initXmppTestingIndicator' }
+        };
+        const cfg = map[kind];
+        if (!cfg) {
+            return;
+        }
+
+        const btn = root.querySelector(cfg.btn);
+        const indicator = root.querySelector(cfg.indicator);
+
+        if (btn) {
+            try { btn.disabled = !!isTesting; } catch (_) {}
+        }
+
+        if (indicator) {
+            indicator.style.display = isTesting ? 'flex' : 'none';
+        }
+    },
+
+    clearAllTestingState() {
+        this.setTestingState('llm', false);
+        this.setTestingState('xmpp', false);
+    },
+
     async show(options = {}) {
         if (typeof Modal === 'undefined') {
             console.error('Modal component not loaded');
@@ -287,7 +322,12 @@ const InitializationWizard = {
 
                         <div class="form-group">
                             <label>Bio *</label>
-                            <textarea class="form-input" id="initProfile" rows="3">${this.escapeHtml(this.state.profile || '')}</textarea>
+                            <textarea class="form-input" id="initProfile" placeholder="Introduce yourself" rows="3">${this.escapeHtml(this.state.profile || '')}</textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Your social links</label>
+                            <input class="form-input" id="initSnsUrl" type="text" placeholder="e.g. https://x.com/ai_sns_org" value="${this.escapeHtml(this.state.sns_url || '')}" />
                         </div>
                     </div>
                 </div>
@@ -325,11 +365,15 @@ const InitializationWizard = {
                 </div>
 
                 <div class="form-group">
-                    <div id="initInlineTestResult" style="display:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;font-size:12px;"></div>
+                    <div id="initInlineTestResult" style="display:none; border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 16px; background:rgba(255,255,255,0.03); font-family:var(--font-mono, monospace); font-size:12px; line-height:1.5;"></div>
                 </div>
 
-                <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestLlmBtn" type="button">Test</button>
+                <div class="form-group" style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:16px;">
+                    <div id="initLlmTestingIndicator" style="display:none; align-items:center; gap:8px; color:var(--color-primary, #1a73e8); font-size:13px; font-weight:500; transition: all 0.2s;">
+                        <div class="spinner" style="width:16px; height:16px; border-width:2px; margin:0;"></div>
+                        <span>Testing...</span>
+                    </div>
+                    <button class="btn btn-secondary" id="initTestLlmBtn" type="button" style="min-width:80px; transition: all 0.2s;">Test</button>
                 </div>
             </div>
         `;
@@ -349,23 +393,23 @@ const InitializationWizard = {
                     </div>
                 </div>
 
-                <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
-                    <div class="form-group" style="flex:1;min-width:0;">
-                        <label>SNS Homepage</label>
-                        <input class="form-input" id="initSnsUrl" type="text" value="${this.escapeHtml(this.state.sns_url || '')}" />
-                    </div>
-                    <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
-                        <label style="white-space:nowrap;">If you don't have account:</label>
-                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Registration link</a>
+                <div class="form-group" style="display:flex;justify-content:flex-start;">
+                    <div style="display:flex;align-items:center;gap:8px;white-space:nowrap;">
+                        <label style="white-space:nowrap;margin:0;">If you don't have an account:</label>
+                        <a href="#" id="initSnsRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Get one</a>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <div id="initInlineTestResult" style="display:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;font-size:12px;"></div>
+                    <div id="initInlineTestResult" style="display:none; border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 16px; background:rgba(255,255,255,0.03); font-family:var(--font-mono, monospace); font-size:12px; line-height:1.5;"></div>
                 </div>
 
-                <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestXmppBtn" type="button">Test</button>
+                <div class="form-group" style="display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:16px;">
+                    <div id="initXmppTestingIndicator" style="display:none; align-items:center; gap:8px; color:var(--color-primary, #1a73e8); font-size:13px; font-weight:500; transition: all 0.2s;">
+                        <div class="spinner" style="width:16px; height:16px; border-width:2px; margin:0;"></div>
+                        <span>Testing...</span>
+                    </div>
+                    <button class="btn btn-secondary" id="initTestXmppBtn" type="button" style="min-width:80px; transition: all 0.2s;">Test</button>
                 </div>
             </div>
         `;
@@ -399,37 +443,39 @@ const InitializationWizard = {
                     <input type="hidden" id="initAvatar3d" value="${this.escapeHtml(this.state.avatar3d || '')}" />
                 </div>
 
-                <div class="form-row" style="display:flex;gap:12px;">
-                    <div class="form-group" style="flex:1;">
+                <div class="form-row" style="display:flex;gap:12px;align-items:center;">
+                    <div class="form-group" style="flex:1;min-width:0;">
                         <label>Map Type *</label>
                         <select class="form-input" id="initMapType">
                             <option value="Google" ${this.state.map === 'Google' ? 'selected' : ''}>Google</option>
                             <option value="Baidu" ${this.state.map === 'Baidu' ? 'selected' : ''}>Baidu</option>
                         </select>
                     </div>
+                    <div class="form-group" style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+                            <span style="font-size:14px;opacity:0.9;">If you don't have an Api Key:</span>
+                            <a href="#" id="initMapRegisterLink" style="font-size:14px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Get one</a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row" style="display:flex;gap:12px;">
                     <div class="form-group" style="flex:1;">
                         <label>Map API Key *</label>
                         <input class="form-input" id="initMapApiKey" type="text" value="${this.escapeHtml(this.state.map_api_key || '')}" />
                     </div>
-                </div>
-
-                <div class="form-row" style="display:flex;gap:12px;align-items:flex-start;">
                     <div class="form-group" style="flex:1;min-width:0;">
                         <label>Map ID *</label>
                         <input class="form-input" id="initMapId" type="text" value="${this.escapeHtml(mapIdValue)}" ${mapIdReadOnly ? 'readonly' : ''} />
                     </div>
-                    <div class="form-group" style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px;">
-                        <label style="white-space:nowrap;">If you don't have account:</label>
-                        <a href="#" id="initMapRegisterLink" style="font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;">Registration link</a>
-                    </div>
                 </div>
 
                 <div class="form-group">
-                    <div id="initInlineTestResult" style="display:none;border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;font-size:12px;"></div>
+                    <div id="initInlineTestResult" style="display:none; border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px 16px; background:rgba(255,255,255,0.03); font-family:var(--font-mono, monospace); font-size:12px; line-height:1.5;"></div>
                 </div>
 
-                <div class="form-group" style="display:flex;justify-content:flex-end;">
-                    <button class="btn btn-secondary" id="initTestMapBtn" type="button">Test</button>
+                <div class="form-group" style="display:flex;justify-content:flex-end;margin-top:16px;">
+                    <button class="btn btn-secondary" id="initTestMapBtn" type="button" style="min-width:80px; transition: all 0.2s;">Test</button>
                 </div>
             </div>
         `;
@@ -447,9 +493,7 @@ const InitializationWizard = {
                     </div>
                 </div>
 
-                <div style="opacity:0.8;font-size:12px;">
-                    Submission will go through the local backend proxy to access ai-sns.org for captcha verification and registration.
-                </div>
+
             </div>
         `;
     },
@@ -458,6 +502,8 @@ const InitializationWizard = {
         if (!this.modal || !this.modal.element) {
             return;
         }
+
+        this.clearAllTestingState();
 
         const body = this.modal.element.querySelector('.modal-body');
         if (body) {
@@ -487,6 +533,8 @@ const InitializationWizard = {
         if (!this.modal || !this.modal.element) {
             return;
         }
+
+        this.clearAllTestingState();
 
         const closeBtn = this.modal.element.querySelector('[data-action="close"]');
         if (closeBtn && !closeBtn.dataset.initWizardBound) {
@@ -526,18 +574,68 @@ const InitializationWizard = {
                 this.collectFormValues();
                 this.setInlineTestResult(null, '');
                 try {
-                    const res = await window.api.post('/api/system/init-wizard/test-llm', {
-                        llm: this.state.llm,
-                        llm_server: this.state.llm_server,
-                        api_key: this.state.api_key
-                    });
-                    if (res && res.success) {
-                        this.setInlineTestResult('success', res.message || 'Test passed');
+                    this.setTestingState('llm', true);
+
+                    const providerMap = {
+                        'OpenAI': 'openai',
+                        'DeepSeek': 'custom',
+                        'Claude': 'claude',
+                        'Gemini': 'gemini',
+                        'OpenAI Compatible Provider': 'custom',
+                        'DeepSeek Compatible Provider': 'custom'
+                    };
+
+                    const modelCandidatesMap = {
+                        openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
+                        custom: ['deepseek-chat', 'deepseek-reasoner', 'gpt-4o-mini'],
+                        gemini: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
+                        claude: ['claude-3-5-sonnet-20240620', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307']
+                    };
+
+                    const provider = providerMap[this.state.llm] || 'custom';
+                    const candidates = modelCandidatesMap[provider] || modelCandidatesMap.custom;
+
+                    const endpoint = String(this.state.llm_server || '').trim();
+                    const apiKey = String(this.state.api_key || '').trim();
+
+                    let lastErr = null;
+                    let okResult = null;
+                    for (const modelName of candidates) {
+                        try {
+                            const res = await window.api.post('/api/agent/llm-configs/test', {
+                                api_endpoint: endpoint,
+                                api_key: apiKey,
+                                model_name: modelName,
+                                provider
+                            });
+
+                            if (res && res.success && res.data && String(res.data.status || '').toLowerCase() === 'success') {
+                                okResult = res.data;
+                                break;
+                            }
+
+                            lastErr = res?.error || res?.data?.message || res?.message || res?.detail || 'Test failed';
+                        } catch (innerErr) {
+                            lastErr = innerErr?.message || 'Test failed';
+                        }
+                    }
+
+                    if (okResult) {
+                        const messageLines = [
+                            `Status: ${okResult.status || 'success'}`,
+                            okResult.model ? `Model: ${okResult.model}` : '',
+                            okResult.base_url ? `Base URL: ${okResult.base_url}` : '',
+                            okResult.latency_ms != null ? `Latency: ${okResult.latency_ms} ms` : '',
+                            okResult.reply ? `Reply: ${okResult.reply}` : ''
+                        ].filter(Boolean);
+                        this.setInlineTestResult('success', messageLines.join('\n'));
                     } else {
-                        this.setInlineTestResult('error', res?.message || res?.detail || 'Test failed');
+                        this.setInlineTestResult('error', String(lastErr || 'Test failed'));
                     }
                 } catch (e) {
                     this.setInlineTestResult('error', e.message || 'Test failed');
+                } finally {
+                    this.setTestingState('llm', false);
                 }
             });
         }
@@ -560,6 +658,7 @@ const InitializationWizard = {
                 this.collectFormValues();
                 this.setInlineTestResult(null, '');
                 try {
+                    this.setTestingState('xmpp', true);
                     const res = await window.api.post('/api/system/init-wizard/test-xmpp', {
                         account: this.state.account,
                         account_password: this.state.account_password
@@ -571,6 +670,8 @@ const InitializationWizard = {
                     }
                 } catch (e) {
                     this.setInlineTestResult('error', e.message || 'Test failed');
+                } finally {
+                    this.setTestingState('xmpp', false);
                 }
             });
         }
@@ -589,20 +690,11 @@ const InitializationWizard = {
             testMapBtn.addEventListener('click', async () => {
                 this.collectFormValues();
                 this.setInlineTestResult(null, '');
-                try {
-                    const res = await window.api.post('/api/system/init-wizard/test-map', {
-                        map: this.state.map,
-                        map_api_key: this.state.map_api_key,
-                        map_id: this.state.map_id
-                    });
-                    if (res && res.success) {
-                        this.setInlineTestResult('success', res.message || 'Test passed');
-                    } else {
-                        this.setInlineTestResult('error', res?.message || res?.detail || 'Test failed');
-                    }
-                } catch (e) {
-                    this.setInlineTestResult('error', e.message || 'Test failed');
-                }
+                const mapType = String(this.state.map || '').trim();
+                const url = mapType === 'Google'
+                    ? 'http://localhost:8788/scripts/google3dmap_test.html'
+                    : 'http://localhost:8788/scripts/map_test.html';
+                openUrlInDefaultBrowser(url);
             });
         }
 
@@ -783,6 +875,7 @@ const InitializationWizard = {
             this.state.password = get('#initPassword');
             this.state.confirm_password = get('#initConfirmPassword');
             this.state.profile = get('#initProfile');
+            this.state.sns_url = get('#initSnsUrl');
         } else if (this.step === 1) {
             this.state.llm = get('#initLlm');
             this.state.llm_server = get('#initLlmServer');
@@ -790,7 +883,6 @@ const InitializationWizard = {
         } else if (this.step === 2) {
             this.state.account = get('#initAccount');
             this.state.account_password = get('#initAccountPassword');
-            this.state.sns_url = get('#initSnsUrl');
         } else if (this.step === 3) {
             this.state.avatar3d = get('#initAvatar3d');
             this.state.map = get('#initMapType');

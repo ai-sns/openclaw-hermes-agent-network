@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Google Maps API & Map ID 测试工具</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        button {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #357ae8;
+        }
+        #map-container {
+            height: 500px;
+            width: 100%;
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #eee;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #666;
+        }
+        #status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .error { background-color: #fee; color: #c00; border: 1px solid #fcc; }
+        .success { background-color: #efe; color: #080; border: 1px solid #cfc; }
+        .info { font-size: 0.9em; color: #666; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Google Maps API 测试工具</h2>
+    
+    <div class="input-group">
+        <label for="apiKey">API Key:</label>
+        <input type="text" id="apiKey" placeholder="在此粘贴你的 Google Maps API Key">
+    </div>
+
+    <div class="input-group">
+        <label for="mapId">Map ID (可选):</label>
+        <input type="text" id="mapId" placeholder="例如: 8e0a97af938520ad (用于测试矢量地图或云端样式)">
+        <div class="info">注：测试 Advanced Markers（高级标记）必须提供 Map ID。</div>
+    </div>
+
+    <button onclick="loadMap()">加载地图测试</button>
+
+    <div id="status"></div>
+    <div id="map-container">地图将显示在这里</div>
+</div>
+
+<script>
+    // 捕获 API 身份验证错误（如 Key 无效、未授权域名等）
+    window.gm_authFailure = function() {
+        const status = document.getElementById('status');
+        status.style.display = 'block';
+        status.className = 'error';
+        status.innerHTML = '<strong>身份验证错误：</strong> 你的 API Key 可能无效，或者未授权此域名/IP。请检查 Google Cloud Console 的限制设置。';
+        document.getElementById('map-container').innerHTML = '地图加载失败';
+    };
+
+    function loadMap() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const mapId = document.getElementById('mapId').value.trim();
+        const status = document.getElementById('status');
+        const mapContainer = document.getElementById('map-container');
+
+        if (!apiKey) {
+            alert('请输入 API Key');
+            return;
+        }
+
+        // 清理旧状态和旧脚本
+        status.style.display = 'none';
+        mapContainer.innerHTML = '正在加载 Google Maps 脚本...';
+        const oldScript = document.getElementById('google-maps-script');
+        if (oldScript) oldScript.remove();
+        if (window.google) window.google = undefined;
+
+        // 动态创建脚本标签
+        const script = document.createElement('script');
+        script.id = 'google-maps-script';
+        // 使用 v=beta 以支持最新的 MapID 和高级标记功能
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=marker&v=beta&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        
+        script.onerror = function() {
+            status.style.display = 'block';
+            status.className = 'error';
+            status.innerHTML = '脚本加载错误：请检查网络或 API Key 格式。';
+        };
+
+        window.initMap = function() {
+            try {
+                const mapOptions = {
+                    center: { lat: 39.9042, lng: 116.4074 }, // 默认北京
+                    zoom: 12
+                };
+
+                // 如果提供了 MapID，则加入配置
+                if (mapId) {
+                    mapOptions.mapId = mapId;
+                }
+
+                const map = new google.maps.Map(mapContainer, mapOptions);
+
+                // 测试高级标记 (Advanced Marker) - 只有提供 MapID 才会生效
+                if (mapId && google.maps.marker && google.maps.marker.AdvancedMarkerElement) {
+                    new google.maps.marker.AdvancedMarkerElement({
+                        map: map,
+                        position: { lat: 39.9042, lng: 116.4074 },
+                        title: "测试标记 (高级)"
+                    });
+                } else {
+                    // 普通标记
+                    new google.maps.Marker({
+                        position: { lat: 39.9042, lng: 116.4074 },
+                        map: map,
+                        title: "测试标记 (普通)"
+                    });
+                }
+
+                status.style.display = 'block';
+                status.className = 'success';
+                status.innerHTML = `成功！地图已初始化。${mapId ? '已应用 Map ID。' : '未提供 Map ID，使用默认样式。'}`;
+                
+            } catch (e) {
+                status.style.display = 'block';
+                status.className = 'error';
+                status.innerHTML = '初始化地图时出错: ' + e.message;
+            }
+        };
+
+        document.head.appendChild(script);
+    }
+</script>
+
+</body>
+</html>

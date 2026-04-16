@@ -55,7 +55,6 @@ class AgentService:
                 "model_config_id": extra_data.get('model_config_id', ''),
                 "role_id": extra_data.get('role_id', ''),
                 "url": extra_data.get('url', ''),
-                "wallet_address": extra_data.get('wallet_address', ''),
                 "is_active": getattr(agent, 'is_show', True)
             })
         return result
@@ -66,7 +65,7 @@ class AgentService:
         Create a new agent
 
         Supports both old and new field names.
-        New fields (A2A protocol, wallet, etc.) are stored in memo field as JSON.
+        New fields (e.g. A2A protocol) are stored in memo field as JSON.
         """
         # Extract required legacy fields
         name = kwargs.get('name', 'New Agent')
@@ -93,7 +92,6 @@ class AgentService:
             'provider_url': kwargs.get('provider_url', ''),
             'documentation_url': kwargs.get('documentation_url', ''),
             'icon_url': kwargs.get('icon_url', ''),
-            'wallet_address': kwargs.get('wallet_address', ''),
         }
         memo = json.dumps(extra_data, ensure_ascii=False)
 
@@ -203,7 +201,6 @@ class AgentService:
             "provider_url": extra_data.get('provider_url', ''),
             "documentation_url": extra_data.get('documentation_url', ''),
             "icon_url": extra_data.get('icon_url', ''),
-            "wallet_address": extra_data.get('wallet_address', ''),
             "is_active": getattr(agent, 'is_show', True)
         }
 
@@ -225,6 +222,9 @@ class AgentService:
         except:
             pass
 
+        if isinstance(extra_data, dict):
+            extra_data.pop('wallet_address', None)
+
         # Update base fields
         if 'name' in kwargs:
             agent.name = kwargs['name']
@@ -241,7 +241,7 @@ class AgentService:
         for key in ['description', 'agent_type', 'url', 'version', 'protocol_version', 'capabilities',
                     'skills', 'default_input_modes', 'default_output_modes', 'security_schemes',
                     'provider_organization', 'provider_url', 'documentation_url',
-                    'icon_url', 'wallet_address', 'model_config_id', 'role_id',
+                    'icon_url', 'model_config_id', 'role_id',
                     'framework', 'framework_other', 'llm_provider', 'model_description']:
             if key in kwargs:
                 extra_data[key] = kwargs[key]

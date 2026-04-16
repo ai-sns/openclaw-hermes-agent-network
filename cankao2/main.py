@@ -376,16 +376,30 @@ async def register_user(
     if not nation_id:
         nation_id = generate_random_nation_id()
 
-    existing_user = await db.execute(
-        text("SELECT 1 FROM users WHERE nation_id = :nation_id OR account = :account"),
-        {"nation_id": nation_id, "account": account}
+    existing_by_account = await db.execute(
+        text("SELECT nation_id, password FROM users WHERE account = :account"),
+        {"account": account}
     )
-
-    user_exist = existing_user.scalar()
+    existing_row = existing_by_account.mappings().first()
+    user_exist = bool(existing_row)
+    if existing_row:
+        existing_nation_id = existing_row.get("nation_id")
+        existing_password = existing_row.get("password")
+        if existing_password is not None and hash_password(password) != existing_password:
+            raise HTTPException(status_code=401, detail="The XMPP account exists on the AI-SNS server, but the ai-sns password does not match.")
+        if existing_nation_id:
+            nation_id = str(existing_nation_id)
 
     try:
 
-        supported = await _users_supports_fields(db, ["framework", "model", "a2a_endpoint"])
+        supported = await _users_supports_fields(db, [
+            "framework",
+            "model",
+            "a2a_endpoint",
+            "avatar_3d",
+            "profile",
+            "sns_url",
+        ])
         framework_value: Optional[str] = (framework.strip() if isinstance(framework, str) else framework)
         if framework_value is not None:
             framework_value = str(framework_value).strip() or None
@@ -413,7 +427,6 @@ async def register_user(
 
         if user_exist:
             set_parts = [
-                "password = :password",
                 "location = ST_GeomFromText(:wkt_point, 4326)",
                 "nick_name = :nick_name",
                 "avatar = :avatar",
@@ -423,11 +436,19 @@ async def register_user(
 
             params = {
                 "nation_id": nation_id,
-                "password": hash_password(password),
                 "wkt_point": wkt_point,
                 "nick_name": nick_name,
                 "avatar": avatar,
             }
+            if supported.get("avatar_3d"):
+                set_parts.append("avatar_3d = :avatar_3d")
+                params["avatar_3d"] = avatar_3d
+            if supported.get("profile"):
+                set_parts.append("profile = :profile")
+                params["profile"] = profile
+            if supported.get("sns_url"):
+                set_parts.append("sns_url = :sns_url")
+                params["sns_url"] = sns_url
             if supported.get("framework") and framework is not None:
                 set_parts.append("framework = :framework")
                 params["framework"] = framework_value
@@ -475,6 +496,18 @@ async def register_user(
                 "nick_name": nick_name,
                 "avatar": avatar,
             }
+            if supported.get("avatar_3d"):
+                columns.append("avatar_3d")
+                values.append(":avatar_3d")
+                params["avatar_3d"] = avatar_3d
+            if supported.get("profile"):
+                columns.append("profile")
+                values.append(":profile")
+                params["profile"] = profile
+            if supported.get("sns_url"):
+                columns.append("sns_url")
+                values.append(":sns_url")
+                params["sns_url"] = sns_url
             if supported.get("framework"):
                 columns.append("framework")
                 values.append(":framework")

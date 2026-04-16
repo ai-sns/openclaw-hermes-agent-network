@@ -3,7 +3,6 @@
  * SNS event handling and initialization
  */
 
-import snsState from './snsState.js';
 import snsApi from './snsApi.js';
 import { SNSAvatarDialog } from './SNSAvatarDialog.js';
 import { SNSProfessionDialog } from './SNSProfessionDialog.js';

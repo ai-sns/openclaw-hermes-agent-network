@@ -21,9 +21,9 @@ import re
 
 log = logging.getLogger(__name__)
 from db.DBFactory import (query_AgentCfg, add_AIChatMessages, get_prompt_by_title, query_function_mng,
-                          add_function_mng, update_map_task, add_map_visit, get_key_value,
-                          update_map_trade, add_map_trade, add_map_tool, query_single_map_trade, update_AiChatCfg_by_user_id, update_AiChatCfg_map, query_AiChatCfg_map, add_mcp_mng, query_mcp_mng,
-                          delete_map_preset_msg, query_map_preset_msg_all, add_map_preset_msg, query_tool_list, query_single_tool, query_AiChatCfg_map_setting)
+                          add_function_mng, add_map_visit, get_key_value,
+                          update_map_trade, add_map_trade, query_single_map_trade, update_AiChatCfg_by_user_id, update_AiChatCfg_map, query_AiChatCfg_map, add_mcp_mng, query_mcp_mng,
+                          delete_map_preset_msg, query_map_preset_msg_all, add_map_preset_msg, query_AiChatCfg_map_setting)
 from util import (generate_random_id, add_memory_list)
 from i18n import lt
 from enum import Enum
@@ -286,7 +286,7 @@ class DataQueryMixin:
         """
         Parse position data. Supports the following formats:
         1. JSON string: {"lat": 39.51783322503789, "lng": -76.20197639555775}
-        2. JSON array: [116.31633245364759, 39.83663838626669]
+        2. JSON array: [-76.20197639555775, 39.51783322503789]
         3. Already an array: [lng, lat]
         Returns a normalized numeric array: [lng, lat]
         """

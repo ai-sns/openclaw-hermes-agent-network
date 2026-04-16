@@ -26,8 +26,6 @@ function setSinglePointHidden(nation_id, hidden) {
     }
 }
 
-var indexs = ['province', 'city', 'area'];
-
 function _aiSnsUrl(p) {
     try {
         const baseRaw = (typeof window !== 'undefined' && window.__AI_SNS_SERVER__) ? String(window.__AI_SNS_SERVER__) : '';
@@ -40,42 +38,6 @@ function _aiSnsUrl(p) {
     } catch (e) {
         return '';
     }
-}
-
-function getHTMLDOM(context) {
-    console.log("context:", context);
-    var index = context.belongKey ?? 'other'; // Clustering key
-    var text = context.belongValue;
-    var count = context.pointCount || 1; // Total number of points in the cluster
-    var i = indexs.indexOf(index);
-
-    count === 1 && (i = 3);
-    i < 0 && (i = 3);
-
-    var div = document.createElement('div');
-    div.className = 'cluster-marker';
-    var content = '';
-    if (context.isCluster && text) {
-        if (context.type === Cluster.ClusterType.GEO_FENCE) {
-            text = REGION[text].name;
-        }
-        content += '<span class="cluster-marker-title">' + text + '</span>';
-        content += `<span class="cluster-marker-body bg${i}">` + count + '</span>';
-    }
-    if (context.isCluster && !text) {
-        content += `<span class="cluster-marker-body-content">` + count + '</span>';
-    }
-    if (!context.isCluster) {
-        if (context.name.substring(0, 2) == "北京") {
-            content += '<span class="cluster-marker-title" style="display: none">' + context.name + '</span><img src="mapavartar.png" style="width: 36px;height: 49px">';
-        } else {
-            content += '<span class="cluster-marker-title" style="display: none">' + context.name + '</span><img src="mapavartar2.png" style="width: 36px;height: 49px">';
-        }
-
-    }
-
-    div.innerHTML = content;
-    return div;
 }
 
 // Get single-point HTML element
@@ -92,18 +54,10 @@ function getSinglePointHTML(context) {
     } catch (e) {
     }
 
-    // Check point type and set style
-    if (context.name.startsWith("北京")) {
-        div.innerHTML = `
+    div.innerHTML = `
                 <img src="${_aiSnsUrl('/avatars/' + context.nation_id + '_avatar.png')}" style="width: 36px;height: 49px">
                 <span style="display: none">${context.name}</span>
             `;
-    } else {
-        div.innerHTML = `
-                <img src="${_aiSnsUrl('/avatars/' + context.nation_id + '_avatar.png')}" style="width: 36px;height: 49px">
-                <span style="display: none">${context.name}</span>
-            `;
-    }
 
     // Click: hide single point
     div.addEventListener('click', function (event) {
@@ -131,31 +85,10 @@ function addCluster() {
         clusterMaxZoom: 18,
         updateRealTime: true,
         fitViewOnClick: true,
+        // Use pixel-distance clustering for all zoom levels (global-compatible)
         clusterType: [
-            [3, 10, Cluster.ClusterType.GEO_FENCE, [11001, 11002]],
-            [11, 11, Cluster.ClusterType.ATTR_REF, 'city'],
-            [12, 12, Cluster.ClusterType.ATTR_REF, ['city', 'area']],
-            [13, null, Cluster.ClusterType.DIS_PIXEL, 64]
+            [3, null, Cluster.ClusterType.DIS_PIXEL, 64]
         ],
-        clusterDictionary: (type, key) => {
-            if (type === Cluster.ClusterType.GEO_FENCE) {
-                var properties = REGION[key];
-                if (properties && properties.center) {
-                    return {
-                        point: properties.center,
-                        region: properties.fence
-                    };
-                }
-            } else if (type === Cluster.ClusterType.ATTR_REF) {
-                var properties = DISTRICT[key];
-                if (properties && properties.center) {
-                    return {
-                        point: properties.center,
-                    };
-                }
-            }
-            return null;
-        },
         renderClusterStyle: {
             type: Cluster.ClusterRender.DOM,
             inject: (props) => {
