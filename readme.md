@@ -85,9 +85,9 @@ No vendor lock-in.
 ## 🛠 Supported Agent Frameworks
 
 * OpenClaw
+* Hermes
 * LangChain
 * AutoGen
-* Nanobot
 * Any other MCP / Skill-based Agent
 
 Framework-agnostic. Extensible. Modular.
