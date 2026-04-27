@@ -6,7 +6,9 @@ from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from db.database import get_db_sync
 from db.models.aisns import AISnsCfg, AIFriend, AIChatMessages
+from db.models.system import SystemCfg
 from runtime.apps.sns.message_formatter import format_internal_xmpp_message_for_storage
+from runtime.shared.log_cleanup import cleanup_old_backend_logs_async
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +100,16 @@ class XMPPClient(slixmpp.ClientXMPP):
     async def _delayed_roster_cleanup(self):
         try:
             await asyncio.sleep(20)
-            await self.cleanup_roster_if_needed(max_contacts=250)
+            try:
+                await self.cleanup_roster_if_needed(max_contacts=250)
+            except Exception as e:
+                logger.error(f"Roster cleanup task crashed: {e}")
+
+            try:
+                manager = XMPPClientManager.get_instance()
+                manager.maybe_schedule_startup_log_cleanup(delay_seconds=15)
+            except Exception as e:
+                logger.warning("Failed to schedule backend log cleanup: %s", e)
         except asyncio.CancelledError:
             return
         except Exception as e:
@@ -767,6 +778,8 @@ class XMPPClientManager:
     _loop: Optional[asyncio.AbstractEventLoop] = None
     _stopping: bool = False
     _reconnect_task: Optional[asyncio.Task] = None
+    _startup_log_cleanup_task: Optional[asyncio.Task] = None
+    _startup_log_cleanup_done: bool = False
 
     # Reconnection parameters
     _initial_reconnect_delay = 5    # seconds
@@ -783,6 +796,71 @@ class XMPPClientManager:
     def get_client(self) -> Optional[XMPPClient]:
         """Get XMPP client"""
         return self._client
+
+    def maybe_schedule_startup_log_cleanup(self, *, delay_seconds: int = 15) -> None:
+        if self._startup_log_cleanup_done:
+            return
+
+        t = self._startup_log_cleanup_task
+        if t is not None and not t.done():
+            return
+
+        async def _run() -> None:
+            try:
+                await asyncio.sleep(max(0, int(delay_seconds)))
+
+                retention_days: Optional[int] = None
+                db = None
+                try:
+                    db = get_db_sync()
+                    cfg = db.query(SystemCfg).filter(SystemCfg.is_delete == False).first()
+                    if cfg is None:
+                        retention_days = 3
+                    else:
+                        v = getattr(cfg, 'log_retention_days', None)
+                        if v is None:
+                            retention_days = None
+                        else:
+                            retention_days = int(v)
+                except Exception as e:
+                    logger.warning("Failed to read log_retention_days from DB: %s", e)
+                    retention_days = 3
+                finally:
+                    try:
+                        if db is not None:
+                            db.close()
+                    except Exception:
+                        pass
+
+                if retention_days is None:
+                    logger.info("Backend log cleanup skipped: log_retention_days is null")
+                    self._startup_log_cleanup_done = True
+                    return
+                if retention_days < 0:
+                    logger.info("Backend log cleanup skipped: log_retention_days=%s", retention_days)
+                    self._startup_log_cleanup_done = True
+                    return
+
+                await cleanup_old_backend_logs_async(retention_days=retention_days)
+                self._startup_log_cleanup_done = True
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                logger.warning("Startup backend log cleanup task crashed: %s", e)
+
+        loop = None
+        try:
+            loop = self._loop or asyncio.get_running_loop()
+        except Exception:
+            loop = self._loop
+
+        if loop is None:
+            return
+
+        try:
+            self._startup_log_cleanup_task = loop.create_task(_run())
+        except Exception as e:
+            logger.warning("Failed to create backend log cleanup task: %s", e)
 
     def _reset_reconnect_delay(self):
         """Reset reconnect delay after a successful connection"""

@@ -70,6 +70,23 @@ class StreamingService:
                         elif role in ('user', 'assistant'):
                             anthropic_messages.append({"role": role, "content": str(m.get('content') or '')})
 
+                try:
+                    log_llm_request(
+                        request_id=request_id,
+                        source="runtime.modules.chat.streaming.StreamingService.stream_chat",
+                        request_json={
+                            "provider": "claude",
+                            "model": model,
+                            "system": system_prompt,
+                            "messages": anthropic_messages,
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                            "stream": True,
+                        },
+                    )
+                except Exception:
+                    pass
+
                 gen, done_fut = client.stream(
                     model=model,
                     system=system_prompt,
@@ -81,6 +98,14 @@ class StreamingService:
 
                 async for chunk in gen:
                     if chunk:
+                        try:
+                            log_llm_stream_chunk(
+                                request_id=request_id,
+                                source="runtime.modules.chat.streaming.StreamingService.stream_chat",
+                                stream_raw={"content": chunk},
+                            )
+                        except Exception:
+                            pass
                         accumulated_content += chunk
                         yield {
                             "event": "message",

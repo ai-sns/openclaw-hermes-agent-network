@@ -102,50 +102,6 @@ function _readConfigJsonSyncSafe() {
     }
 }
 
-
-function _cleanupOldBackendLogsOnExit() {
-    try {
-        const cfg = _readConfigJsonSyncSafe();
-        const raw = (cfg && cfg.log_retention_days !== undefined && cfg.log_retention_days !== null)
-            ? String(cfg.log_retention_days).trim()
-            : '';
-        if (!raw) {
-            return;
-        }
-
-        const days = parseInt(raw, 10);
-        if (!Number.isFinite(days) || days < 0) {
-            return;
-        }
-
-        const logsRoot = path.join(process.cwd(), 'runtime', 'logs');
-        if (!fs.existsSync(logsRoot)) return;
-
-        const entries = fs.readdirSync(logsRoot, { withFileTypes: true });
-        const now = new Date();
-        const msPerDay = 24 * 60 * 60 * 1000;
-        const cutoffMs = now.getTime() - (days * msPerDay);
-
-        for (const ent of entries) {
-            if (!ent.isDirectory()) continue;
-            const name = ent.name;
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(name)) continue;
-
-            const folderDate = new Date(`${name}T00:00:00`);
-            const t = folderDate.getTime();
-            if (!Number.isFinite(t)) continue;
-            if (t >= cutoffMs) continue;
-
-            const fullPath = path.join(logsRoot, name);
-            try {
-                fs.rmSync(fullPath, { recursive: true, force: true });
-            } catch (e) {
-            }
-        }
-    } catch (e) {
-    }
-}
-
 ipcMain.handle('write-clipboard-text', async (event, text) => {
 
     try {
@@ -2231,11 +2187,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
 
     isQuitting = true;
-
-    try {
-        _cleanupOldBackendLogsOnExit();
-    } catch (e) {
-    }
 
     globalShortcut.unregisterAll();
 

@@ -51,6 +51,16 @@ class AgentInteractionMixin:
             setattr(self, "agent_adapter", agent_adapter)
         return agent_adapter
 
+    def is_current_agent_remote(self) -> bool:
+        """Return True if the currently configured agent is a remote agent."""
+        try:
+            agent_id = getattr(self.aisns_cfg, 'agent_id', None)
+            if not agent_id:
+                return False
+            return self.get_agent_adapter().is_agent_remote(agent_id)
+        except Exception:
+            return False
+
     def get_agent_for_current_chat(self, *, command_status: Optional[str] = None):
         agent_adapter = self.get_agent_adapter()
 

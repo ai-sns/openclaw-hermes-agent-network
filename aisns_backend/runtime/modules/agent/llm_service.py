@@ -124,9 +124,9 @@ class LLMConfigService:
         from db.write_queue import db_write
         _cid = config_id
         def _do(session):
-            rec = session.query(LLMConfig).filter(LLMConfig.config_id == _cid, LLMConfig.is_delete == False).first()
+            rec = session.query(LLMConfig).filter(LLMConfig.config_id == _cid).first()
             if rec:
-                rec.is_delete = True
+                session.delete(rec)
         db_write(_do, description="llm_service_delete")
 
     async def test_connection(self, test_data: LlmTestRequest) -> Dict[str, Any]:

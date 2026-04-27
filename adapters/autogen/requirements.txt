@@ -1,0 +1,10 @@
+# AutoGen Adapter Server
+# A2A JSON-RPC wrapper for AutoGen Studio TeamManager
+
+# HTTP/A2A server dependencies
+requests>=2.31.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# AutoGen dependencies
+autogenstudio>=0.4.0

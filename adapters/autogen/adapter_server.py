@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import time
@@ -5,17 +6,6 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
-
-try:
-    import requests
-except ModuleNotFoundError as e:
-    raise SystemExit(
-        "Missing dependency 'requests'. Install it in the Python environment you're using:\n"
-        "  python -m pip install requests\n"
-        "Or, if you're using a venv:\n"
-        "  <venv>\\Scripts\\python.exe -m pip install requests"
-    ) from e
-
 
 try:
     from fastapi import FastAPI, Request
@@ -28,68 +18,91 @@ except ModuleNotFoundError as e:
         "Note: this script uses uvicorn to serve the FastAPI app."
     ) from e
 
+try:
+    from autogenstudio.teammanager import TeamManager
+except ModuleNotFoundError as e:
+    raise SystemExit(
+        "Missing dependency 'autogenstudio'. Install it in the Python environment you're using:\n"
+        "  python -m pip install autogenstudio"
+    ) from e
 
-def _iter_sse_data_lines(resp: requests.Response) -> Iterable[str]:
-    for raw in resp.iter_lines(decode_unicode=True):
-        if not raw:
-            continue
-        if raw.startswith("data: "):
-            yield raw[len("data: ") :].strip()
 
+# ---------------------------------------------------------------------------
+# AutoGen team execution helpers
+# ---------------------------------------------------------------------------
 
-def _gateway_chat_stream(
-    *,
-    base_url: str,
-    token: str,
-    agent_id: str,
-    message: str,
-    session_key: Optional[str],
-    timeout_seconds: int,
-) -> Iterable[dict[str, Any]]:
-    url = f"{base_url.rstrip('/')}/v1/chat/completions"
-    headers: dict[str, str] = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    if session_key:
-        headers["X-OpenClaw-Session-Key"] = session_key
+def _convert_to_openai_format(result_message: Any, model: str) -> dict[str, Any]:
+    """Convert AutoGen TeamManager result to OpenAI chat completion format."""
+    messages = result_message.task_result.messages
 
-    body = {
-        "model": f"openclaw:{agent_id}",
-        "stream": True,
-        "messages": [{"role": "user", "content": message}],
-    }
-
-    s = requests.Session()
-    s.trust_env = False
-
-    with s.post(
-        url,
-        headers=headers,
-        json=body,
-        stream=True,
-        timeout=timeout_seconds,
-        allow_redirects=False,
-    ) as r:
-        if 300 <= r.status_code < 400:
-            location = r.headers.get("Location")
-            raise RuntimeError(
-                f"Unexpected redirect ({r.status_code}) to {location!r}. "
-                "Refusing to follow redirects; check baseUrl (use the gateway root like http://127.0.0.1:18789)."
-            )
-        if r.status_code == 405:
-            allow = r.headers.get("Allow")
-            raise RuntimeError(
-                f"HTTP 405 Method Not Allowed from {r.url}. "
-                f"method={getattr(r.request, 'method', None)!r} allow={allow!r}. "
-                "This often happens if a redirect/proxy turned your POST into a GET."
-            )
-        r.raise_for_status()
-        for data_str in _iter_sse_data_lines(r):
-            if data_str == "[DONE]":
+    assistant_msg = None
+    for msg in reversed(messages):
+        if msg.source != "user":
+            content = getattr(msg, "content", None)
+            if content and content != "TERMINATE":
+                assistant_msg = content
                 break
-            yield json.loads(data_str)
 
+    prompt_tokens = 0
+    completion_tokens = 0
+    for msg in messages:
+        usage = getattr(msg, "models_usage", None)
+        if usage:
+            prompt_tokens += usage.prompt_tokens or 0
+            completion_tokens += usage.completion_tokens or 0
+
+    return {
+        "id": f"chatcmpl-{uuid.uuid4().hex}",
+        "object": "chat.completion",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": assistant_msg or "",
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+        },
+    }
+
+
+async def _run_autogen_team(
+    *,
+    team_file: str,
+    message: str,
+    model: str,
+) -> dict[str, Any]:
+    """Run a task through the AutoGen TeamManager and return OpenAI-format response."""
+    team_manager = TeamManager()
+    result_message = await team_manager.run(
+        task=message,
+        team_config=team_file,
+    )
+    return _convert_to_openai_format(result_message, model)
+
+
+def _run_autogen_team_sync(
+    *,
+    team_file: str,
+    message: str,
+    model: str,
+) -> dict[str, Any]:
+    """Synchronous wrapper for _run_autogen_team."""
+    return asyncio.run(
+        _run_autogen_team(team_file=team_file, message=message, model=model)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Config
+# ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class ServerConfig:
@@ -100,119 +113,41 @@ class ServerConfig:
 
 
 @dataclass(frozen=True)
-class GatewayConfig:
-    base_url: str
-    token: Optional[str]
-    token_env: list[str]
-    agent_id: str
-    session_key: Optional[str]
+class AutoGenConfig:
+    team_file: Optional[str]
+    team_file_env: list[str]
+    model: str
     timeout_seconds: int
 
 
 @dataclass(frozen=True)
 class AppConfig:
     server: ServerConfig
-    gateway: GatewayConfig
+    autogen: AutoGenConfig
 
 
-def chat_once(
-    *,
-    base_url: str,
-    token: str,
-    agent_id: str,
-    message: str,
-    stream: bool,
-    session_key: Optional[str] = None,
-    timeout_seconds: int = 600,
-) -> str:
-    url = f"{base_url.rstrip('/')}/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
-    if session_key:
-        headers["X-OpenClaw-Session-Key"] = session_key
-
-    body = {
-        "model": f"openclaw:{agent_id}",
-        "stream": stream,
-        "messages": [{"role": "user", "content": message}],
-    }
-
-    s = requests.Session()
-    s.trust_env = False
-
-    if not stream:
-        r = s.post(url, headers=headers, json=body, timeout=timeout_seconds, allow_redirects=False)
-        if 300 <= r.status_code < 400:
-            location = r.headers.get("Location")
-            raise RuntimeError(
-                f"Unexpected redirect ({r.status_code}) to {location!r}. "
-                "Refusing to follow redirects; check --base-url (use the gateway root like http://127.0.0.1:18789)."
-            )
-        if r.status_code == 405:
-            allow = r.headers.get("Allow")
-            raise RuntimeError(
-                f"HTTP 405 Method Not Allowed from {r.url}. "
-                f"method={getattr(r.request, 'method', None)!r} allow={allow!r}. "
-                "This often happens if a redirect/proxy turned your POST into a GET."
-            )
-        r.raise_for_status()
-        data = r.json()
-        return str(data["choices"][0]["message"]["content"])
-
-    full: list[str] = []
-    with s.post(
-        url,
-        headers=headers,
-        json=body,
-        stream=True,
-        timeout=timeout_seconds,
-        allow_redirects=False,
-    ) as r:
-        if 300 <= r.status_code < 400:
-            location = r.headers.get("Location")
-            raise RuntimeError(
-                f"Unexpected redirect ({r.status_code}) to {location!r}. "
-                "Refusing to follow redirects; check --base-url (use the gateway root like http://127.0.0.1:18789)."
-            )
-        if r.status_code == 405:
-            allow = r.headers.get("Allow")
-            raise RuntimeError(
-                f"HTTP 405 Method Not Allowed from {r.url}. "
-                f"method={getattr(r.request, 'method', None)!r} allow={allow!r}. "
-                "This often happens if a redirect/proxy turned your POST into a GET."
-            )
-        r.raise_for_status()
-        for data_str in _iter_sse_data_lines(r):
-            if data_str == "[DONE]":
-                break
-            chunk = json.loads(data_str)
-            delta = chunk.get("choices", [{}])[0].get("delta", {})
-            content = delta.get("content")
-            if isinstance(content, str) and content:
-                print(content, end="", flush=True)
-                full.append(content)
-        print()
-
-    return "".join(full)
-
-
-def _resolve_token(token: Optional[str], token_env: list[str]) -> str:
-    if token:
-        return token
-    for env_key in token_env:
+def _resolve_team_file(team_file: Optional[str], team_file_env: list[str]) -> str:
+    if team_file:
+        return team_file
+    for env_key in team_file_env:
         v = os.environ.get(env_key)
         if v:
             return v
-    raise SystemExit("Missing gateway token. Set OPENCLAW_GATEWAY_TOKEN (or configure gateway.token / gateway.tokenEnv).")
+    # Fallback: look for team.json next to this script
+    default = str(Path(__file__).with_name("team.json"))
+    if Path(default).exists():
+        return default
+    raise SystemExit(
+        "Missing team config file. Set AUTOGENSTUDIO_TEAM_FILE "
+        "(or configure autogen.teamFile / autogen.teamFileEnv)."
+    )
 
 
 def _get_config_path() -> str:
-    path = os.environ.get("OPENCLAW_GATEWAY_A2A_CONFIG")
+    path = os.environ.get("AUTOGEN_ADAPTER_CONFIG")
     if path:
         return path
-    return str(Path(__file__).with_name("openclaw_gateway_a2a_chat.config.json"))
+    return str(Path(__file__).with_name("config.json"))
 
 
 def _load_app_config() -> AppConfig:
@@ -230,12 +165,13 @@ def _load_app_config() -> AppConfig:
     if not isinstance(obj, dict):
         raise SystemExit(f"Invalid config file: {path}: must be a JSON object")
 
+    # -- server --
     server_obj = obj.get("server")
     if not isinstance(server_obj, dict):
         raise SystemExit("Invalid config: server must be an object")
 
-    bind_host = server_obj.get("bindHost", "127.0.0.1")
-    port = server_obj.get("port", 18999)
+    bind_host = server_obj.get("bindHost", "0.0.0.0")
+    port = server_obj.get("port", 8080)
     rpc_path = server_obj.get("rpcPath", "/rpc")
     public_url = server_obj.get("publicUrl")
 
@@ -248,44 +184,41 @@ def _load_app_config() -> AppConfig:
     if public_url is not None and not isinstance(public_url, str):
         raise SystemExit("Invalid config: server.publicUrl must be a string or null")
 
-    gateway_obj = obj.get("gateway")
-    if not isinstance(gateway_obj, dict):
-        raise SystemExit("Invalid config: gateway must be an object")
+    # -- autogen --
+    ag_obj = obj.get("autogen")
+    if not isinstance(ag_obj, dict):
+        raise SystemExit("Invalid config: autogen must be an object")
 
-    base_url = gateway_obj.get("baseUrl", "http://127.0.0.1:18789")
-    token = gateway_obj.get("token")
-    token_env = gateway_obj.get("tokenEnv", ["OPENCLAW_GATEWAY_TOKEN", "CLAWDBOT_GATEWAY_TOKEN"])
-    agent_id = gateway_obj.get("agentId", "main")
-    session_key = gateway_obj.get("sessionKey")
-    timeout_seconds = gateway_obj.get("timeoutSeconds", 600)
+    team_file = ag_obj.get("teamFile")
+    team_file_env = ag_obj.get("teamFileEnv", ["AUTOGENSTUDIO_TEAM_FILE"])
+    model = ag_obj.get("model", "autogen-team")
+    timeout_seconds = ag_obj.get("timeoutSeconds", 600)
 
-    if not isinstance(base_url, str) or not base_url:
-        raise SystemExit("Invalid config: gateway.baseUrl must be a non-empty string")
-    if token is not None and not isinstance(token, str):
-        raise SystemExit("Invalid config: gateway.token must be a string or null")
-    if isinstance(token_env, str):
-        token_env = [token_env]
-    if not isinstance(token_env, list) or not all(isinstance(x, str) and x for x in token_env):
-        raise SystemExit("Invalid config: gateway.tokenEnv must be a string or array of strings")
-    if not isinstance(agent_id, str) or not agent_id:
-        raise SystemExit("Invalid config: gateway.agentId must be a non-empty string")
-    if session_key is not None and not isinstance(session_key, str):
-        raise SystemExit("Invalid config: gateway.sessionKey must be a string or null")
+    if team_file is not None and not isinstance(team_file, str):
+        raise SystemExit("Invalid config: autogen.teamFile must be a string or null")
+    if isinstance(team_file_env, str):
+        team_file_env = [team_file_env]
+    if not isinstance(team_file_env, list) or not all(isinstance(x, str) and x for x in team_file_env):
+        raise SystemExit("Invalid config: autogen.teamFileEnv must be a string or array of strings")
+    if not isinstance(model, str) or not model:
+        raise SystemExit("Invalid config: autogen.model must be a non-empty string")
     if not isinstance(timeout_seconds, int) or timeout_seconds <= 0:
-        raise SystemExit("Invalid config: gateway.timeoutSeconds must be a positive integer")
+        raise SystemExit("Invalid config: autogen.timeoutSeconds must be a positive integer")
 
     return AppConfig(
         server=ServerConfig(bind_host=bind_host, port=port, rpc_path=rpc_path, public_url=public_url),
-        gateway=GatewayConfig(
-            base_url=base_url,
-            token=token,
-            token_env=token_env,
-            agent_id=agent_id,
-            session_key=session_key,
+        autogen=AutoGenConfig(
+            team_file=team_file,
+            team_file_env=team_file_env,
+            model=model,
             timeout_seconds=timeout_seconds,
         ),
     )
 
+
+# ---------------------------------------------------------------------------
+# A2A helpers (same as openclaw adapter_server)
+# ---------------------------------------------------------------------------
 
 def _extract_text_from_a2a_send_message_params(params: Any) -> str:
     if isinstance(params, str):
@@ -324,13 +257,13 @@ def _extract_text_from_a2a_send_message_params(params: Any) -> str:
     return ""
 
 
-def _openai_chat_completion_response(*, agent_id: str, content: str) -> dict[str, Any]:
+def _openai_chat_completion_response(*, model: str, content: str) -> dict[str, Any]:
     now = int(time.time())
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
         "created": now,
-        "model": f"openclaw:{agent_id}",
+        "model": model,
         "choices": [
             {
                 "index": 0,
@@ -341,7 +274,14 @@ def _openai_chat_completion_response(*, agent_id: str, content: str) -> dict[str
     }
 
 
-def _openai_chat_completion_chunk(*, stream_id: str, created: int, agent_id: str, delta: dict[str, Any], finish_reason: Optional[str]) -> dict[str, Any]:
+def _openai_chat_completion_chunk(
+    *,
+    stream_id: str,
+    created: int,
+    model: str,
+    delta: dict[str, Any],
+    finish_reason: Optional[str],
+) -> dict[str, Any]:
     choice: dict[str, Any] = {"index": 0, "delta": delta}
     if finish_reason is not None:
         choice["finish_reason"] = finish_reason
@@ -349,12 +289,18 @@ def _openai_chat_completion_chunk(*, stream_id: str, created: int, agent_id: str
         "id": stream_id,
         "object": "chat.completion.chunk",
         "created": created,
-        "model": f"openclaw:{agent_id}",
+        "model": model,
         "choices": [choice],
     }
 
 
-def _jsonrpc_error(*, req_id: Any, code: int, message: str, data: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+def _jsonrpc_error(
+    *,
+    req_id: Any,
+    code: int,
+    message: str,
+    data: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     err: dict[str, Any] = {"code": code, "message": message}
     if data is not None:
         err["data"] = data
@@ -366,34 +312,37 @@ def _extended_agent_card(cfg: AppConfig) -> dict[str, Any]:
     if not url:
         url = f"http://{cfg.server.bind_host}:{cfg.server.port}{cfg.server.rpc_path}"
     return {
-        "name": "OpenClaw Gateway A2A Chat",
-        "description": "A2A JSON-RPC wrapper for OpenClaw Gateway /v1/chat/completions",
-        "supportedInterfaces": [{"url": url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}],
+        "name": "AutoGen A2A Chat",
+        "description": "A2A JSON-RPC wrapper for AutoGen Studio TeamManager",
+        "supportedInterfaces": [
+            {"url": url, "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}
+        ],
         "capabilities": {"streaming": True, "pushNotifications": False},
         "defaultInputModes": ["application/json", "text/plain"],
         "defaultOutputModes": ["application/json"],
     }
 
 
+# ---------------------------------------------------------------------------
+# A2A request handlers
+# ---------------------------------------------------------------------------
+
 async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]:
     text = _extract_text_from_a2a_send_message_params(params)
     if not text:
         raise ValueError("missing message text")
 
-    token = _resolve_token(cfg.gateway.token, cfg.gateway.token_env)
+    team_file = _resolve_team_file(cfg.autogen.team_file, cfg.autogen.team_file_env)
 
-    assistant = await run_in_threadpool(
-        chat_once,
-        base_url=cfg.gateway.base_url,
-        token=token,
-        agent_id=cfg.gateway.agent_id,
+    openai_resp = await run_in_threadpool(
+        _run_autogen_team_sync,
+        team_file=team_file,
         message=text,
-        stream=False,
-        session_key=cfg.gateway.session_key,
-        timeout_seconds=cfg.gateway.timeout_seconds,
+        model=cfg.autogen.model,
     )
 
-    openai = _openai_chat_completion_response(agent_id=cfg.gateway.agent_id, content=assistant)
+    # Extract assistant content from the OpenAI-format response
+    assistant_content = openai_resp.get("choices", [{}])[0].get("message", {}).get("content", "")
 
     context_id = None
     task_id = None
@@ -410,7 +359,7 @@ async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]
         "messageId": str(uuid.uuid4()),
         "contextId": context_id,
         "role": "ROLE_AGENT",
-        "parts": [{"data": openai}],
+        "parts": [{"data": openai_resp}],
     }
     if task_id is not None:
         message_obj["taskId"] = task_id
@@ -419,6 +368,7 @@ async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]
 
 
 def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[str]:
+    """Simulate streaming for AutoGen (non-streaming backend, emit single SSE frame)."""
     if req_id is None:
         return
 
@@ -427,7 +377,15 @@ def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[s
         if not text:
             raise ValueError("missing message text")
 
-        token = _resolve_token(cfg.gateway.token, cfg.gateway.token_env)
+        team_file = _resolve_team_file(cfg.autogen.team_file, cfg.autogen.team_file_env)
+
+        openai_resp = _run_autogen_team_sync(
+            team_file=team_file,
+            message=text,
+            model=cfg.autogen.model,
+        )
+
+        assistant_content = openai_resp.get("choices", [{}])[0].get("message", {}).get("content", "")
 
         context_id = None
         task_id = None
@@ -443,44 +401,47 @@ def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[s
         created = int(time.time())
         stream_id = f"chatcmpl-{uuid.uuid4().hex}"
 
-        for chunk in _gateway_chat_stream(
-            base_url=cfg.gateway.base_url,
-            token=token,
-            agent_id=cfg.gateway.agent_id,
-            message=text,
-            session_key=cfg.gateway.session_key,
-            timeout_seconds=cfg.gateway.timeout_seconds,
-        ):
-            choice0 = chunk.get("choices", [{}])[0] if isinstance(chunk, dict) else {}
-            if not isinstance(choice0, dict):
-                continue
+        # AutoGen does not natively stream; emit a single content chunk + stop chunk
+        content_chunk = _openai_chat_completion_chunk(
+            stream_id=stream_id,
+            created=created,
+            model=cfg.autogen.model,
+            delta={"role": "assistant", "content": assistant_content},
+            finish_reason=None,
+        )
 
-            delta = choice0.get("delta", {})
-            if not isinstance(delta, dict):
-                delta = {}
-            finish_reason = choice0.get("finish_reason")
-            if finish_reason is not None and not isinstance(finish_reason, str):
-                finish_reason = None
+        message_obj: dict[str, Any] = {
+            "messageId": str(uuid.uuid4()),
+            "contextId": context_id,
+            "role": "ROLE_AGENT",
+            "parts": [{"data": content_chunk}],
+        }
+        if task_id is not None:
+            message_obj["taskId"] = task_id
 
-            openai_chunk = _openai_chat_completion_chunk(
-                stream_id=stream_id,
-                created=created,
-                agent_id=cfg.gateway.agent_id,
-                delta={k: v for k, v in delta.items() if k in ("role", "content") and v is not None},
-                finish_reason=finish_reason,
-            )
+        frame = {"jsonrpc": "2.0", "id": req_id, "result": {"message": message_obj}}
+        yield f"data: {json.dumps(frame)}\n\n"
 
-            message_obj: dict[str, Any] = {
-                "messageId": str(uuid.uuid4()),
-                "contextId": context_id,
-                "role": "ROLE_AGENT",
-                "parts": [{"data": openai_chunk}],
-            }
-            if task_id is not None:
-                message_obj["taskId"] = task_id
+        # Final stop chunk
+        stop_chunk = _openai_chat_completion_chunk(
+            stream_id=stream_id,
+            created=created,
+            model=cfg.autogen.model,
+            delta={},
+            finish_reason="stop",
+        )
 
-            frame = {"jsonrpc": "2.0", "id": req_id, "result": {"message": message_obj}}
-            yield f"data: {json.dumps(frame)}\n\n"
+        stop_msg: dict[str, Any] = {
+            "messageId": str(uuid.uuid4()),
+            "contextId": context_id,
+            "role": "ROLE_AGENT",
+            "parts": [{"data": stop_chunk}],
+        }
+        if task_id is not None:
+            stop_msg["taskId"] = task_id
+
+        stop_frame = {"jsonrpc": "2.0", "id": req_id, "result": {"message": stop_msg}}
+        yield f"data: {json.dumps(stop_frame)}\n\n"
 
     except ValueError as e:
         yield f"data: {json.dumps(_jsonrpc_error(req_id=req_id, code=-32602, message='Invalid params', data={'error': str(e)}))}\n\n"
@@ -520,12 +481,33 @@ async def _handle_one(*, req: Any, cfg: AppConfig) -> Optional[dict[str, Any]]:
     return _jsonrpc_error(req_id=req_id, code=-32601, message="Method not found", data={"method": method})
 
 
+# ---------------------------------------------------------------------------
+# Also expose the original /predict/{task} endpoint from connectsample
+# ---------------------------------------------------------------------------
+
 def create_app(cfg: AppConfig) -> FastAPI:
     app = FastAPI()
 
     @app.get("/.well-known/agent-card.json")
     async def agent_card() -> JSONResponse:
         return JSONResponse(_extended_agent_card(cfg))
+
+    @app.get("/predict/{task}")
+    async def predict(task: str) -> JSONResponse:
+        """Original connectsample.py endpoint - run a task via TeamManager."""
+        try:
+            team_file = _resolve_team_file(cfg.autogen.team_file, cfg.autogen.team_file_env)
+            result = await _run_autogen_team(
+                team_file=team_file,
+                message=task,
+                model=cfg.autogen.model,
+            )
+            return JSONResponse(result)
+        except Exception as e:
+            return JSONResponse(
+                {"error": {"message": str(e), "type": "server_error"}},
+                status_code=500,
+            )
 
     async def rpc(request: Request):
         try:
@@ -542,7 +524,9 @@ def create_app(cfg: AppConfig) -> FastAPI:
             if is_stream:
                 req_id = payload.get("id")
                 if payload.get("jsonrpc") != "2.0" or req_id is None:
-                    return JSONResponse(_jsonrpc_error(req_id=req_id, code=-32600, message="Invalid Request"))
+                    return JSONResponse(
+                        _jsonrpc_error(req_id=req_id, code=-32600, message="Invalid Request")
+                    )
 
                 return StreamingResponse(
                     _send_message_sse(req_id=req_id, params=params, cfg=cfg),

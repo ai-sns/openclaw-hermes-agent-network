@@ -736,6 +736,8 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             items = items[-30:] if len(items) > 30 else items
             process_log = "\n".join(f"{idx + 1}. {item}" for idx, item in enumerate(items))
 
+            is_remote = self.parent.is_current_agent_remote()
+
             context_parts = [
                 tool_prompt,
                 "\n--- Current Context ---",
@@ -744,13 +746,22 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 f"Goals:\n{current_goals or '(none)'}",
                 f"Recent process log:\n{process_log or '(empty)'}",
             ]
-            question = "\n".join(context_parts)
 
+            if is_remote:
+                # Remote agent: wrap with task-oriented instructions; do not use local tools
+                context_parts.append(
+                    "\n--- Instructions for Remote Agent ---\n"
+                    "Based on the context above, use any tools or capabilities you have "
+                    "to gather information that would help decide the next action.\n"
+                    "Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED."
+                )
+
+            question = "\n".join(context_parts)
 
             tool_result = await self.parent.chat_with_agent(
                 question,
                 conversation_suffix="tool_check_activity",
-                use_tools=True,
+                use_tools=(not is_remote),
                 use_memory=False,
                 use_knowledge_base=False,
             )
@@ -782,51 +793,128 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 except Exception:
                     asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
 
-    async def _fetch_peer_agent_card(self) -> str:
-        """Fetch the agent card JSON from the peer's a2a_endpoint by invoking
-        the fetch_agent_card skill (modeled after echo_skill_sample).
-        The skill handles direct GET + /.well-known/agent.json fallback."""
+    def _build_a2a_tool_guidance(self, card_json: str) -> str:
+        """Build an A2A tool usage guidance section for the LLM prompt.
+
+        Extracts the A2A endpoint URL from the agent card JSON and generates
+        instructions telling the LLM how to invoke the a2a_call skill via
+        run_doc_skill for tasks/send and tasks/get.
+
+        Args:
+            card_json: The agent card JSON string
+
+        Returns:
+            A guidance string, or empty string if no URL is found
+        """
         try:
+            card = json.loads(card_json)
+        except Exception:
+            return ""
+
+        # Extract A2A URL from card; fall back to active_conversation endpoint
+        a2a_url = (card.get("url") or "").strip()
+        if not a2a_url:
             active = getattr(self.parent, "active_conversation", None) or {}
-            endpoint = (active.get("a2a_endpoint") or "").strip()
-            if not endpoint:
-                return ""
+            a2a_url = (active.get("a2a_endpoint") or "").strip()
+        if not a2a_url:
+            return ""
 
-            from runtime.modules.skills_registry.service import get_docskills_service
-            svc = get_docskills_service()
-            result = await svc.run_skill("fetch_agent_card", {"url": endpoint})
+        # Extract skill IDs for reference
+        skills = card.get("skills") or []
+        skill_ids = [s.get("id", "") for s in skills if isinstance(s, dict) and s.get("id")]
+        skills_hint = ", ".join(skill_ids) if skill_ids else "(see agent card above)"
 
-            if not result or not result.get("success"):
-                error_msg = result.get("error", "unknown") if result else "no result"
-                logger.debug("fetch_agent_card skill failed: %s", error_msg)
-                return ""
+        guidance = (
+            "\n--- A2A Tool Available ---\n"
+            "You can interact with this peer agent's A2A service using run_doc_skill.\n"
+            "To send a task:\n"
+            '  run_doc_skill(skill_key="a2a_call", params={\n'
+            f'    "url": "{a2a_url}",\n'
+            '    "method": "tasks/send",\n'
+            '    "message_text": "<your message>",\n'
+            f'    "skill_id": "<one of: {skills_hint}>"\n'
+            "  })\n"
+            "To query task status:\n"
+            '  run_doc_skill(skill_key="a2a_call", params={\n'
+            f'    "url": "{a2a_url}",\n'
+            '    "method": "tasks/get",\n'
+            '    "task_id": "<task_id from previous send>"\n'
+            "  })\n"
+            "--- End A2A Tool ---\n"
+        )
+        return guidance
 
-            # The python_file runner puts parsed stdout JSON into result.result.parsed
-            inner = result.get("result") or {}
-            parsed = inner.get("parsed") or {}
-            if not isinstance(parsed, dict):
-                # Fallback: try parsing stdout directly
-                stdout = (inner.get("stdout") or "").strip()
-                if stdout:
-                    try:
-                        import json as _json
-                        parsed = _json.loads(stdout)
-                    except Exception:
-                        parsed = {}
+    async def _fetch_peer_agent_card(self) -> str:
+        """Fetch the agent card JSON from the peer.
 
-            if parsed.get("ok"):
-                card = (parsed.get("card") or "").strip()
-                source = parsed.get("source", "")
-                if card:
-                    logger.debug("Agent card fetched via skill (source=%s, %d chars)", source, len(card))
-                    return card
+        Priority:
+          1. HTTP GET via the fetch_agent_card skill (uses a2a_endpoint)
+          2. XMPP PEP fallback — read the peer's urn:xmpp:a2a:agentcard node
+        """
+        active = getattr(self.parent, "active_conversation", None) or {}
 
-            skill_error = parsed.get("error", "")
-            if skill_error:
-                logger.debug("fetch_agent_card skill returned error: %s", skill_error)
+        # ── Attempt 1: HTTP via a2a_endpoint ────────────────────────────────
+        endpoint = (active.get("a2a_endpoint") or "").strip()
+        if endpoint:
+            try:
+                from runtime.modules.skills_registry.service import get_docskills_service
+                svc = get_docskills_service()
+                result = await svc.run_skill("fetch_agent_card", {"url": endpoint})
 
-        except Exception as e:
-            logger.warning("_fetch_peer_agent_card skill invocation error: %s", e)
+                if not result or not result.get("success"):
+                    error_msg = result.get("error", "unknown") if result else "no result"
+                    logger.debug("fetch_agent_card skill failed: %s", error_msg)
+                else:
+                    # The python_file runner puts parsed stdout JSON into result.result.parsed
+                    inner = result.get("result") or {}
+                    parsed = inner.get("parsed") or {}
+                    if not isinstance(parsed, dict):
+                        # Fallback: try parsing stdout directly
+                        stdout = (inner.get("stdout") or "").strip()
+                        if stdout:
+                            try:
+                                parsed = json.loads(stdout)
+                            except Exception:
+                                parsed = {}
+
+                    if parsed.get("ok"):
+                        card = (parsed.get("card") or "").strip()
+                        source = parsed.get("source", "")
+                        if card:
+                            logger.debug("Agent card fetched via HTTP skill (source=%s, %d chars)", source, len(card))
+                            return card
+
+                    skill_error = parsed.get("error", "")
+                    if skill_error:
+                        logger.debug("fetch_agent_card skill returned error: %s", skill_error)
+            except Exception as e:
+                logger.warning("_fetch_peer_agent_card HTTP skill error: %s", e)
+
+        # ── Attempt 2: XMPP PEP fallback ───────────────────────────────────
+        peer_jid = (active.get("account") or "").strip()
+        if peer_jid and "@" in peer_jid:
+            try:
+                from runtime.apps.sns.xmpp_client import XMPPClientManager
+                client = XMPPClientManager.get_instance().get_client()
+                if client and client.is_client_connected():
+                    a2a_mgr = getattr(client, "_a2a_manager", None)
+                    if a2a_mgr is not None:
+                        card_dict = await a2a_mgr.fetch_peer_agent_card_pep(peer_jid)
+                        if card_dict and isinstance(card_dict, dict):
+                            card_str = json.dumps(card_dict, ensure_ascii=False)
+                            logger.info(
+                                "Agent card fetched via XMPP PEP from %s (%d chars)",
+                                peer_jid,
+                                len(card_str),
+                            )
+                            return card_str
+                    else:
+                        logger.debug("XMPP A2A manager not initialized, skipping PEP fallback")
+                else:
+                    logger.debug("XMPP client not connected, skipping PEP fallback")
+            except Exception as e:
+                logger.warning("_fetch_peer_agent_card XMPP PEP fallback error: %s", e)
+
         return ""
 
     async def _run_tool_check_then_review(self, *, talk_history_str: str, effective_talk_type: str):
@@ -852,8 +940,15 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                                 + "\n--- End Peer Agent Card ---\n"
                             )
                             logger.info("Peer agent card fetched successfully (%d chars)", len(card_json))
+
+                            # Extract A2A endpoint URL and append tool guidance
+                            a2a_tool_section = self._build_a2a_tool_guidance(card_json)
+                            if a2a_tool_section:
+                                agent_card_section += a2a_tool_section
                     except Exception as ac_err:
                         logger.warning("Failed to fetch peer agent card: %s", ac_err)
+
+                is_remote = self.parent.is_current_agent_remote()
 
                 context_parts = [
                     tool_prompt,
@@ -864,6 +959,16 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                     "\n--- Conversation History ---",
                     talk_history_str or "(empty)",
                 ])
+
+                if is_remote:
+                    # Remote agent: append task-oriented instructions; do not use local tools
+                    context_parts.append(
+                        "\n--- Instructions for Remote Agent ---\n"
+                        "Review the conversation above. If you have tools that can enrich "
+                        "your analysis (e.g., lookup, search, query), use them and return the result.\n"
+                        "If no tool call is needed, respond with NO_TOOL_NEEDED."
+                    )
+
                 question = "\n".join(context_parts)
                 self.show_status_on_map("using-tool")
                 self.js_task_manager.show_information(lt(
@@ -874,7 +979,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 tool_result = await self.parent.chat_with_agent(
                     question,
                     conversation_suffix="tool_check_review",
-                    use_tools=True,
+                    use_tools=(not is_remote),
                     use_memory=False,
                     use_knowledge_base=False,
                 )

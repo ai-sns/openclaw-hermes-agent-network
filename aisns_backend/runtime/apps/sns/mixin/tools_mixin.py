@@ -492,6 +492,37 @@ class ToolsMixin:
         if tool_type not in {"plugin", "function", "skill", "mcp"}:
             raise ValueError(f"unsupported tool type: {tool_type}")
 
+        agent = None
+        if hasattr(self, "get_agent_for_current_chat"):
+            agent = self.get_agent_for_current_chat()
+        if agent is None:
+            raise RuntimeError("agent not configured for current user")
+
+        # Remote agent path: skip local tool loading and send a task-oriented prompt
+        is_remote = False
+        try:
+            is_remote = self.is_current_agent_remote()
+        except Exception:
+            is_remote = False
+
+        if is_remote:
+            prompt = (
+                "Generate the requested content using your own tools and capabilities.\n"
+                "Output only the final content; do not include extra explanations.\n\n"
+                f"Context:\n{what_to_do}"
+            )
+            reply = await self.chat_with_agent(
+                prompt,
+                conversation_suffix=conversation_suffix,
+                use_tools=False,
+                use_memory=False,
+                use_knowledge_base=False,
+                agent=agent,
+            )
+            reply = (reply or "").strip()
+            return reply if reply else "(No content generated)"
+
+        # Local agent path: load tool definition and use function calling
         tool_def = self.load_openai_tool_def_for_agent(tool_type, tool_id, mcp_tool_name=mcp_tool_name)
         if tool_def is None:
             if tool_type == "mcp":
@@ -506,12 +537,6 @@ class ToolsMixin:
                 tool_choice = {"type": "function", "function": {"name": tool_fn_name}}
             else:
                 logger.warning("force_tool_call is enabled but tool function name is missing")
-
-        agent = None
-        if hasattr(self, "get_agent_for_current_chat"):
-            agent = self.get_agent_for_current_chat()
-        if agent is None:
-            raise RuntimeError("agent not configured for current user")
 
         original_db_tools = getattr(agent, "db_tools", None)
         original_tools = getattr(agent, "tools", None)

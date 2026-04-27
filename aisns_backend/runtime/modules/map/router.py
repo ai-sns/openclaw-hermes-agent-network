@@ -387,7 +387,7 @@ async def delete_trade(trade_id: str, db: Session = Depends(get_db_sync)):
         def _do(session):
             rec = session.query(MapTrade).filter(MapTrade.trade_id == _tid).first()
             if rec:
-                rec.is_delete = True
+                session.delete(rec)
         db_write(_do, description="map_router_delete_trade")
 
         try:
@@ -465,7 +465,7 @@ async def delete_visit(visit_id: str, db: Session = Depends(get_db_sync)):
         def _do(session):
             rec = session.query(MapVisit).filter(MapVisit.visit_id == _vid).first()
             if rec:
-                rec.is_delete = True
+                session.delete(rec)
 
         db_write(_do, description="map_router_delete_visit")
 

@@ -273,7 +273,7 @@ class AgentService:
 
     @staticmethod
     def delete_agent(agent_id: int) -> None:
-        """Delete an agent (soft delete)"""
+        """Delete an agent record from database."""
         session = Session()
         agent = session.query(AgentCfg).filter_by(id=agent_id).first()
         if agent:
@@ -282,8 +282,7 @@ class AgentService:
             def _do(sess):
                 rec = sess.query(AgentCfg).filter_by(id=_aid).first()
                 if rec:
-                    rec.is_delete = True
-                    rec.is_show = False
+                    sess.delete(rec)
             db_write(_do, description="agent_service_delete")
         session.close()
 

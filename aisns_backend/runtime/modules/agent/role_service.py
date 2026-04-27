@@ -116,9 +116,9 @@ class RoleConfigService:
         from db.write_queue import db_write
         _rid = role_id
         def _do(session):
-            rec = session.query(RoleConfig).filter(RoleConfig.role_id == _rid, RoleConfig.is_delete == False).first()
+            rec = session.query(RoleConfig).filter(RoleConfig.role_id == _rid).first()
             if rec:
-                rec.is_delete = True
+                session.delete(rec)
         db_write(_do, description="role_service_delete")
 
     def import_configs(self, configs: List[RoleConfigCreate]) -> Dict[str, Any]:

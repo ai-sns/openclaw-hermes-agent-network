@@ -179,14 +179,14 @@ class AIChatMessagesRepository(BaseRepository[AIChatMessages]):
             session.close()
 
     def soft_delete_conversation(self, conversation_id: str) -> int:
+        """Hard-delete all messages belonging to the given conversation."""
         _cid = conversation_id
         def _do(session):
             affected = session.query(AIChatMessages).filter(
                 AIChatMessages.conversation_id == _cid,
-                AIChatMessages.is_delete == False,
-            ).update({AIChatMessages.is_delete: True}, synchronize_session=False)
+            ).delete(synchronize_session=False)
             return int(affected or 0)
-        return db_write(_do, description="repo_soft_delete_conversation")
+        return db_write(_do, description="repo_delete_conversation")
 
     def update_conversation_title(self, conversation_id: str, title: str) -> bool:
         _cid = conversation_id

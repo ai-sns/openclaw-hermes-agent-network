@@ -443,6 +443,77 @@ class XMPPA2AManager:
             logger.error("Failed to exchange business card with %s: %s", target_jid, e)
             return None
 
+    # ── Inbound: Read Peer Agent Card via PEP ────────────────────────────
+
+    async def fetch_peer_agent_card_pep(self, peer_jid: str) -> Optional[Dict[str, Any]]:
+        """
+        Read a peer's agent card from their PEP node (urn:xmpp:a2a:agentcard).
+
+        Uses xep_0060.get_items to fetch the published agent card item from
+        the peer's PEP node. Returns the parsed agent card dict, or None on
+        failure.
+
+        Args:
+            peer_jid: The bare XMPP JID of the peer (e.g. user@domain)
+
+        Returns:
+            The agent card dict, or None if unavailable
+        """
+        bare_jid = str(peer_jid).split('/')[0]
+        if not bare_jid or '@' not in bare_jid:
+            logger.warning("fetch_peer_agent_card_pep: invalid peer_jid=%s", peer_jid)
+            return None
+
+        try:
+            pubsub = self.client['xep_0060']
+        except Exception:
+            pubsub = None
+
+        if pubsub is None:
+            logger.warning("fetch_peer_agent_card_pep: xep_0060 not available")
+            return None
+
+        try:
+            iq = await asyncio.wait_for(
+                pubsub.get_items(bare_jid, A2A_PEP_NODE, max_items=1),
+                timeout=10,
+            )
+
+            # Parse items from the PubSub response
+            for item in iq['pubsub']['items']['substanzas']:
+                try:
+                    # The agent card is stored as JSON text inside the XML element
+                    payload_el = None
+                    for child in item.xml:
+                        if child.text:
+                            payload_el = child
+                            break
+
+                    if payload_el is not None and payload_el.text:
+                        card = json.loads(payload_el.text)
+                        logger.info(
+                            "Fetched peer agent card via PEP from %s: name=%s",
+                            bare_jid,
+                            card.get("name", "unknown"),
+                        )
+                        return card
+                except Exception as parse_err:
+                    logger.warning(
+                        "Failed to parse PEP agent card item from %s: %s",
+                        bare_jid,
+                        parse_err,
+                    )
+
+            logger.info("No agent card items found in PEP node for %s", bare_jid)
+            return None
+
+        except asyncio.TimeoutError:
+            logger.warning("fetch_peer_agent_card_pep: timeout reading PEP from %s", bare_jid)
+            return None
+        except Exception as e:
+            logger.warning("fetch_peer_agent_card_pep: failed for %s: %s", bare_jid, e)
+            return None
+
     # ── Initialization ─────────────────────────────────────────────────────
 
     async def initialize(self):

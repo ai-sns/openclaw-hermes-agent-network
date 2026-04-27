@@ -165,13 +165,12 @@ class ToolsService:
             _ptype = db_plugin.plugin_type
             _pdir = db_plugin.plugin_directory
             def _do(session):
-                rec = session.query(PluginMng).filter(PluginMng.plugin_id == _pid, PluginMng.is_delete == False).first()
+                rec = session.query(PluginMng).filter(PluginMng.plugin_id == _pid).first()
                 if rec:
-                    rec.is_delete = True
+                    session.delete(rec)
             db_write(_do, description="tools_delete_plugin")
 
             # Best-effort cleanup for extracted renderer plugins.
-            # This keeps DB soft-delete semantics, but also frees disk space.
             try:
                 if (_ptype or '').lower() == 'renderer' and _pdir:
                     uploads_root = (Path('uploads') / 'plugins').resolve()
@@ -372,7 +371,7 @@ class ToolsService:
             raise
 
     def delete_mcp(self, mcp_id: str) -> bool:
-        """Soft delete MCP"""
+        """Delete MCP record from database."""
         try:
             db_mcp = self.db.query(McpMng).filter(
                 McpMng.mcp_id == mcp_id,
@@ -385,9 +384,9 @@ class ToolsService:
             from db.write_queue import db_write
             _mid = db_mcp.mcp_id
             def _do(session):
-                rec = session.query(McpMng).filter(McpMng.mcp_id == _mid, McpMng.is_delete == False).first()
+                rec = session.query(McpMng).filter(McpMng.mcp_id == _mid).first()
                 if rec:
-                    rec.is_delete = True
+                    session.delete(rec)
             db_write(_do, description="tools_delete_mcp")
             return True
         except Exception as e:
@@ -458,7 +457,7 @@ class ToolsService:
             raise
 
     def delete_function(self, function_id: str) -> bool:
-        """Soft delete function"""
+        """Delete function record from database."""
         try:
             db_function = self.db.query(FunctionMng).filter(
                 FunctionMng.function_id == function_id,
@@ -471,9 +470,9 @@ class ToolsService:
             from db.write_queue import db_write
             _fid = db_function.function_id
             def _do(session):
-                rec = session.query(FunctionMng).filter(FunctionMng.function_id == _fid, FunctionMng.is_delete == False).first()
+                rec = session.query(FunctionMng).filter(FunctionMng.function_id == _fid).first()
                 if rec:
-                    rec.is_delete = True
+                    session.delete(rec)
             db_write(_do, description="tools_delete_function")
             return True
         except Exception as e:
@@ -545,7 +544,7 @@ class ToolsService:
             raise
 
     def delete_skill(self, skill_id: str) -> bool:
-        """Soft delete skill"""
+        """Delete skill record from database."""
         try:
             db_skill = self.db.query(SkillMng).filter(
                 SkillMng.skill_id == skill_id,
@@ -558,9 +557,9 @@ class ToolsService:
             from db.write_queue import db_write
             _sid = db_skill.skill_id
             def _do(session):
-                rec = session.query(SkillMng).filter(SkillMng.skill_id == _sid, SkillMng.is_delete == False).first()
+                rec = session.query(SkillMng).filter(SkillMng.skill_id == _sid).first()
                 if rec:
-                    rec.is_delete = True
+                    session.delete(rec)
             db_write(_do, description="tools_delete_skill")
             return True
         except Exception as e:

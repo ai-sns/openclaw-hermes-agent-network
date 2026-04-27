@@ -1,0 +1,12 @@
+# LangChain Adapter Server
+# A2A JSON-RPC wrapper for LangChain + DeepAgents
+
+# HTTP/A2A server dependencies
+requests>=2.31.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# LangChain dependencies
+langchain>=0.3.0
+langchain-openai>=0.2.0
+deepagents>=0.1.0

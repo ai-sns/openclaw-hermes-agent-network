@@ -901,6 +901,12 @@ async def startup_event():
             logger.warning(f"⚠ Failed to start XMPP client: {e}")
 
     try:
+        from runtime.apps.sns.xmpp_client import XMPPClientManager
+        XMPPClientManager.get_instance().maybe_schedule_startup_log_cleanup(delay_seconds=45)
+    except Exception as e:
+        logger.warning("Failed to schedule startup backend log cleanup: %s", e)
+
+    try:
         async def _stop_sns_engine_if_active():
             try:
                 from runtime.apps.sns.service_async import SNSService

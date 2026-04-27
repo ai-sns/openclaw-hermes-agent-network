@@ -20,6 +20,13 @@ from .agent_manager import agent_manager
 from db.database import get_db_session as get_session
 from db.models.agent import AgentCfg
 from db.models.aisns import AIChatMessages
+from runtime.shared.llm_log_writer import (
+    new_request_id,
+    log_llm_request,
+    log_llm_response,
+    log_llm_stream_chunk,
+    log_llm_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -296,6 +303,16 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
         }
     }
 
+    req_id = new_request_id()
+    try:
+        log_llm_request(
+            request_id=req_id,
+            source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+            request_json={"rpc_url": rpc_url, "payload": payload},
+        )
+    except Exception:
+        pass
+
     timeout = httpx.Timeout(60.0, read=30.0)
     out_parts: List[str] = []
     seen_content = False
@@ -311,6 +328,15 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
                 headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream'}
             ) as resp:
                 if resp.status_code >= 400:
+                    try:
+                        body = await resp.aread()
+                        log_llm_error(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                            error=f"HTTP {resp.status_code}: {body.decode(errors='ignore')}"
+                        )
+                    except Exception:
+                        pass
                     return ''
 
                 content_type = str(resp.headers.get('content-type') or '').lower()
@@ -329,7 +355,16 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
 
                     result = data.get('result') if isinstance(data, dict) else None
                     message_obj = (result or {}).get('message') if isinstance(result, dict) else None
-                    return _extract_text_from_a2a_message(message_obj or {})
+                    extracted = _extract_text_from_a2a_message(message_obj or {})
+                    try:
+                        log_llm_response(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                            response_json={"content": extracted}
+                        )
+                    except Exception:
+                        pass
+                    return extracted
 
                 async for line in resp.aiter_lines():
                     now = time.monotonic()
@@ -352,11 +387,27 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
                         continue
 
                     if isinstance(evt, dict) and evt.get('error'):
+                        try:
+                            log_llm_error(
+                                request_id=req_id,
+                                source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                                error=evt.get('error')
+                            )
+                        except Exception:
+                            pass
                         return ''
 
                     delta = _extract_delta_text_from_a2a_event(evt)
                     if delta:
                         out_parts.append(delta)
+                        try:
+                            log_llm_stream_chunk(
+                                request_id=req_id,
+                                source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                                stream_raw={"content": delta}
+                            )
+                        except Exception:
+                            pass
                         seen_content = True
                         last_content_ts = time.monotonic()
                     else:
@@ -369,6 +420,14 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
                                     t = p.get('text')
                                     if isinstance(t, str) and t:
                                         out_parts.append(t)
+                                        try:
+                                            log_llm_stream_chunk(
+                                                request_id=req_id,
+                                                source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                                                stream_raw={"content": t}
+                                            )
+                                        except Exception:
+                                            pass
                                         seen_content = True
                                         last_content_ts = time.monotonic()
                                         break
@@ -376,16 +435,41 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
                         full_text = _extract_text_from_a2a_message(msg or {})
                         if isinstance(full_text, str) and full_text:
                             out_parts.append(full_text)
+                            try:
+                                log_llm_stream_chunk(
+                                    request_id=req_id,
+                                    source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                                    stream_raw={"content": full_text}
+                                )
+                            except Exception:
+                                pass
                             seen_content = True
                             last_content_ts = time.monotonic()
 
                     finish_reason = _extract_finish_reason_from_a2a_event(evt)
                     if finish_reason:
                         break
-        except Exception:
+        except Exception as e:
+            try:
+                log_llm_error(
+                    request_id=req_id,
+                    source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+                    error=str(e)
+                )
+            except Exception:
+                pass
             return ''
 
-    return ''.join(out_parts)
+    full_text = ''.join(out_parts)
+    try:
+        log_llm_response(
+            request_id=req_id,
+            source="runtime.modules.agent.chat_router._remote_agent_collect_stream_text",
+            response_json={"content": full_text}
+        )
+    except Exception:
+        pass
+    return full_text
 
 
 async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str, stream: bool) -> str:
@@ -406,10 +490,27 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
         raise ValueError('A2A Endpoint URL is empty')
 
     timeout = httpx.Timeout(60.0, read=60.0)
+    req_id = new_request_id()
+    try:
+        log_llm_request(
+            request_id=req_id,
+            source="runtime.modules.agent.chat_router._remote_agent_send_message",
+            request_json={"rpc_url": rpc_url, "payload": payload},
+        )
+    except Exception:
+        pass
     try:
         async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
             resp = await client.post(rpc_url, json=payload, headers={'Content-Type': 'application/json'})
             if resp.status_code >= 400:
+                try:
+                    log_llm_error(
+                        request_id=req_id,
+                        source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                        error=f"HTTP {resp.status_code}: {resp.text[:500]}"
+                    )
+                except Exception:
+                    pass
                 raise HTTPException(status_code=502, detail=f'Remote agent error: HTTP {resp.status_code}: {resp.text[:500]}')
 
             content_type = str(resp.headers.get('content-type') or '').lower()
@@ -431,6 +532,14 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
                     delta = _extract_delta_text_from_a2a_event(evt)
                     if delta:
                         out_parts.append(delta)
+                        try:
+                            log_llm_stream_chunk(
+                                request_id=req_id,
+                                source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                                stream_raw={"content": delta}
+                            )
+                        except Exception:
+                            pass
                         continue
                     result = evt.get('result') if isinstance(evt, dict) else None
                     msg = (result or {}).get('message') if isinstance(result, dict) else None
@@ -443,14 +552,46 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
 
                 joined = ''.join(out_parts)
                 if joined:
+                    try:
+                        log_llm_response(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                            response_json={"content": joined}
+                        )
+                    except Exception:
+                        pass
                     return joined
             try:
                 data = resp.json()
             except Exception:
+                try:
+                    log_llm_error(
+                        request_id=req_id,
+                        source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                        error=f"Remote agent returned non-JSON response: {resp.text[:500]}"
+                    )
+                except Exception:
+                    pass
                 raise HTTPException(status_code=502, detail=f'Remote agent returned non-JSON response: {resp.text[:500]}')
     except httpx.TimeoutException:
+        try:
+            log_llm_error(
+                request_id=req_id,
+                source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                error='Remote agent timeout'
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=504, detail='Remote agent timeout')
     except httpx.HTTPError as e:
+        try:
+            log_llm_error(
+                request_id=req_id,
+                source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                error=f'Remote agent network error: {str(e)}'
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=502, detail=f'Remote agent network error: {str(e)}')
 
     if isinstance(data, dict) and data.get('error'):
@@ -461,12 +602,36 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
                 context_id=context_id,
             )
             if fallback:
+                try:
+                    log_llm_response(
+                        request_id=req_id,
+                        source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                        response_json={"content": fallback}
+                    )
+                except Exception:
+                    pass
                 return fallback
+        try:
+            log_llm_error(
+                request_id=req_id,
+                source="runtime.modules.agent.chat_router._remote_agent_send_message",
+                error=f"RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}"
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=502, detail=f"Remote agent RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}")
 
     result = (data or {}).get('result') if isinstance(data, dict) else None
     message_obj = (result or {}).get('message') if isinstance(result, dict) else None
     reply = _extract_text_from_a2a_message(message_obj or {})
+    try:
+        log_llm_response(
+            request_id=req_id,
+            source="runtime.modules.agent.chat_router._remote_agent_send_message",
+            response_json={"content": reply}
+        )
+    except Exception:
+        pass
     return reply
 
 
@@ -489,6 +654,15 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
         return
 
     timeout = httpx.Timeout(60.0, read=30.0)
+    req_id = new_request_id()
+    try:
+        log_llm_request(
+            request_id=req_id,
+            source="runtime.modules.agent.chat_router._remote_agent_stream",
+            request_json={"rpc_url": rpc_url, "payload": payload},
+        )
+    except Exception:
+        pass
     async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
         try:
             async with client.stream(
@@ -505,6 +679,14 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                         text_body = body.decode('utf-8', errors='ignore')
                     except Exception:
                         text_body = str(body)
+                    try:
+                        log_llm_error(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_stream",
+                            error=f"HTTP {resp.status_code}: {text_body[:500]}"
+                        )
+                    except Exception:
+                        pass
                     yield f"data: {json.dumps({'error': f'Remote agent error: HTTP {resp.status_code}: {text_body[:500]}'})}\n\n"
                     return
 
@@ -530,8 +712,24 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                                 stream=False,
                             )
                             if reply:
+                                try:
+                                    log_llm_response(
+                                        request_id=req_id,
+                                        source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                        response_json={"content": reply}
+                                    )
+                                except Exception:
+                                    pass
                                 yield f"data: {json.dumps({'content': reply})}\n\n"
                                 return
+                        except Exception:
+                            pass
+                        try:
+                            log_llm_error(
+                                request_id=req_id,
+                                source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                error=json.dumps(data.get('error'), ensure_ascii=False)
+                            )
                         except Exception:
                             pass
                         yield f"data: {json.dumps({'error': json.dumps(data.get('error'), ensure_ascii=False)})}\n\n"
@@ -541,6 +739,14 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                     message_obj = (result or {}).get('message') if isinstance(result, dict) else None
                     reply = _extract_text_from_a2a_message(message_obj or {})
                     if reply:
+                        try:
+                            log_llm_response(
+                                request_id=req_id,
+                                source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                response_json={"content": reply}
+                            )
+                        except Exception:
+                            pass
                         yield f"data: {json.dumps({'content': reply})}\n\n"
                         return
 
@@ -552,8 +758,24 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                             stream=False,
                         )
                         if reply:
+                            try:
+                                log_llm_response(
+                                    request_id=req_id,
+                                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                    response_json={"content": reply}
+                                )
+                            except Exception:
+                                pass
                             yield f"data: {json.dumps({'content': reply})}\n\n"
                             return
+                    except Exception:
+                        pass
+                    try:
+                        log_llm_error(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_stream",
+                            error=f"Remote agent returned non-SSE response: {text_body[:500]}"
+                        )
                     except Exception:
                         pass
                     yield f"data: {json.dumps({'error': f'Remote agent returned non-SSE response: {text_body[:500]}'})}\n\n"
@@ -598,11 +820,26 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                                     if reply:
                                         seen_content = True
                                         last_content_ts = time.monotonic()
+                                        try:
+                                            log_llm_response(
+                                                request_id=req_id,
+                                                source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                                response_json={"content": reply}
+                                            )
+                                        except Exception:
+                                            pass
                                         yield f"data: {json.dumps({'content': reply})}\n\n"
                                         break
                                 except Exception:
                                     pass
-
+                            try:
+                                log_llm_error(
+                                    request_id=req_id,
+                                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                    error=json.dumps(evt.get('error'), ensure_ascii=False)
+                                )
+                            except Exception:
+                                pass
                             yield f"data: {json.dumps({'error': json.dumps(evt.get('error'), ensure_ascii=False)})}\n\n"
                             continue
 
@@ -610,6 +847,14 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                         if delta:
                             seen_content = True
                             last_content_ts = time.monotonic()
+                            try:
+                                log_llm_stream_chunk(
+                                    request_id=req_id,
+                                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                    stream_raw={"content": delta}
+                                )
+                            except Exception:
+                                pass
                             yield f"data: {json.dumps({'content': delta})}\n\n"
                         else:
                             # Some A2A implementations stream text directly via part.text
@@ -623,6 +868,14 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                                         if isinstance(t, str) and t:
                                             seen_content = True
                                             last_content_ts = time.monotonic()
+                                            try:
+                                                log_llm_stream_chunk(
+                                                    request_id=req_id,
+                                                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                                    stream_raw={"content": t}
+                                                )
+                                            except Exception:
+                                                pass
                                             yield f"data: {json.dumps({'content': t})}\n\n"
                                             break
 
@@ -633,21 +886,70 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                             if isinstance(full_text, str) and full_text:
                                 seen_content = True
                                 last_content_ts = time.monotonic()
+                                try:
+                                    log_llm_stream_chunk(
+                                        request_id=req_id,
+                                        source="runtime.modules.agent.chat_router._remote_agent_stream",
+                                        stream_raw={"content": full_text}
+                                    )
+                                except Exception:
+                                    pass
                                 yield f"data: {json.dumps({'content': full_text})}\n\n"
 
                         finish_reason = _extract_finish_reason_from_a2a_event(evt)
                         if finish_reason:
                             break
+                    # Normal SSE loop completion (finish_reason / [DONE] / idle timeout)
+                    try:
+                        log_llm_response(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_stream",
+                            response_json={"status": "completed"}
+                        )
+                    except Exception:
+                        pass
                 except httpx.ReadTimeout:
                     # Upstream keeps connection open forever; end the stream gracefully.
+                    try:
+                        log_llm_response(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_stream",
+                            response_json={"status": "completed"}
+                        )
+                    except Exception:
+                        pass
                     return
                 except Exception as e:
+                    try:
+                        log_llm_error(
+                            request_id=req_id,
+                            source="runtime.modules.agent.chat_router._remote_agent_stream",
+                            error=str(e)
+                        )
+                    except Exception:
+                        pass
                     yield f"data: {json.dumps({'error': str(e)})}\n\n"
                     return
         except httpx.TimeoutException:
+            try:
+                log_llm_error(
+                    request_id=req_id,
+                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                    error='Remote agent timeout'
+                )
+            except Exception:
+                pass
             yield f"data: {json.dumps({'error': 'Remote agent timeout'})}\n\n"
             return
         except httpx.HTTPError as e:
+            try:
+                log_llm_error(
+                    request_id=req_id,
+                    source="runtime.modules.agent.chat_router._remote_agent_stream",
+                    error=f'Remote agent network error: {str(e)}'
+                )
+            except Exception:
+                pass
             yield f"data: {json.dumps({'error': f'Remote agent network error: {str(e)}'})}\n\n"
             return
 

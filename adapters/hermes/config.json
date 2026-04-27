@@ -1,0 +1,17 @@
+{
+  "server": {
+    "bindHost": "127.0.0.1",
+    "port": 19099,
+    "rpcPath": "/rpc",
+    "publicUrl": null
+  },
+  "hermes": {
+    "baseUrl": "http://172.29.211.241:8642",
+    "apiKey": "a1b2c3d4e5f6789012345678901234567890abcdef1234567890abcdef123456",
+    "apiKeyEnv": [
+      "HERMES_API_KEY"
+    ],
+    "model": "hermes-agent",
+    "timeoutSeconds": 30
+  }
+}

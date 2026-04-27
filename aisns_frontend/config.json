@@ -1,5 +1,4 @@
 {
   "agent_server": "http://127.0.0.1:8788",
-  "ai_sns_server": "https://snsservice.ai-sns.org",
-  "log_retention_days": "3"
+  "ai_sns_server": "https://snsservice.ai-sns.org"
 }

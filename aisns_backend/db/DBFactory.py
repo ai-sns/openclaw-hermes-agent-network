@@ -1463,7 +1463,7 @@ def delete_SystemInit(id):
     def _do(session):
         record = session.query(SystemInit).filter_by(id=id).first()
         if record:
-            record.is_delete = True
+            session.delete(record)
     db_write(_do, description="delete_SystemInit")
 
 

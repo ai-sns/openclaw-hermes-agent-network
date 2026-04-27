@@ -257,8 +257,8 @@ class SystemService:
         }
 
     def delete_web_mng(self, item_id: int) -> None:
-        """Delete web management item (soft delete)"""
-        self.web_mng_repo.update(item_id, is_delete=True)
+        """Delete web management item from database."""
+        self.web_mng_repo.delete(item_id)
 
     def reorder_web_mng(self, items: List[Dict[str, Any]]) -> None:
         """Reorder web management items"""

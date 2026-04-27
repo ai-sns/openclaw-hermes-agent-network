@@ -204,7 +204,7 @@ def count_memories(agent_id: str) -> int:
 
 
 def soft_delete_oldest(agent_id: str, keep_count: int) -> int:
-    """Soft-delete the least important / oldest memories beyond *keep_count*."""
+    """Hard-delete the least important / oldest memories beyond *keep_count*."""
     session = Session()
     try:
         total = session.query(AgentMemory).filter(
@@ -228,13 +228,13 @@ def soft_delete_oldest(agent_id: str, keep_count: int) -> int:
             .all()
         )
         for r in rows:
-            r.is_delete = 1
+            session.delete(r)
         _commit_with_retry(session)
-        logger.info("Soft-deleted %d old memories for agent %s", len(rows), agent_id)
+        logger.info("Hard-deleted %d old memories for agent %s", len(rows), agent_id)
         return len(rows)
     except Exception as e:
         session.rollback()
-        logger.error("Failed to soft-delete old memories: %s", e)
+        logger.error("Failed to hard-delete old memories: %s", e)
         return 0
     finally:
         session.close()

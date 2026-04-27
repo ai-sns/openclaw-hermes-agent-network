@@ -177,6 +177,10 @@ class AgentInstance:
             ) as response:
                 if response.status_code != 200:
                     body = await response.aread()
+                    try:
+                        log_llm_error(request_id=request_id, source=source, error=f"HTTP {response.status_code}: {body.decode(errors='ignore')}")
+                    except Exception:
+                        pass
                     raise RuntimeError(f"HTTP {response.status_code}: {body.decode(errors='ignore')}")
 
                 buffer = ""
@@ -196,6 +200,10 @@ class AgentInstance:
                             continue
                         data = line[6:]
                         if data == '[DONE]':
+                            try:
+                                log_llm_response(request_id=request_id, source=source, response_json={"status": "completed"})
+                            except Exception:
+                                pass
                             return
                         parsed = json.loads(data)
                         try:

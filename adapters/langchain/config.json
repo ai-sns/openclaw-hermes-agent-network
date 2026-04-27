@@ -1,0 +1,19 @@
+{
+  "server": {
+    "bindHost": "127.0.0.1",
+    "port": 19199,
+    "rpcPath": "/rpc",
+    "publicUrl": null
+  },
+  "langchain": {
+    "baseUrl": "https://api.chatanywhere.tech/v1",
+    "apiKey": "sk-SVCuk9EAqrgUEvvh31PKxVIr1fZhwt5boDB2Hexw8vs2Bl26",
+    "apiKeyEnv": [
+      "LANGCHAIN_API_KEY"
+    ],
+    "model": "openai:gpt-4o",
+    "backendRootDir": "C:/Users/IDD/Documents",
+    "virtualMode": true,
+    "timeoutSeconds": 600
+  }
+}

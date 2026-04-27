@@ -819,24 +819,19 @@ export class SNSProfessionDialog {
 
     async loadTools() {
         try {
-            // Fetch all tool types from the tools API
-            const [pluginsResponse, mcpsResponse, functionsResponse, skillsResponse] = await Promise.all([
-                fetch(this.resolve('/api/tools/plugins')),
+            // Fetch MCP tools and DocSkills (same source as Agent module)
+            const [mcpsResponse, docSkillsResponse] = await Promise.all([
                 fetch(this.resolve('/api/tools/mcp')),
-                fetch(this.resolve('/api/tools/functions')),
-                fetch(this.resolve('/api/tools/skills'))
+                fetch(this.resolve('/api/skills/list'))
             ]);
 
-            const plugins = await pluginsResponse.json();
             const mcps = await mcpsResponse.json();
-            const functions = await functionsResponse.json();
-            const skills = await skillsResponse.json();
+            const docSkillsPayload = await docSkillsResponse.json();
+            const docSkills = docSkillsPayload?.data || [];
 
             this.availableTools = [
-                ...plugins.map(tool => ({ ...tool, type: 'plugin', id: tool.plugin_id })),
                 ...mcps.map(tool => ({ ...tool, type: 'mcp', id: tool.mcp_id })),
-                ...functions.map(tool => ({ ...tool, type: 'function', id: tool.function_id })),
-                ...skills.map(tool => ({ ...tool, type: 'skill', id: tool.skill_id }))
+                ...docSkills.map(tool => ({ ...tool, type: 'skill', id: tool.skill_key }))
             ];
 
             this.populateToolSelect();
@@ -852,11 +847,9 @@ export class SNSProfessionDialog {
         // Clear existing options except the first one
         toolSelect.innerHTML = '<option value="">Select a tool...</option>';
 
-        // Group tools by type
+        // Group tools by type (MCP and Skill only)
         const toolsByType = {
-            'Plugin tools': this.availableTools.filter(tool => tool.type === 'plugin'),
             'MCP tools': this.availableTools.filter(tool => tool.type === 'mcp'),
-            'Function tools': this.availableTools.filter(tool => tool.type === 'function'),
             'Skill tools': this.availableTools.filter(tool => tool.type === 'skill')
         };
 

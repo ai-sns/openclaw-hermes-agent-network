@@ -262,12 +262,7 @@ class NoteService:
                 rec = sess.query(NoteMng).filter(and_(NoteMng.id == _nid, NoteMng.is_delete == False)).first()
                 if not rec:
                     return False
-                rec.is_delete = True
-                try:
-                    if hasattr(rec, 'updated_at'):
-                        rec.updated_at = datetime.now()
-                except:
-                    pass
+                sess.delete(rec)
                 return True
             return db_write(_do, description="note_service_delete")
         except Exception as e:

@@ -259,12 +259,12 @@ class KMService:
                 except Exception as e:
                     logger.error(f"Error deleting vectors for file {file_id}: {e}")
 
-            # Mark as deleted in database
+            # Hard delete from database
             from db.write_queue import db_write
             from sqlalchemy import text as sa_text
             _fid = file_id
             def _do(session):
-                session.execute(sa_text("UPDATE km_data SET is_delete = 1 WHERE id = :fid"), {"fid": _fid})
+                session.execute(sa_text("DELETE FROM km_data WHERE id = :fid"), {"fid": _fid})
             db_write(_do, description="km_service_delete_file")
         finally:
             conn.close()

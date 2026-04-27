@@ -1,0 +1,16 @@
+{
+  "server": {
+    "bindHost": "0.0.0.0",
+    "port": 19299,
+    "rpcPath": "/rpc",
+    "publicUrl": null
+  },
+  "autogen": {
+    "teamFile": null,
+    "teamFileEnv": [
+      "AUTOGENSTUDIO_TEAM_FILE"
+    ],
+    "model": "autogen-team",
+    "timeoutSeconds": 600
+  }
+}

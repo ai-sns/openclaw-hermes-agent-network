@@ -153,6 +153,14 @@ class AgentAdapter:
         t = str(agent_type or '').strip().lower()
         return t in {'remote', 'remoteagent', 'remote_agent', 'remote agent', 'remote-agent'}
 
+    def is_agent_remote(self, agent_identifier) -> bool:
+        """Return True if the agent identified by *agent_identifier* is a remote agent."""
+        identifier = str(agent_identifier or '').strip()
+        if not identifier:
+            return False
+        agent_type, _url = self._load_agent_type_and_url(identifier)
+        return self._is_remote_agent_type(agent_type)
+
     def _normalize_a2a_rpc_url(self, url: str) -> str:
         u = str(url or '').strip()
         if not u:
