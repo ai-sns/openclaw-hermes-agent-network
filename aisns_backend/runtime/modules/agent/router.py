@@ -19,6 +19,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _clear_sns_engine_cached_agent(agent_id: int) -> None:
+    """Clear the SNS engine's cached agent if it is using the given agent_id."""
+    try:
+        from runtime.apps.sns.service_async import _social_engine_instance
+        if _social_engine_instance is not None:
+            eng_agent_id = getattr(
+                getattr(_social_engine_instance, "aisns_cfg", None),
+                "agent_id", None,
+            )
+            if eng_agent_id is not None and int(eng_agent_id) == agent_id:
+                _social_engine_instance.agent = None
+                logger.info("Cleared SNS engine cached agent after agent %s change", agent_id)
+    except Exception:
+        pass
+
+
 class ExecutePythonRequest(BaseModel):
     code: str
 
@@ -216,6 +232,20 @@ async def update_agent(
         # Only pass fields that are not None
         agent_data = config.dict(exclude_unset=True, exclude_none=True)
         service.update_agent(agent_id, **agent_data)
+
+        # Evict cached agent instance (if any) so next access reloads from DB.
+        # Avoid eagerly reloading agents that are not in use.
+        try:
+            agent_manager = AgentManager()
+            cache = getattr(agent_manager, "_agents_cache", {})
+            if agent_id in cache:
+                agent_manager.reload_agent(agent_id)
+                logger.info("Agent %s reloaded after config update", agent_id)
+        except Exception as _re:
+            logger.warning("Failed to reload agent %s after update: %s", agent_id, _re)
+
+        _clear_sns_engine_cached_agent(agent_id)
+
         return {"success": True}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -295,6 +325,7 @@ async def update_agent_model_params(agent_id: int, params: AgentModelParamsUpdat
 
         agent_manager = AgentManager()
         agent_manager.reload_agent(agent_id)
+        _clear_sns_engine_cached_agent(agent_id)
 
         return {"success": True, "data": merged}
     except HTTPException:
@@ -383,6 +414,7 @@ async def update_agent_tools(
         # Reload agent instance to apply the new tool configuration
         agent_manager = AgentManager()
         agent_manager.reload_agent(agent_id)
+        _clear_sns_engine_cached_agent(agent_id)
         logger.info(f"Agent {agent_id} tool configuration updated and reloaded")
 
         return {"success": True}
@@ -468,6 +500,7 @@ async def update_agent_knowledge_bases(agent_id: int, request_body: dict):
 
         agent_manager = AgentManager()
         agent_manager.reload_agent(agent_id)
+        _clear_sns_engine_cached_agent(agent_id)
 
         return {"success": True, "data": {"agent_id": agent_id, "km_ids": normalized}}
     finally:

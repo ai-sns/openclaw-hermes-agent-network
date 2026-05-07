@@ -1446,7 +1446,7 @@ SYSTEM_CFG_SEED = [{'autorun': 1,
   'language': 'zh',
   'a2a_server_enabled': 1}]
 
-# Seed data for prompts table (rows whose tags contain 'SNS') (count=17)
+# Seed data for prompts table (rows whose tags contain 'SNS') (count=25)
 PROMPTS_SEED = [{'title': '__main_control__',
   'caption': 'Main process control-Guidelines',
   'content': '# Background Description\n'
@@ -2669,6 +2669,82 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'question': None,
   'tags': 'SNS',
   'model_name': None,
+  'position': None},
+ {'title': '__plan_summary_output_requirements__',
+  'caption': 'Plan Summary Output Format Requirements',
+  'content': 'Output requirements:\n'
+             '- Provide updated goals only.\n'
+             '- Include BOTH sections with these exact labels:\n'
+             '  Long-Term Goals:\n'
+             '  Short-Term Goals:\n'
+             '- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__pick_people_strict_retry__',
+  'caption': 'People Selection Strict Retry Instruction',
+  'content': 'Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) '
+             'with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. '
+             'Missing/invalid keys: __missing_keys__. Previous raw output: __raw_result__',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__remote_agent_tool_check_activity__',
+  'caption': 'Remote Agent Tool Check Before Activity',
+  'content': '--- Instructions for Remote Agent ---\n'
+             'Based on the context above, use any tools or capabilities you have '
+             'to gather information that would help decide the next action.\n'
+             'Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED.',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__remote_agent_tool_check_review__',
+  'caption': 'Remote Agent Tool Check Before Review',
+  'content': '--- Instructions for Remote Agent ---\n'
+             'Review the conversation above. If you have tools that can enrich '
+             'your analysis (e.g., lookup, search, query), use them and return the result.\n'
+             'If no tool call is needed, respond with NO_TOOL_NEEDED.',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__ask_agent_use_service_question__',
+  'caption': 'Service Selection Question Template',
+  'content': 'The current objective is: __objective__. Based on the task requirements, '
+             'select the appropriate services. If no suitable service is available, return an empty list.',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__review_conversation_question__',
+  'caption': 'Conversation Review Question Template',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n__messages_history__',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__review_conversation_retry_question__',
+  'caption': 'Conversation Review Retry Question',
+  'content': 'Please output a single JSON object only, with no explanations or extra text. \n'
+             '## Conversation history \n__talk_history__',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
+  'position': None},
+ {'title': '__memory_recall_header__',
+  'caption': 'Memory Recall Prompt Section Template',
+  'content': '## Memory Recall\n'
+             'The following memories from your past experience may be relevant:\n'
+             '\n'
+             '__memory_entries__\n'
+             'Use these memories to inform your decision, but prioritize current context.',
+  'question': '',
+  'tags': 'SNS',
+  'model_name': '',
   'position': None}]
 
 # Seed data for web_mng table (is_delete=0) (count=8)

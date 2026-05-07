@@ -224,7 +224,7 @@ const agentState = {
             return roleConfig.system_prompt;
         }
         // Fallback to default prompt
-        return '你是一个有帮助的AI助手。';
+        return 'You are a helpful AI assistant.';
     },
 
     /**

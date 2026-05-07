@@ -38,8 +38,8 @@ const KMPage = {
                     <div class="km-toolbar-row km-format-row">
                         <select class="km-font-select" id="fontSelect">
                             <option value="Microsoft YaHei UI">Microsoft YaHei UI</option>
-                            <option value="SimSun">宋体</option>
-                            <option value="SimHei">黑体</option>
+                            <option value="SimSun">SimSun</option>
+                            <option value="SimHei">SimHei</option>
                             <option value="Arial">Arial</option>
                             <option value="Times New Roman">Times New Roman</option>
                         </select>

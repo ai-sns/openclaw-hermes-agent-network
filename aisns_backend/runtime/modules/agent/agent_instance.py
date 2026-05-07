@@ -1032,6 +1032,39 @@ IMPORTANT Tool Usage Guidelines:
         except Exception:
             pass
 
+        # 5. Ensure a2a_xmpp_call is available (XMPP A2A task invocation)
+        try:
+            existing_names = {
+                (t.get('function') or {}).get('name')
+                for t in tools_schema
+                if isinstance(t, dict)
+            }
+            if 'a2a_xmpp_call' not in existing_names:
+                tools_schema.append({
+                    "type": "function",
+                    "function": {
+                        "name": "a2a_xmpp_call",
+                        "description": "Call a peer agent's A2A service via XMPP Ad-hoc Command. "
+                                       "Use this when the peer is reachable via XMPP JID. "
+                                       "Supports tasks/send and tasks/get methods.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "peer_jid": {"type": "string", "description": "Peer's XMPP JID (e.g. user@domain)"},
+                                "method": {"type": "string", "description": "JSON-RPC method: tasks/send or tasks/get (default: tasks/send)"},
+                                "task_id": {"type": "string", "description": "Task ID (required for tasks/get)"},
+                                "message_text": {"type": "string", "description": "Text message to send (for tasks/send)"},
+                                "message_data": {"type": "object", "description": "Data payload to send (for tasks/send)"},
+                                "skill_id": {"type": "string", "description": "Target skill ID on the peer agent (for tasks/send)"},
+                                "metadata": {"type": "object", "description": "Extra metadata to attach to the request"},
+                            },
+                            "required": ["peer_jid"],
+                        },
+                    },
+                })
+        except Exception:
+            pass
+
         logger.info(f"Prepared {len(tools_schema)} tools for LLM tool calling")
         return tools_schema
 
@@ -1082,6 +1115,10 @@ IMPORTANT Tool Usage Guidelines:
                     logger.error(f"run_doc_skill failed: {e}", exc_info=True)
                     return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
 
+            # Handle XMPP A2A task invocation
+            if tool_name == 'a2a_xmpp_call':
+                return await self._execute_a2a_xmpp_call(tool_args or {})
+
             # Check whether this is a code execution request
             if tool_name == 'execute_python_code' and self.code_executor:
                 code = tool_args.get('code', '')
@@ -1113,6 +1150,80 @@ IMPORTANT Tool Usage Guidelines:
         except Exception as e:
             logger.error(f"Tool execution failed: {e}", exc_info=True)
             return f"Tool execution error: {str(e)}"
+
+    async def _execute_a2a_xmpp_call(self, tool_args: Dict[str, Any]) -> str:
+        """
+        Execute an A2A task call via XMPP Ad-hoc Command.
+
+        Builds a JSON-RPC 2.0 request from the tool arguments and sends it
+        to the peer via XMPPA2AManager.call_a2a_task().
+        """
+        import uuid as _uuid
+
+        peer_jid = str(tool_args.get('peer_jid') or '').strip()
+        method = str(tool_args.get('method') or 'tasks/send').strip()
+
+        if not peer_jid:
+            return json.dumps({"ok": False, "error": "'peer_jid' is required"}, ensure_ascii=False)
+        if method not in ("tasks/send", "tasks/get"):
+            return json.dumps(
+                {"ok": False, "error": f"Unsupported method: {method}. Use 'tasks/send' or 'tasks/get'."},
+                ensure_ascii=False,
+            )
+
+        # Get XMPP client and A2A manager
+        try:
+            from runtime.apps.sns.xmpp_client import XMPPClientManager
+            client = XMPPClientManager.get_instance().get_client()
+            if not client or not client.is_client_connected():
+                return json.dumps({"ok": False, "error": "XMPP client not connected"}, ensure_ascii=False)
+            a2a_mgr = getattr(client, '_a2a_manager', None)
+            if a2a_mgr is None:
+                return json.dumps({"ok": False, "error": "XMPP A2A manager not initialized"}, ensure_ascii=False)
+        except Exception as e:
+            return json.dumps({"ok": False, "error": f"Failed to get XMPP client: {e}"}, ensure_ascii=False)
+
+        # Build JSON-RPC 2.0 request
+        rpc_id = str(_uuid.uuid4())[:8]
+
+        if method == "tasks/send":
+            parts = []
+            message_text = str(tool_args.get('message_text') or '').strip()
+            if message_text:
+                parts.append({"type": "text", "text": message_text})
+            message_data = tool_args.get('message_data')
+            if isinstance(message_data, dict) and message_data:
+                parts.append({"type": "data", "data": message_data})
+            if not parts:
+                parts.append({"type": "text", "text": "Hello"})
+
+            rpc_params = {
+                "id": f"task-{rpc_id}",
+                "message": {"role": "user", "parts": parts},
+            }
+            skill_id = str(tool_args.get('skill_id') or '').strip()
+            if skill_id:
+                rpc_params["skillId"] = skill_id
+            metadata = tool_args.get('metadata')
+            if isinstance(metadata, dict) and metadata:
+                rpc_params["metadata"] = metadata
+        else:
+            # tasks/get
+            task_id = str(tool_args.get('task_id') or '').strip()
+            if not task_id:
+                return json.dumps({"ok": False, "error": "'task_id' is required for tasks/get"}, ensure_ascii=False)
+            rpc_params = {"id": task_id}
+
+        jsonrpc_request = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": rpc_params,
+            "id": rpc_id,
+        }
+
+        logger.info("a2a_xmpp_call: calling %s method=%s", peer_jid, method)
+        result = await a2a_mgr.call_a2a_task(peer_jid, jsonrpc_request)
+        return json.dumps(result, ensure_ascii=False)
 
     async def chat(
         self,

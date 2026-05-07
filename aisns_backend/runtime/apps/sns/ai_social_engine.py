@@ -433,6 +433,50 @@ class AISocialEngine(
             "Keep your response concise. Do NOT evaluate or continue the conversation "
             "— just focus on whether a tool call would be helpful."
         ),
+        "__plan_summary_output_requirements__": (
+            "Output requirements:\n"
+            "- Provide updated goals only.\n"
+            "- Include BOTH sections with these exact labels:\n"
+            "  Long-Term Goals:\n"
+            "  Short-Term Goals:\n"
+            "- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions."
+        ),
+        "__pick_people_strict_retry__": (
+            "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
+            "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
+            "Missing/invalid keys: __missing_keys__. Previous raw output: __raw_result__"
+        ),
+        "__remote_agent_tool_check_activity__": (
+            "--- Instructions for Remote Agent ---\n"
+            "Based on the context above, use any tools or capabilities you have "
+            "to gather information that would help decide the next action.\n"
+            "Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED."
+        ),
+        "__remote_agent_tool_check_review__": (
+            "--- Instructions for Remote Agent ---\n"
+            "Review the conversation above. If you have tools that can enrich "
+            "your analysis (e.g., lookup, search, query), use them and return the result.\n"
+            "If no tool call is needed, respond with NO_TOOL_NEEDED."
+        ),
+        "__ask_agent_use_service_question__": (
+            "The current objective is: __objective__. Based on the task requirements, "
+            "select the appropriate services. If no suitable service is available, return an empty list."
+        ),
+        "__review_conversation_question__": (
+            "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
+            "## Chat history \n__messages_history__"
+        ),
+        "__review_conversation_retry_question__": (
+            "Please output a single JSON object only, with no explanations or extra text. \n"
+            "## Conversation history \n__talk_history__"
+        ),
+        "__memory_recall_header__": (
+            "## Memory Recall\n"
+            "The following memories from your past experience may be relevant:\n"
+            "\n"
+            "__memory_entries__\n"
+            "Use these memories to inform your decision, but prioritize current context."
+        ),
     }
 
     def _ensure_sns_prompts(self):

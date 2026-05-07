@@ -7,6 +7,8 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from db.DBFactory import get_prompt_by_title
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,13 +37,24 @@ def format_memories_for_prompt(
     if not memories:
         return ""
 
-    lines: List[str] = [
-        "## Memory Recall",
-        "The following memories from your past experience may be relevant:",
-        "",
-    ]
+    # Load template from DB; fall back to hardcoded default
+    template = ""
+    try:
+        template = (get_prompt_by_title("__memory_recall_header__") or "").strip()
+    except Exception:
+        template = ""
+    if not template:
+        template = (
+            "## Memory Recall\n"
+            "The following memories from your past experience may be relevant:\n"
+            "\n"
+            "__memory_entries__\n"
+            "Use these memories to inform your decision, but prioritize current context."
+        )
 
-    total_chars = sum(len(l) for l in lines)
+    # Build memory entries
+    entry_lines: List[str] = []
+    total_chars = 0
 
     for idx, mem in enumerate(memories, start=1):
         mem_type = mem.get("memory_type", "unknown")
@@ -55,11 +68,11 @@ def format_memories_for_prompt(
         if total_chars + len(entry) > max_chars:
             break
 
-        lines.append(entry)
+        entry_lines.append(entry)
         total_chars += len(entry)
 
-    lines.append("Use these memories to inform your decision, but prioritize current context.")
-    return "\n".join(lines)
+    entries_str = "\n".join(entry_lines)
+    return template.replace("__memory_entries__", entries_str)
 
 
 def format_person_memories_for_prompt(

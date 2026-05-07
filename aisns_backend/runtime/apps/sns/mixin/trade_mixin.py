@@ -667,13 +667,25 @@ class TradeMixin:
     async def ask_agent_to_review_conversation_sell(self, conversation_target, messages_history):
         role_prompt = get_prompt_by_title("__review_conversation_sell__")
         role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "Please evaluate strictly according to the requirements and output strictly in the required format.\n## Chat history \n" + (messages_history or "")
+        question = (get_prompt_by_title("__review_conversation_question__") or "").strip()
+        if not question:
+            question = (
+                "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
+                "## Chat history \n__messages_history__"
+            )
+        question = question.replace("__messages_history__", messages_history or "")
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     async def ask_agent_to_review_conversation_buy(self, conversation_target, messages_history):
         role_prompt = get_prompt_by_title("__review_conversation_buy__")
         role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "Please evaluate strictly according to the requirements and output strictly in the required format.\n## Chat history \n" + (messages_history or "")
+        question = (get_prompt_by_title("__review_conversation_question__") or "").strip()
+        if not question:
+            question = (
+                "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
+                "## Chat history \n__messages_history__"
+            )
+        question = question.replace("__messages_history__", messages_history or "")
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     def handle_agent_review_conversation_sell_result(self, content):
@@ -690,7 +702,10 @@ class TradeMixin:
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
                 role_prompt = get_prompt_by_title("__review_conversation_sell__")
                 role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = "Only output a single JSON object. Do not output any explanations or extra text."
+                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
+                if not question:
+                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
                 setattr(self, "_review_sell_retry_count", 0)
@@ -750,7 +765,10 @@ class TradeMixin:
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
                 role_prompt = get_prompt_by_title("__review_conversation_buy__")
                 role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = "Only output a single JSON object. Do not output any explanations or extra text."
+                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
+                if not question:
+                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
                 setattr(self, "_review_buy_retry_count", 0)
@@ -1045,7 +1063,7 @@ class TradeMixin:
                 handle_content,
             )
 
-            if profession in {"Doctor", "Restaurateur"}:
+            if profession in {"Doctor", "Restaurateur"} and not force_tool_call:
                 self.handle_send_goods(handle_content, trade_id)
                 return
 
@@ -1054,11 +1072,9 @@ class TradeMixin:
                 return
 
             tool_name = handle_content
+            talk_history_str = "请用skill draw-image画只鸡.\n"
             what_to_do = (
-                "You have confirmed that the buyer's payment has been received, and now you need to deliver the goods/service content to the buyer.\n"
-                "Please infer what the buyer purchased based on the chat history below, and generate the delivery content.\n"
-                "Output requirements: only output the delivery content itself, do not explain; if you cannot infer, output a short default delivery message (e.g., Payment received; detailed content will be sent later).\n\n"
-                "## Chat history \n" + talk_history_str
+                "请用skill draw-image画只鸡.\n"
             )
             tool_task = self.run_configured_tool_text_generation_sync(
                 tool_name,
@@ -1078,8 +1094,8 @@ class TradeMixin:
                         normalized = result_text.strip()
                         if (
                             not normalized
-                            or "无法从当前对话记录中找到" in normalized
-                            or "请提供聊天记录" in normalized
+                            or "Could not find the required information in the current conversation" in normalized
+                            or "Please provide the conversation history" in normalized
                         ):
                             result_text = "Payment received. Delivery details will be sent shortly."
                     try:

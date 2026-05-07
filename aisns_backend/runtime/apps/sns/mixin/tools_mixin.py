@@ -130,7 +130,13 @@ class ToolsMixin:
         # role_prompt = role_prompt.replace("__objective_to_achieve__", objective_to_achieve)
 
 
-        question = f"The current objective is: {objective_to_achieve}. Based on the task requirements, select the appropriate services. If no suitable service is available, return an empty list."
+        question = (get_prompt_by_title("__ask_agent_use_service_question__") or "").strip()
+        if not question:
+            question = (
+                "The current objective is: __objective__. Based on the task requirements, "
+                "select the appropriate services. If no suitable service is available, return an empty list."
+            )
+        question = question.replace("__objective__", objective_to_achieve)
 
         # Memory recall: inject past service usage experience
         try:
@@ -542,16 +548,37 @@ class ToolsMixin:
         original_tools = getattr(agent, "tools", None)
         original_tools_loaded = getattr(agent, "tools_loaded", None)
 
+        # Detect if the tool is a DocSkill (run_doc_skill)
+        is_doc_skill = False
+        doc_skill_key = ""
+        try:
+            fn_name = (tool_def.get("function") or {}).get("name") or ""
+            if fn_name == "run_doc_skill":
+                is_doc_skill = True
+                props = ((tool_def.get("function") or {}).get("parameters") or {}).get("properties") or {}
+                sk_enum = (props.get("skill_key") or {}).get("enum") or []
+                doc_skill_key = sk_enum[0] if sk_enum else tool_id
+        except Exception:
+            pass
+
+        # DocSkill direct-execution path: bypass the agent tool-calling pipeline
+        # because the skill may not be in the agent's enabled-skills list and
+        # the generic run_doc_skill schema lacks skill-specific parameter hints.
+        if is_doc_skill:
+            return await self._execute_doc_skill_for_trade(
+                agent, doc_skill_key, what_to_do, conversation_suffix,
+            )
+
         try:
             agent.db_tools = [tool_def]
             agent.tools = []
             agent.tools_loaded = True
 
             prompt = (
-                "你现在只能使用我提供给你的这一个工具来完成内容生成。\n"
-                "你可以选择调用该工具，也可以选择不调用。\n"
-                "无论是否调用工具，都必须输出最终文本内容，不要输出多余解释。\n\n"
-                f"上下文如下：\n{what_to_do}"
+                "You may only use the provided tool to generate content.\n"
+                "You may choose to call the tool or not.\n"
+                "Regardless of tool usage, output only the final text without extra explanations.\n\n"
+                f"Context: \n{what_to_do}"
             )
 
             reply = await self.chat_with_agent(
@@ -572,6 +599,89 @@ class ToolsMixin:
             agent.db_tools = original_db_tools
             agent.tools = original_tools
             agent.tools_loaded = original_tools_loaded
+
+    async def _execute_doc_skill_for_trade(
+        self,
+        agent,
+        skill_key: str,
+        what_to_do: str,
+        conversation_suffix: str,
+    ) -> str:
+        """Execute a DocSkill directly, bypassing the agent tool-calling pipeline.
+
+        1. Read the SKILL.md so the LLM knows the parameter schema.
+        2. Ask the LLM (without tools) to produce the JSON params.
+        3. Run the skill via DocSkillsService.run_skill().
+        4. Return a text representation of the result.
+        """
+        from runtime.modules.skills_registry.service import get_docskills_service
+
+        service = get_docskills_service()
+        skill_md = service.registry.read_skill_markdown(skill_key) or ""
+
+        # Step 1: Ask LLM to generate the skill parameters
+        param_prompt = (
+            f"You need to call a skill named '{skill_key}'.\n"
+            "Read the skill documentation below and generate ONLY a valid JSON object "
+            "with the parameters required by this skill. No explanation, no markdown fences.\n\n"
+            f"## Skill Documentation\n{skill_md}\n\n"
+            f"## Context\n{what_to_do}"
+        )
+
+        params_text = await self.chat_with_agent(
+            param_prompt,
+            conversation_suffix=conversation_suffix,
+            use_tools=False,
+            use_memory=False,
+            use_knowledge_base=False,
+            agent=agent,
+        )
+
+        # Step 2: Parse the JSON params
+        params: dict = {}
+        if params_text:
+            raw = params_text.strip()
+            # Strip markdown code fences if the LLM wrapped the JSON
+            if raw.startswith("```"):
+                lines = raw.split("\n")
+                lines = [l for l in lines if not l.strip().startswith("```")]
+                raw = "\n".join(lines).strip()
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, dict):
+                    params = parsed
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Failed to parse LLM params for DocSkill '%s': %.200s",
+                    skill_key, raw,
+                )
+
+        logger.info("Executing DocSkill '%s' with params: %s", skill_key, params)
+
+        # Step 3: Execute the skill directly
+        result = await service.run_skill(skill_key, params)
+
+        # Step 4: Format the result
+        if not isinstance(result, dict):
+            return str(result) if result else "(No content generated)"
+
+        if result.get("success") is False:
+            error_msg = result.get("error", "Unknown error")
+            logger.error("DocSkill '%s' execution failed: %s", skill_key, error_msg)
+            return f"Skill execution failed: {error_msg}"
+
+        # Return a concise representation; prefer local_url / image_url for images
+        local_url = result.get("local_url") or ""
+        image_url = result.get("image_url") or ""
+        if local_url or image_url:
+            url = local_url or image_url
+            revised = result.get("revised_prompt") or ""
+            parts = [url]
+            if revised:
+                parts.append(revised)
+            return "\n".join(parts)
+
+        return json.dumps(result, ensure_ascii=False)
 
     def load_openai_tool_def_for_agent(self, tool_type: str, tool_id: str, *, mcp_tool_name: str = "") -> Optional[dict]:
         try:
@@ -609,6 +719,40 @@ class ToolsMixin:
                 repo = SkillMngRepository()
                 obj = repo.get_one(skill_id=tool_id)
                 if not obj:
+                    # Fallback: check doc skill registry (SKILL.md-based skills)
+                    try:
+                        from runtime.modules.skills_registry.service import get_docskills_service
+                        doc_skill = get_docskills_service().registry.get(tool_id)
+                        if doc_skill:
+                            logger.info("Skill '%s' not in DB, resolved as DocSkill", tool_id)
+                            return {
+                                "type": "function",
+                                "function": {
+                                    "name": "run_doc_skill",
+                                    "description": (
+                                        f"Run DocSkill '{doc_skill.skill_key}': "
+                                        f"{doc_skill.description or doc_skill.name}"
+                                    )[:1024],
+                                    "parameters": {
+                                        "type": "object",
+                                        "properties": {
+                                            "skill_key": {
+                                                "type": "string",
+                                                "description": "DocSkill skill_key",
+                                                "enum": [doc_skill.skill_key],
+                                            },
+                                            "params": {
+                                                "type": "object",
+                                                "description": "Parameters passed to the skill runner",
+                                                "additionalProperties": True,
+                                            },
+                                        },
+                                        "required": ["skill_key"],
+                                    },
+                                },
+                            }
+                    except Exception as ds_err:
+                        logger.warning("DocSkill fallback lookup failed for '%s': %s", tool_id, ds_err)
                     return None
                 tool_dict = {
                     "tool_type": "skill",

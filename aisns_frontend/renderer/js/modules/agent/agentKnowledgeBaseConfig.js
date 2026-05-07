@@ -6,8 +6,8 @@
 document.addEventListener('click', function(e) {
     const kbBtn = e.target.closest('.toolbar-icon-btn[data-action="kb-config"][data-agent-id]')
         || e.target.closest('.toolbar-icon-btn[title="Configure Knowledge Base"][data-agent-id]')
-        || e.target.closest('.toolbar-icon-btn[title="Knowledge Base"][data-agent-id]')
-        || e.target.closest('.toolbar-icon-btn[title="配置知识库"][data-agent-id]');
+        || e.target.closest('.toolbar-icon-btn[title="Knowledge Base"][data-agent-id]');
+
 
     if (kbBtn) {
         e.preventDefault();

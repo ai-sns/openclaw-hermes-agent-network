@@ -16,6 +16,7 @@ Data flow:
 import json
 import logging
 import asyncio
+import uuid
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ A2A_FEATURE_NS = "urn:xmpp:a2a:1"
 A2A_BUSINESS_CARD_NS = "urn:xmpp:a2a:business_card:1"
 A2A_PEP_NODE = "urn:xmpp:a2a:agentcard"
 A2A_ADHOC_EXCHANGE_NODE = "urn:xmpp:a2a:cmd:exchange_business_card"
+A2A_ADHOC_TASK_NODE = "urn:xmpp:a2a:cmd:tasks"
 
 
 class XMPPA2AManager:
@@ -144,7 +146,7 @@ class XMPPA2AManager:
         try:
             import sys
             import os
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
             if project_root not in sys.path:
                 sys.path.insert(0, project_root)
             from a2aserver.db import init_db, get_my_card
@@ -256,6 +258,16 @@ class XMPPA2AManager:
                     self._registered_commands.append(A2A_ADHOC_EXCHANGE_NODE)
                 logger.info("Registered ad-hoc command: %s", A2A_ADHOC_EXCHANGE_NODE)
 
+                # Register generic A2A task command (JSON-RPC transport)
+                adhoc.add_command(
+                    node=A2A_ADHOC_TASK_NODE,
+                    name="A2A Task",
+                    handler=self._handle_a2a_task_command,
+                )
+                if A2A_ADHOC_TASK_NODE not in self._registered_commands:
+                    self._registered_commands.append(A2A_ADHOC_TASK_NODE)
+                logger.info("Registered ad-hoc command: %s", A2A_ADHOC_TASK_NODE)
+
         except Exception as e:
             logger.error("Failed to register ad-hoc commands: %s", e)
 
@@ -282,6 +294,7 @@ class XMPPA2AManager:
             session['payload'] = form
             session['next'] = self._handle_exchange_submit
             session['has_next'] = True
+            session['allow_complete'] = True  # Advertise 'complete' action (XEP-0050 compliance)
             return session
 
         except Exception as e:
@@ -308,6 +321,11 @@ class XMPPA2AManager:
 
             # Store via A2A server logic
             try:
+                import sys
+                import os as _os
+                _proj_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))))
+                if _proj_root not in sys.path:
+                    sys.path.insert(0, _proj_root)
                 from a2aserver.business_card import exchange_business_card
                 my_card = exchange_business_card(their_card, sender_jid=sender_jid)
             except Exception as e:
@@ -390,17 +408,32 @@ class XMPPA2AManager:
             session_id = resp['command']['sessionid']
             form = resp['command']['form']
 
-            # Set our card values in the form
-            if hasattr(form, 'set_fields'):
-                for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone'):
-                    try:
-                        form.set_fields({key: my_card.get(key, '')})
-                    except Exception:
-                        pass
-            elif hasattr(form, 'fields'):
-                for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone'):
-                    if key in form.fields:
-                        form.fields[key]['value'] = my_card.get(key, '')
+            # Set our card values in the form (use set_values, not set_fields:
+            # set_fields would wipe field declarations and fail on string values).
+            # Also flip form type to 'submit' for XEP-0004 compliance.
+            try:
+                form['type'] = 'submit'
+            except Exception:
+                pass
+            card_values = {
+                key: (my_card.get(key, '') or '')
+                for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone')
+            }
+            if hasattr(form, 'set_values'):
+                try:
+                    form.set_values(card_values)
+                except Exception as e:
+                    logger.warning("set_values failed for exchange form: %s", e)
+                    fields = form.get_fields() if hasattr(form, 'get_fields') else {}
+                    for key, val in card_values.items():
+                        if key in fields:
+                            fields[key]['value'] = val
+            else:
+                # Fallback: directly mutate field values
+                fields = form.get_fields() if hasattr(form, 'get_fields') else {}
+                for key, val in card_values.items():
+                    if key in fields:
+                        fields[key]['value'] = val
 
             # Step 3: Submit the completed form
             result = await self.client['xep_0050'].send_command(
@@ -513,6 +546,416 @@ class XMPPA2AManager:
         except Exception as e:
             logger.warning("fetch_peer_agent_card_pep: failed for %s: %s", bare_jid, e)
             return None
+
+    # ── Generic A2A Task Ad-hoc Command (JSON-RPC transport) ─────────────
+
+    async def _handle_a2a_task_command(self, iq, session):
+        """
+        Handle an incoming generic A2A task ad-hoc command.
+
+        Stage 1 (execute): Return a data form with a jsonrpc_request field
+        for the caller to fill in their JSON-RPC 2.0 request.
+        """
+        try:
+            form = self.client['xep_0004'].make_form(
+                ftype='form',
+                title='A2A Task',
+            )
+            form.addField(
+                var='jsonrpc_request',
+                ftype='text-multi',
+                label='JSON-RPC Request',
+                value='',
+            )
+            session['payload'] = form
+            session['next'] = self._handle_a2a_task_submit
+            session['has_next'] = True
+            session['allow_complete'] = True  # Advertise 'complete' action (XEP-0050 compliance)
+            return session
+        except Exception as e:
+            logger.error("Error in A2A task command handler: %s", e)
+            session['notes'] = [('error', f'Internal error: {e}')]
+            return session
+
+    async def _handle_a2a_task_submit(self, payload, session):
+        """
+        Process a submitted A2A task JSON-RPC request.
+
+        Priority 1: Forward to local A2A server (HTTP POST localhost:8789/a2a/)
+        Priority 2: Local fallback handler for known methods
+        """
+        try:
+            # Extract the jsonrpc_request from the submitted form
+            request_str = ""
+            if hasattr(payload, 'get_fields'):
+                fields = payload.get_fields()
+                field = fields.get('jsonrpc_request')
+                if field:
+                    val = field.get('value', '')
+                    # text-multi may return a list of lines
+                    if isinstance(val, list):
+                        request_str = '\n'.join(str(v) for v in val)
+                    else:
+                        request_str = str(val)
+            elif hasattr(payload, 'values'):
+                request_str = str(payload.values.get('jsonrpc_request', ''))
+
+            request_str = request_str.strip()
+            sender_jid = str(session.get('from', ''))
+            logger.info(
+                "Received A2A task request from %s (%d chars)",
+                sender_jid,
+                len(request_str),
+            )
+
+            if not request_str:
+                response_str = json.dumps({
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32600, "message": "Empty request"},
+                    "id": None,
+                })
+            else:
+                # Try forwarding to local A2A server first
+                response_str = await self._forward_to_local_a2a_server(request_str)
+
+                if response_str is None:
+                    # A2A server unavailable, try local fallback
+                    try:
+                        request_dict = json.loads(request_str)
+                    except json.JSONDecodeError as e:
+                        response_str = json.dumps({
+                            "jsonrpc": "2.0",
+                            "error": {"code": -32700, "message": f"Parse error: {e}"},
+                            "id": None,
+                        })
+                        request_dict = None
+
+                    if request_dict is not None:
+                        response_dict = self._local_handle_jsonrpc(request_dict, sender_jid)
+                        response_str = json.dumps(response_dict, ensure_ascii=False)
+
+            # Build result form
+            result_form = self.client['xep_0004'].make_form(
+                ftype='result',
+                title='A2A Task Result',
+            )
+            result_form.addField(
+                var='jsonrpc_response',
+                ftype='text-multi',
+                label='JSON-RPC Response',
+                value=response_str,
+            )
+            session['payload'] = result_form
+            session['next'] = None
+            session['has_next'] = False
+            return session
+
+        except Exception as e:
+            logger.error("Error processing A2A task submission: %s", e)
+            session['notes'] = [('error', f'Processing error: {e}')]
+            return session
+
+    async def _forward_to_local_a2a_server(self, request_str: str) -> Optional[str]:
+        """
+        Forward a JSON-RPC request to the local A2A server via HTTP POST.
+
+        Uses run_in_executor with sync urllib to avoid event-loop conflicts.
+        Returns the response body string, or None if the server is unreachable.
+        """
+        loop = asyncio.get_event_loop()
+        try:
+            result = await asyncio.wait_for(
+                loop.run_in_executor(None, self._sync_http_post_a2a, request_str),
+                timeout=30,
+            )
+            return result
+        except asyncio.TimeoutError:
+            logger.warning("_forward_to_local_a2a_server: timeout (30s)")
+            return None
+        except Exception as e:
+            logger.warning("_forward_to_local_a2a_server: failed: %s", e)
+            return None
+
+    @staticmethod
+    def _sync_http_post_a2a(request_str: str) -> str:
+        """Synchronous HTTP POST to local A2A server. Runs in thread executor."""
+        import urllib.request
+        url = "http://127.0.0.1:8789/a2a/"
+        body = request_str.encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Host": "localhost",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return resp.read().decode("utf-8")
+
+    def _local_handle_jsonrpc(self, request: dict, sender_jid: str = "") -> dict:
+        """
+        Local fallback handler for JSON-RPC requests when A2A server is unavailable.
+        Routes known methods to local handlers.
+        """
+        rpc_id = request.get("id")
+        method = request.get("method", "")
+        params = request.get("params", {})
+
+        if method == "tasks/send":
+            message = params.get("message", {})
+            parts = message.get("parts", [])
+
+            # Detect if message contains structured card data (type=data with card-like fields)
+            their_card = {}
+            card_field_names = {"name", "company", "title", "email", "xmpp", "website", "phone"}
+            for part in parts:
+                if part.get("type") == "data":
+                    data = part.get("data", {})
+                    # Only treat as card exchange if data contains at least one card field
+                    if data and card_field_names & set(data.keys()):
+                        their_card = data
+                        break
+                elif part.get("type") == "text":
+                    try:
+                        parsed = json.loads(part.get("text", "{}"))
+                        if isinstance(parsed, dict) and card_field_names & set(parsed.keys()):
+                            their_card = parsed
+                    except json.JSONDecodeError:
+                        pass
+
+            # Only do business card exchange if we detected card-like data
+            if their_card:
+                meta_jid = params.get("metadata", {}).get("sender_jid", "")
+                effective_jid = meta_jid or sender_jid
+                try:
+                    from a2aserver.business_card import exchange_business_card
+                    my_card = exchange_business_card(their_card, sender_jid=effective_jid)
+                    return {
+                        "jsonrpc": "2.0",
+                        "result": {
+                            "id": rpc_id or "task-local",
+                            "status": {"state": "completed"},
+                            "artifacts": [
+                                {"parts": [{"type": "data", "data": my_card}]}
+                            ],
+                        },
+                        "id": rpc_id,
+                    }
+                except Exception as e:
+                    logger.warning("Local business card exchange failed: %s", e)
+                    return {
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32000, "message": f"Local handler error: {e}"},
+                        "id": rpc_id,
+                    }
+
+            # Generic tasks/send: return our card as default response (no DB write)
+            my_card = self._load_my_business_card() or {}
+            return {
+                "jsonrpc": "2.0",
+                "result": {
+                    "id": rpc_id or "task-local",
+                    "status": {"state": "completed"},
+                    "artifacts": [
+                        {"parts": [{"type": "data", "data": my_card}]}
+                    ],
+                },
+                "id": rpc_id,
+            }
+
+        # Unknown method
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32601, "message": f"Method not found: {method}"},
+            "id": rpc_id,
+        }
+
+    # ── Outbound: Call Peer A2A Task via Ad-hoc Command ───────────────────
+
+    async def call_a2a_task(self, target_jid: str, jsonrpc_request: dict) -> dict:
+        """
+        Invoke a generic A2A task on a peer via XMPP Ad-hoc Command.
+
+        Sends a JSON-RPC 2.0 request through the urn:xmpp:a2a:cmd:tasks
+        ad-hoc command node. Non-blocking, 300-second timeout.
+
+        Flow:
+        1. Send execute action → receive form with jsonrpc_request field
+        2. Fill form with JSON-RPC request
+        3. Submit with action=complete
+        4. Parse returned jsonrpc_response
+
+        Args:
+            target_jid: The target XMPP JID
+            jsonrpc_request: The JSON-RPC 2.0 request dict
+
+        Returns:
+            dict with 'ok' (bool) and 'result' (parsed response) or 'error' (str)
+        """
+        # Lazy import slixmpp exception types to keep module import lightweight
+        try:
+            from slixmpp.exceptions import IqError, IqTimeout
+        except Exception:  # pragma: no cover
+            IqError = IqTimeout = None  # type: ignore
+
+        # Resolve bare JID to a full JID via roster/presence when possible
+        # (XEP-0050 ad-hoc commands typically target a specific resource).
+        resolved_jid = self._resolve_full_jid(target_jid)
+
+        try:
+            result = await asyncio.wait_for(
+                self._call_a2a_task_impl(resolved_jid, jsonrpc_request),
+                timeout=300,
+            )
+            return result
+        except asyncio.TimeoutError:
+            logger.warning("call_a2a_task: timed out (300s) for %s", resolved_jid)
+            return {"ok": False, "error": "timeout", "detail": "XMPP ad-hoc command timed out (300s)"}
+        except Exception as e:
+            # Distinguish IqTimeout / IqError from generic exceptions
+            if IqTimeout is not None and isinstance(e, IqTimeout):
+                logger.warning("call_a2a_task: IQ timeout for %s", resolved_jid)
+                return {"ok": False, "error": "peer_unreachable", "detail": "IQ timeout (peer offline or unresponsive)"}
+            if IqError is not None and isinstance(e, IqError):
+                cond = "unknown"
+                try:
+                    cond = e.iq['error']['condition'] or "unknown"
+                except Exception:
+                    pass
+                logger.warning("call_a2a_task: IqError for %s: %s", resolved_jid, cond)
+                return {"ok": False, "error": cond, "detail": str(e)}
+            logger.error("call_a2a_task: unexpected error for %s: %s", resolved_jid, e)
+            return {"ok": False, "error": "unexpected", "detail": str(e)}
+
+    def _resolve_full_jid(self, target_jid: str) -> str:
+        """Best-effort resolution of bare JID to a full JID using the roster.
+
+        If the input already contains a resource ('/'), it is returned unchanged.
+        Otherwise, look up the first available full JID from presence info.
+        Falls back to the bare JID when no resource is known.
+        """
+        if not target_jid or '/' in target_jid:
+            return target_jid
+        try:
+            roster = getattr(self.client, 'client_roster', None)
+            if roster is None:
+                return target_jid
+            # Avoid RosterNode.__getitem__ side effect which silently adds
+            # strangers to the local roster via add(save=True).
+            if hasattr(roster, 'has_jid') and not roster.has_jid(target_jid):
+                return target_jid
+            entry = roster[target_jid]
+            resources = getattr(entry, 'resources', None)
+            if resources:
+                # Pick the resource with the highest priority
+                try:
+                    best = max(
+                        resources.items(),
+                        key=lambda kv: kv[1].get('priority', 0) if isinstance(kv[1], dict) else 0,
+                    )[0]
+                except Exception:
+                    best = next(iter(resources.keys()))
+                if best:
+                    return f"{target_jid}/{best}"
+        except Exception as e:
+            logger.debug("_resolve_full_jid: failed for %s: %s", target_jid, e)
+        return target_jid
+
+    async def _call_a2a_task_impl(self, target_jid: str, jsonrpc_request: dict) -> dict:
+        """Internal implementation of the A2A task call via ad-hoc command."""
+        request_str = json.dumps(jsonrpc_request, ensure_ascii=False)
+
+        # Step 1: Execute command → get form
+        adhoc = self.client['xep_0050']
+        resp = await adhoc.send_command(
+            target_jid,
+            A2A_ADHOC_TASK_NODE,
+            action='execute',
+        )
+
+        # Step 2: Fill the jsonrpc_request field.
+        # IMPORTANT: use set_values (not set_fields). set_fields wipes existing
+        # field declarations and expects dict metadata for each value, so passing
+        # a string raises TypeError silently and the form ends up empty.
+        # Also flip the form type to 'submit' for XEP-0004 compliance.
+        session_id = resp['command']['sessionid']
+        form = resp['command']['form']
+
+        try:
+            form['type'] = 'submit'
+        except Exception:
+            pass
+
+        if hasattr(form, 'set_values'):
+            try:
+                form.set_values({'jsonrpc_request': request_str})
+            except Exception as e:
+                logger.warning("set_values failed for a2a task form: %s", e)
+                # Fallback: directly mutate field value
+                fields = form.get_fields() if hasattr(form, 'get_fields') else {}
+                if 'jsonrpc_request' in fields:
+                    fields['jsonrpc_request']['value'] = request_str
+        else:
+            fields = form.get_fields() if hasattr(form, 'get_fields') else {}
+            if 'jsonrpc_request' in fields:
+                fields['jsonrpc_request']['value'] = request_str
+
+        # Step 3: Submit with complete
+        result = await adhoc.send_command(
+            target_jid,
+            A2A_ADHOC_TASK_NODE,
+            action='complete',
+            sessionid=session_id,
+            payload=form,
+        )
+
+        # Step 4: Parse the result
+        result_form = result['command'].get('form')
+        if not result_form:
+            # Check for notes (error case)
+            notes = result['command'].get('notes', [])
+            if notes:
+                error_msg = '; '.join(str(n) for n in notes)
+                return {"ok": False, "error": f"Ad-hoc command error: {error_msg}"}
+            return {"ok": False, "error": "No response form received"}
+
+        # Extract jsonrpc_response
+        response_str = ""
+        if hasattr(result_form, 'get_fields'):
+            fields = result_form.get_fields()
+            field = fields.get('jsonrpc_response')
+            if field:
+                val = field.get('value', '')
+                if isinstance(val, list):
+                    response_str = '\n'.join(str(v) for v in val)
+                else:
+                    response_str = str(val)
+        elif hasattr(result_form, 'values'):
+            response_str = str(result_form.values.get('jsonrpc_response', ''))
+
+        response_str = response_str.strip()
+        if not response_str:
+            return {"ok": False, "error": "Empty response from peer"}
+
+        try:
+            response_dict = json.loads(response_str)
+        except json.JSONDecodeError as e:
+            return {"ok": False, "error": f"Invalid JSON response: {e}"}
+
+        # Check for JSON-RPC error
+        if "error" in response_dict and response_dict["error"]:
+            err = response_dict["error"]
+            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+            return {"ok": False, "error": f"JSON-RPC error: {msg}", "raw": response_dict}
+
+        logger.info(
+            "A2A task call to %s completed: method=%s",
+            target_jid,
+            jsonrpc_request.get("method", ""),
+        )
+        return {"ok": True, "result": response_dict.get("result", {})}
 
     # ── Initialization ─────────────────────────────────────────────────────
 

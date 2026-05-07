@@ -197,6 +197,51 @@ def apply_runtime_system_config(payload: dict) -> bool:
     return changed
 
 
+def _apply_agent_id_to_running_engine(new_agent_id) -> bool:
+    """Apply a changed agent_id to the running AISocialEngine instance.
+
+    Updates ``aisns_cfg.agent_id`` on the live engine so the new agent
+    takes effect immediately without a backend restart.
+    """
+    global _social_engine_instance
+
+    if _social_engine_instance is None:
+        return False
+
+    # Coerce agent_id to int (or None) to keep cache key type consistent
+    try:
+        if new_agent_id not in (None, "", "null"):
+            new_agent_id = int(new_agent_id)
+        else:
+            new_agent_id = None
+    except (TypeError, ValueError):
+        pass
+
+    changed = False
+    try:
+        cfg = getattr(_social_engine_instance, "aisns_cfg", None)
+        if cfg is not None and hasattr(cfg, "agent_id"):
+            old_id = getattr(cfg, "agent_id", None)
+            cfg.agent_id = new_agent_id
+            changed = True
+            logger.info(
+                "Hot-reloaded agent_id on running engine: %s -> %s",
+                old_id, new_agent_id,
+            )
+    except Exception as e:
+        logger.warning("_apply_agent_id_to_running_engine error: %s", e)
+
+    # Also update self.config if it is a separate reference
+    try:
+        config_obj = getattr(_social_engine_instance, "config", None)
+        if config_obj is not None and config_obj is not cfg and hasattr(config_obj, "agent_id"):
+            config_obj.agent_id = new_agent_id
+    except Exception:
+        pass
+
+    return changed
+
+
 class SNSService:
     """SNS service for handling social network operations - async version."""
 
@@ -1493,6 +1538,18 @@ class SNSService:
             result2 = await self.db.execute(stmt)
             config = result2.scalars().first()
 
+            # Hot-reload XMPP client when account or password changes.
+            # Schedule as a background task so the HTTP response is not blocked
+            # by disconnect/reconnect latency.
+            if 'account' in _data or 'password' in _data:
+                try:
+                    from runtime.apps.sns.xmpp_client import XMPPClientManager
+                    xmpp_mgr = XMPPClientManager.get_instance()
+                    asyncio.create_task(xmpp_mgr.restart())
+                    logger.info("XMPP client restart scheduled after credential change")
+                except Exception as _xe:
+                    logger.warning("Failed to schedule XMPP client restart after credential change: %s", _xe)
+
             return {"success": True, "message": "Configuration updated successfully", "data": config}
         except Exception as e:
             logger.error(f"Error updating AI chat config: {e}")
@@ -1720,6 +1777,13 @@ class SNSService:
                     if _agent_id is not None and hasattr(rec, 'agent_id'):
                         rec.agent_id = _agent_id
             await db_write_async(_update_avatar_dialog, description="service_async_submit_avatar_dialog")
+
+            # Hot-reload agent on the running engine when agent_id changes
+            if _agent_id is not None:
+                try:
+                    _apply_agent_id_to_running_engine(_agent_id)
+                except Exception as _ae:
+                    logger.warning("Failed to hot-reload agent on running engine (avatar dialog): %s", _ae)
 
             cfg_stmt = (
                 select(SystemCfg)
@@ -2436,6 +2500,14 @@ class SNSService:
                         if hasattr(rec, k):
                             setattr(rec, k, v)
             await db_write_async(_update_user, description="service_async_update_user_info")
+
+            # Hot-reload agent on the running engine when agent_id changes
+            if 'agent_id' in data:
+                try:
+                    _apply_agent_id_to_running_engine(data['agent_id'])
+                except Exception as _ae:
+                    logger.warning("Failed to hot-reload agent on running engine: %s", _ae)
+
             return {
                 "success": True,
                 "message": "User info updated successfully",

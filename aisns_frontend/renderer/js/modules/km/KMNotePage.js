@@ -112,8 +112,8 @@ const KMNotePage = {
                     <div class="km-toolbar-row km-format-row">
                         <select class="km-font-select" id="fontSelect">
                             <option value="Microsoft YaHei UI">Microsoft YaHei UI</option>
-                            <option value="SimSun">宋体</option>
-                            <option value="SimHei">黑体</option>
+                            <option value="SimSun">SimSun</option>
+                            <option value="SimHei">SimHei</option>
                             <option value="Arial">Arial</option>
                             <option value="Times New Roman">Times New Roman</option>
                             <option value="Courier New">Courier New</option>
@@ -1289,7 +1289,7 @@ const KMNotePage = {
     // New method: show emoji picker
     showEmojiPicker() {
         const emojis = ['😀', '😁', '😂', '😊', '😍', '🤔', '😎', '👍', '👎', '❤️', '🔥', '✨'];
-        
+
         let emojiHTML = '<div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 10000;">';
         emojiHTML += '<h3 style="margin: 0 0 15px 0; font-size: 16px;">Choose emoji</h3>';
         emojiHTML += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">';
@@ -1326,7 +1326,7 @@ const KMNotePage = {
     // New method: show symbol picker
     showSymbolPicker() {
         const symbols = ['©', '®', '™', '€', '£', '¥', '°', '±', '×', '÷', '√', '∞', '≈', '≠', '≤', '≥', '∫', '∑', '∂', '∆'];
-        
+
         let symbolHTML = '<div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 10000;">';
         symbolHTML += '<h3 style="margin: 0 0 15px 0; font-size: 16px;">Choose symbol</h3>';
         symbolHTML += '<div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 15px;">';

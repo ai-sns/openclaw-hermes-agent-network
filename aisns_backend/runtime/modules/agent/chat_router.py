@@ -1670,6 +1670,19 @@ async def reload_agent(agent_id: int):
         if not agent:
             raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
 
+        # Clear SNS engine's cached agent if it uses this agent
+        try:
+            from runtime.apps.sns.service_async import _social_engine_instance
+            if _social_engine_instance is not None:
+                eng_agent_id = getattr(
+                    getattr(_social_engine_instance, "aisns_cfg", None),
+                    "agent_id", None,
+                )
+                if eng_agent_id is not None and int(eng_agent_id) == agent_id:
+                    _social_engine_instance.agent = None
+        except Exception:
+            pass
+
         return {
             "success": True,
             "message": f"Agent {agent_id} reloaded",

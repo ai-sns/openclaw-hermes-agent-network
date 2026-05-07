@@ -5,7 +5,11 @@
 export class SNSMapConfigDialog {
     constructor() {
         this.dialog = null;
-        this.originalMapType = null; // Store original map type
+        this.originalMapType = null;
+        this.originalGoogleKey = '';
+        this.originalGoogleMapId = '';
+        this.originalBaiduKey = '';
+        this.originalBaiduMapId = '';
     }
 
     resolve(urlOrPath) {
@@ -125,12 +129,16 @@ export class SNSMapConfigDialog {
                 const mapIds = data.map_id ? String(data.map_id).split(',') : ['', ''];
 
                 // Set Google Map values
-                document.getElementById('googleMapApiKey').value = normalize(apiKeys[0]);
-                document.getElementById('googleMapId').value = normalize(mapIds[0]);
+                this.originalGoogleKey = normalize(apiKeys[0]);
+                this.originalGoogleMapId = normalize(mapIds[0]);
+                document.getElementById('googleMapApiKey').value = this.originalGoogleKey;
+                document.getElementById('googleMapId').value = this.originalGoogleMapId;
 
                 // Set Baidu Map values
-                document.getElementById('baiduMapApiKey').value = normalize(apiKeys[1]);
-                document.getElementById('baiduMapId').value = normalize(mapIds[1]);
+                this.originalBaiduKey = normalize(apiKeys[1]);
+                this.originalBaiduMapId = normalize(mapIds[1]);
+                document.getElementById('baiduMapApiKey').value = this.originalBaiduKey;
+                document.getElementById('baiduMapId').value = this.originalBaiduMapId;
 
                 // Set map type selection
                 const mapType = normalize(data.map_type);
@@ -227,9 +235,16 @@ export class SNSMapConfigDialog {
                 } catch (e) {
                 }
 
-                // Check if map type changed
-                if (String(this.originalMapType) !== String(mapType)) {
-                    console.log('Map type changed from', this.originalMapType, 'to', mapType, '- reloading map iframe');
+                // Check if any config changed that requires reload
+                const changed = (
+                    String(this.originalMapType) !== String(mapType)
+                    || String(this.originalGoogleKey || '') !== String(googleApiKey || '')
+                    || String(this.originalGoogleMapId || '') !== String(googleMapId || '')
+                    || String(this.originalBaiduKey || '') !== String(baiduApiKey || '')
+                    || String(this.originalBaiduMapId || '') !== String(baiduMapId || '')
+                );
+                if (changed) {
+                    console.log('Map configuration changed - reloading map iframe');
                     this.reloadMap();
                 }
 

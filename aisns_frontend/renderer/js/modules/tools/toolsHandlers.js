@@ -45,6 +45,26 @@ const toolsHandlers = {
         this.bindEvents();
         // Initial load for the first category
         this.loadCategoryContent(this.currentCategory);
+
+        try {
+            window.addEventListener('app-config-updated', () => {
+                try {
+                    const normalizeHttpBaseUrl = (raw) => {
+                        const v = String(raw || '').trim();
+                        if (!v) return '';
+                        const withScheme = /^https?:\/\//i.test(v) ? v : `http://${v}`;
+                        return withScheme.endsWith('/') ? withScheme.slice(0, -1) : withScheme;
+                    };
+                    const base = normalizeHttpBaseUrl(
+                        (window.appConfig && window.appConfig.agent_server)
+                        || (window.api && window.api.baseUrl)
+                        || ''
+                    );
+                    this.apiBaseUrl = base ? `${base}/api/tools` : '/api/tools';
+                    this.skillsApiBaseUrl = base ? `${base}/api/skills` : '/api/skills';
+                } catch (e) {}
+            });
+        } catch (e) {}
     },
 
     showConfirmDialog({ title, message, confirmText = 'Confirm', cancelText = 'Cancel' }) {

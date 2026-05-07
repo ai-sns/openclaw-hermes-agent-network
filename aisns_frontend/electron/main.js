@@ -1030,6 +1030,11 @@ ipcMain.handle('write-config-json', async (event, patch) => {
 
         await fsp.writeFile(configPath, JSON.stringify(next, null, 2), 'utf-8');
 
+        try {
+            refreshApiBaseUrlFromConfigSync();
+        } catch (e) {
+        }
+
         return { success: true };
 
     } catch (e) {

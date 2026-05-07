@@ -1034,7 +1034,7 @@ talk_to_a_people
         role_prompt = get_prompt_by_title("__review_conversation__")
         # role_prompt = role_prompt.replace("__conversation_target__", conversation_target)
         # role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "## 聊天记录 \n" + messages_history
+        question = "## Conversation history \n" + messages_history
 
         # Memory recall: inject past interactions with the current conversation partner
         try:
@@ -1065,7 +1065,10 @@ talk_to_a_people
                 setattr(self, "_review_comm_retry_count", retry_count + 1)
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
                 role_prompt = get_prompt_by_title("__review_conversation__")
-                question = "请只输出一个JSON对象，不要输出任何解释或额外文字。\n## 聊天记录 \n" + talk_history_str
+                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
+                if not question:
+                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
                 setattr(self, "_review_comm_retry_count", 0)

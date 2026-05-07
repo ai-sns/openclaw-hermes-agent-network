@@ -153,3 +153,14 @@ class EndActiveConversationRequest(BaseModel):
     reason: str = "user_stop"
     message: Optional[str] = ""
     resume_activity: bool = True
+
+
+class A2AXmppCallRequest(BaseModel):
+    """Request body for calling a peer agent via XMPP Ad-hoc Command A2A."""
+    peer_jid: str
+    method: str = "tasks/send"
+    task_id: Optional[str] = None
+    message_text: Optional[str] = None
+    message_data: Optional[Any] = None
+    skill_id: Optional[str] = None
+    metadata: Optional[Any] = None

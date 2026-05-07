@@ -27,6 +27,86 @@ def get_tools_service(db: Session = Depends(get_db_sync_depends)) -> ToolsServic
     return ToolsService(db)
 
 
+# ------------------------------------------------------------------
+# Agent cache eviction helpers (lazy hot-reload for tool definition changes)
+# ------------------------------------------------------------------
+def _evict_agents_by_tool(tool_type: str, tool_id: str) -> None:
+    """Evict cached AgentInstances that are associated with a given tool.
+
+    This uses a lazy hot-reload strategy:
+    - Only agents present in AgentManager's cache are evicted (not eagerly loaded)
+    - On next use, the agent will be rebuilt and will pick up latest tool definitions
+
+    Note: We intentionally exclude legacy SkillMng (tool_type == 'skill') here,
+    as DocSkills are managed by the skills_registry and are already hot-refreshed.
+    """
+    try:
+        if tool_type not in ("plugin", "mcp", "function"):
+            return
+
+        # Query which agents are associated to this tool
+        from db.database import get_db_sync
+        from db.models.agent import AgentTools
+        db = get_db_sync()
+        try:
+            rows = (
+                db.query(AgentTools)
+                .filter(
+                    AgentTools.tool_type == tool_type,
+                    AgentTools.tool_id == tool_id,
+                    AgentTools.enabled == 1,
+                )
+                .all()
+            )
+            agent_ids = sorted({r.agent_id for r in rows if getattr(r, "agent_id", None) is not None})
+        finally:
+            db.close()
+
+        if not agent_ids:
+            return
+
+        # Evict cached agents
+        from runtime.modules.agent.agent_manager import AgentManager
+        manager = AgentManager()
+        cache = getattr(manager, "_agents_cache", {})
+        name_to_id = getattr(manager, "_name_to_id", None)
+
+        evicted = []
+        for aid in agent_ids:
+            if aid in cache:
+                try:
+                    name = getattr(cache.get(aid), "name", None)
+                    del cache[aid]
+                    if name and name_to_id is not None:
+                        try:
+                            name_to_id.pop(name, None)
+                        except Exception:
+                            pass
+                    evicted.append(aid)
+                except Exception as _e:
+                    logger.warning("Failed to evict agent %s after %s/%s change: %s", aid, tool_type, tool_id, _e)
+
+        if evicted:
+            logger.info("Evicted cached agents %s after %s '%s' change", evicted, tool_type, tool_id)
+
+            # Clear SNS engine cached agent if it matches any evicted agent
+            try:
+                from runtime.apps.sns.service_async import _social_engine_instance
+                if _social_engine_instance is not None:
+                    eng_agent_id = getattr(
+                        getattr(_social_engine_instance, "aisns_cfg", None),
+                        "agent_id",
+                        None,
+                    )
+                    if eng_agent_id is not None and int(eng_agent_id) in evicted:
+                        _social_engine_instance.agent = None
+                        logger.info("Cleared SNS engine cached agent after tool definition change")
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning("_evict_agents_by_tool error: %s", e)
+
+
 # ==================== Plugin Endpoints ====================
 
 @router.get("/plugins", response_model=List[PluginResponse])
@@ -87,6 +167,10 @@ async def update_plugin(
     result = service.update_plugin(plugin_id, plugin)
     if not result:
         raise HTTPException(status_code=404, detail="Plugin not found")
+    try:
+        _evict_agents_by_tool("plugin", plugin_id)
+    except Exception:
+        pass
     return result
 
 
@@ -96,6 +180,10 @@ async def delete_plugin(plugin_id: str, service: ToolsService = Depends(get_tool
     success = service.delete_plugin(plugin_id)
     if not success:
         raise HTTPException(status_code=404, detail="Plugin not found")
+    try:
+        _evict_agents_by_tool("plugin", plugin_id)
+    except Exception:
+        pass
     return {"success": True, "message": "Plugin deleted successfully"}
 
 
@@ -140,6 +228,10 @@ async def update_mcp(
     result = service.update_mcp(mcp_id, mcp)
     if not result:
         raise HTTPException(status_code=404, detail="MCP not found")
+    try:
+        _evict_agents_by_tool("mcp", mcp_id)
+    except Exception:
+        pass
     return result
 
 
@@ -149,6 +241,10 @@ async def delete_mcp(mcp_id: str, service: ToolsService = Depends(get_tools_serv
     success = service.delete_mcp(mcp_id)
     if not success:
         raise HTTPException(status_code=404, detail="MCP not found")
+    try:
+        _evict_agents_by_tool("mcp", mcp_id)
+    except Exception:
+        pass
     return {"success": True, "message": "MCP deleted successfully"}
 
 
@@ -193,6 +289,10 @@ async def update_function(
     result = service.update_function(function_id, function)
     if not result:
         raise HTTPException(status_code=404, detail="Function not found")
+    try:
+        _evict_agents_by_tool("function", function_id)
+    except Exception:
+        pass
     return result
 
 
@@ -202,6 +302,10 @@ async def delete_function(function_id: str, service: ToolsService = Depends(get_
     success = service.delete_function(function_id)
     if not success:
         raise HTTPException(status_code=404, detail="Function not found")
+    try:
+        _evict_agents_by_tool("function", function_id)
+    except Exception:
+        pass
     return {"success": True, "message": "Function deleted successfully"}
 
 

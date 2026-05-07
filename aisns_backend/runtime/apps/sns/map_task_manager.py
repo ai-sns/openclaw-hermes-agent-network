@@ -149,11 +149,15 @@ class MapTaskManager:
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
-        strict_instruction = (
-            "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
-            "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
-            f"Missing/invalid keys: {missing_keys}. Previous raw output: {str(raw_result)[:300]}"
-        )
+        strict_instruction = (get_prompt_by_title("__pick_people_strict_retry__") or "").strip()
+        if not strict_instruction:
+            strict_instruction = (
+                "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
+                "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
+                "Missing/invalid keys: __missing_keys__. Previous raw output: __raw_result__"
+            )
+        strict_instruction = strict_instruction.replace("__missing_keys__", str(missing_keys))
+        strict_instruction = strict_instruction.replace("__raw_result__", str(raw_result)[:300])
         content_prompt = f"{content_prompt}\n\n{strict_instruction}"
 
         logger.warning(
@@ -406,6 +410,16 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             items = items[-60:] if len(items) > 60 else items
             process_log = "\n".join(f"{idx + 1}. {item}" for idx, item in enumerate(items))
 
+            output_req = (get_prompt_by_title("__plan_summary_output_requirements__") or "").strip()
+            if not output_req:
+                output_req = (
+                    "Output requirements:\n"
+                    "- Provide updated goals only.\n"
+                    "- Include BOTH sections with these exact labels:\n"
+                    "  Long-Term Goals:\n"
+                    "  Short-Term Goals:\n"
+                    "- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions."
+                )
             msg_parts = [
                 "Current Long-Term Goals (may be empty):",
                 (current_long_goals or "").strip() or "(empty)",
@@ -413,12 +427,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 (current_short_goals or "").strip() or "(empty)",
                 "Process log entries:",
                 process_log,
-                "\nOutput requirements:\n"
-                "- Provide updated goals only.\n"
-                "- Include BOTH sections with these exact labels:\n"
-                "  Long-Term Goals:\n"
-                "  Short-Term Goals:\n"
-                "- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.\n",
+                "\n" + output_req + "\n",
             ]
             question = "\n\n".join([p for p in msg_parts if p is not None])
 
@@ -749,12 +758,15 @@ I am participating in a virtual social game based on Google Maps. Players role-p
 
             if is_remote:
                 # Remote agent: wrap with task-oriented instructions; do not use local tools
-                context_parts.append(
-                    "\n--- Instructions for Remote Agent ---\n"
-                    "Based on the context above, use any tools or capabilities you have "
-                    "to gather information that would help decide the next action.\n"
-                    "Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED."
-                )
+                remote_instr = (get_prompt_by_title("__remote_agent_tool_check_activity__") or "").strip()
+                if not remote_instr:
+                    remote_instr = (
+                        "--- Instructions for Remote Agent ---\n"
+                        "Based on the context above, use any tools or capabilities you have "
+                        "to gather information that would help decide the next action.\n"
+                        "Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED."
+                    )
+                context_parts.append("\n" + remote_instr)
 
             question = "\n".join(context_parts)
 
@@ -796,27 +808,33 @@ I am participating in a virtual social game based on Google Maps. Players role-p
     def _build_a2a_tool_guidance(self, card_json: str) -> str:
         """Build an A2A tool usage guidance section for the LLM prompt.
 
-        Extracts the A2A endpoint URL from the agent card JSON and generates
-        instructions telling the LLM how to invoke the a2a_call skill via
-        run_doc_skill for tasks/send and tasks/get.
+        Extracts the A2A endpoint URL and peer JID, then generates instructions
+        for invoking A2A services via HTTP (run_doc_skill) and/or XMPP
+        (a2a_xmpp_call).
 
         Args:
             card_json: The agent card JSON string
 
         Returns:
-            A guidance string, or empty string if no URL is found
+            A guidance string, or empty string if neither URL nor JID is found
         """
         try:
             card = json.loads(card_json)
         except Exception:
             return ""
 
+        active = getattr(self.parent, "active_conversation", None) or {}
+
         # Extract A2A URL from card; fall back to active_conversation endpoint
         a2a_url = (card.get("url") or "").strip()
         if not a2a_url:
-            active = getattr(self.parent, "active_conversation", None) or {}
             a2a_url = (active.get("a2a_endpoint") or "").strip()
-        if not a2a_url:
+
+        # Extract peer JID from active conversation
+        peer_jid = (active.get("account") or "").strip()
+        has_jid = bool(peer_jid and "@" in peer_jid)
+
+        if not a2a_url and not has_jid:
             return ""
 
         # Extract skill IDs for reference
@@ -824,25 +842,36 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         skill_ids = [s.get("id", "") for s in skills if isinstance(s, dict) and s.get("id")]
         skills_hint = ", ".join(skill_ids) if skill_ids else "(see agent card above)"
 
-        guidance = (
-            "\n--- A2A Tool Available ---\n"
-            "You can interact with this peer agent's A2A service using run_doc_skill.\n"
-            "To send a task:\n"
-            '  run_doc_skill(skill_key="a2a_call", params={\n'
-            f'    "url": "{a2a_url}",\n'
-            '    "method": "tasks/send",\n'
-            '    "message_text": "<your message>",\n'
-            f'    "skill_id": "<one of: {skills_hint}>"\n'
-            "  })\n"
-            "To query task status:\n"
-            '  run_doc_skill(skill_key="a2a_call", params={\n'
-            f'    "url": "{a2a_url}",\n'
-            '    "method": "tasks/get",\n'
-            '    "task_id": "<task_id from previous send>"\n'
-            "  })\n"
-            "--- End A2A Tool ---\n"
-        )
-        return guidance
+        parts = ["\n--- A2A Tool Available ---"]
+
+        # HTTP transport (run_doc_skill)
+        if a2a_url:
+            parts.append(
+                "Option A — HTTP (use when peer has a reachable URL):\n"
+                "To send a task:\n"
+                '  run_doc_skill(skill_key="a2a_call", params={\n'
+                f'    "url": "{a2a_url}",\n'
+                '    "method": "tasks/send",\n'
+                '    "message_text": "<your message>",\n'
+                f'    "skill_id": "<one of: {skills_hint}>"\n'
+                "  })"
+            )
+
+        # XMPP transport (a2a_xmpp_call)
+        if has_jid:
+            parts.append(
+                "Option B — XMPP (use when peer is reachable via XMPP):\n"
+                "To send a task:\n"
+                f'  a2a_xmpp_call(peer_jid="{peer_jid}", method="tasks/send",\n'
+                '    message_text="<your message>",\n'
+                f'    skill_id="<one of: {skills_hint}>")\n'
+                "To query task status:\n"
+                f'  a2a_xmpp_call(peer_jid="{peer_jid}", method="tasks/get",\n'
+                '    task_id="<task_id from previous send>")'
+            )
+
+        parts.append("--- End A2A Tool ---\n")
+        return "\n".join(parts)
 
     async def _fetch_peer_agent_card(self) -> str:
         """Fetch the agent card JSON from the peer.
@@ -962,12 +991,15 @@ I am participating in a virtual social game based on Google Maps. Players role-p
 
                 if is_remote:
                     # Remote agent: append task-oriented instructions; do not use local tools
-                    context_parts.append(
-                        "\n--- Instructions for Remote Agent ---\n"
-                        "Review the conversation above. If you have tools that can enrich "
-                        "your analysis (e.g., lookup, search, query), use them and return the result.\n"
-                        "If no tool call is needed, respond with NO_TOOL_NEEDED."
-                    )
+                    remote_instr = (get_prompt_by_title("__remote_agent_tool_check_review__") or "").strip()
+                    if not remote_instr:
+                        remote_instr = (
+                            "--- Instructions for Remote Agent ---\n"
+                            "Review the conversation above. If you have tools that can enrich "
+                            "your analysis (e.g., lookup, search, query), use them and return the result.\n"
+                            "If no tool call is needed, respond with NO_TOOL_NEEDED."
+                        )
+                    context_parts.append("\n" + remote_instr)
 
                 question = "\n".join(context_parts)
                 self.show_status_on_map("using-tool")
@@ -1137,8 +1169,6 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 or parsed.get("longTermGoals")
                 or parsed.get("long_term_goal")
                 or parsed.get("longTermGoal")
-                or parsed.get("长期目标")
-                or parsed.get("长期目标列表")
                 or ""
             )
             short_val = (
@@ -1150,8 +1180,6 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 or parsed.get("shortTermGoals")
                 or parsed.get("short_term_goal")
                 or parsed.get("shortTermGoal")
-                or parsed.get("短期目标")
-                or parsed.get("短期目标列表")
                 or ""
             )
             long_txt = "\n".join(long_val) if isinstance(long_val, list) else str(long_val or "")
@@ -1171,7 +1199,6 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             [
                 r"^\s*(#+\s*)?Long[- ]Term Goals\s*:?\s*$",
                 r"^\s*(#+\s*)?Long[- ]Term Goal\s*:?\s*$",
-                r"^\s*(#+\s*)?长期目标\s*[:：]?\s*$",
             ],
         )
         short_header = _find_header_idx(
@@ -1179,7 +1206,6 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             [
                 r"^\s*(#+\s*)?Short[- ]Term Goals\s*:?\s*$",
                 r"^\s*(#+\s*)?Short[- ]Term Goal\s*:?\s*$",
-                r"^\s*(#+\s*)?短期目标\s*[:：]?\s*$",
             ],
         )
 

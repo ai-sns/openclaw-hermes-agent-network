@@ -54,7 +54,8 @@ def _hermes_chat_stream(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
+    print("cjrok")
+    print(message)
     body = {
         "model": model,
         "stream": True,
@@ -122,14 +123,15 @@ def chat_once(
     model: str,
     message: str,
     stream: bool,
-    timeout_seconds: int = 30,
+    timeout_seconds: int = 60,
 ) -> str:
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-
+    print("cjrok2")
+    print(message)
     body = {
         "model": model,
         "stream": stream,
@@ -253,7 +255,7 @@ def _load_app_config() -> AppConfig:
     api_key = hermes_obj.get("apiKey")
     api_key_env = hermes_obj.get("apiKeyEnv", ["HERMES_API_KEY"])
     model = hermes_obj.get("model", DEFAULT_MODEL)
-    timeout_seconds = hermes_obj.get("timeoutSeconds", 30)
+    timeout_seconds = hermes_obj.get("timeoutSeconds", 60)
 
     if not isinstance(base_url, str) or not base_url:
         raise SystemExit("Invalid config: hermes.baseUrl must be a non-empty string")

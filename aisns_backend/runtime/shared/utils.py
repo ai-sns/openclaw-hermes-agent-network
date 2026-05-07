@@ -21,14 +21,13 @@ import random
 import string
 
 def generate_random_id():
-    # 生成随机字母ID，使用大写字母
+
     random_id = ''.join(random.choices(string.ascii_uppercase, k=2))
-    # 获取当前时间
 
     current_time = datetime.now().strftime('%Y%m%d%H%M%S')
-    # 生成随机数
+
     random_number = ''.join(random.choices(string.digits, k=5))
-    # 组合生成的ID
+
     generated_id = random_id + current_time + random_number
     return generated_id
 

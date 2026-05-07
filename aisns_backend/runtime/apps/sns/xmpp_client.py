@@ -967,3 +967,9 @@ class XMPPClientManager:
             self._client.disconnect()
             self._client = None
             logger.info("XMPP client stopped")
+
+    async def restart(self):
+        """Restart XMPP client with fresh credentials from DB."""
+        logger.info("XMPP client restart requested (hot-reload credentials)")
+        await self.stop()
+        await self.start()

@@ -88,6 +88,8 @@ const homeHandlers = {
             }
         };
 
+        const savedOriginals = { language: '', a2aServerEnabled: false };
+
         const loadConfigIntoModal = async (modal) => {
             try {
                 const localPromise = (window.electronAPI && typeof window.electronAPI.readConfigJson === 'function')
@@ -224,6 +226,9 @@ const homeHandlers = {
                 if (a2aServerEnabledInput) {
                     a2aServerEnabledInput.checked = !!a2aServerEnabledValue;
                 }
+
+                savedOriginals.language = languageValue;
+                savedOriginals.a2aServerEnabled = !!a2aServerEnabledValue;
             } catch (e) {
                 if (typeof Notification !== 'undefined' && Notification.error) {
                     Notification.error(e.message || 'Failed to load configuration');
@@ -471,6 +476,58 @@ const homeHandlers = {
                             Notification.success('Saved to local config.json');
                         }
                     }
+
+                    try {
+                        const normalize = (raw) => {
+                            const v = String(raw || '').trim();
+                            if (!v) return '';
+                            const withScheme = /^https?:\/\//i.test(v) ? v : `http://${v}`;
+                            return withScheme.endsWith('/') ? withScheme.slice(0, -1) : withScheme;
+                        };
+
+                        const prevAgent = (window.appConfig && window.appConfig.agent_server) ? String(window.appConfig.agent_server) : '';
+                        const prevAiSns = (window.appConfig && window.appConfig.ai_sns_server) ? String(window.appConfig.ai_sns_server) : '';
+
+                        const nextAgent = normalize(agent_server);
+                        const nextAiSns = normalize(ai_sns_server);
+
+                        if (!window.appConfig || typeof window.appConfig !== 'object') {
+                            window.appConfig = {};
+                        }
+                        window.appConfig.agent_server = nextAgent;
+                        window.appConfig.ai_sns_server = nextAiSns;
+
+                        if (window.api && typeof window.api.normalizeHttpBaseUrl === 'function') {
+                            try { window.api.baseUrl = window.api.normalizeHttpBaseUrl(nextAgent || window.api.baseUrl || ''); } catch (e) {}
+                        }
+
+                        try {
+                            if (window.toolsEditDialog) {
+                                const base = nextAgent;
+                                window.toolsEditDialog.apiBaseUrl = base ? `${base}/api/tools` : '/api/tools';
+                            }
+                        } catch (e) {}
+
+                        try {
+                            window.dispatchEvent(new CustomEvent('app-config-updated', {
+                                detail: { prevAgentServer: prevAgent, agentServer: nextAgent, prevAiSnsServer: prevAiSns, aiSnsServer: nextAiSns }
+                            }));
+                        } catch (e) {}
+
+                        const serverChanged = String(prevAgent || '') !== String(nextAgent || '');
+                        if (serverChanged) {
+                            if (typeof Notification !== 'undefined' && Notification.info) {
+                                Notification.info('Server URL changed. Please refresh the frontend to reconnect WebSocket to the new server.');
+                            }
+                        }
+                        const langChanged = String(language || '') !== String(savedOriginals.language || '');
+                        const a2aChanged = !!a2a_server_enabled !== !!savedOriginals.a2aServerEnabled;
+                        if (serverChanged || langChanged || a2aChanged) {
+                            if (typeof Notification !== 'undefined' && Notification.info) {
+                                Notification.info('Some changes may require restarting the backend server or refreshing the page to take full effect.');
+                            }
+                        }
+                    } catch (e) {}
 
                     return true;
                 } catch (e) {

@@ -950,7 +950,7 @@ const multiAgentHandlers = {
 
         document.querySelectorAll(`button.toolbar-icon-btn[data-agent-id="${agentId}"]`).forEach(btn => {
             const shouldRemainEnabled = this.matchesToolbarAction(btn, ['kb-config', 'attachment'])
-                || this.matchesToolbarTitle(btn, ['配置知识库', 'Configure knowledge base', '附件', 'Attachment', 'Attachments']);
+                || this.matchesToolbarTitle(btn, ['Configure knowledge base', 'Attachment', 'Attachments']);
             if (shouldRemainEnabled) {
                 btn.disabled = false;
                 if (isRemote) {
@@ -2461,16 +2461,16 @@ const multiAgentHandlers = {
 
         // Message bubble right-click context menu for copy functionality
         this.initMessageContextMenu();
-        
+
         // Message copy button click handler
         this.initMessageCopyButtons();
-        
+
         // Auto-resize textarea for input
         this.initAutoResizeTextarea();
-        
+
         // Cancel message button handler
         this.initCancelMessageButton();
-        
+
         console.log('[MultiAgentHandlers] Context menu initialized');
         console.log('[MultiAgentHandlers] === bindAllAgentEvents END ===');
     },
@@ -2480,7 +2480,7 @@ const multiAgentHandlers = {
      */
     initMessageContextMenu() {
         console.log('[MultiAgentHandlers] initMessageContextMenu called');
-        
+
         // Create context menu element if not exists
         let contextMenu = document.getElementById('messageContextMenu');
         if (!contextMenu) {
@@ -2628,7 +2628,7 @@ const multiAgentHandlers = {
      */
     initMessageCopyButtons() {
         console.log('[MultiAgentHandlers] initMessageCopyButtons called');
-        
+
         // Use event delegation to handle copy button clicks
         document.addEventListener('click', async (e) => {
             const copyBtn = e.target.closest('.message-copy-btn');
@@ -2653,7 +2653,7 @@ const multiAgentHandlers = {
             const success = await this.copyToClipboard(textToCopy);
             if (success) {
                 console.log('[MultiAgentHandlers] Message copied successfully via copy button');
-                
+
                 // Show visual feedback
                 this.showCopyFeedback(copyBtn);
             }
@@ -2717,7 +2717,7 @@ const multiAgentHandlers = {
     showCopyFeedback(button) {
         // Add success class to button
         const originalHtml = button.innerHTML;
-        
+
         // Change icon to checkmark
         button.innerHTML = `
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2725,7 +2725,7 @@ const multiAgentHandlers = {
             </svg>
         `;
         button.classList.add('copy-success');
-        
+
         // Reset after 2 seconds
         setTimeout(() => {
             button.innerHTML = originalHtml;
@@ -2738,12 +2738,12 @@ const multiAgentHandlers = {
      */
     initAutoResizeTextarea() {
         console.log('[MultiAgentHandlers] initAutoResizeTextarea called');
-        
+
         // Initialize all existing textareas
         document.querySelectorAll('.agent-chat-input').forEach((textarea) => {
             this.autoResizeTextarea(textarea);
         });
-        
+
         // Use event delegation to handle input events on all chat textareas
         document.addEventListener('input', (e) => {
             const textarea = e.target;
@@ -2757,7 +2757,7 @@ const multiAgentHandlers = {
         document.addEventListener('focus', (e) => {
             const textarea = e.target;
             if (!textarea.classList.contains('agent-chat-input')) return;
-            
+
             // Resize on focus to ensure correct height
             this.autoResizeTextarea(textarea);
         }, true);
@@ -2775,7 +2775,7 @@ const multiAgentHandlers = {
 
         // Calculate new height
         const newHeight = textarea.scrollHeight;
-        
+
         // Get computed styles for min/max constraints
         const style = window.getComputedStyle(textarea);
         const minHeight = parseFloat(style.minHeight) || 0;
@@ -2801,7 +2801,7 @@ const multiAgentHandlers = {
      */
     initCancelMessageButton() {
         console.log('[MultiAgentHandlers] initCancelMessageButton called');
-        
+
         // Use event delegation to handle cancel button clicks
         document.addEventListener('click', (e) => {
             const cancelBtn = e.target.closest('.cancel-btn');
@@ -2818,7 +2818,7 @@ const multiAgentHandlers = {
                 if (activeRequestId) {
                     agentState.setCancelledRequestIdForAgent(agentId, activeRequestId);
                 }
-                
+
                 // Cancel the active stream (for streaming mode)
                 if (window.agentApi && typeof window.agentApi.cancelActiveStream === 'function') {
                     const cancelled = window.agentApi.cancelActiveStream(agentId);
@@ -2834,7 +2834,7 @@ const multiAgentHandlers = {
                         console.log('[MultiAgentHandlers] Non-stream request cancelled successfully');
                     }
                 }
-                
+
                 // Immediately update UI to show cancelled message
                 const messagesContainer = document.getElementById(`chatMessages-${agentId}`);
                 const streamingMsg = (messagesContainer && activeRequestId)
@@ -2847,10 +2847,10 @@ const multiAgentHandlers = {
                         streamingBody.innerHTML = '<em>Reply cancelled</em>';
                     }
                 }
-                
+
                 // Clear request ID to reset UI state
                 agentState.clearRequestIdForAgent(agentId);
-                
+
                 // Re-enable send button
                 const sendBtn = document.getElementById(`sendMessageBtn-${agentId}`);
                 const inputToolbar = sendBtn?.closest('.input-toolbar');
@@ -2861,7 +2861,7 @@ const multiAgentHandlers = {
                 if (inputToolbar) {
                     inputToolbar.classList.remove('sending');
                 }
-                
+
                 // Notify user
                 if (typeof Notification !== 'undefined' && Notification.info) {
                     Notification.info('Generation cancelled');
@@ -3464,7 +3464,7 @@ const multiAgentHandlers = {
             sendBtn.disabled = true;
             sendBtn.classList.add('sending');
         }
-        
+
         // Add sending class to toolbar to toggle buttons
         const inputToolbar = sendBtn?.closest('.input-toolbar');
         if (inputToolbar) {
@@ -3506,7 +3506,7 @@ const multiAgentHandlers = {
                 </svg>
             </button>
         `;
-        
+
         const userMessageHtml = `
             <div class="message-item user-message">
                 <div class="message-header">
@@ -3634,7 +3634,7 @@ const multiAgentHandlers = {
                         // Check if this is a cancellation error
                         if ((error && (error.name === 'AbortError')) || agentState.isCancelledRequestForAgent(agentId, requestId)) {
                             console.log('[MultiAgentHandlers] Request was cancelled');
-                            
+
                             // Show cancelled message in the bubble
                             const messagesContainer = document.getElementById(`chatMessages-${agentId}`);
                             const streamingMsg = messagesContainer ? messagesContainer.querySelector(`.message-item.streaming[data-request-id="${String(requestId)}"]`) : null;
@@ -3702,7 +3702,7 @@ const multiAgentHandlers = {
                 // Check if cancelled before processing response
                 if (agentState.isCancelledRequestForAgent(agentId, requestId)) {
                     console.log('[MultiAgentHandlers] Non-stream request was cancelled, ignoring response');
-                    
+
                     // Update the streaming message to show cancelled
                     const messagesContainer = document.getElementById(`chatMessages-${agentId}`);
                     const streamingMsg = messagesContainer ? messagesContainer.querySelector(`.message-item.streaming[data-request-id="${String(requestId)}"]`) : null;
@@ -3713,7 +3713,7 @@ const multiAgentHandlers = {
                             streamingBody.innerHTML = '<em>Reply cancelled</em>';
                         }
                     }
-                    
+
                     // Clear request ID and re-enable send button
                     if (agentState.getRequestIdForAgent(agentId) === requestId) {
                         agentState.clearRequestIdForAgent(agentId);
@@ -3721,7 +3721,7 @@ const multiAgentHandlers = {
                     }
                     return;
                 }
-                
+
                 // Verify this response is for the current request (not from an old/cancelled request)
                 const latestRequestId = agentState.getRequestIdForAgent(agentId);
                 if (latestRequestId !== requestId) {

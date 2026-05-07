@@ -110,18 +110,31 @@ async def jsonrpc_endpoint(request: Request):
     message = params.get("message", {})
     parts = message.get("parts", [])
     their_card = {}
+    card_field_names = {"name", "company", "title", "email", "xmpp", "website", "phone"}
     for part in parts:
         if part.get("type") == "data":
-            their_card = part.get("data", {})
-            break
+            data = part.get("data", {})
+            if data and card_field_names & set(data.keys()):
+                their_card = data
+                break
         elif part.get("type") == "text":
             try:
-                their_card = json.loads(part.get("text", "{}"))
+                parsed = json.loads(part.get("text", "{}"))
+                if isinstance(parsed, dict) and card_field_names & set(parsed.keys()):
+                    their_card = parsed
             except json.JSONDecodeError:
                 pass
 
     sender_jid = params.get("metadata", {}).get("sender_jid", "")
-    my_card = exchange_business_card(their_card, sender_jid=sender_jid)
+
+    # Only do card exchange (DB write) if we received card-like data
+    if their_card:
+        my_card = exchange_business_card(their_card, sender_jid=sender_jid)
+    else:
+        # Generic message: return our card without storing anything
+        my_card = get_my_card()
+        my_card.pop("id", None)
+        my_card.pop("updated_at", None)
 
     return JSONResponse(content={
         "jsonrpc": "2.0",

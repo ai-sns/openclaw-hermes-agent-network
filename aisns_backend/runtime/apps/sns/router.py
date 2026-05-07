@@ -23,7 +23,8 @@ from runtime.apps.sns.schemas import (
     AgentInstructionRequest,
     EndActiveConversationRequest,
     PromptByTitleUpdateRequest,
-    MarkContactReadRequest
+    MarkContactReadRequest,
+    A2AXmppCallRequest
 )
 
 from runtime.apps.sns.memory.router import router as memory_router
@@ -640,4 +641,104 @@ async def xmpp_a2a_debug_call_exchange(request: dict):
         return {"success": result is not None, "target_jid": target_jid, "result": result}
     except Exception as e:
         return {"success": False, "message": f"Error: {e}"}
+
+
+@router.post("/xmpp-a2a/call")
+async def xmpp_a2a_call(request: A2AXmppCallRequest):
+    """Call a peer agent's A2A service via XMPP Ad-hoc Command.
+
+    Sends a JSON-RPC 2.0 request through the XMPP ad-hoc command node
+    (urn:xmpp:a2a:cmd:tasks) and waits for the peer's response.
+    Timeout: 300 seconds. Non-blocking for other server requests.
+
+    Request body:
+      - peer_jid (str, required): Peer's XMPP JID (e.g. user@domain)
+      - method (str): "tasks/send" (default) or "tasks/get"
+      - task_id (str): Task ID (required for tasks/get)
+      - message_text (str): Text message for tasks/send
+      - message_data (dict): Data payload for tasks/send
+      - skill_id (str): Target skill ID on the peer agent
+      - metadata (dict): Extra metadata to attach
+
+    Returns:
+      {"success": true/false, "result": {...}} or {"success": false, "error": "..."}
+    """
+    import uuid as _uuid
+
+    peer_jid = (request.peer_jid or "").strip()
+    method = (request.method or "tasks/send").strip()
+
+    if not peer_jid:
+        return {"success": False, "error": "peer_jid is required"}
+    if method not in ("tasks/send", "tasks/get"):
+        return {"success": False, "error": f"Unsupported method: {method}. Use 'tasks/send' or 'tasks/get'."}
+
+    # Get XMPP client and A2A manager
+    try:
+        from runtime.apps.sns.xmpp_client import XMPPClientManager
+        manager = XMPPClientManager.get_instance()
+        client = manager.get_client()
+        if client is None or not client.is_connected():
+            return {"success": False, "error": "XMPP client not connected"}
+
+        a2a_mgr = getattr(client, "_a2a_manager", None)
+        if a2a_mgr is None:
+            return {"success": False, "error": "XMPP A2A manager not initialized"}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to get XMPP client: {e}"}
+
+    # Build JSON-RPC 2.0 request
+    rpc_id = str(_uuid.uuid4())[:8]
+
+    if method == "tasks/send":
+        parts = []
+        message_text = (request.message_text or "").strip()
+        if message_text:
+            parts.append({"type": "text", "text": message_text})
+        message_data = request.message_data
+        if isinstance(message_data, dict) and message_data:
+            parts.append({"type": "data", "data": message_data})
+        if not parts:
+            parts.append({"type": "text", "text": "Hello"})
+
+        rpc_params = {
+            "id": f"task-{rpc_id}",
+            "message": {"role": "user", "parts": parts},
+        }
+        skill_id = (request.skill_id or "").strip()
+        if skill_id:
+            rpc_params["skillId"] = skill_id
+        metadata = request.metadata
+        if isinstance(metadata, dict) and metadata:
+            rpc_params["metadata"] = metadata
+    else:
+        # tasks/get
+        task_id = (request.task_id or "").strip()
+        if not task_id:
+            return {"success": False, "error": "task_id is required for tasks/get"}
+        rpc_params = {"id": task_id}
+
+    jsonrpc_request = {
+        "jsonrpc": "2.0",
+        "method": method,
+        "params": rpc_params,
+        "id": rpc_id,
+    }
+
+    # Call peer via XMPP Ad-hoc Command (300s timeout inside call_a2a_task)
+    result = await a2a_mgr.call_a2a_task(peer_jid, jsonrpc_request)
+
+    if result.get("ok"):
+        return {"success": True, "rpc_id": rpc_id, "result": result.get("result", {})}
+    else:
+        response = {
+            "success": False,
+            "rpc_id": rpc_id,
+            "error": result.get("error", "Unknown error"),
+        }
+        if result.get("detail") is not None:
+            response["detail"] = result.get("detail")
+        if result.get("raw") is not None:
+            response["raw"] = result.get("raw")
+        return response
 

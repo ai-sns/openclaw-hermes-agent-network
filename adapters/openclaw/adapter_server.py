@@ -59,7 +59,8 @@ def _gateway_chat_stream(
         "stream": True,
         "messages": [{"role": "user", "content": message}],
     }
-
+    print("cjrok")
+    print(message)
     s = requests.Session()
     s.trust_env = False
 
@@ -132,7 +133,8 @@ def chat_once(
     }
     if session_key:
         headers["X-OpenClaw-Session-Key"] = session_key
-
+    print("cjrok2")
+    print(message)
     body = {
         "model": f"openclaw:{agent_id}",
         "stream": stream,

@@ -14,6 +14,13 @@ import httpx
 from runtime.modules.agent.agent_manager import agent_manager
 from db.database import get_db_session as get_session
 from db.models.agent import AgentCfg
+from runtime.shared.llm_log_writer import (
+    new_request_id,
+    log_llm_request,
+    log_llm_response,
+    log_llm_stream_chunk,
+    log_llm_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +305,16 @@ class AgentAdapter:
             }
         }
 
+        req_id = new_request_id()
+        _log_source = "runtime.apps.sns.adapter.agent_adapter.AgentAdapter._remote_collect_stream_text"
+        try:
+            log_llm_request(
+                request_id=req_id, source=_log_source,
+                request_json={"rpc_url": rpc_url, "payload": payload},
+            )
+        except Exception:
+            pass
+
         timeout = httpx.Timeout(60.0, read=30.0)
         out_parts = []
         seen_content = False
@@ -313,6 +330,10 @@ class AgentAdapter:
                     headers={'Content-Type': 'application/json', 'Accept': 'text/event-stream'}
                 ) as resp:
                     if resp.status_code >= 400:
+                        try:
+                            log_llm_error(request_id=req_id, source=_log_source, error=f"HTTP {resp.status_code}")
+                        except Exception:
+                            pass
                         return ''
 
                     content_type = str(resp.headers.get('content-type') or '').lower()
@@ -330,7 +351,12 @@ class AgentAdapter:
                             data = {}
                         result = data.get('result') if isinstance(data, dict) else None
                         message_obj = (result or {}).get('message') if isinstance(result, dict) else None
-                        return self._extract_text_from_a2a_message(message_obj or {})
+                        extracted = self._extract_text_from_a2a_message(message_obj or {})
+                        try:
+                            log_llm_response(request_id=req_id, source=_log_source, response_json={"content": extracted})
+                        except Exception:
+                            pass
+                        return extracted
 
                     async for line in resp.aiter_lines():
                         now = time.monotonic()
@@ -351,6 +377,10 @@ class AgentAdapter:
                             continue
 
                         if isinstance(evt, dict) and evt.get('error'):
+                            try:
+                                log_llm_error(request_id=req_id, source=_log_source, error=evt.get('error'))
+                            except Exception:
+                                pass
                             return ''
 
                         delta = self._extract_delta_text_from_a2a_event(evt)
@@ -358,6 +388,10 @@ class AgentAdapter:
                             out_parts.append(delta)
                             seen_content = True
                             last_content_ts = time.monotonic()
+                            try:
+                                log_llm_stream_chunk(request_id=req_id, source=_log_source, stream_raw={"content": delta})
+                            except Exception:
+                                pass
                         else:
                             result = evt.get('result') if isinstance(evt, dict) else None
                             message_obj = (result or {}).get('message') if isinstance(result, dict) else None
@@ -366,14 +400,27 @@ class AgentAdapter:
                                 out_parts.append(chunk_text)
                                 seen_content = True
                                 last_content_ts = time.monotonic()
+                                try:
+                                    log_llm_stream_chunk(request_id=req_id, source=_log_source, stream_raw={"content": chunk_text})
+                                except Exception:
+                                    pass
 
                         fr = self._extract_finish_reason_from_a2a_event(evt)
                         if fr:
                             break
         except Exception:
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error="stream collection exception")
+            except Exception:
+                pass
             return ''
 
-        return ''.join(out_parts)
+        joined = ''.join(out_parts)
+        try:
+            log_llm_response(request_id=req_id, source=_log_source, response_json={"content": joined})
+        except Exception:
+            pass
+        return joined
 
     async def _remote_send_message(self, *, rpc_url: str, text: str, context_id: str) -> str:
         rpc_url = self._normalize_a2a_rpc_url(rpc_url)
@@ -393,6 +440,16 @@ class AgentAdapter:
             }
         }
 
+        req_id = new_request_id()
+        _log_source = "runtime.apps.sns.adapter.agent_adapter.AgentAdapter._remote_send_message"
+        try:
+            log_llm_request(
+                request_id=req_id, source=_log_source,
+                request_json={"rpc_url": rpc_url, "payload": payload},
+            )
+        except Exception:
+            pass
+
         timeout = httpx.Timeout(60.0, read=60.0)
         try:
             async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
@@ -402,11 +459,23 @@ class AgentAdapter:
                     headers={'Content-Type': 'application/json'},
                 )
         except httpx.TimeoutException:
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error="Remote agent timeout")
+            except Exception:
+                pass
             return 'Error: Remote agent timeout'
         except httpx.HTTPError as e:
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error=f"Remote agent network error: {str(e)}")
+            except Exception:
+                pass
             return f'Error: Remote agent network error: {str(e)}'
 
         if resp.status_code >= 400:
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error=f"HTTP {resp.status_code}: {resp.text[:500]}")
+            except Exception:
+                pass
             return f'Error: Remote agent error: HTTP {resp.status_code}: {resp.text[:500]}'
 
         content_type = str(resp.headers.get('content-type') or '').lower()
@@ -428,22 +497,38 @@ class AgentAdapter:
                 delta = self._extract_delta_text_from_a2a_event(evt)
                 if delta:
                     out_parts.append(delta)
+                    try:
+                        log_llm_stream_chunk(request_id=req_id, source=_log_source, stream_raw={"content": delta})
+                    except Exception:
+                        pass
                 else:
                     result = evt.get('result') if isinstance(evt, dict) else None
                     message_obj = (result or {}).get('message') if isinstance(result, dict) else None
                     chunk_text = self._extract_text_from_a2a_message(message_obj or {})
                     if chunk_text:
                         out_parts.append(chunk_text)
+                        try:
+                            log_llm_stream_chunk(request_id=req_id, source=_log_source, stream_raw={"content": chunk_text})
+                        except Exception:
+                            pass
                 fr = self._extract_finish_reason_from_a2a_event(evt)
                 if fr:
                     break
             joined = ''.join(out_parts)
             if joined:
+                try:
+                    log_llm_response(request_id=req_id, source=_log_source, response_json={"content": joined})
+                except Exception:
+                    pass
                 return joined
 
         try:
             data = resp.json()
         except Exception:
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error=f"Non-JSON response: {resp.text[:500]}")
+            except Exception:
+                pass
             return f'Error: Remote agent returned non-JSON response: {resp.text[:500]}'
 
         if isinstance(data, dict) and data.get('error'):
@@ -453,12 +538,25 @@ class AgentAdapter:
                 context_id=context_id,
             )
             if fallback:
+                try:
+                    log_llm_response(request_id=req_id, source=_log_source, response_json={"content": fallback})
+                except Exception:
+                    pass
                 return fallback
+            try:
+                log_llm_error(request_id=req_id, source=_log_source, error=json.dumps(data.get('error'), ensure_ascii=False))
+            except Exception:
+                pass
             return f"Error: Remote agent RPC error: {json.dumps(data.get('error'), ensure_ascii=False)}"
 
         result = data.get('result') if isinstance(data, dict) else None
         message_obj = (result or {}).get('message') if isinstance(result, dict) else None
-        return self._extract_text_from_a2a_message(message_obj or {})
+        reply = self._extract_text_from_a2a_message(message_obj or {})
+        try:
+            log_llm_response(request_id=req_id, source=_log_source, response_json={"content": reply})
+        except Exception:
+            pass
+        return reply
 
     def get_agent_identifier_for_command_status(self, *, command_status: str, aisns_cfg=None) -> Optional[str]:
         resolver = self._command_status_agent_resolvers.get(command_status)
