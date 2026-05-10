@@ -191,6 +191,13 @@ class CommunicationMixin:
                 self.map_task_status = ""
                 await self.start_engine()
 
+            # Sync module-level running flag so service-layer pause/resume works
+            try:
+                import runtime.apps.sns.service_async as _svc_mod
+                _svc_mod._social_engine_running = True
+            except Exception:
+                pass
+
             # Broadcast engine status so frontend button shows "Pause"
             await self._broadcast_engine_status_from_engine()
 

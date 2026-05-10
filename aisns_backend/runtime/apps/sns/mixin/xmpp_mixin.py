@@ -166,8 +166,11 @@ class XmppMixin:
                 else:
                     logger.debug(f"Processing as general conversation message from {account}")
 
-                if is_active_peer or not active_account:
-                    # Process general conversation message only for active peer (or when no active session).
+                if is_active_peer:
+                    # Process general conversation message only for active peer.
+                    # When no active session, the message is already in inbox and will be
+                    # processed via maybe_auto_reply_from_inbox() which properly sets up
+                    # active_conversation before triggering the review.
                     if self.human_take_over:
                         logger.info(
                             "Human takeover is enabled, skipping automated conversation review for %s",
@@ -179,11 +182,17 @@ class XmppMixin:
                             talk_history_str=json.dumps(self.current_talk_history, ensure_ascii=False)
                         ))
                 else:
-                    logger.info(
-                        "Message from %s queued to inbox because active conversation is with %s",
-                        account,
-                        active_account,
-                    )
+                    if active_account:
+                        logger.info(
+                            "Message from %s queued to inbox because active conversation is with %s",
+                            account,
+                            active_account,
+                        )
+                    else:
+                        logger.info(
+                            "Message from %s queued to inbox (no active conversation); will be processed on next game cycle",
+                            account,
+                        )
                 message_handled = True
 
             # Save current received message

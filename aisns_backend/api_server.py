@@ -178,6 +178,11 @@ try:
     uploads_dir.mkdir(exist_ok=True)
     app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
     logger.info("✓ Uploads directory mounted")
+
+    # Mount backend scripts directory for static access if present
+    if os.path.exists("scripts"):
+        app.mount("/scripts", StaticFiles(directory="scripts"), name="scripts")
+        logger.info("✓ Scripts directory mounted")
 except Exception as e:
     logger.warning(f"Failed to mount static files: {e}")
 

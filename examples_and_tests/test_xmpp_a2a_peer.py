@@ -10,8 +10,7 @@ can fully test each other:
     - urn:xmpp:a2a:cmd:exchange_business_card  (Business Card Exchange)
 
   Outbound (peer initiates):
-    - call_a2a_task        -> target's  urn:xmpp:a2a:cmd:tasks
-    - call_exchange_card   -> target's  urn:xmpp:a2a:cmd:exchange_business_card
+    - call_adhoc_command   -> any ad-hoc command node on a target peer
 
 After connecting, an interactive command prompt lets you trigger outbound
 calls while inbound handlers stay active in the background.
@@ -27,6 +26,7 @@ import signal
 import sys
 import threading
 import uuid
+from functools import partial
 from typing import Any, Dict, Optional
 
 import slixmpp
@@ -373,167 +373,141 @@ class TestA2APeer(slixmpp.ClientXMPP):
             return None
 
     # =====================================================================
-    #  OUTBOUND: Call peer A2A Task
+    #  OUTBOUND: Generic Ad-hoc Command
     # =====================================================================
 
-    async def call_a2a_task(self, target_jid: str, message_text: str = "Hello from test peer") -> Dict[str, Any]:
+    async def call_adhoc_command(
+        self,
+        target_jid: str,
+        command_node: str,
+        form_data: Optional[Dict[str, Any]] = None,
+        inspect_only: bool = False,
+    ) -> Dict[str, Any]:
         """
-        Invoke urn:xmpp:a2a:cmd:tasks on a peer (mirrors system's call_a2a_task).
-        Returns dict with 'ok' and 'result' or 'error'.
+        Invoke any XEP-0050 ad-hoc command on a peer — fully generic.
+        Returns dict with 'ok' and 'result' (or 'form' for inspect_only) or 'error'.
         """
-        rpc_id = str(uuid.uuid4())[:8]
-        jsonrpc_request = {
-            "jsonrpc": "2.0",
-            "id": rpc_id,
-            "method": "tasks/send",
-            "params": {
-                "id": f"task-{rpc_id}",
-                "message": {
-                    "role": "user",
-                    "parts": [{"type": "text", "text": message_text}],
-                },
-            },
-        }
-        request_str = json.dumps(jsonrpc_request, ensure_ascii=False)
-        LOGGER.info("[OUTBOUND task] Calling %s ...", target_jid)
-
+        LOGGER.info("[OUTBOUND adhoc] peer=%s node=%s inspect_only=%s", target_jid, command_node, inspect_only)
         try:
-            # Resolve bare JID to full JID via roster presence
             target_jid = self._resolve_full_jid(target_jid)
-
             adhoc = self["xep_0050"]
+
             # Step 1: Execute -> get form
             resp = await asyncio.wait_for(
-                adhoc.send_command(target_jid, A2A_ADHOC_TASK_NODE, action="execute"),
+                adhoc.send_command(target_jid, command_node, action="execute"),
                 timeout=30,
             )
             session_id = resp["command"]["sessionid"]
-            form = resp["command"]["form"]
+            form = resp["command"].get("form")
 
-            # Step 2: Fill jsonrpc_request and submit
-            try:
-                form["type"] = "submit"
-            except Exception:
-                pass
-            if hasattr(form, "set_values"):
-                form.set_values({"jsonrpc_request": request_str})
-            else:
-                fields = form.get_fields() if hasattr(form, "get_fields") else {}
-                if "jsonrpc_request" in fields:
-                    fields["jsonrpc_request"]["value"] = request_str
-
-            # Step 3: Complete
-            result = await asyncio.wait_for(
-                adhoc.send_command(
-                    target_jid, A2A_ADHOC_TASK_NODE,
-                    action="complete", sessionid=session_id, payload=form,
-                ),
-                timeout=60,
-            )
-
-            # Step 4: Parse jsonrpc_response
-            result_form = result["command"].get("form")
-            if not result_form:
-                return {"ok": False, "error": "No response form received"}
-            response_str = _extract_form_value(result_form, "jsonrpc_response").strip()
-            if not response_str:
-                return {"ok": False, "error": "Empty jsonrpc_response from peer"}
-
-            response_dict = json.loads(response_str)
-            if "error" in response_dict and response_dict["error"]:
-                err = response_dict["error"]
-                msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-                return {"ok": False, "error": f"JSON-RPC error: {msg}", "raw": response_dict}
-
-            LOGGER.info("[OUTBOUND task] Success from %s", target_jid)
-            return {"ok": True, "result": response_dict.get("result", {})}
-
-        except asyncio.TimeoutError:
-            LOGGER.warning("[OUTBOUND task] Timeout calling %s", target_jid)
-            return {"ok": False, "error": "timeout"}
-        except Exception as e:
-            LOGGER.error("[OUTBOUND task] Error calling %s: %s", target_jid, e)
-            return {"ok": False, "error": str(e)}
-
-    # =====================================================================
-    #  OUTBOUND: Call peer Exchange Business Card
-    # =====================================================================
-
-    async def call_exchange_card(self, target_jid: str) -> Dict[str, Any]:
-        """
-        Invoke urn:xmpp:a2a:cmd:exchange_business_card on a peer
-        (mirrors system's call_exchange_business_card).
-        Returns dict with 'ok' and 'peer_card' or 'error'.
-        """
-        LOGGER.info("[OUTBOUND exchange] Calling %s ...", target_jid)
-        try:
-            # Resolve bare JID to full JID via roster presence
-            target_jid = self._resolve_full_jid(target_jid)
-
-            adhoc = self["xep_0050"]
-            # Step 1: Execute -> get form with card fields
-            resp = await asyncio.wait_for(
-                adhoc.send_command(target_jid, A2A_ADHOC_EXCHANGE_NODE, action="execute"),
-                timeout=30,
-            )
-            session_id = resp["command"]["sessionid"]
-            form = resp["command"]["form"]
-
-            # Step 2: Fill our card values
-            try:
-                form["type"] = "submit"
-            except Exception:
-                pass
-            card_values = {key: (self.my_card.get(key, "") or "") for key in CARD_FIELDS}
-            if hasattr(form, "set_values"):
+            # Step 2: Inspect only — return form metadata and cancel
+            if inspect_only:
+                form_meta = self._extract_form_meta(form) if form else {"title": "", "fields": []}
                 try:
-                    form.set_values(card_values)
+                    await adhoc.send_command(target_jid, command_node, action="cancel", sessionid=session_id)
                 except Exception:
-                    fields = form.get_fields() if hasattr(form, "get_fields") else {}
-                    for k, v in card_values.items():
-                        if k in fields:
-                            fields[k]["value"] = v
-            else:
-                fields = form.get_fields() if hasattr(form, "get_fields") else {}
-                for k, v in card_values.items():
-                    if k in fields:
-                        fields[k]["value"] = v
+                    pass
+                LOGGER.info("[OUTBOUND adhoc] inspect done peer=%s node=%s fields=%d", target_jid, command_node, len(form_meta.get("fields", [])))
+                return {"ok": True, "command_node": command_node, "session_id": session_id, "form": form_meta}
 
-            # Step 3: Complete
+            # Step 3: Fill form with form_data
+            if form is not None:
+                try:
+                    form["type"] = "submit"
+                except Exception:
+                    pass
+                if form_data:
+                    fields = form.get_fields() if hasattr(form, "get_fields") else {}
+                    matching_values = {
+                        k: v
+                        for k, v in form_data.items()
+                        if k in fields
+                    }
+                    if hasattr(form, "set_values"):
+                        try:
+                            if matching_values:
+                                form.set_values(matching_values)
+                        except Exception:
+                            for k, v in form_data.items():
+                                if k in fields:
+                                    fields[k]["value"] = v
+                    else:
+                        for k, v in form_data.items():
+                            if k in fields:
+                                fields[k]["value"] = v
+
+            # Step 4: Complete
             result = await asyncio.wait_for(
                 adhoc.send_command(
-                    target_jid, A2A_ADHOC_EXCHANGE_NODE,
+                    target_jid, command_node,
                     action="complete", sessionid=session_id, payload=form,
                 ),
-                timeout=30,
+                timeout=300,
             )
 
-            # Step 4: Parse peer card from result form
+            # Step 5: Parse result form into flat dict
             result_form = result["command"].get("form")
             if not result_form:
+                notes = result["command"].get("notes", [])
+                if notes:
+                    error_msg = "; ".join(str(n) for n in notes)
+                    return {"ok": False, "error": f"Ad-hoc command error: {error_msg}"}
                 return {"ok": False, "error": "No response form received"}
 
-            peer_card: Dict[str, str] = {}
-            if hasattr(result_form, "get_fields"):
-                fields = result_form.get_fields()
-                for key in CARD_FIELDS:
-                    field = fields.get(key)
-                    if field:
-                        peer_card[key] = field.get("value", "") or ""
-            elif hasattr(result_form, "get_values"):
-                vals = result_form.get_values()
-                for key in CARD_FIELDS:
-                    peer_card[key] = str(vals.get(key, ""))
-
-            LOGGER.info("[OUTBOUND exchange] Got peer card from %s: %s", target_jid, peer_card)
-            return {"ok": True, "peer_card": peer_card}
+            result_dict = self._form_to_dict(result_form)
+            LOGGER.info("[OUTBOUND adhoc] SUCCESS peer=%s node=%s keys=%s", target_jid, command_node, list(result_dict.keys()))
+            return {"ok": True, "result": result_dict}
 
         except asyncio.TimeoutError:
-            LOGGER.warning("[OUTBOUND exchange] Timeout calling %s", target_jid)
+            LOGGER.warning("[OUTBOUND adhoc] Timeout peer=%s node=%s", target_jid, command_node)
             return {"ok": False, "error": "timeout"}
         except Exception as e:
-            LOGGER.error("[OUTBOUND exchange] Error calling %s: %s", target_jid, e)
+            LOGGER.error("[OUTBOUND adhoc] Error peer=%s node=%s: %s", target_jid, command_node, e)
             return {"ok": False, "error": str(e)}
+
+    @staticmethod
+    def _extract_form_meta(form) -> dict:
+        """Extract form field metadata for inspect mode."""
+        title = ""
+        fields_list = []
+        try:
+            title = form.get("title", "") or ""
+        except Exception:
+            pass
+        try:
+            if hasattr(form, "get_fields"):
+                for var, field in form.get_fields().items():
+                    fields_list.append({
+                        "var": var,
+                        "type": field.get("type", "text-single") or "text-single",
+                        "label": field.get("label", "") or "",
+                        "required": bool(field.get("required", False)),
+                        "value": field.get("value", "") or "",
+                    })
+        except Exception:
+            pass
+        return {"title": title, "fields": fields_list}
+
+    @staticmethod
+    def _form_to_dict(form) -> Dict[str, Any]:
+        """Convert a result form to a flat dict."""
+        result = {}
+        try:
+            if hasattr(form, "get_fields"):
+                for var, field in form.get_fields().items():
+                    val = field.get("value", "")
+                    if isinstance(val, list):
+                        val = "\n".join(str(v) for v in val)
+                    result[var] = val
+            elif hasattr(form, "get_values"):
+                vals = form.get_values()
+                for k, v in vals.items():
+                    if isinstance(v, list):
+                        v = "\n".join(str(x) for x in v)
+                    result[k] = v
+        except Exception:
+            pass
+        return result
 
     # ── Run loop ─────────────────────────────────────────────────────────
 
@@ -587,8 +561,11 @@ def _extract_form_value(payload: Any, field_name: str) -> str:
 # ═══════════════════════════════════════════════════════════════════════════
 HELP_TEXT = """
 Available commands (type and press Enter):
+  msg <target_jid> <message>     Send a plain XMPP chat message
   task <target_jid> [message]    Call peer's A2A Task (tasks/send)
   exchange <target_jid>          Call peer's Exchange Business Card
+  adhoc <target_jid> <node> [json_form_data]   Call any ad-hoc command
+  inspect <target_jid> <node>    Inspect a command's form fields
   agentcard <target_jid>         Fetch peer Agent Card from PEP
   card                           Show our own business card
   help                           Show this help
@@ -630,17 +607,39 @@ def _start_input_thread(peer: TestA2APeer, loop: asyncio.AbstractEventLoop) -> N
                 print(HELP_TEXT)
             elif cmd == "card":
                 print(json.dumps(peer.my_card, indent=2, ensure_ascii=False))
+            elif cmd == "msg":
+                if len(parts) < 3:
+                    print("Usage: msg <target_jid> <message>")
+                    continue
+                target = parts[1]
+                msg_text = parts[2]
+                loop.call_soon_threadsafe(
+                    partial(
+                        peer.send_message,
+                        mto=target,
+                        mbody=msg_text,
+                        mtype="chat",
+                    )
+                )
+                print(f"Sent chat message to {target}: {msg_text}")
             elif cmd == "task":
                 if len(parts) < 2:
                     print("Usage: task <target_jid> [message]")
                     continue
                 target = parts[1]
                 msg = parts[2] if len(parts) > 2 else "Hello from test peer"
+                # Build JSON-RPC form_data and call generic method
+                rpc_id = str(uuid.uuid4())[:8]
+                jsonrpc_req = {
+                    "jsonrpc": "2.0", "id": rpc_id, "method": "tasks/send",
+                    "params": {"id": f"task-{rpc_id}", "message": {"role": "user", "parts": [{"type": "text", "text": msg}]}},
+                }
+                form_data = {"jsonrpc_request": json.dumps(jsonrpc_req, ensure_ascii=False)}
                 future = asyncio.run_coroutine_threadsafe(
-                    peer.call_a2a_task(target, msg), loop
+                    peer.call_adhoc_command(target, A2A_ADHOC_TASK_NODE, form_data), loop
                 )
                 try:
-                    result = future.result(timeout=120)
+                    result = future.result(timeout=320)
                     print(json.dumps(result, indent=2, ensure_ascii=False))
                 except Exception as exc:
                     print(f"Error: {exc}")
@@ -649,12 +648,50 @@ def _start_input_thread(peer: TestA2APeer, loop: asyncio.AbstractEventLoop) -> N
                     print("Usage: exchange <target_jid>")
                     continue
                 target = parts[1]
+                # Build card form_data and call generic method
+                form_data = {key: (peer.my_card.get(key, "") or "") for key in CARD_FIELDS}
                 future = asyncio.run_coroutine_threadsafe(
-                    peer.call_exchange_card(target), loop
+                    peer.call_adhoc_command(target, A2A_ADHOC_EXCHANGE_NODE, form_data), loop
                 )
                 try:
-                    # Allow buffer above internal 30+30s timeouts
                     result = future.result(timeout=90)
+                    print(json.dumps(result, indent=2, ensure_ascii=False))
+                except Exception as exc:
+                    print(f"Error: {exc}")
+            elif cmd == "adhoc":
+                if len(parts) < 3:
+                    print("Usage: adhoc <target_jid> <command_node> [json_form_data]")
+                    continue
+                # Re-split to allow spaces in JSON
+                rest_parts = raw.split(None, 3)
+                target = rest_parts[1]
+                node = rest_parts[2]
+                form_data = None
+                if len(rest_parts) > 3:
+                    try:
+                        form_data = json.loads(rest_parts[3])
+                    except json.JSONDecodeError as je:
+                        print(f"Invalid JSON for form_data: {je}")
+                        continue
+                future = asyncio.run_coroutine_threadsafe(
+                    peer.call_adhoc_command(target, node, form_data), loop
+                )
+                try:
+                    result = future.result(timeout=320)
+                    print(json.dumps(result, indent=2, ensure_ascii=False))
+                except Exception as exc:
+                    print(f"Error: {exc}")
+            elif cmd == "inspect":
+                if len(parts) < 3:
+                    print("Usage: inspect <target_jid> <command_node>")
+                    continue
+                target = parts[1]
+                node = parts[2]
+                future = asyncio.run_coroutine_threadsafe(
+                    peer.call_adhoc_command(target, node, inspect_only=True), loop
+                )
+                try:
+                    result = future.result(timeout=30)
                     print(json.dumps(result, indent=2, ensure_ascii=False))
                 except Exception as exc:
                     print(f"Error: {exc}")

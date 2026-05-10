@@ -382,16 +382,35 @@ class XMPPClient(slixmpp.ClientXMPP):
             # Forward to AI Social Engine after DB save so that any engine
             # response (e.g. goods delivery) gets a later create_time.
             try:
-                from runtime.apps.sns.service_async import _social_engine_instance
-                if _social_engine_instance:
+                from runtime.apps.sns import service_async as _svc
+
+                # Auto-start engine if not yet started so incoming XMPP messages
+                # always trigger the conversation review flow (mirrors the
+                # auto-start behavior used for human-initiated messages).
+                engine = _svc._social_engine_instance
+                started_flag = bool(getattr(engine, "started_flag", False)) if engine else False
+                if engine is None or not started_flag:
+                    logger.info(
+                        "XMPP message from %s received but engine not started, auto-starting",
+                        from_jid,
+                    )
+                    await _svc.ensure_social_engine_started()
+                    engine = _svc._social_engine_instance
+
+                if engine is not None:
                     event = {
                         'body': body,
                         'from': from_jid
                     }
-                    await _social_engine_instance.receiveMessage(event)
+                    await engine.receiveMessage(event)
                     logger.info(f"Message forwarded to AI Social Engine")
+                else:
+                    logger.warning(
+                        "AI Social Engine unavailable after auto-start attempt; message from %s only saved to DB",
+                        from_jid,
+                    )
             except Exception as e:
-                logger.error(f"Error forwarding message to AI Social Engine: {e}")
+                logger.error(f"Error forwarding message to AI Social Engine: {e}", exc_info=True)
 
     async def broadcast_new_message(self, message_data: dict):
         """Broadcast new message to all WebSocket clients"""

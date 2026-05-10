@@ -387,11 +387,15 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 counter = None
 
             try:
-                if (not bool(getattr(self.parent, "human_take_over", False))) and counter is not None:
-                    if (int(counter) + 1) % 2 == 0:
-                        if hasattr(self.parent, "maybe_auto_reply_from_inbox"):
-                            if await self.parent.maybe_auto_reply_from_inbox():
-                                return
+                if not bool(getattr(self.parent, "human_take_over", False)):
+                    if hasattr(self.parent, "maybe_auto_reply_from_inbox"):
+                        # Always check inbox first. maybe_auto_reply_from_inbox returns
+                        # False quickly when inbox is empty, so removing the every-other-tick
+                        # gating is safe and ensures freshly arrived messages (including the
+                        # one that auto-started the engine) are processed on the very next
+                        # tick instead of being skipped for an unrelated process_activity.
+                        if await self.parent.maybe_auto_reply_from_inbox():
+                            return
             except Exception:
                 logger.exception("Inbox auto-reply hook failed")
 
@@ -805,23 +809,73 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 except Exception:
                     asyncio.create_task(self.process_task(action="process_activity", ask_content=self.get_current_objective()))
 
-    def _build_a2a_tool_guidance(self, card_json: str) -> str:
+    async def _inspect_command_forms(
+        self,
+        a2a_mgr,
+        peer_jid: str,
+        commands: list,
+        per_cmd_timeout: float = 5.0,
+    ) -> None:
+        """Probe each discovered ad-hoc command for its XEP-0004 form schema.
+
+        Mutates each command dict in ``commands`` by attaching a ``form`` key
+        ({"title": str, "fields": [{"var","type","label","required","value"}]})
+        when inspection succeeds. Failures are logged and the command dict is
+        left untouched — rendering will simply omit the form section for that
+        command, so the flow degrades gracefully.
+
+        All inspections run in parallel to keep the prompt-building latency
+        bounded roughly to ``per_cmd_timeout``.
+        """
+        if not commands:
+            return
+
+        async def _one(cmd: dict) -> None:
+            node = cmd.get("node")
+            if not node:
+                return
+            try:
+                res = await asyncio.wait_for(
+                    a2a_mgr.call_adhoc_command(
+                        peer_jid=peer_jid,
+                        command_node=node,
+                        form_data=None,
+                        inspect_only=True,
+                    ),
+                    timeout=per_cmd_timeout,
+                )
+            except Exception as e:
+                logger.info(
+                    "[XMPP-A2A][DIAG] inspect_command_forms: node=%s failed: %s",
+                    node, e,
+                )
+                return
+            if isinstance(res, dict) and res.get("ok") and isinstance(res.get("form"), dict):
+                cmd["form"] = res["form"]
+                logger.info(
+                    "[XMPP-A2A][DIAG] inspect_command_forms: node=%s fields=%d",
+                    node, len(res["form"].get("fields") or []),
+                )
+
+        await asyncio.gather(*(_one(c) for c in commands), return_exceptions=True)
+
+    def _build_a2a_tool_guidance(self, card_json: str, discovered_commands: list = None) -> str:
         """Build an A2A tool usage guidance section for the LLM prompt.
 
-        Extracts the A2A endpoint URL and peer JID, then generates instructions
-        for invoking A2A services via HTTP (run_doc_skill) and/or XMPP
-        (a2a_xmpp_call).
+        Dynamically lists discovered ad-hoc commands and shows the single
+        generic a2a_xmpp_adhoc tool usage pattern.
 
         Args:
             card_json: The agent card JSON string
+            discovered_commands: List from discover_peer_adhoc_commands (optional)
 
         Returns:
-            A guidance string, or empty string if neither URL nor JID is found
+            A guidance string, or empty string if no transport available
         """
         try:
-            card = json.loads(card_json)
+            card = json.loads(card_json) if card_json else {}
         except Exception:
-            return ""
+            card = {}
 
         active = getattr(self.parent, "active_conversation", None) or {}
 
@@ -837,15 +891,19 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         if not a2a_url and not has_jid:
             return ""
 
-        # Extract skill IDs for reference
-        skills = card.get("skills") or []
-        skill_ids = [s.get("id", "") for s in skills if isinstance(s, dict) and s.get("id")]
-        skills_hint = ", ".join(skill_ids) if skill_ids else "(see agent card above)"
-
-        parts = ["\n--- A2A Tool Available ---"]
+        parts = [
+            "\n--- A2A Tool Available (HIGH PRIORITY) ---",
+            "If the peer's most recent message asks you to use an A2A / XMPP ad-hoc command "
+            "(e.g. exchange business card, invoke a discovered skill), you MUST call the "
+            "a2a_xmpp_adhoc tool below with the matching command_node — DO NOT reply with text "
+            "and DO NOT call unrelated tools (such as get_system_info).",
+        ]
 
         # HTTP transport (run_doc_skill)
         if a2a_url:
+            skills = card.get("skills") or []
+            skill_ids = [s.get("id", "") for s in skills if isinstance(s, dict) and s.get("id")]
+            skills_hint = ", ".join(skill_ids) if skill_ids else "(see agent card above)"
             parts.append(
                 "Option A — HTTP (use when peer has a reachable URL):\n"
                 "To send a task:\n"
@@ -857,18 +915,51 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 "  })"
             )
 
-        # XMPP transport (a2a_xmpp_call)
+        # XMPP transport — generic ad-hoc commands
         if has_jid:
             parts.append(
-                "Option B — XMPP (use when peer is reachable via XMPP):\n"
-                "To send a task:\n"
-                f'  a2a_xmpp_call(peer_jid="{peer_jid}", method="tasks/send",\n'
-                '    message_text="<your message>",\n'
-                f'    skill_id="<one of: {skills_hint}>")\n'
-                "To query task status:\n"
-                f'  a2a_xmpp_call(peer_jid="{peer_jid}", method="tasks/get",\n'
-                '    task_id="<task_id from previous send>")'
+                f"Option B — XMPP Ad-hoc Commands (peer_jid: {peer_jid}):\n"
+                "Use a2a_xmpp_adhoc to invoke any ad-hoc command on the peer.\n"
+                "Usage:\n"
+                f'  a2a_xmpp_adhoc(peer_jid="{peer_jid}", command_node="<node>", form_data={{...}})\n'
+                "To inspect form fields before calling:\n"
+                f'  a2a_xmpp_adhoc(peer_jid="{peer_jid}", command_node="<node>", inspect_only=true)'
             )
+
+            # List discovered commands (with form schemas when available)
+            cmds = discovered_commands or []
+            if cmds:
+                parts.append("Discovered commands on this peer:")
+                for cmd in cmds:
+                    node = cmd.get("node")
+                    if not node:
+                        continue
+                    desc = cmd.get("description") or cmd.get("name") or ""
+                    parts.append(f'  - node="{node}" name="{cmd.get("name", "")}" ({desc})')
+                    form_meta = cmd.get("form") if isinstance(cmd.get("form"), dict) else None
+                    if form_meta is None:
+                        parts.append("      form_data: (form schema unavailable — use inspect_only=true before submitting)")
+                        continue
+                    fields = (form_meta or {}).get("fields") or []
+                    if not fields:
+                        parts.append("      form_data: (no form fields — call without form_data)")
+                        continue
+                    required = [f for f in fields if f.get("required")]
+                    optional = [f for f in fields if not f.get("required")]
+
+                    def _fmt(f: dict) -> str:
+                        var = f.get("var") or ""
+                        ftype = f.get("type") or "text-single"
+                        label = (f.get("label") or "").strip()
+                        label_part = f" — {label}" if label else ""
+                        return f'"{var}" ({ftype}){label_part}'
+
+                    if required:
+                        parts.append("      required form_data: " + ", ".join(_fmt(f) for f in required))
+                    if optional:
+                        parts.append("      optional form_data: " + ", ".join(_fmt(f) for f in optional))
+            else:
+                parts.append("(No commands discovered yet. Use inspect_only=true to explore.)")
 
         parts.append("--- End A2A Tool ---\n")
         return "\n".join(parts)
@@ -946,38 +1037,264 @@ I am participating in a virtual social game based on Google Maps. Players role-p
 
         return ""
 
+    @staticmethod
+    def _extract_a2a_call_json(raw_response: str):
+        """Extract a2a_call/a2a_calls JSON from remote agent response.
+
+        Returns (parsed_obj, start_idx, end_idx) or (None, -1, -1) if not found.
+        Only matches JSON objects containing 'a2a_call', 'a2a_calls', or 'command_node' keys.
+        """
+        import re as _re
+
+        _A2A_KEYS = {"a2a_call", "a2a_calls", "command_node"}
+
+        def _has_a2a_key(obj):
+            return isinstance(obj, dict) and bool(_A2A_KEYS & set(obj.keys()))
+
+        # Strategy 1: fenced JSON block  ```json ... ``` or ``` ... ```
+        fence_pattern = _re.compile(r'```(?:json)?\s*\n(.*?)\n\s*```', _re.DOTALL)
+        for m in fence_pattern.finditer(raw_response):
+            try:
+                parsed = json.loads(m.group(1))
+                if _has_a2a_key(parsed):
+                    return (parsed, m.start(), m.end())
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        # Strategy 2: balanced { ... } scan
+        i = 0
+        text_len = len(raw_response)
+        while i < text_len:
+            if raw_response[i] == '{':
+                depth = 0
+                j = i
+                in_string = False
+                escape_next = False
+                while j < text_len:
+                    ch = raw_response[j]
+                    if escape_next:
+                        escape_next = False
+                    elif ch == '\\' and in_string:
+                        escape_next = True
+                    elif ch == '"' and not escape_next:
+                        in_string = not in_string
+                    elif not in_string:
+                        if ch == '{':
+                            depth += 1
+                        elif ch == '}':
+                            depth -= 1
+                            if depth == 0:
+                                candidate = raw_response[i:j + 1]
+                                try:
+                                    parsed = json.loads(candidate)
+                                    if _has_a2a_key(parsed):
+                                        return (parsed, i, j + 1)
+                                except (json.JSONDecodeError, ValueError):
+                                    pass
+                                break
+                    j += 1
+            i += 1
+
+        return (None, -1, -1)
+
+    async def _execute_remote_a2a_requests(
+        self,
+        raw_response: str,
+        a2a_mgr,
+        allowed_peer_jid: str,
+        discovered_commands: list,
+        *,
+        max_calls: int = 3,
+        per_call_timeout: float = 30.0,
+    ):
+        """Parse remote agent response for a2a_call JSON, validate, execute locally.
+
+        Returns:
+            (adhoc_result_text, cleaned_remote_text) tuple.
+            - adhoc_result_text: formatted execution result string, or None if nothing executed.
+            - cleaned_remote_text: raw_response with the a2a JSON block removed.
+        """
+        obj, start, end = self._extract_a2a_call_json(raw_response)
+        if obj is None:
+            return (None, raw_response)
+
+        # Normalize to list of requests
+        if "a2a_calls" in obj and isinstance(obj["a2a_calls"], list):
+            requests = obj["a2a_calls"]
+        elif "a2a_call" in obj and isinstance(obj["a2a_call"], dict):
+            requests = [obj["a2a_call"]]
+        elif "command_node" in obj:
+            requests = [obj]
+        else:
+            return (None, raw_response)
+
+        # Build whitelist
+        allowed_nodes = {c.get("node") for c in discovered_commands if c.get("node")}
+
+        # Validate each request
+        valid_requests = []
+        for req in requests:
+            if not isinstance(req, dict):
+                logger.info("[XMPP-A2A] remote a2a request rejected: not a dict")
+                continue
+            req_peer = (req.get("peer_jid") or "").strip() or allowed_peer_jid
+            req_node = (req.get("command_node") or "").strip()
+            req_form = req.get("form_data")
+
+            if req_peer != allowed_peer_jid:
+                logger.warning("[XMPP-A2A] remote a2a request rejected: peer_jid=%s != allowed=%s", req_peer, allowed_peer_jid)
+                continue
+            if req_node not in allowed_nodes:
+                logger.warning("[XMPP-A2A] remote a2a request rejected: command_node=%s not in whitelist", req_node)
+                continue
+            if req_form is not None and not isinstance(req_form, dict):
+                logger.warning("[XMPP-A2A] remote a2a request rejected: form_data is not dict or None")
+                continue
+
+            valid_requests.append({"peer_jid": req_peer, "command_node": req_node, "form_data": req_form})
+            if len(valid_requests) >= max_calls:
+                break
+
+        if not valid_requests:
+            logger.info("[XMPP-A2A] remote a2a: no valid requests after validation")
+            return (None, raw_response)
+
+        # Execute in parallel with timeout
+        async def _exec_one(req_item):
+            node = req_item["command_node"]
+            try:
+                result = await asyncio.wait_for(
+                    a2a_mgr.call_adhoc_command(
+                        req_item["peer_jid"], node, form_data=req_item["form_data"]
+                    ),
+                    timeout=per_call_timeout,
+                )
+                logger.info("[XMPP-A2A] remote a2a call_adhoc: node=%s status=ok", node)
+                return {"node": node, "status": "ok", "data": result}
+            except asyncio.TimeoutError:
+                logger.warning("[XMPP-A2A] remote a2a call_adhoc: node=%s timeout after %.0fs", node, per_call_timeout)
+                return {"node": node, "status": "error", "error": f"timeout after {per_call_timeout:.0f}s"}
+            except Exception as exc:
+                logger.warning("[XMPP-A2A] remote a2a call_adhoc: node=%s error=%s", node, exc)
+                return {"node": node, "status": "error", "error": str(exc)}
+
+        results = await asyncio.gather(*[_exec_one(r) for r in valid_requests])
+
+        # Format result text
+        lines = ["[Local A2A Ad-hoc Execution Result]"]
+        any_success = False
+        for res in results:
+            lines.append(f"- node={res['node']} status={res['status']}")
+            if res["status"] == "ok" and isinstance(res.get("data"), dict):
+                any_success = True
+                for k, v in res["data"].items():
+                    lines.append(f"    {k}: {v}")
+            elif res["status"] == "ok" and res.get("data"):
+                any_success = True
+                lines.append(f"    {res['data']}")
+            elif res.get("error"):
+                lines.append(f"    error: {res['error']}")
+
+        if not any_success and all(r["status"] == "error" for r in results):
+            # All failed — still return result so caller can decide
+            pass
+
+        adhoc_text = "\n".join(lines)
+        # Clean: remove the a2a JSON block from raw response
+        cleaned = (raw_response[:start] + raw_response[end:]).strip()
+        return (adhoc_text, cleaned)
+
     async def _run_tool_check_then_review(self, *, talk_history_str: str, effective_talk_type: str):
         """Run tool check before conversation review using chat_with_agent(use_tools=True).
         Runs outside the _process_lock. On completion, re-dispatches conversation_message_received
         with the enriched talk_history_str so the review proceeds normally."""
+        logger.info("[XMPP-A2A][DIAG] tool_check_review: ENTER talk_type=%s history_len=%d", effective_talk_type, len(talk_history_str or ""))
+        # Safety: skip if no active conversation account (nothing meaningful to check)
+        active = getattr(self.parent, "active_conversation", None) or {}
+        if not (active.get("account") or "").strip():
+            logger.info("[XMPP-A2A] tool_check_review: no active conversation account, skipping tool check")
+            asyncio.create_task(self.process_task(
+                event="conversation_message_received",
+                talk_history_str=talk_history_str,
+                _tool_check_done=True,
+            ))
+            return
+        logger.info("[XMPP-A2A][DIAG] tool_check_review: active_conversation account=%s a2a_endpoint=%s", active.get("account"), active.get("a2a_endpoint"))
+
         tool_context = ""
+        # Hoist key variables so they are always accessible in result processing
+        discovered_commands: list = []
+        peer_jid: str = (active.get("account") or "").strip()
+        a2a_mgr = None
+        is_remote: bool = self.parent.is_current_agent_remote()
+
         try:
             tool_prompt = (get_prompt_by_title("__tool_check_before_review__") or "").strip()
+            logger.info("[XMPP-A2A][DIAG] tool_check_review: prompt_template loaded len=%d", len(tool_prompt))
             if not tool_prompt:
                 logger.warning("Tool check prompt __tool_check_before_review__ not found, skipping")
                 # Fall through to re-dispatch
             else:
                 # Optionally fetch peer agent card and inject into context
                 agent_card_section = ""
-                if bool(getattr(self.parent, "agent_card_before_review_enabled", False)):
+                agent_card_enabled = bool(getattr(self.parent, "agent_card_before_review_enabled", False))
+                logger.info("[XMPP-A2A][DIAG] tool_check_review: agent_card_before_review_enabled=%s", agent_card_enabled)
+                # Discovery gating: always discover for remote agents (whitelist is security-critical)
+                should_discover = agent_card_enabled or is_remote
+                if should_discover:
+                    logger.info("[XMPP-A2A] tool_check_review: fetching peer agent card before review")
                     try:
+                        import time as _diag_time
+                        _t_fetch = _diag_time.monotonic()
                         card_json = await self._fetch_peer_agent_card()
+                        logger.info("[XMPP-A2A][DIAG] tool_check_review: _fetch_peer_agent_card returned len=%d elapsed=%.2fs", len(card_json or ""), _diag_time.monotonic() - _t_fetch)
+                        # Optionally render the agent card section
                         if card_json:
                             agent_card_section = (
                                 "\n--- Peer Agent Card ---\n"
                                 + card_json
                                 + "\n--- End Peer Agent Card ---\n"
                             )
-                            logger.info("Peer agent card fetched successfully (%d chars)", len(card_json))
+                            logger.info("[XMPP-A2A] tool_check_review: peer agent card fetched (%d chars)", len(card_json))
+                        else:
+                            logger.info("[XMPP-A2A] tool_check_review: no peer agent card available")
 
-                            # Extract A2A endpoint URL and append tool guidance
-                            a2a_tool_section = self._build_a2a_tool_guidance(card_json)
-                            if a2a_tool_section:
+                        # Discover peer ad-hoc commands even if agent card is unavailable
+                        try:
+                            if peer_jid and "@" in peer_jid:
+                                from runtime.apps.sns.xmpp_client import XMPPClientManager
+                                client = XMPPClientManager.get_instance().get_client()
+                                if client and client.is_client_connected():
+                                    a2a_mgr = getattr(client, "_a2a_manager", None)
+                                    if a2a_mgr is not None:
+                                        card_dict = json.loads(card_json) if card_json else None
+                                        discovered_commands = await a2a_mgr.discover_peer_adhoc_commands(
+                                            peer_jid, agent_card=card_dict
+                                        )
+                        except Exception as disc_err:
+                            logger.info("[XMPP-A2A][DIAG] tool_check_review: command discovery failed: %s", disc_err, exc_info=True)
+
+                        logger.info("[XMPP-A2A][DIAG] tool_check_review: discovered_commands count=%d nodes=%s", len(discovered_commands), [c.get("node") for c in discovered_commands])
+
+                        # Inspect each discovered command's form schema so the LLM
+                        # knows exactly which fields are required/optional.
+                        try:
+                            if discovered_commands and peer_jid and a2a_mgr is not None:
+                                await self._inspect_command_forms(a2a_mgr, peer_jid, discovered_commands)
+                        except Exception as insp_err:
+                            logger.info("[XMPP-A2A][DIAG] tool_check_review: command form inspection failed: %s", insp_err, exc_info=True)
+
+                        # Build A2A tool guidance; inject whether or not card_json exists
+                        a2a_tool_section = self._build_a2a_tool_guidance(card_json or "", discovered_commands)
+                        logger.info("[XMPP-A2A][DIAG] tool_check_review: a2a_tool_section_len=%d", len(a2a_tool_section or ""))
+                        if a2a_tool_section:
+                            if agent_card_section:
                                 agent_card_section += a2a_tool_section
+                            else:
+                                agent_card_section = a2a_tool_section
+                            logger.info("[XMPP-A2A] tool_check_review: A2A tool guidance injected into prompt")
                     except Exception as ac_err:
-                        logger.warning("Failed to fetch peer agent card: %s", ac_err)
-
-                is_remote = self.parent.is_current_agent_remote()
+                        logger.warning("[XMPP-A2A] tool_check_review: failed during discovery/prompt preparation: %s", ac_err, exc_info=True)
 
                 context_parts = [
                     tool_prompt,
@@ -1001,13 +1318,40 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                         )
                     context_parts.append("\n" + remote_instr)
 
+                    # Hybrid mode: tell remote agent how to request local ad-hoc execution
+                    if discovered_commands:
+                        context_parts.append(
+                            "\n--- Remote Agent: How to request ad-hoc command execution ---\n"
+                            "You may use your own tools and return their results normally.\n"
+                            "If you ALSO need the local XMPP system to invoke a discovered ad-hoc command,\n"
+                            "include a JSON block (fenced or inline) in your response:\n"
+                            '\n'
+                            '  {"a2a_call": {"peer_jid": "<jid>", "command_node": "<node>", "form_data": {...}}}\n'
+                            '\n'
+                            'For multiple calls:\n'
+                            '  {"a2a_calls": [...]}\n'
+                            '\n'
+                            'Rules:\n'
+                            '- Only use peer_jid and command_node values from the Discovered commands section.\n'
+                            '- Keep your own tool results in the same response; do NOT remove them.\n'
+                            '- The local system will execute and merge the ad-hoc result with your response.\n'
+                            '- If no ad-hoc call is needed, do NOT include a JSON block.'
+                        )
+
                 question = "\n".join(context_parts)
+                logger.info(
+                    "[XMPP-A2A][DIAG] tool_check_review: FINAL question (len=%d, is_remote=%s):\n=== BEGIN QUESTION ===\n%s\n=== END QUESTION ===",
+                    len(question), is_remote, question,
+                )
                 self.show_status_on_map("using-tool")
                 self.js_task_manager.show_information(lt(
                     "<b>✨Message Received.Using tools before reply.</b>",
                     "<b>✨Message Received.Using tools before reply.</b>",
                 ))
 
+                logger.info("[XMPP-A2A][DIAG] tool_check_review: calling chat_with_agent (use_tools=%s)...", not is_remote)
+                import time as _diag_time2
+                _t_chat = _diag_time2.monotonic()
                 tool_result = await self.parent.chat_with_agent(
                     question,
                     conversation_suffix="tool_check_review",
@@ -1015,22 +1359,55 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                     use_memory=False,
                     use_knowledge_base=False,
                 )
+                logger.info(
+                    "[XMPP-A2A][DIAG] tool_check_review: chat_with_agent returned elapsed=%.2fs result_len=%d",
+                    _diag_time2.monotonic() - _t_chat, len(tool_result or ""),
+                )
                 self.show_status_on_map("talking")
 
                 tool_result = (tool_result or "").strip()
-                if tool_result and "NO_TOOL_NEEDED" not in tool_result.upper():
-                    logger.info("Tool check before review returned useful result")
+                logger.info("[XMPP-A2A][DIAG] tool_check_review: raw_tool_result[:500]=%r", tool_result[:500] if tool_result else "")
+
+                # Hybrid merge: remote agent may embed a2a_call JSON alongside its own tool results
+                adhoc_text = None
+                remote_text = tool_result
+                if is_remote and tool_result and discovered_commands and a2a_mgr and peer_jid:
+                    try:
+                        adhoc_text, remote_text = await self._execute_remote_a2a_requests(
+                            tool_result, a2a_mgr, peer_jid, discovered_commands,
+                        )
+                    except Exception as hybrid_err:
+                        logger.warning("[XMPP-A2A] tool_check_review: remote a2a execution failed: %s", hybrid_err, exc_info=True)
+
+                # Merge remote text and local ad-hoc result
+                if remote_text and adhoc_text:
+                    tool_result = remote_text + "\n\n" + adhoc_text
+                elif adhoc_text:
+                    tool_result = adhoc_text
+                else:
+                    tool_result = remote_text
+
+                # Determine if result is useful
+                # If local ad-hoc was executed, always treat as useful (even if remote_text has NO_TOOL_NEEDED)
+                has_useful_result = bool(adhoc_text) or (
+                    bool(tool_result) and "NO_TOOL_NEEDED" not in tool_result.upper()
+                )
+                if has_useful_result:
+                    logger.info("[XMPP-A2A] tool_check_review: tool returned useful result (%d chars, adhoc=%s)", len(tool_result), bool(adhoc_text))
                     tool_context = tool_result
+                else:
+                    logger.info("[XMPP-A2A] tool_check_review: no tool invocation needed")
         except Exception as e:
-            logger.warning("Tool check before review failed: %s", e)
+            logger.warning("Tool check before review failed: %s", e, exc_info=True)
 
         # Re-dispatch conversation_message_received with _tool_check_done=True
         enriched_history = talk_history_str
         if tool_context:
             enriched_history = (
                 f"{talk_history_str}\n\n"
-                f"[Tool Check Result Before Review]\n{tool_context[:500]}"
+                f"[Tool Check Result Before Review]\n{tool_context}"
             )
+        logger.info("[XMPP-A2A][DIAG] tool_check_review: EXIT, re-dispatching review with tool_context_len=%d enriched_len=%d", len(tool_context or ""), len(enriched_history or ""))
         asyncio.create_task(self.process_task(
             event="conversation_message_received",
             talk_history_str=enriched_history,

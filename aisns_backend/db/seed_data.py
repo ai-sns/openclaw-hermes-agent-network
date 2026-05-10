@@ -2640,7 +2640,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'caption': 'Invoke Tools To Review Process Before Action Decision',
   'content': 'You are an AI agent playing a virtual social life game on Google Maps.\n'
              'You are about to decide your next action in the game.\n'
-             'Please get the systme information.\n'
              'Before proceeding, review the current situation below and determine if any of your available tools could '
              'help you make a better decision.\n'
              '\n'
@@ -2660,7 +2659,9 @@ PROMPTS_SEED = [{'title': '__main_control__',
              'Before reviewing this conversation, check if any of your available tools could provide useful context '
              '(e.g., price lookup, information search, knowledge retrieval).\n'
              '\n'
-             'If someone say：get system information，you must find a tool to run.\n'
+             'If the peer explicitly asks you to use an A2A / XMPP ad-hoc command (e.g. exchange business card, '
+             'invoke a peer skill), you MUST call the a2a_xmpp_adhoc tool with the matching command_node listed '
+             'in the "Discovered commands on this peer" section, instead of replying with text.\n'
              'If you find a useful tool, call it now and return the result.\n'
              'If no tool is needed, simply reply with the single phrase: NO_TOOL_NEEDED\n'
              '\n'

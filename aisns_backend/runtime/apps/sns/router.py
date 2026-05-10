@@ -235,9 +235,25 @@ async def engine_inspect_call(request: dict, db: AsyncSession = Depends(get_db))
 
 @router.get("/config", response_model=AIChatConfigResponse)
 async def get_ai_chat_config(user_id: str = None, db: AsyncSession = Depends(get_db)):
-    """Get AI chat configuration"""
+    """Get AI chat configuration, including a2a_config extracted from memo JSON."""
     service = SNSService(db)
-    return await service.get_ai_chat_config(user_id)
+    config = await service.get_ai_chat_config(user_id)
+
+    # Extract a2a_config from memo JSON for frontend consumption
+    a2a_config = None
+    memo_raw = getattr(config, 'memo', None) or ''
+    if isinstance(memo_raw, str) and memo_raw.strip():
+        try:
+            import json as _json
+            memo_obj = _json.loads(memo_raw)
+            if isinstance(memo_obj, dict):
+                a2a_config = memo_obj.get('a2a_config')
+        except Exception:
+            pass
+
+    resp = AIChatConfigResponse.model_validate(config)
+    resp.a2a_config = a2a_config
+    return resp
 
 
 @router.put("/config")
@@ -249,6 +265,78 @@ async def update_ai_chat_config(
     """Update AI chat configuration"""
     service = SNSService(db)
     return await service.update_ai_chat_config(user_id, request.dict(exclude_unset=True))
+
+
+@router.get("/a2a/commands")
+async def list_a2a_commands(db: AsyncSession = Depends(get_db)):
+    """
+    Return the merged list of all A2A ad-hoc commands available on this node.
+
+    The list contains:
+      - All built-in commands discovered in a2a_commands/ package
+      - All user plugins discovered in aisns_backend/scripts/a2a_commands/
+      - All config-type commands stored in aisns_cfg.memo.a2a_config.adhoc_commands
+
+    Each entry has an `enabled` flag computed from the DB config (default True
+    when no explicit state is stored). The frontend uses this list to render
+    the unified command UI in the User Configuration dialog.
+    """
+    import json as _json
+    try:
+        from runtime.apps.sns.a2a_commands import discover_commands, build_config_commands
+
+        # Discover builtin + plugin commands
+        try:
+            discovered = discover_commands()
+        except Exception as e:
+            return {"success": False, "message": f"Discovery failed: {e}", "commands": []}
+
+        # Load enabled state + config commands from DB
+        enabled_lookup = {}
+        config_commands_def = []
+        try:
+            service = SNSService(db)
+            cfg = await service.get_ai_chat_config(None)
+            memo_raw = getattr(cfg, 'memo', None) or ''
+            if isinstance(memo_raw, str) and memo_raw.strip():
+                memo_obj = _json.loads(memo_raw)
+                if isinstance(memo_obj, dict):
+                    a2a_cfg = memo_obj.get('a2a_config') or {}
+                    config_commands_def = a2a_cfg.get('adhoc_commands') or []
+                    for entry in config_commands_def:
+                        if isinstance(entry, dict) and entry.get('node'):
+                            enabled_lookup[entry['node']] = entry.get('enabled', True)
+        except HTTPException:
+            pass
+        except Exception:
+            pass
+
+        # Build config commands and append to the discovered list
+        try:
+            cfg_cmds = build_config_commands(config_commands_def)
+        except Exception:
+            cfg_cmds = []
+
+        merged_nodes = set()
+        commands_meta = []
+        for cmd in list(discovered) + list(cfg_cmds):
+            if not cmd.node or cmd.node in merged_nodes:
+                continue
+            merged_nodes.add(cmd.node)
+            meta = cmd.get_metadata()
+            meta['enabled'] = enabled_lookup.get(cmd.node, True)
+            # For config commands, include the response_template so UI can edit it
+            if meta.get('source') == 'config':
+                # Find the matching definition for response_template
+                for entry in config_commands_def:
+                    if isinstance(entry, dict) and entry.get('node') == cmd.node:
+                        meta['response_template'] = entry.get('response_template') or {}
+                        break
+            commands_meta.append(meta)
+
+        return {"success": True, "commands": commands_meta}
+    except Exception as e:
+        return {"success": False, "message": f"Error: {e}", "commands": []}
 
 
 @router.post("/config/upload-avatar")
@@ -618,9 +706,44 @@ async def xmpp_a2a_debug_pep_items():
 
 @router.post("/xmpp-a2a/debug/call-exchange")
 async def xmpp_a2a_debug_call_exchange(request: dict):
-    """Invoke exchange_business_card on a target JID (defaults to our own full JID).
+    """Invoke exchange_business_card on a target JID via generic ad-hoc path.
 
     Body: {"target_jid": "lili@xabber.de/RESOURCE"}
+    """
+    try:
+        from runtime.apps.sns.xmpp_client import XMPPClientManager
+        from runtime.apps.sns.xmpp_a2a import A2A_ADHOC_EXCHANGE_NODE
+        manager = XMPPClientManager.get_instance()
+        client = manager.get_client()
+        if client is None or not client.is_connected():
+            return {"success": False, "message": "XMPP client not connected"}
+
+        a2a = getattr(client, "_a2a_manager", None)
+        if a2a is None:
+            return {"success": False, "message": "A2A manager not initialized"}
+
+        target_jid = (request or {}).get("target_jid") or ""
+        if not target_jid:
+            target_jid = client.boundjid.full
+
+        # Build form_data from local business card
+        my_card = a2a._load_my_business_card() or {}
+        form_data = {
+            key: (my_card.get(key, '') or '')
+            for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone')
+        }
+
+        result = await a2a.call_adhoc_command(target_jid, A2A_ADHOC_EXCHANGE_NODE, form_data)
+        return {"success": result.get("ok", False), "target_jid": target_jid, "result": result.get("result")}
+    except Exception as e:
+        return {"success": False, "message": f"Error: {e}"}
+
+
+@router.post("/xmpp-a2a/debug/discover-commands")
+async def xmpp_a2a_debug_discover_commands(request: dict):
+    """Discover ad-hoc commands on a peer.
+
+    Body: {"target_jid": "peer@domain", "agent_card": {...} (optional)}
     """
     try:
         from runtime.apps.sns.xmpp_client import XMPPClientManager
@@ -635,10 +758,39 @@ async def xmpp_a2a_debug_call_exchange(request: dict):
 
         target_jid = (request or {}).get("target_jid") or ""
         if not target_jid:
-            target_jid = client.boundjid.full
+            return {"success": False, "message": "target_jid is required"}
 
-        result = await a2a.call_exchange_business_card(target_jid)
-        return {"success": result is not None, "target_jid": target_jid, "result": result}
+        agent_card = (request or {}).get("agent_card")
+        commands = await a2a.discover_peer_adhoc_commands(target_jid, agent_card=agent_card)
+        return {"success": True, "target_jid": target_jid, "commands": commands}
+    except Exception as e:
+        return {"success": False, "message": f"Error: {e}"}
+
+
+@router.post("/xmpp-a2a/debug/inspect-command")
+async def xmpp_a2a_debug_inspect_command(request: dict):
+    """Inspect a peer's ad-hoc command form without submitting.
+
+    Body: {"target_jid": "peer@domain", "command_node": "urn:xmpp:a2a:cmd:..."}
+    """
+    try:
+        from runtime.apps.sns.xmpp_client import XMPPClientManager
+        manager = XMPPClientManager.get_instance()
+        client = manager.get_client()
+        if client is None or not client.is_connected():
+            return {"success": False, "message": "XMPP client not connected"}
+
+        a2a = getattr(client, "_a2a_manager", None)
+        if a2a is None:
+            return {"success": False, "message": "A2A manager not initialized"}
+
+        target_jid = (request or {}).get("target_jid") or ""
+        command_node = (request or {}).get("command_node") or ""
+        if not target_jid or not command_node:
+            return {"success": False, "message": "target_jid and command_node are required"}
+
+        result = await a2a.call_adhoc_command(target_jid, command_node, inspect_only=True)
+        return {"success": result.get("ok", False), "target_jid": target_jid, "result": result}
     except Exception as e:
         return {"success": False, "message": f"Error: {e}"}
 
@@ -664,6 +816,8 @@ async def xmpp_a2a_call(request: A2AXmppCallRequest):
       {"success": true/false, "result": {...}} or {"success": false, "error": "..."}
     """
     import uuid as _uuid
+    import json as _json
+    from runtime.apps.sns.xmpp_a2a import A2A_ADHOC_TASK_NODE
 
     peer_jid = (request.peer_jid or "").strip()
     method = (request.method or "tasks/send").strip()
@@ -725,11 +879,27 @@ async def xmpp_a2a_call(request: A2AXmppCallRequest):
         "id": rpc_id,
     }
 
-    # Call peer via XMPP Ad-hoc Command (300s timeout inside call_a2a_task)
-    result = await a2a_mgr.call_a2a_task(peer_jid, jsonrpc_request)
+    # Call peer via generic ad-hoc command path — form_data contains the serialized JSON-RPC request
+    form_data = {"jsonrpc_request": _json.dumps(jsonrpc_request, ensure_ascii=False)}
+    result = await a2a_mgr.call_adhoc_command(peer_jid, A2A_ADHOC_TASK_NODE, form_data)
 
     if result.get("ok"):
-        return {"success": True, "rpc_id": rpc_id, "result": result.get("result", {})}
+        # Parse the jsonrpc_response field from the generic result dict
+        raw_result = result.get("result", {}) or {}
+        jsonrpc_response_str = str(raw_result.get("jsonrpc_response", "") or "").strip()
+        if not jsonrpc_response_str:
+            # Preserve old API semantics: empty jsonrpc_response is an error.
+            return {"success": False, "rpc_id": rpc_id, "error": "Empty response from peer"}
+        try:
+            response_dict = _json.loads(jsonrpc_response_str)
+        except _json.JSONDecodeError as e:
+            return {"success": False, "rpc_id": rpc_id, "error": f"Invalid JSON response: {e}"}
+        # Check for JSON-RPC error
+        if "error" in response_dict and response_dict["error"]:
+            err = response_dict["error"]
+            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
+            return {"success": False, "rpc_id": rpc_id, "error": f"JSON-RPC error: {msg}", "raw": response_dict}
+        return {"success": True, "rpc_id": rpc_id, "result": response_dict.get("result", {})}
     else:
         response = {
             "success": False,
@@ -738,7 +908,5 @@ async def xmpp_a2a_call(request: A2AXmppCallRequest):
         }
         if result.get("detail") is not None:
             response["detail"] = result.get("detail")
-        if result.get("raw") is not None:
-            response["raw"] = result.get("raw")
         return response
 

@@ -72,6 +72,7 @@ class AIChatConfigResponse(BaseModel):
     avatar: Optional[str] = None
     avatar3d: Optional[str] = None
     profession: Optional[str] = None
+    a2a_config: Optional[dict] = None
 
     class Config:
         from_attributes = True
@@ -85,6 +86,7 @@ class AIChatConfigUpdateRequest(BaseModel):
     avatar: Optional[str] = None
     avatar3d: Optional[str] = None
     profession: Optional[str] = None
+    a2a_config: Optional[dict] = None
 
 
 class Avatar3DItem(BaseModel):

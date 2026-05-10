@@ -275,15 +275,32 @@ ask_agent_and_get_instruction
         content = re.sub(r'^\s*```json\s*|\s*```\s*$', '', content, flags=re.DOTALL)
 
         current_status = self.command_status
+        # Conversation review statuses are self-contained async operations whose
+        # results remain valid even if the game loop has advanced command_status
+        # while the LLM was generating.  Do not drop them on mismatch.
+        _REVIEW_STATUSES = frozenset({
+            "ask_agent_to_review_conversation",
+            "ask_agent_to_review_conversation_sell",
+            "ask_agent_to_review_conversation_buy",
+        })
         if command_status is not None and command_status != current_status:
-            logger.info(
-                "Dropping agent reply due to command_status mismatch. expected=%s current=%s",
-                command_status,
-                current_status,
-            )
-            return
-
-        command_status = current_status
+            if command_status in _REVIEW_STATUSES:
+                logger.info(
+                    "command_status changed during conversation review (expected=%s current=%s); "
+                    "proceeding with review result anyway",
+                    command_status,
+                    current_status,
+                )
+                # Keep original command_status for correct dispatch below
+            else:
+                logger.info(
+                    "Dropping agent reply due to command_status mismatch. expected=%s current=%s",
+                    command_status,
+                    current_status,
+                )
+                return
+        else:
+            command_status = current_status
         title_str = "Agent return the instruction"
         content_str = f"""🟪 *The function is*:
 

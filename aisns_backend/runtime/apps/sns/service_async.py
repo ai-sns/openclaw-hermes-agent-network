@@ -242,6 +242,47 @@ def _apply_agent_id_to_running_engine(new_agent_id) -> bool:
     return changed
 
 
+async def ensure_social_engine_started() -> bool:
+    """Module-level helper: auto-start the AI Social Engine if not yet started.
+
+    Returns True if the engine is in started state after this call, False otherwise.
+    Safe to call from any context (e.g. xmpp_client message handlers) where
+    no SNSService instance is available. Uses the same global lock as
+    SNSService.start_social_engine() to avoid races.
+    """
+    global _social_engine_instance, _social_engine_running
+
+    async with _social_engine_op_lock:
+        # Fast path: already started
+        if _social_engine_instance is not None:
+            try:
+                if bool(getattr(_social_engine_instance, "started_flag", False)):
+                    _social_engine_running = True
+                    return True
+            except Exception:
+                pass
+
+        try:
+            from runtime.apps.sns.ai_social_engine import AISocialEngine
+
+            if _social_engine_instance is None:
+                db_sync = get_db_sync()
+                _social_engine_instance = AISocialEngine(db_sync)
+                await _social_engine_instance.async_init()
+
+            await _social_engine_instance.start_engine()
+
+            started_flag = bool(getattr(_social_engine_instance, "started_flag", False))
+            if started_flag:
+                _social_engine_running = True
+                logger.info("AI Social Engine auto-started by ensure_social_engine_started()")
+                return True
+            return False
+        except Exception as e:
+            logger.error("ensure_social_engine_started failed: %s", e, exc_info=True)
+            return False
+
+
 class SNSService:
     """SNS service for handling social network operations - async version."""
 
@@ -1523,32 +1564,69 @@ class SNSService:
             if not config:
                 config = AISnsCfg(user_id=user_id)
                 self.db.add(config)
+                await self.db.flush()
 
             from db.write_queue import db_write_async
             _config_id = config.id
             _data = {k: v for k, v in data.items() if v is not None}
+
+            # Extract a2a_config for special memo-merge handling
+            _a2a_config = _data.pop('a2a_config', None)
+
             def _update_cfg(session):
                 rec = session.query(AISnsCfg).filter_by(id=_config_id).first()
                 if rec:
                     for key, value in _data.items():
                         if hasattr(rec, key):
                             setattr(rec, key, value)
+
+                    # Merge a2a_config into memo JSON
+                    if _a2a_config is not None:
+                        memo_raw = getattr(rec, 'memo', None) or ''
+                        memo_obj = {}
+                        if isinstance(memo_raw, str) and memo_raw.strip():
+                            try:
+                                memo_obj = json.loads(memo_raw)
+                            except Exception:
+                                memo_obj = {}
+                        if not isinstance(memo_obj, dict):
+                            memo_obj = {}
+                        memo_obj['a2a_config'] = _a2a_config
+                        rec.memo = json.dumps(memo_obj, ensure_ascii=False)
+
             await db_write_async(_update_cfg, description="service_async_update_ai_chat_config")
             self.db.expire_all()
             result2 = await self.db.execute(stmt)
             config = result2.scalars().first()
 
-            # Hot-reload XMPP client when account or password changes.
-            # Schedule as a background task so the HTTP response is not blocked
-            # by disconnect/reconnect latency.
-            if 'account' in _data or 'password' in _data:
-                try:
-                    from runtime.apps.sns.xmpp_client import XMPPClientManager
-                    xmpp_mgr = XMPPClientManager.get_instance()
+            # Hot-reload behaviour:
+            # - If account/password changed, full XMPP restart is required (new
+            #   credentials -> new session).
+            # - If only a2a_config changed, prefer a lightweight in-place reload
+            #   so the XMPP session is not dropped.
+            credentials_changed = 'account' in _data or 'password' in _data
+            try:
+                from runtime.apps.sns.xmpp_client import XMPPClientManager
+                xmpp_mgr = XMPPClientManager.get_instance()
+
+                if credentials_changed:
                     asyncio.create_task(xmpp_mgr.restart())
-                    logger.info("XMPP client restart scheduled after credential change")
-                except Exception as _xe:
-                    logger.warning("Failed to schedule XMPP client restart after credential change: %s", _xe)
+                    logger.info("XMPP full restart scheduled (credentials changed)")
+                elif _a2a_config is not None:
+                    # Lightweight reload — no reconnect
+                    client = xmpp_mgr.get_client()
+                    a2a = getattr(client, '_a2a_manager', None) if client else None
+                    if a2a is not None and hasattr(a2a, 'reload_a2a'):
+                        asyncio.create_task(a2a.reload_a2a())
+                        logger.info("XMPP A2A in-place reload scheduled")
+                    else:
+                        # Fallback to full restart if a2a manager is unavailable
+                        asyncio.create_task(xmpp_mgr.restart())
+                        logger.info(
+                            "XMPP full restart scheduled (a2a manager unavailable for in-place reload)"
+                        )
+            except Exception as _xe:
+                logger.warning("Failed to schedule XMPP reload after config change: %s", _xe)
 
             return {"success": True, "message": "Configuration updated successfully", "data": config}
         except Exception as e:

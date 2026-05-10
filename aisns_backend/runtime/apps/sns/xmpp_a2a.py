@@ -2,22 +2,31 @@
 XMPP A2A Integration Module
 
 Provides A2A (Agent-to-Agent) capabilities over XMPP:
-- Fetches agent card from agent_cfg.memo.agent_card_url
+- Fetches agent card from inline config or agent_cfg.memo.agent_card_url
 - Publishes agent card via XEP-0163 PEP
 - Advertises A2A capabilities via XEP-0030 Service Discovery
-- Handles incoming Ad-hoc Commands (XEP-0050) for business card exchange
+- Dynamically registers ad-hoc commands from plugin registry + DB config
 - Discovers and invokes peer A2A capabilities
 
 Data flow:
+  aisns_cfg.memo.a2a_config.agent_card (inline) OR
   aisns_cfg.agent_id -> agent_cfg -> memo JSON -> agent_card_url
-  -> HTTP-fetch agent card -> publish via XMPP Disco + PEP
+  -> publish via XMPP Disco + PEP
+
+Ad-hoc commands are loaded from:
+  1. Built-in plugins (a2a_commands/*.py)
+  2. User plugins (aisns_backend/scripts/a2a_commands/*.py)
+  3. Config-type commands (aisns_cfg.memo.a2a_config.adhoc_commands)
 """
 
 import json
 import logging
 import asyncio
 import uuid
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
+
+from runtime.apps.sns.a2a_commands import discover_commands, build_config_commands
+from runtime.apps.sns.a2a_commands.base import AdhocCommand, CommandContext
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +34,11 @@ logger = logging.getLogger(__name__)
 A2A_FEATURE_NS = "urn:xmpp:a2a:1"
 A2A_BUSINESS_CARD_NS = "urn:xmpp:a2a:business_card:1"
 A2A_PEP_NODE = "urn:xmpp:a2a:agentcard"
-A2A_ADHOC_EXCHANGE_NODE = "urn:xmpp:a2a:cmd:exchange_business_card"
-A2A_ADHOC_TASK_NODE = "urn:xmpp:a2a:cmd:tasks"
+# Command node URIs are defined per-plugin; re-exported here for backward compat
+from runtime.apps.sns.a2a_commands.exchange_business_card import (
+    A2A_ADHOC_EXCHANGE_NODE,
+)
+from runtime.apps.sns.a2a_commands.a2a_task import A2A_ADHOC_TASK_NODE
 
 
 class XMPPA2AManager:
@@ -43,6 +55,9 @@ class XMPPA2AManager:
         # Track registered items for reliable server-side introspection
         self._registered_features: list = []
         self._registered_commands: list = []
+        # Plugin registry: node -> AdhocCommand instance
+        self._command_instances: Dict[str, AdhocCommand] = {}
+        self._command_context: Optional[CommandContext] = None
 
     # ── Agent Card Fetching ────────────────────────────────────────────────
 
@@ -241,115 +256,181 @@ class XMPPA2AManager:
         except Exception as e:
             logger.error("Failed to publish agent card via PEP: %s", e)
 
+    # ── A2A Config Loading ─────────────────────────────────────────────────
+
+    def _load_a2a_config(self) -> Dict[str, Any]:
+        """
+        Load a2a_config from aisns_cfg.memo JSON.
+
+        Returns the a2a_config dict or empty dict if not configured.
+        """
+        try:
+            from db.database import get_db_sync
+            from db.models.aisns import AISnsCfg
+
+            db = get_db_sync()
+            config = db.query(AISnsCfg).filter(
+                AISnsCfg.is_delete == False
+            ).first()
+            db.close()
+
+            if not config:
+                return {}
+
+            memo_str = getattr(config, 'memo', '') or ''
+            if not memo_str.strip():
+                return {}
+
+            memo = json.loads(memo_str)
+            return memo.get('a2a_config', {}) if isinstance(memo, dict) else {}
+
+        except Exception as e:
+            logger.warning("Failed to load a2a_config from memo: %s", e)
+            return {}
+
     # ── XEP-0050 Ad-hoc Commands ──────────────────────────────────────────
 
     def register_adhoc_commands(self):
-        """Register ad-hoc command handlers for A2A skills."""
+        """
+        Register ad-hoc command handlers dynamically from plugin registry + DB config.
+
+        Steps:
+        1. Discover builtin + user plugin commands via a2a_commands package
+        2. Load config-type commands from aisns_cfg.memo.a2a_config
+        3. Determine enabled/disabled state from DB config
+        4. Register only enabled commands with xep_0050
+        """
         try:
             adhoc = self.client['xep_0050']
-            if adhoc:
-                # Register exchange_business_card command
-                adhoc.add_command(
-                    node=A2A_ADHOC_EXCHANGE_NODE,
-                    name="Exchange Business Card",
-                    handler=self._handle_exchange_command,
-                )
-                if A2A_ADHOC_EXCHANGE_NODE not in self._registered_commands:
-                    self._registered_commands.append(A2A_ADHOC_EXCHANGE_NODE)
-                logger.info("Registered ad-hoc command: %s", A2A_ADHOC_EXCHANGE_NODE)
-
-                # Register generic A2A task command (JSON-RPC transport)
-                adhoc.add_command(
-                    node=A2A_ADHOC_TASK_NODE,
-                    name="A2A Task",
-                    handler=self._handle_a2a_task_command,
-                )
-                if A2A_ADHOC_TASK_NODE not in self._registered_commands:
-                    self._registered_commands.append(A2A_ADHOC_TASK_NODE)
-                logger.info("Registered ad-hoc command: %s", A2A_ADHOC_TASK_NODE)
-
+            if not adhoc:
+                logger.warning("xep_0050 plugin not available, cannot register commands")
+                return
         except Exception as e:
-            logger.error("Failed to register ad-hoc commands: %s", e)
+            logger.warning("xep_0050 plugin not available: %s", e)
+            return
 
-    async def _handle_exchange_command(self, iq, session):
-        """
-        Handle an incoming exchange_business_card ad-hoc command.
+        # Build command context for handler injection
+        self._command_context = CommandContext(
+            xmpp_client=self.client,
+            a2a_manager=self,
+            logger=logger,
+        )
 
-        Stage 1 (execute): Return a data form requesting the sender's card.
-        Stage 2 (complete): Process the submitted card and return our card.
-        """
+        # 1. Discover builtin + plugin commands
+        all_commands: List[AdhocCommand] = []
         try:
-            form = self.client['xep_0004'].make_form(
-                ftype='form',
-                title='Exchange Business Card',
-            )
-            form.addField(var='name', ftype='text-single', label='Name', value='')
-            form.addField(var='company', ftype='text-single', label='Company', value='')
-            form.addField(var='title', ftype='text-single', label='Title', value='')
-            form.addField(var='email', ftype='text-single', label='Email', value='')
-            form.addField(var='xmpp', ftype='text-single', label='XMPP', value='')
-            form.addField(var='website', ftype='text-single', label='Website', value='')
-            form.addField(var='phone', ftype='text-single', label='Phone', value='')
-
-            session['payload'] = form
-            session['next'] = self._handle_exchange_submit
-            session['has_next'] = True
-            session['allow_complete'] = True  # Advertise 'complete' action (XEP-0050 compliance)
-            return session
-
+            all_commands = discover_commands()
         except Exception as e:
-            logger.error("Error in exchange command handler: %s", e)
-            session['notes'] = [('error', f'Internal error: {e}')]
-            return session
+            logger.error("Failed to discover commands: %s", e)
+            return
 
-    async def _handle_exchange_submit(self, payload, session):
-        """Process the submitted business card form and return our card."""
+        # 2. Load config from DB
+        a2a_config = self._load_a2a_config()
+        adhoc_config_list = a2a_config.get('adhoc_commands', [])
+
+        # 3. Build config-type TemplateCommand instances
         try:
-            # Extract submitted card data from the form
-            their_card = {}
-            if hasattr(payload, 'get_fields'):
-                fields = payload.get_fields()
-                for var_name in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone'):
-                    field = fields.get(var_name)
-                    if field:
-                        their_card[var_name] = field.get('value', '') or ''
-            elif hasattr(payload, 'values'):
-                their_card = dict(payload.values)
+            config_commands = build_config_commands(adhoc_config_list)
+            all_commands.extend(config_commands)
+        except Exception as e:
+            logger.warning("Failed to build config commands: %s", e)
 
-            sender_jid = str(session.get('from', ''))
-            their_card['sender_jid'] = sender_jid
+        # 4. Determine enabled state: build a lookup from DB config
+        # If no config exists, all commands are enabled by default
+        enabled_lookup: Dict[str, bool] = {}
+        for entry in adhoc_config_list:
+            if isinstance(entry, dict) and 'node' in entry:
+                enabled_lookup[entry['node']] = entry.get('enabled', True)
 
-            # Store via A2A server logic
+        # 5. Register enabled commands
+        self._command_instances.clear()
+        self._registered_commands.clear()
+
+        seen_nodes = set()
+        for cmd in all_commands:
+            if not getattr(cmd, 'node', ''):
+                continue
+            if cmd.node in seen_nodes:
+                logger.warning(
+                    "Skipping duplicate ad-hoc command node: %s (%s) [%s]",
+                    cmd.node, cmd.name, cmd._source,
+                )
+                continue
+            seen_nodes.add(cmd.node)
+
+            # Check enabled state (default: enabled if not in lookup)
+            is_enabled = enabled_lookup.get(cmd.node, True)
+            if not is_enabled:
+                logger.info("Skipping disabled command: %s (%s)", cmd.node, cmd.name)
+                continue
+
             try:
-                import sys
-                import os as _os
-                _proj_root = _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))))
-                if _proj_root not in sys.path:
-                    sys.path.insert(0, _proj_root)
-                from a2aserver.business_card import exchange_business_card
-                my_card = exchange_business_card(their_card, sender_jid=sender_jid)
+                # Create handler closures that inject ctx
+                execute_handler = self._make_execute_handler(cmd)
+                adhoc.add_command(
+                    node=cmd.node,
+                    name=cmd.name,
+                    handler=execute_handler,
+                )
+                self._command_instances[cmd.node] = cmd
+                self._registered_commands.append(cmd.node)
+                logger.info(
+                    "Registered ad-hoc command: %s (%s) [%s]",
+                    cmd.node, cmd.name, cmd._source,
+                )
             except Exception as e:
-                logger.error("Failed to process card exchange: %s", e)
-                my_card = self._load_my_business_card()
+                logger.error("Failed to register command %s: %s", cmd.node, e)
 
-            # Build response form with our card
-            result_form = self.client['xep_0004'].make_form(
-                ftype='result',
-                title='Business Card Exchange Result',
-            )
-            for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone'):
-                result_form.addField(var=key, ftype='text-single', label=key.capitalize(),
-                                    value=my_card.get(key, ''))
+        logger.info(
+            "Ad-hoc command registration complete: %d commands registered",
+            len(self._registered_commands),
+        )
 
-            session['payload'] = result_form
-            session['next'] = None
-            session['has_next'] = False
-            return session
+    def _make_execute_handler(self, cmd: AdhocCommand):
+        """
+        Create an execute handler closure for a command plugin.
 
-        except Exception as e:
-            logger.error("Error processing exchange submission: %s", e)
-            session['notes'] = [('error', f'Processing error: {e}')]
-            return session
+        The closure calls cmd.handle_execute and wires the submit handler.
+        """
+        ctx = self._command_context
+
+        async def _execute_handler(iq, session):
+            try:
+                session = await cmd.handle_execute(iq, session, ctx)
+                # Wire the submit handler as 'next' callback
+                session['next'] = self._make_submit_handler(cmd)
+                return session
+            except Exception as e:
+                logger.error("Error in execute handler for %s: %s", cmd.node, e)
+                session['notes'] = [('error', f'Internal error: {e}')]
+                return session
+
+        return _execute_handler
+
+    def _make_submit_handler(self, cmd: AdhocCommand):
+        """
+        Create a submit handler closure for a command plugin.
+
+        The closure calls cmd.handle_submit with ctx.
+        """
+        ctx = self._command_context
+
+        async def _submit_handler(payload, session):
+            try:
+                return await cmd.handle_submit(payload, session, ctx)
+            except Exception as e:
+                logger.error("Error in submit handler for %s: %s", cmd.node, e)
+                session['notes'] = [('error', f'Processing error: {e}')]
+                return session
+
+        return _submit_handler
+
+    def get_registered_command_metadata(self) -> List[Dict[str, Any]]:
+        """Return metadata for all registered commands (for API/debug)."""
+        result = []
+        for node, cmd in self._command_instances.items():
+            result.append(cmd.get_metadata())
+        return result
 
     # ── Outbound: Discover & Call Other Agents ─────────────────────────────
 
@@ -374,108 +455,6 @@ class XMPPA2AManager:
             logger.error("Failed to discover A2A features for %s: %s", target_jid, e)
             return False
 
-    async def call_exchange_business_card(self, target_jid: str) -> Optional[Dict[str, Any]]:
-        """
-        Invoke exchange_business_card on a peer via XEP-0050 Ad-hoc Commands.
-
-        Flow:
-        1. Send execute command -> receive form
-        2. Fill form with own card data
-        3. Submit with action='complete'
-        4. Parse returned card
-
-        Args:
-            target_jid: The target XMPP JID
-
-        Returns:
-            The peer's business card dict, or None on failure
-        """
-        try:
-            # Load our card to send
-            my_card = self._load_my_business_card()
-            if not my_card:
-                logger.warning("No business card configured, cannot exchange")
-                return None
-
-            # Step 1: Execute the command
-            resp = await self.client['xep_0050'].send_command(
-                target_jid,
-                A2A_ADHOC_EXCHANGE_NODE,
-                action='execute',
-            )
-
-            # Step 2: Fill the form
-            session_id = resp['command']['sessionid']
-            form = resp['command']['form']
-
-            # Set our card values in the form (use set_values, not set_fields:
-            # set_fields would wipe field declarations and fail on string values).
-            # Also flip form type to 'submit' for XEP-0004 compliance.
-            try:
-                form['type'] = 'submit'
-            except Exception:
-                pass
-            card_values = {
-                key: (my_card.get(key, '') or '')
-                for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone')
-            }
-            if hasattr(form, 'set_values'):
-                try:
-                    form.set_values(card_values)
-                except Exception as e:
-                    logger.warning("set_values failed for exchange form: %s", e)
-                    fields = form.get_fields() if hasattr(form, 'get_fields') else {}
-                    for key, val in card_values.items():
-                        if key in fields:
-                            fields[key]['value'] = val
-            else:
-                # Fallback: directly mutate field values
-                fields = form.get_fields() if hasattr(form, 'get_fields') else {}
-                for key, val in card_values.items():
-                    if key in fields:
-                        fields[key]['value'] = val
-
-            # Step 3: Submit the completed form
-            result = await self.client['xep_0050'].send_command(
-                target_jid,
-                A2A_ADHOC_EXCHANGE_NODE,
-                action='complete',
-                sessionid=session_id,
-                payload=form,
-            )
-
-            # Step 4: Parse the returned card
-            result_form = result['command'].get('form')
-            if result_form:
-                peer_card = {}
-                if hasattr(result_form, 'get_fields'):
-                    fields = result_form.get_fields()
-                    for key in ('name', 'company', 'title', 'email', 'xmpp', 'website', 'phone'):
-                        field = fields.get(key)
-                        if field:
-                            peer_card[key] = field.get('value', '') or ''
-                else:
-                    peer_card = dict(getattr(result_form, 'values', {}))
-
-                # Store the received card
-                peer_card['sender_jid'] = target_jid
-                try:
-                    from a2aserver.db import init_db, add_received_card
-                    init_db()
-                    add_received_card(peer_card)
-                except Exception as e:
-                    logger.warning("Failed to store peer card: %s", e)
-
-                logger.info("Exchanged business card with %s: %s", target_jid, peer_card.get('name', ''))
-                return peer_card
-            else:
-                logger.warning("No form in exchange result from %s", target_jid)
-                return None
-
-        except Exception as e:
-            logger.error("Failed to exchange business card with %s: %s", target_jid, e)
-            return None
-
     # ── Inbound: Read Peer Agent Card via PEP ────────────────────────────
 
     async def fetch_peer_agent_card_pep(self, peer_jid: str) -> Optional[Dict[str, Any]]:
@@ -494,8 +473,10 @@ class XMPPA2AManager:
         """
         bare_jid = str(peer_jid).split('/')[0]
         if not bare_jid or '@' not in bare_jid:
-            logger.warning("fetch_peer_agent_card_pep: invalid peer_jid=%s", peer_jid)
+            logger.warning("[XMPP-A2A] fetch_agent_card_pep: invalid peer_jid=%s", peer_jid)
             return None
+
+        logger.info("[XMPP-A2A] fetch_agent_card_pep: requesting PEP node=%s from %s", A2A_PEP_NODE, bare_jid)
 
         try:
             pubsub = self.client['xep_0060']
@@ -503,7 +484,7 @@ class XMPPA2AManager:
             pubsub = None
 
         if pubsub is None:
-            logger.warning("fetch_peer_agent_card_pep: xep_0060 not available")
+            logger.warning("[XMPP-A2A] fetch_agent_card_pep: xep_0060 not available")
             return None
 
         try:
@@ -525,7 +506,7 @@ class XMPPA2AManager:
                     if payload_el is not None and payload_el.text:
                         card = json.loads(payload_el.text)
                         logger.info(
-                            "Fetched peer agent card via PEP from %s: name=%s",
+                            "[XMPP-A2A] fetch_agent_card_pep: SUCCESS from %s — name=%s",
                             bare_jid,
                             card.get("name", "unknown"),
                         )
@@ -537,286 +518,71 @@ class XMPPA2AManager:
                         parse_err,
                     )
 
-            logger.info("No agent card items found in PEP node for %s", bare_jid)
+            logger.info("[XMPP-A2A] fetch_agent_card_pep: no items found in PEP node for %s", bare_jid)
             return None
 
         except asyncio.TimeoutError:
-            logger.warning("fetch_peer_agent_card_pep: timeout reading PEP from %s", bare_jid)
+            logger.warning("[XMPP-A2A] fetch_agent_card_pep: TIMEOUT reading PEP from %s", bare_jid)
             return None
         except Exception as e:
-            logger.warning("fetch_peer_agent_card_pep: failed for %s: %s", bare_jid, e)
+            logger.warning("[XMPP-A2A] fetch_agent_card_pep: FAILED for %s: %s", bare_jid, e)
             return None
 
-    # ── Generic A2A Task Ad-hoc Command (JSON-RPC transport) ─────────────
 
-    async def _handle_a2a_task_command(self, iq, session):
+    # ── Outbound: Generic Ad-hoc Command Invocation ─────────────────────────
+
+    async def call_adhoc_command(
+        self,
+        peer_jid: str,
+        command_node: str,
+        form_data: Optional[Dict[str, Any]] = None,
+        inspect_only: bool = False,
+    ) -> dict:
         """
-        Handle an incoming generic A2A task ad-hoc command.
-
-        Stage 1 (execute): Return a data form with a jsonrpc_request field
-        for the caller to fill in their JSON-RPC 2.0 request.
-        """
-        try:
-            form = self.client['xep_0004'].make_form(
-                ftype='form',
-                title='A2A Task',
-            )
-            form.addField(
-                var='jsonrpc_request',
-                ftype='text-multi',
-                label='JSON-RPC Request',
-                value='',
-            )
-            session['payload'] = form
-            session['next'] = self._handle_a2a_task_submit
-            session['has_next'] = True
-            session['allow_complete'] = True  # Advertise 'complete' action (XEP-0050 compliance)
-            return session
-        except Exception as e:
-            logger.error("Error in A2A task command handler: %s", e)
-            session['notes'] = [('error', f'Internal error: {e}')]
-            return session
-
-    async def _handle_a2a_task_submit(self, payload, session):
-        """
-        Process a submitted A2A task JSON-RPC request.
-
-        Priority 1: Forward to local A2A server (HTTP POST localhost:8789/a2a/)
-        Priority 2: Local fallback handler for known methods
-        """
-        try:
-            # Extract the jsonrpc_request from the submitted form
-            request_str = ""
-            if hasattr(payload, 'get_fields'):
-                fields = payload.get_fields()
-                field = fields.get('jsonrpc_request')
-                if field:
-                    val = field.get('value', '')
-                    # text-multi may return a list of lines
-                    if isinstance(val, list):
-                        request_str = '\n'.join(str(v) for v in val)
-                    else:
-                        request_str = str(val)
-            elif hasattr(payload, 'values'):
-                request_str = str(payload.values.get('jsonrpc_request', ''))
-
-            request_str = request_str.strip()
-            sender_jid = str(session.get('from', ''))
-            logger.info(
-                "Received A2A task request from %s (%d chars)",
-                sender_jid,
-                len(request_str),
-            )
-
-            if not request_str:
-                response_str = json.dumps({
-                    "jsonrpc": "2.0",
-                    "error": {"code": -32600, "message": "Empty request"},
-                    "id": None,
-                })
-            else:
-                # Try forwarding to local A2A server first
-                response_str = await self._forward_to_local_a2a_server(request_str)
-
-                if response_str is None:
-                    # A2A server unavailable, try local fallback
-                    try:
-                        request_dict = json.loads(request_str)
-                    except json.JSONDecodeError as e:
-                        response_str = json.dumps({
-                            "jsonrpc": "2.0",
-                            "error": {"code": -32700, "message": f"Parse error: {e}"},
-                            "id": None,
-                        })
-                        request_dict = None
-
-                    if request_dict is not None:
-                        response_dict = self._local_handle_jsonrpc(request_dict, sender_jid)
-                        response_str = json.dumps(response_dict, ensure_ascii=False)
-
-            # Build result form
-            result_form = self.client['xep_0004'].make_form(
-                ftype='result',
-                title='A2A Task Result',
-            )
-            result_form.addField(
-                var='jsonrpc_response',
-                ftype='text-multi',
-                label='JSON-RPC Response',
-                value=response_str,
-            )
-            session['payload'] = result_form
-            session['next'] = None
-            session['has_next'] = False
-            return session
-
-        except Exception as e:
-            logger.error("Error processing A2A task submission: %s", e)
-            session['notes'] = [('error', f'Processing error: {e}')]
-            return session
-
-    async def _forward_to_local_a2a_server(self, request_str: str) -> Optional[str]:
-        """
-        Forward a JSON-RPC request to the local A2A server via HTTP POST.
-
-        Uses run_in_executor with sync urllib to avoid event-loop conflicts.
-        Returns the response body string, or None if the server is unreachable.
-        """
-        loop = asyncio.get_event_loop()
-        try:
-            result = await asyncio.wait_for(
-                loop.run_in_executor(None, self._sync_http_post_a2a, request_str),
-                timeout=30,
-            )
-            return result
-        except asyncio.TimeoutError:
-            logger.warning("_forward_to_local_a2a_server: timeout (30s)")
-            return None
-        except Exception as e:
-            logger.warning("_forward_to_local_a2a_server: failed: %s", e)
-            return None
-
-    @staticmethod
-    def _sync_http_post_a2a(request_str: str) -> str:
-        """Synchronous HTTP POST to local A2A server. Runs in thread executor."""
-        import urllib.request
-        url = "http://127.0.0.1:8789/a2a/"
-        body = request_str.encode("utf-8")
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "Host": "localhost",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return resp.read().decode("utf-8")
-
-    def _local_handle_jsonrpc(self, request: dict, sender_jid: str = "") -> dict:
-        """
-        Local fallback handler for JSON-RPC requests when A2A server is unavailable.
-        Routes known methods to local handlers.
-        """
-        rpc_id = request.get("id")
-        method = request.get("method", "")
-        params = request.get("params", {})
-
-        if method == "tasks/send":
-            message = params.get("message", {})
-            parts = message.get("parts", [])
-
-            # Detect if message contains structured card data (type=data with card-like fields)
-            their_card = {}
-            card_field_names = {"name", "company", "title", "email", "xmpp", "website", "phone"}
-            for part in parts:
-                if part.get("type") == "data":
-                    data = part.get("data", {})
-                    # Only treat as card exchange if data contains at least one card field
-                    if data and card_field_names & set(data.keys()):
-                        their_card = data
-                        break
-                elif part.get("type") == "text":
-                    try:
-                        parsed = json.loads(part.get("text", "{}"))
-                        if isinstance(parsed, dict) and card_field_names & set(parsed.keys()):
-                            their_card = parsed
-                    except json.JSONDecodeError:
-                        pass
-
-            # Only do business card exchange if we detected card-like data
-            if their_card:
-                meta_jid = params.get("metadata", {}).get("sender_jid", "")
-                effective_jid = meta_jid or sender_jid
-                try:
-                    from a2aserver.business_card import exchange_business_card
-                    my_card = exchange_business_card(their_card, sender_jid=effective_jid)
-                    return {
-                        "jsonrpc": "2.0",
-                        "result": {
-                            "id": rpc_id or "task-local",
-                            "status": {"state": "completed"},
-                            "artifacts": [
-                                {"parts": [{"type": "data", "data": my_card}]}
-                            ],
-                        },
-                        "id": rpc_id,
-                    }
-                except Exception as e:
-                    logger.warning("Local business card exchange failed: %s", e)
-                    return {
-                        "jsonrpc": "2.0",
-                        "error": {"code": -32000, "message": f"Local handler error: {e}"},
-                        "id": rpc_id,
-                    }
-
-            # Generic tasks/send: return our card as default response (no DB write)
-            my_card = self._load_my_business_card() or {}
-            return {
-                "jsonrpc": "2.0",
-                "result": {
-                    "id": rpc_id or "task-local",
-                    "status": {"state": "completed"},
-                    "artifacts": [
-                        {"parts": [{"type": "data", "data": my_card}]}
-                    ],
-                },
-                "id": rpc_id,
-            }
-
-        # Unknown method
-        return {
-            "jsonrpc": "2.0",
-            "error": {"code": -32601, "message": f"Method not found: {method}"},
-            "id": rpc_id,
-        }
-
-    # ── Outbound: Call Peer A2A Task via Ad-hoc Command ───────────────────
-
-    async def call_a2a_task(self, target_jid: str, jsonrpc_request: dict) -> dict:
-        """
-        Invoke a generic A2A task on a peer via XMPP Ad-hoc Command.
-
-        Sends a JSON-RPC 2.0 request through the urn:xmpp:a2a:cmd:tasks
-        ad-hoc command node. Non-blocking, 300-second timeout.
+        Invoke any XEP-0050 ad-hoc command on a peer — fully generic.
 
         Flow:
-        1. Send execute action → receive form with jsonrpc_request field
-        2. Fill form with JSON-RPC request
-        3. Submit with action=complete
-        4. Parse returned jsonrpc_response
+        1. Resolve full JID.
+        2. Send execute → receive form template.
+        3. If inspect_only, return form metadata and cancel session.
+        4. Fill matching fields from form_data.
+        5. Submit with action=complete.
+        6. Parse result form into a generic dict.
 
         Args:
-            target_jid: The target XMPP JID
-            jsonrpc_request: The JSON-RPC 2.0 request dict
+            peer_jid: Target XMPP JID (bare or full)
+            command_node: Ad-hoc command node URI
+            form_data: Key-value pairs to fill into the form (keys not in form are ignored)
+            inspect_only: If True, return form metadata without submitting
 
         Returns:
-            dict with 'ok' (bool) and 'result' (parsed response) or 'error' (str)
+            {"ok": True, "result": {field_var: value, ...}} on success
+            {"ok": True, "form": {...}, "session_id": ...} on inspect_only
+            {"ok": False, "error": "...", "detail": "..."} on failure
         """
-        # Lazy import slixmpp exception types to keep module import lightweight
         try:
             from slixmpp.exceptions import IqError, IqTimeout
-        except Exception:  # pragma: no cover
+        except Exception:
             IqError = IqTimeout = None  # type: ignore
 
-        # Resolve bare JID to a full JID via roster/presence when possible
-        # (XEP-0050 ad-hoc commands typically target a specific resource).
-        resolved_jid = self._resolve_full_jid(target_jid)
+        resolved_jid = self._resolve_full_jid(peer_jid)
+        logger.info(
+            "[XMPP-A2A] call_adhoc: peer=%s resolved=%s node=%s inspect_only=%s",
+            peer_jid, resolved_jid, command_node, inspect_only,
+        )
 
         try:
             result = await asyncio.wait_for(
-                self._call_a2a_task_impl(resolved_jid, jsonrpc_request),
+                self._call_adhoc_impl(resolved_jid, command_node, form_data, inspect_only),
                 timeout=300,
             )
             return result
         except asyncio.TimeoutError:
-            logger.warning("call_a2a_task: timed out (300s) for %s", resolved_jid)
+            logger.warning("[XMPP-A2A] call_adhoc: TIMEOUT (300s) peer=%s node=%s", resolved_jid, command_node)
             return {"ok": False, "error": "timeout", "detail": "XMPP ad-hoc command timed out (300s)"}
         except Exception as e:
-            # Distinguish IqTimeout / IqError from generic exceptions
             if IqTimeout is not None and isinstance(e, IqTimeout):
-                logger.warning("call_a2a_task: IQ timeout for %s", resolved_jid)
+                logger.warning("[XMPP-A2A] call_adhoc: IQ timeout peer=%s node=%s", resolved_jid, command_node)
                 return {"ok": False, "error": "peer_unreachable", "detail": "IQ timeout (peer offline or unresponsive)"}
             if IqError is not None and isinstance(e, IqError):
                 cond = "unknown"
@@ -824,10 +590,242 @@ class XMPPA2AManager:
                     cond = e.iq['error']['condition'] or "unknown"
                 except Exception:
                     pass
-                logger.warning("call_a2a_task: IqError for %s: %s", resolved_jid, cond)
+                logger.warning("[XMPP-A2A] call_adhoc: IqError peer=%s node=%s cond=%s", resolved_jid, command_node, cond)
                 return {"ok": False, "error": cond, "detail": str(e)}
-            logger.error("call_a2a_task: unexpected error for %s: %s", resolved_jid, e)
+            logger.error("[XMPP-A2A] call_adhoc: FAILED peer=%s node=%s: %s", resolved_jid, command_node, e)
             return {"ok": False, "error": "unexpected", "detail": str(e)}
+
+    async def _call_adhoc_impl(
+        self,
+        target_jid: str,
+        command_node: str,
+        form_data: Optional[Dict[str, Any]],
+        inspect_only: bool,
+    ) -> dict:
+        """Internal implementation of the generic ad-hoc command call."""
+        adhoc = self.client['xep_0050']
+
+        # Step 1: Execute command → get form
+        logger.info("[XMPP-A2A] call_adhoc: executing node=%s on %s", command_node, target_jid)
+        resp = await adhoc.send_command(
+            target_jid,
+            command_node,
+            action='execute',
+        )
+
+        session_id = resp['command']['sessionid']
+        form = resp['command'].get('form')
+
+        # Step 2: If inspect_only, return form metadata and cancel
+        if inspect_only:
+            form_meta = self._extract_form_fields(form) if form else {"title": "", "fields": []}
+            # Cancel the session to avoid dangling state on peer
+            try:
+                await adhoc.send_command(
+                    target_jid,
+                    command_node,
+                    action='cancel',
+                    sessionid=session_id,
+                )
+            except Exception:
+                pass
+            logger.info(
+                "[XMPP-A2A] inspect_adhoc: peer=%s node=%s fields=%d (cancelled session=%s)",
+                target_jid, command_node, len(form_meta.get("fields", [])), session_id,
+            )
+            return {"ok": True, "command_node": command_node, "session_id": session_id, "form": form_meta}
+
+        # Step 3: Fill form with form_data
+        if form is not None:
+            self._set_form_values(form, form_data or {})
+
+        # Step 4: Submit with complete
+        logger.info(
+            "[XMPP-A2A] call_adhoc: submitting node=%s peer=%s session=%s form_keys=%s",
+            command_node, target_jid, session_id, list((form_data or {}).keys()),
+        )
+        result = await adhoc.send_command(
+            target_jid,
+            command_node,
+            action='complete',
+            sessionid=session_id,
+            payload=form,
+        )
+
+        # Step 5: Parse the result
+        result_form = result['command'].get('form')
+        if not result_form:
+            notes = result['command'].get('notes', [])
+            if notes:
+                error_msg = '; '.join(str(n) for n in notes)
+                logger.warning("[XMPP-A2A] call_adhoc: notes error peer=%s: %s", target_jid, error_msg)
+                return {"ok": False, "error": f"Ad-hoc command error: {error_msg}"}
+            return {"ok": False, "error": "No response form received"}
+
+        result_dict = self._form_to_dict(result_form)
+        logger.info("[XMPP-A2A] call_adhoc: SUCCESS peer=%s node=%s result_keys=%s", target_jid, command_node, list(result_dict.keys()))
+        return {"ok": True, "result": result_dict}
+
+    # ── Form Helpers (generic) ─────────────────────────────────────────────
+
+    @staticmethod
+    def _extract_form_fields(form) -> dict:
+        """Extract form metadata for inspect-only mode."""
+        title = ""
+        fields_list = []
+        try:
+            title = form.get('title', '') or ''
+        except Exception:
+            pass
+        try:
+            if hasattr(form, 'get_fields'):
+                for var, field in form.get_fields().items():
+                    fields_list.append({
+                        "var": var,
+                        "type": field.get('type', 'text-single') or 'text-single',
+                        "label": field.get('label', '') or '',
+                        "required": bool(field.get('required', False)),
+                        "value": field.get('value', '') or '',
+                    })
+        except Exception:
+            pass
+        return {"title": title, "fields": fields_list}
+
+    @staticmethod
+    def _set_form_values(form, form_data: Dict[str, Any]) -> None:
+        """Fill form fields from form_data dict. Ignores keys not in the form."""
+        try:
+            form['type'] = 'submit'
+        except Exception:
+            pass
+
+        if not form_data:
+            return
+
+        fields = form.get_fields() if hasattr(form, 'get_fields') else {}
+        matching_values = {
+            key: val
+            for key, val in form_data.items()
+            if key in fields
+        }
+
+        if not matching_values:
+            return
+
+        if hasattr(form, 'set_values'):
+            try:
+                form.set_values(matching_values)
+                return
+            except Exception as e:
+                logger.warning("[XMPP-A2A] set_values failed, falling back to per-field: %s", e)
+
+        # Fallback: directly mutate field values
+        if fields:
+            for key, val in form_data.items():
+                if key in fields:
+                    fields[key]['value'] = val
+
+    @staticmethod
+    def _form_to_dict(form) -> Dict[str, Any]:
+        """Convert a result form to a flat dict of {var: value}."""
+        result = {}
+        try:
+            if hasattr(form, 'get_fields'):
+                for var, field in form.get_fields().items():
+                    val = field.get('value', '')
+                    # text-multi returns list — join for usability
+                    if isinstance(val, list):
+                        val = '\n'.join(str(v) for v in val)
+                    result[var] = val
+            elif hasattr(form, 'get_values'):
+                for k, v in form.get_values().items():
+                    if isinstance(v, list):
+                        v = '\n'.join(str(x) for x in v)
+                    result[k] = v
+        except Exception:
+            pass
+        return result
+
+    @staticmethod
+    def _derive_adhoc_node_from_skill(skill: dict) -> Optional[str]:
+        """Derive command node URI from an agent card skill entry."""
+        # Check explicit node fields
+        for key in ('xmpp_adhoc_node', 'adhoc_node', 'command_node', 'node'):
+            val = skill.get(key)
+            if val and isinstance(val, str):
+                return val.strip()
+        # Derive from skill ID if not a URI
+        skill_id = (skill.get('id') or '').strip()
+        if not skill_id:
+            return None
+        if skill_id.startswith('urn:') or '://' in skill_id:
+            return skill_id
+        return f"urn:xmpp:a2a:cmd:{skill_id}"
+
+    # ── Outbound: Discover Peer Ad-hoc Commands ───────────────────────────
+
+    async def discover_peer_adhoc_commands(
+        self,
+        peer_jid: str,
+        agent_card: Optional[Dict[str, Any]] = None,
+    ) -> list:
+        """
+        Discover available ad-hoc commands on a peer.
+
+        Sources (in order):
+        1. Agent card skills array (if provided)
+        2. disco#items on http://jabber.org/protocol/commands node
+
+        Returns list of {"node": str, "name": str, "description": str|None, "source": str}
+        """
+        commands = []
+        seen_nodes = set()
+
+        # Source 1: Agent card skills
+        if agent_card and isinstance(agent_card, dict):
+            skills = agent_card.get("skills") or []
+            for skill in skills:
+                if not isinstance(skill, dict):
+                    continue
+                node = self._derive_adhoc_node_from_skill(skill)
+                if node and node not in seen_nodes:
+                    seen_nodes.add(node)
+                    commands.append({
+                        "node": node,
+                        "name": skill.get("name", "") or "",
+                        "description": skill.get("description", "") or "",
+                        "source": "agent_card",
+                    })
+
+        # Source 2: disco#items fallback
+        try:
+            resolved_jid = self._resolve_full_jid(peer_jid)
+            disco = self.client['xep_0030']
+            items_iq = await asyncio.wait_for(
+                disco.get_items(jid=resolved_jid, node="http://jabber.org/protocol/commands"),
+                timeout=15,
+            )
+            for item in items_iq['disco_items']['items']:
+                node = item[1]  # (jid, node, name)
+                name = item[2] or ""
+                if node and node not in seen_nodes:
+                    seen_nodes.add(node)
+                    commands.append({
+                        "node": node,
+                        "name": name,
+                        "description": "",
+                        "source": "disco",
+                    })
+        except Exception as e:
+            logger.debug("[XMPP-A2A] discover_commands: disco#items failed for %s: %s", peer_jid, e)
+
+        logger.info(
+            "[XMPP-A2A] discover_commands: peer=%s found=%d (agent_card=%d disco=%d)",
+            peer_jid, len(commands),
+            sum(1 for c in commands if c["source"] == "agent_card"),
+            sum(1 for c in commands if c["source"] == "disco"),
+        )
+        return commands
 
     def _resolve_full_jid(self, target_jid: str) -> str:
         """Best-effort resolution of bare JID to a full JID using the roster.
@@ -863,114 +861,74 @@ class XMPPA2AManager:
             logger.debug("_resolve_full_jid: failed for %s: %s", target_jid, e)
         return target_jid
 
-    async def _call_a2a_task_impl(self, target_jid: str, jsonrpc_request: dict) -> dict:
-        """Internal implementation of the A2A task call via ad-hoc command."""
-        request_str = json.dumps(jsonrpc_request, ensure_ascii=False)
-
-        # Step 1: Execute command → get form
-        adhoc = self.client['xep_0050']
-        resp = await adhoc.send_command(
-            target_jid,
-            A2A_ADHOC_TASK_NODE,
-            action='execute',
-        )
-
-        # Step 2: Fill the jsonrpc_request field.
-        # IMPORTANT: use set_values (not set_fields). set_fields wipes existing
-        # field declarations and expects dict metadata for each value, so passing
-        # a string raises TypeError silently and the form ends up empty.
-        # Also flip the form type to 'submit' for XEP-0004 compliance.
-        session_id = resp['command']['sessionid']
-        form = resp['command']['form']
-
-        try:
-            form['type'] = 'submit'
-        except Exception:
-            pass
-
-        if hasattr(form, 'set_values'):
-            try:
-                form.set_values({'jsonrpc_request': request_str})
-            except Exception as e:
-                logger.warning("set_values failed for a2a task form: %s", e)
-                # Fallback: directly mutate field value
-                fields = form.get_fields() if hasattr(form, 'get_fields') else {}
-                if 'jsonrpc_request' in fields:
-                    fields['jsonrpc_request']['value'] = request_str
-        else:
-            fields = form.get_fields() if hasattr(form, 'get_fields') else {}
-            if 'jsonrpc_request' in fields:
-                fields['jsonrpc_request']['value'] = request_str
-
-        # Step 3: Submit with complete
-        result = await adhoc.send_command(
-            target_jid,
-            A2A_ADHOC_TASK_NODE,
-            action='complete',
-            sessionid=session_id,
-            payload=form,
-        )
-
-        # Step 4: Parse the result
-        result_form = result['command'].get('form')
-        if not result_form:
-            # Check for notes (error case)
-            notes = result['command'].get('notes', [])
-            if notes:
-                error_msg = '; '.join(str(n) for n in notes)
-                return {"ok": False, "error": f"Ad-hoc command error: {error_msg}"}
-            return {"ok": False, "error": "No response form received"}
-
-        # Extract jsonrpc_response
-        response_str = ""
-        if hasattr(result_form, 'get_fields'):
-            fields = result_form.get_fields()
-            field = fields.get('jsonrpc_response')
-            if field:
-                val = field.get('value', '')
-                if isinstance(val, list):
-                    response_str = '\n'.join(str(v) for v in val)
-                else:
-                    response_str = str(val)
-        elif hasattr(result_form, 'values'):
-            response_str = str(result_form.values.get('jsonrpc_response', ''))
-
-        response_str = response_str.strip()
-        if not response_str:
-            return {"ok": False, "error": "Empty response from peer"}
-
-        try:
-            response_dict = json.loads(response_str)
-        except json.JSONDecodeError as e:
-            return {"ok": False, "error": f"Invalid JSON response: {e}"}
-
-        # Check for JSON-RPC error
-        if "error" in response_dict and response_dict["error"]:
-            err = response_dict["error"]
-            msg = err.get("message", str(err)) if isinstance(err, dict) else str(err)
-            return {"ok": False, "error": f"JSON-RPC error: {msg}", "raw": response_dict}
-
-        logger.info(
-            "A2A task call to %s completed: method=%s",
-            target_jid,
-            jsonrpc_request.get("method", ""),
-        )
-        return {"ok": True, "result": response_dict.get("result", {})}
-
     # ── Initialization ─────────────────────────────────────────────────────
+
+    async def reload_a2a(self):
+        """
+        Lightweight hot-reload: re-read DB config and re-register A2A pieces
+        without dropping the XMPP session.
+
+        Useful when the user updates a2a_config (agent card / commands) via the
+        UI and we want changes to take effect quickly. Falls back gracefully
+        if any sub-step fails.
+        """
+        logger.info("[XMPP-A2A] reload_a2a: starting in-place reload")
+
+        # Reset cached card so the next initialize() picks up the latest value
+        self._agent_card = None
+
+        # Clear previously registered commands from xep_0050 to avoid leftovers.
+        try:
+            adhoc = self.client['xep_0050']
+            if adhoc and hasattr(adhoc, 'commands') and isinstance(adhoc.commands, dict):
+                for node in list(self._registered_commands):
+                    # slixmpp versions may key xep_0050.commands by node or by
+                    # tuple/list such as (jid, node). Support both shapes.
+                    keys_to_drop = []
+                    for k in list(adhoc.commands.keys()):
+                        if k == node:
+                            keys_to_drop.append(k)
+                        elif isinstance(k, (tuple, list)) and len(k) >= 2 and k[1] == node:
+                            keys_to_drop.append(k)
+                    for k in keys_to_drop:
+                        adhoc.commands.pop(k, None)
+        except Exception as e:
+            logger.warning("[XMPP-A2A] reload_a2a: failed to clear old commands: %s", e)
+
+        self._registered_commands = []
+        self._command_instances = {}
+
+        # Re-run the full initialization steps (idempotent at the disco/PEP level)
+        try:
+            await self.initialize()
+        except Exception as e:
+            logger.error("[XMPP-A2A] reload_a2a: initialize() failed: %s", e)
+
+        logger.info("[XMPP-A2A] reload_a2a: complete (%d commands registered)",
+                    len(self._registered_commands))
 
     async def initialize(self):
         """
         Full initialization sequence, called after XMPP session starts.
-        1. Fetch agent card from configured URL
+        1. Try inline agent card from DB config; fall back to URL fetch
         2. Register disco features
         3. Publish agent card via PEP
-        4. Register ad-hoc command handlers
+        4. Register ad-hoc command handlers (plugin-based)
         """
         logger.info("Initializing XMPP A2A integration...")
 
-        # Fetch the agent card
-        await self.fetch_agent_card()
+        # Try inline agent card from a2a_config first
+        a2a_config = self._load_a2a_config()
+        inline_card = a2a_config.get('agent_card')
+        if inline_card and isinstance(inline_card, dict) and any(inline_card.values()):
+            self._agent_card = inline_card
+            logger.info(
+                "Using inline agent card from a2a_config: name=%s",
+                inline_card.get('name', 'unknown'),
+            )
+        else:
+            # Fall back to URL fetch
+            await self.fetch_agent_card()
 
         # Register Service Discovery features
         self.register_disco_features()
@@ -978,7 +936,7 @@ class XMPPA2AManager:
         # Publish via PEP
         await self.publish_agent_card_pep()
 
-        # Register ad-hoc commands
+        # Register ad-hoc commands (plugin-based)
         self.register_adhoc_commands()
 
         logger.info("XMPP A2A initialization complete")

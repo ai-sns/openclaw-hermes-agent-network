@@ -291,6 +291,39 @@ export class SNSAvatarDialog {
                                         </div>
                                     </div>
                                 </div>
+                                <div class="avatar-section" style="margin-top: 16px;">
+                                    <h4>Agent Card</h4>
+                                    <div class="user-info-form" style="font-size: 12px; color: #888; margin-bottom: 6px;">
+                                        Leave empty to use agent_card_url from Agent settings.
+                                    </div>
+                                    <div class="user-info-form">
+                                        <div class="form-group">
+                                            <label for="a2aCardName">Name</label>
+                                            <input type="text" id="a2aCardName" class="form-control" placeholder="Agent name">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="a2aCardDescription">Description</label>
+                                            <input type="text" id="a2aCardDescription" class="form-control" placeholder="Agent description">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="a2aCardVersion">Version</label>
+                                            <input type="text" id="a2aCardVersion" class="form-control" placeholder="1.0.0">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="a2aCardProviderOrg">Provider Org</label>
+                                            <input type="text" id="a2aCardProviderOrg" class="form-control" placeholder="Organization name">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="a2aCardProviderUrl">Provider URL</label>
+                                            <input type="text" id="a2aCardProviderUrl" class="form-control" placeholder="https://...">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="avatar-section" style="margin-top: 16px;">
+                                    <h4>Ad-hoc Commands</h4>
+                                    <div id="a2aCommandList" style="margin-bottom: 8px;"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="a2aAddCommandBtn" style="font-size: 12px;">+ Add Command</button>
+                                </div>
                             </div>
                         </div>
 
@@ -376,6 +409,25 @@ export class SNSAvatarDialog {
 
             const xmppAccountEl = this._q('#xmppAccount');
             if (xmppAccountEl) xmppAccountEl.value = config.account || '';
+
+            // Load A2A config from memo
+            const a2aConfig = config.a2a_config || {};
+            this._a2aConfig = a2aConfig;
+            const agentCard = a2aConfig.agent_card || {};
+            const a2aNameEl = this._q('#a2aCardName');
+            const a2aDescEl = this._q('#a2aCardDescription');
+            const a2aVersionEl = this._q('#a2aCardVersion');
+            const a2aProvOrgEl = this._q('#a2aCardProviderOrg');
+            const a2aProvUrlEl = this._q('#a2aCardProviderUrl');
+            if (a2aNameEl) a2aNameEl.value = agentCard.name || '';
+            if (a2aDescEl) a2aDescEl.value = agentCard.description || '';
+            if (a2aVersionEl) a2aVersionEl.value = agentCard.version || '';
+            const provider = agentCard.provider || {};
+            if (a2aProvOrgEl) a2aProvOrgEl.value = provider.organization || '';
+            if (a2aProvUrlEl) a2aProvUrlEl.value = provider.url || '';
+
+            // Load merged ad-hoc command list (builtin + plugin + config) from backend
+            await this._loadMergedA2ACommands(a2aConfig.adhoc_commands || []);
 
             if (config.avatar) {
                 const avatarSrc = this._resolveAvatarSrc(config.avatar);
@@ -580,6 +632,14 @@ export class SNSAvatarDialog {
             });
         }
 
+        // A2A Add Command button
+        const addCmdBtn = this._q('#a2aAddCommandBtn');
+        if (addCmdBtn) {
+            addCmdBtn.addEventListener('click', () => {
+                this._openA2ACommandDialog(-1);
+            });
+        }
+
         // Save button
         const saveBtn = this._q('#saveAvatarBtn');
         if (saveBtn) {
@@ -665,6 +725,14 @@ export class SNSAvatarDialog {
             const prevXmppAccount = this.existingConfig && this.existingConfig.account ? String(this.existingConfig.account || '') : '';
             if (xmppAccount && xmppAccount !== prevXmppAccount) xmppUpdates.account = xmppAccount;
             if (xmppPassword) xmppUpdates.password = xmppPassword;
+
+            // Collect A2A config (agent card + commands)
+            const a2aConfig = this._collectA2AConfig();
+            const prevA2aConfig = (this.existingConfig && this.existingConfig.a2a_config) || {};
+            if (JSON.stringify(a2aConfig) !== JSON.stringify(prevA2aConfig)) {
+                xmppUpdates.a2a_config = a2aConfig;
+            }
+
             if (Object.keys(xmppUpdates).length > 0) {
                 didChange = true;
             }
@@ -982,5 +1050,272 @@ export class SNSAvatarDialog {
         } catch (error) {
             console.error('Error loading agent list:', error);
         }
+    }
+
+    // ── A2A Command List Management ─────────────────────────────────────
+
+    async _loadMergedA2ACommands(savedConfigCommands) {
+        // Fetch the merged command list from the backend
+        try {
+            const resp = await fetch(this.resolve('/api/sns/a2a/commands'));
+            const data = await resp.json();
+            if (data && data.success && Array.isArray(data.commands)) {
+                this._a2aCommands = data.commands.map(c => ({
+                    node: c.node || '',
+                    name: c.name || '',
+                    description: c.description || '',
+                    source: c.source || 'builtin',
+                    enabled: c.enabled !== false,
+                    form_fields: Array.isArray(c.form_fields) ? c.form_fields : [],
+                    response_template: c.response_template || {},
+                }));
+            } else {
+                // Fallback: only show config commands from saved DB state
+                this._a2aCommands = (savedConfigCommands || []).map(cmd => ({ ...cmd }));
+            }
+        } catch (e) {
+            console.warn('[SNSAvatarDialog] Failed to load merged A2A commands, falling back:', e);
+            this._a2aCommands = (savedConfigCommands || []).map(cmd => ({ ...cmd }));
+        }
+        this._renderA2ACommandList();
+    }
+
+    _renderA2ACommandList() {
+        const container = this._q('#a2aCommandList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (!this._a2aCommands || this._a2aCommands.length === 0) {
+            container.innerHTML = '<div style="font-size: 12px; color: #888;">No commands configured. Built-in commands will be registered by default.</div>';
+            return;
+        }
+
+        // Inject styles for modern action buttons if not already present
+        if (!document.getElementById('a2a-cmd-styles')) {
+            const style = document.createElement('style');
+            style.id = 'a2a-cmd-styles';
+            style.innerHTML = `
+                .a2a-cmd-action-btn {
+                    background: transparent;
+                    border: none;
+                    padding: 4px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    color: var(--text-secondary, #888);
+                    transition: all 0.2s ease;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .a2a-cmd-action-btn:hover {
+                    color: var(--text-primary, #333);
+                    background: var(--bg-hover, rgba(0,0,0,0.05));
+                }
+                .a2a-cmd-action-btn.del-btn:hover {
+                    color: #ef4444;
+                    background: rgba(239, 68, 68, 0.1);
+                }
+                .a2a-cmd-row:hover {
+                    background: var(--bg-hover, rgba(0,0,0,0.02));
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        this._a2aCommands.forEach((cmd, idx) => {
+            const row = document.createElement('div');
+            row.className = 'a2a-cmd-row';
+            row.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 2px; padding: 4px 6px; border-radius: 6px; font-size: 13px; transition: background 0.2s;';
+
+            const source = cmd.source || 'builtin';
+            const isConfig = source === 'config';
+            const enabled = cmd.enabled !== false;
+
+            const isDark = document.body.classList.contains('theme-dark');
+            const badgeBg = source === 'builtin'
+                ? (isDark ? 'rgba(99,102,241,0.2)' : '#e0e7ff')
+                : source === 'plugin'
+                    ? (isDark ? 'rgba(16,185,129,0.2)' : '#d1fae5')
+                    : (isDark ? 'rgba(245,158,11,0.2)' : '#fef3c7');
+            const badgeColor = source === 'builtin'
+                ? (isDark ? '#a5b4fc' : '#3730a3')
+                : source === 'plugin'
+                    ? (isDark ? '#6ee7b7' : '#065f46')
+                    : (isDark ? '#fcd34d' : '#92400e');
+
+            const editIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>`;
+            const delIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+
+            row.innerHTML = `
+                <input type="checkbox" data-cmd-idx="${idx}" class="a2a-cmd-enabled" ${enabled ? 'checked' : ''} style="margin: 0; cursor: pointer;" title="${enabled ? 'Enabled' : 'Disabled'}">
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary, inherit); font-weight: 500;" title="${cmd.node || ''}">${cmd.name || cmd.node || '(unnamed)'}</span>
+                <span style="font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; background: ${badgeBg}; color: ${badgeColor};">${source}</span>
+                <div style="display: flex; gap: 2px; width: 48px; justify-content: flex-end;">
+                    ${isConfig ? `<button type="button" class="a2a-cmd-action-btn a2a-cmd-edit" data-cmd-idx="${idx}" title="Edit Command">${editIcon}</button>` : ''}
+                    ${isConfig ? `<button type="button" class="a2a-cmd-action-btn del-btn a2a-cmd-del" data-cmd-idx="${idx}" title="Delete Command">${delIcon}</button>` : ''}
+                </div>
+            `;
+            container.appendChild(row);
+        });
+
+        // Bind events
+        container.querySelectorAll('.a2a-cmd-enabled').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+                const i = parseInt(e.target.dataset.cmdIdx, 10);
+                if (this._a2aCommands[i]) this._a2aCommands[i].enabled = e.target.checked;
+            });
+        });
+        container.querySelectorAll('.a2a-cmd-edit').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const i = parseInt(e.target.dataset.cmdIdx, 10);
+                this._openA2ACommandDialog(i);
+            });
+        });
+        container.querySelectorAll('.a2a-cmd-del').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const i = parseInt(e.target.dataset.cmdIdx, 10);
+                if (confirm('Delete this command?')) {
+                    this._a2aCommands.splice(i, 1);
+                    this._renderA2ACommandList();
+                }
+            });
+        });
+    }
+
+    _openA2ACommandDialog(editIdx = -1) {
+        const isEdit = editIdx >= 0 && this._a2aCommands[editIdx];
+        const cmd = isEdit ? this._a2aCommands[editIdx] : { node: '', name: '', source: 'config', enabled: true, form_fields: [], response_template: {} };
+
+        const fieldsJson = JSON.stringify(cmd.form_fields || [], null, 2);
+        const templateJson = JSON.stringify(cmd.response_template || {}, null, 2);
+        const escapeHtml = (value) => String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 1000010; display: flex; align-items: center; justify-content: center;';
+        overlay.innerHTML = `
+            <div style="background: var(--bg-primary, #fff); border-radius: 8px; padding: 20px; width: 440px; max-height: 80vh; overflow-y: auto; box-shadow: 0 4px 24px rgba(0,0,0,0.2);">
+                <h4 style="margin: 0 0 12px;">${isEdit ? 'Edit' : 'Add'} Config Command</h4>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 12px;">Node URI</label>
+                    <input type="text" id="a2aCmdNode" class="form-control" value="${escapeHtml(cmd.node)}" placeholder="urn:xmpp:a2a:cmd:my_command" style="font-size: 12px;">
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 12px;">Display Name</label>
+                    <input type="text" id="a2aCmdName" class="form-control" value="${escapeHtml(cmd.name)}" placeholder="My Command">
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 12px;">Description</label>
+                    <input type="text" id="a2aCmdDesc" class="form-control" value="${escapeHtml(cmd.description)}" placeholder="Optional description">
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <label style="font-size: 12px;">Form Fields (JSON array)</label>
+                    <textarea id="a2aCmdFields" class="form-control" rows="4" style="font-size: 11px; font-family: monospace;">${escapeHtml(fieldsJson)}</textarea>
+                    <div style="font-size: 10px; color: #888;">e.g. [{"var":"name","type":"text-single","label":"Name"}]</div>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="font-size: 12px;">Response Template (JSON object with {{var}} placeholders)</label>
+                    <textarea id="a2aCmdTemplate" class="form-control" rows="3" style="font-size: 11px; font-family: monospace;">${escapeHtml(templateJson)}</textarea>
+                    <div style="font-size: 10px; color: #888;">e.g. {"message":"Hello, {{name}}!"}</div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" class="btn btn-secondary btn-sm" id="a2aCmdCancel">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="a2aCmdSave">Save</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+
+        overlay.querySelector('#a2aCmdCancel').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('#a2aCmdSave').addEventListener('click', () => {
+            const node = overlay.querySelector('#a2aCmdNode').value.trim();
+            const name = overlay.querySelector('#a2aCmdName').value.trim();
+            const desc = overlay.querySelector('#a2aCmdDesc').value.trim();
+            if (!node || !name) { alert('Node URI and Name are required.'); return; }
+
+            // Check node uniqueness (skip the entry being edited)
+            const conflict = (this._a2aCommands || []).some((existing, i) =>
+                existing.node === node && i !== editIdx
+            );
+            if (conflict) {
+                alert('A command with this Node URI already exists. Please choose a different node.');
+                return;
+            }
+
+            let formFields = [];
+            let responseTemplate = {};
+            try { formFields = JSON.parse(overlay.querySelector('#a2aCmdFields').value || '[]'); } catch (e) { alert('Invalid Form Fields JSON: ' + e.message); return; }
+            try { responseTemplate = JSON.parse(overlay.querySelector('#a2aCmdTemplate').value || '{}'); } catch (e) { alert('Invalid Response Template JSON: ' + e.message); return; }
+
+            const newCmd = {
+                node,
+                name,
+                description: desc,
+                source: 'config',
+                enabled: isEdit ? (cmd.enabled !== false) : true,
+                form_fields: formFields,
+                response_template: responseTemplate
+            };
+            if (isEdit) {
+                this._a2aCommands[editIdx] = newCmd;
+            } else {
+                this._a2aCommands.push(newCmd);
+            }
+            this._renderA2ACommandList();
+            overlay.remove();
+        });
+    }
+
+    _collectA2AConfig() {
+        const a2aCardName = (this._q('#a2aCardName') || {}).value || '';
+        const a2aCardDesc = (this._q('#a2aCardDescription') || {}).value || '';
+        const a2aCardVersion = (this._q('#a2aCardVersion') || {}).value || '';
+        const a2aCardProvOrg = (this._q('#a2aCardProviderOrg') || {}).value || '';
+        const a2aCardProvUrl = (this._q('#a2aCardProviderUrl') || {}).value || '';
+
+        const agentCard = {};
+        if (a2aCardName.trim()) agentCard.name = a2aCardName.trim();
+        if (a2aCardDesc.trim()) agentCard.description = a2aCardDesc.trim();
+        if (a2aCardVersion.trim()) agentCard.version = a2aCardVersion.trim();
+        if (a2aCardProvOrg.trim() || a2aCardProvUrl.trim()) {
+            agentCard.provider = {};
+            if (a2aCardProvOrg.trim()) agentCard.provider.organization = a2aCardProvOrg.trim();
+            if (a2aCardProvUrl.trim()) agentCard.provider.url = a2aCardProvUrl.trim();
+        }
+
+        const adhocCommands = [];
+        for (const c of (this._a2aCommands || [])) {
+            const source = c.source || 'builtin';
+            if (source === 'config') {
+                // Persist full config-type entries
+                adhocCommands.push({
+                    node: c.node,
+                    name: c.name,
+                    description: c.description || '',
+                    source: 'config',
+                    enabled: c.enabled !== false,
+                    form_fields: Array.isArray(c.form_fields) ? c.form_fields : [],
+                    response_template: c.response_template || {},
+                });
+            } else if (c.enabled === false) {
+                // Persist disabled state for builtin/plugin to override default-on behaviour
+                adhocCommands.push({
+                    node: c.node,
+                    name: c.name,
+                    source: source,
+                    enabled: false,
+                });
+            }
+            // Otherwise (builtin/plugin enabled): rely on backend default-on, do not persist
+        }
+
+        return {
+            agent_card: agentCard,
+            adhoc_commands: adhocCommands,
+        };
     }
 }
