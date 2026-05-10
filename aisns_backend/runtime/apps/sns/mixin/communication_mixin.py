@@ -914,7 +914,7 @@ talk_to_a_people
         command = ("start_talk_to_it", nationid, content)
         self.send_msg_to_map(command)
         if round <= 1:
-            logger.info("First round of conversation with %s, delaying send_msg_to_map and sendMessage by 5s", account)
+            logger.info("First round of conversation, delaying send_msg_to_map and sendMessage by 5s")
 
             async def _delayed_first_message():
                 await asyncio.sleep(5)

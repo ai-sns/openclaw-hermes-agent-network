@@ -66,7 +66,7 @@ class XmppMixin:
                 logger.warning(f"Invalid message event: content={content}, from={from_str}")
                 return
 
-            logger.info(f"Received message from {from_str}: {content[:50]}...")
+
 
             # Default message processing flow
             await self.handle_receiveMessage(content, from_str)

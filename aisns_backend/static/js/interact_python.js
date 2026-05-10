@@ -235,7 +235,7 @@ function connectWebSocket() {
 
     websocket.onopen = function () {
         console.log("WebSocket connected successfully with clientId:", clientId);
-        websocket.send(JSON.stringify({"NAME": "CJROK"}));
+        websocket.send(JSON.stringify({"map_connect_status": "Map WebSocket connected successfully"}));
     };
 
     websocket.onmessage = function (event) {

@@ -295,7 +295,7 @@ class XMPPClient(slixmpp.ClientXMPP):
                 logger.warning("Ignoring message from invalid XMPP account: %s", from_jid)
                 return
 
-            logger.info(f"Received message from {from_jid}: {body}")
+            logger.info(f"Received message from {from_jid}: {body[:30]}")
 
             # Save to database first so the incoming message gets an earlier
             # create_time than any response the engine may generate.

@@ -57,7 +57,7 @@ class UIDisplayMixin:
         asyncio.create_task(self._send_to_frontend('process', ongoing_process, section='ongoing'))
 
         # self.plan_edit.setPlainText(combined_content)
-        print("write_on_going_process_to_pane")
+        logger.info("write_on_going_process_to_pane")
 
     def get_on_going_process(self):
         """
@@ -360,7 +360,7 @@ class UIDisplayMixin:
         async def send_message():
             try:
                 await websocket_manager.broadcast(message)
-                logger.info(f"Command sent to map: {command}, param_1={param_1}, param_2={param_2}")
+                logger.info(f"Command sent to map: {command}, param_1={param_1[0:10]}..., param_2={param_2[0:10]}...")
             except Exception as e:
                 logger.error(f"Failed to send command to map: {e}")
 
@@ -402,7 +402,7 @@ class UIDisplayMixin:
             try:
                 # Send to map
                 await websocket_manager.broadcast(map_msg)
-                logger.info(f"Chat messages sent from {fromuser} to {touser}: {message}")
+                logger.info(f"Send messages to map from {fromuser} to {touser}: {message[:10]}...")
             except Exception as e:
                 logger.error(f"Failed to send chat messages: {e}")
 
@@ -477,11 +477,11 @@ class UIDisplayMixin:
         """
         action, param_1, param_2 = command
         if action == "Use skills":
-            print(f"Executing skill: {param_1}")
+            logger.info(f"Send skill to map: {param_1}")
 
             self.send_command_to_map(action, param_1, param_2)
         else:
-            print(f"Executing action: {action}")
+            logger.info(f"Send action to map: {action}")
 
             self.send_command_to_map(action, param_1, param_2)
 

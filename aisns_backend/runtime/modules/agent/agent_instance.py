@@ -1291,7 +1291,12 @@ IMPORTANT Tool Usage Guidelines:
             # Prepare tools
             tools = self._prepare_tools_schema() if effective_use_tools else []
 
+            # print("[info]:Message Send to llm:", messages)
+            """
+            You can print the message sent to llm here.
             print("[info]:Message Send to llm:", messages)
+            """
+            logger.info(f"Message Sent to llm")
 
             # Call LLM
             kwargs = self._build_llm_kwargs(stream=False, show_token_usage=show_token_usage)

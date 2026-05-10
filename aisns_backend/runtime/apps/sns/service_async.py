@@ -1344,7 +1344,7 @@ class SNSService:
             }
 
         try:
-            logger.info("submit_agent_instruction received: %s", raw_instruction[:200])
+            logger.info("submit_agent_instruction received: %s", raw_instruction[:20])
         except Exception:
             pass
 

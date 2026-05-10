@@ -43,10 +43,19 @@ def cleanup_old_backend_logs(*, retention_days: int) -> dict:
     failed = 0
 
     logger.info(
-        "Backend log cleanup starting: retention_days=%s root=%s cutoff=%s",
-        days,
-        str(root),
-        cutoff.strftime("%Y-%m-%d %H:%M:%S"),
+        "Backend log cleanup starting: retention_days=%s",
+        days
+    )
+
+    logger.info(
+        "Backend log cleanup starting: root=%s",
+        str(root)
+    )
+
+
+    logger.info(
+        "Backend log cleanup starting: cutoff=%s",
+        cutoff.strftime("%Y-%m-%d %H:%M:%S")
     )
 
     try:

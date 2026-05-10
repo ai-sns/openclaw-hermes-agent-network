@@ -888,7 +888,13 @@ class AISocialEngine(
         return None, None
 
     def handle_parse_agent_instruction_for_process_activity(self, instruction):
+
+        logger.info("llm return instruction")
+        """
+        You can print the full instruction here.
         print("llm return instruction:", instruction)
+        """
+
         instruction = instruction.strip()
         self.current_task_list = self.get_current_task_list(instruction)
         action_str = self.get_next_action(instruction)

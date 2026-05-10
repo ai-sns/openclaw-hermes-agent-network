@@ -117,8 +117,12 @@ class DataQueryMixin:
                     setattr(self, "_cached_people_list_value", data)
                 except Exception:
                     pass
-        logger.info("loading pesons...")
+        logger.info("loading pesons in get_people_list")
+        """
+        You can print the full data list here.
         logger.info(data)
+        """
+
 
         remove_id = ((self.user_map_setting or {}).get("nationid") or "").strip()
         if not remove_id:
@@ -272,8 +276,7 @@ class DataQueryMixin:
 
         user_map_setting = query_AISnsCfg_map_setting()
         self.user_map_setting = user_map_setting
-        print("self.aisns_cfg_record", self.aisns_cfg_record.current_position)
-        print("self.aisns_cfg_recordprofile", self.aisns_cfg_record.sign)
+
 
         # Check rebirth condition for existing negative data loaded from DB
         self.check_and_handle_rebirth()
