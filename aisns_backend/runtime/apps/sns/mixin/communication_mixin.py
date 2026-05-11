@@ -361,16 +361,10 @@ class CommunicationMixin:
         except Exception:
             pass
 
-        try:
-            self.current_talk_people = {
-                "nation_id": nation_id,
-                "account": account,
-                "nick_name": nick_name,
-                "talk_round": 0,
-            }
-        except Exception:
-            pass
-
+        # Start active conversation first; if this switches away from a stale
+        # active account it will call end_active_conversation, which resets
+        # self.current_talk_people. So we set current_talk_people AFTERWARDS to
+        # ensure the direction='incoming' flag is preserved.
         try:
             self.start_active_conversation(
                 talk_type=talk_type,
@@ -381,11 +375,44 @@ class CommunicationMixin:
             pass
 
         try:
+            self.current_talk_people = {
+                "nation_id": nation_id,
+                "account": account,
+                "nick_name": nick_name,
+                "talk_round": 0,
+                "direction": "incoming",
+            }
+        except Exception:
+            pass
+
+        try:
             if nation_id and hasattr(self, "send_msg_to_map"):
                 # Use incoming_talk_to_me: moves sender's avatar to south of me
                 self.send_msg_to_map(("incoming_talk_to_me", nation_id, ""))
         except Exception:
             pass
+
+        # Delayed chat bubble: show after avatar has moved and camera settled.
+        # 5.5s covers both Google (2.8s camera) and Baidu (4.5s camera) timelines.
+        try:
+            _bubble_account = account
+            _bubble_content = content
+            _bubble_self = self
+
+            async def _delayed_inbox_bubble():
+                try:
+                    await asyncio.sleep(5.5)
+                    _bubble_self.send_talk_message(
+                        _bubble_account,
+                        _bubble_self.aisns_cfg.account,
+                        _bubble_content,
+                    )
+                except Exception:
+                    logger.exception("Delayed inbox bubble failed")
+
+            asyncio.create_task(_delayed_inbox_bubble())
+        except Exception:
+            logger.warning("Failed to schedule delayed inbox bubble")
 
         # Broadcast engine status to ensure frontend button shows "Pause"
         try:
@@ -908,42 +935,14 @@ talk_to_a_people
         except Exception:
             round = 1
 
-        # First round of a new conversation: delay 3s so frontend has time to
-        # move the 3D person model before the chat bubble appears.
-        # Subsequent rounds (review replies) send immediately.
-        command = ("start_talk_to_it", nationid, content)
-        self.send_msg_to_map(command)
-        if round <= 1:
-            logger.info("First round of conversation, delaying send_msg_to_map and sendMessage by 5s")
+        # Check if this is an incoming conversation (initiated by the other person).
+        # If so, positions are already set by incoming_talk_to_me; do NOT send
+        # start_talk_to_it which would move my avatar south of sender.
+        is_incoming = (isinstance(self.current_talk_people, dict)
+                       and self.current_talk_people.get("direction") == "incoming")
 
-            async def _delayed_first_message():
-                await asyncio.sleep(5)
-                ok = self.sendMessage(content, False, account, user_name)
-                if ok is False:
-                    resume_ask_content = ""
-                    try:
-                        resume_ask_content = self.taskmng.get_current_objective() or ""
-                    except Exception:
-                        resume_ask_content = ""
-                    try:
-                        self.end_active_conversation(
-                            reason="send_failed",
-                            message="Failed to send message. Skipping.",
-                            resume_activity=True,
-                            resume_ask_content=resume_ask_content,
-                        )
-                    except Exception:
-                        pass
-
-            try:
-                prev = getattr(self, "_conversation_first_message_task", None)
-                if isinstance(prev, asyncio.Task) and not prev.done():
-                    prev.cancel()
-            except Exception:
-                pass
-            self._conversation_first_message_task = asyncio.create_task(_delayed_first_message())
-        else:
-
+        if is_incoming:
+            # Incoming conversation: send XMPP reply directly, no position change.
             ok = self.sendMessage(content, False, account, user_name)
             if ok is False:
                 resume_ask_content = ""
@@ -960,6 +959,59 @@ talk_to_a_people
                     )
                 except Exception:
                     pass
+        else:
+            # Outgoing conversation: move my avatar south of target.
+            # First round: delay 5s so frontend has time to move the 3D person model
+            # before the chat bubble appears. Subsequent rounds send immediately.
+            command = ("start_talk_to_it", nationid, content)
+            self.send_msg_to_map(command)
+            if round <= 1:
+                logger.info("First round of conversation, delaying send_msg_to_map and sendMessage by 5s")
+
+                async def _delayed_first_message():
+                    await asyncio.sleep(5)
+                    ok = self.sendMessage(content, False, account, user_name)
+                    if ok is False:
+                        resume_ask_content = ""
+                        try:
+                            resume_ask_content = self.taskmng.get_current_objective() or ""
+                        except Exception:
+                            resume_ask_content = ""
+                        try:
+                            self.end_active_conversation(
+                                reason="send_failed",
+                                message="Failed to send message. Skipping.",
+                                resume_activity=True,
+                                resume_ask_content=resume_ask_content,
+                            )
+                        except Exception:
+                            pass
+
+                try:
+                    prev = getattr(self, "_conversation_first_message_task", None)
+                    if isinstance(prev, asyncio.Task) and not prev.done():
+                        prev.cancel()
+                except Exception:
+                    pass
+                self._conversation_first_message_task = asyncio.create_task(_delayed_first_message())
+            else:
+
+                ok = self.sendMessage(content, False, account, user_name)
+                if ok is False:
+                    resume_ask_content = ""
+                    try:
+                        resume_ask_content = self.taskmng.get_current_objective() or ""
+                    except Exception:
+                        resume_ask_content = ""
+                    try:
+                        self.end_active_conversation(
+                            reason="send_failed",
+                            message="Failed to send message. Skipping.",
+                            resume_activity=True,
+                            resume_ask_content=resume_ask_content,
+                        )
+                    except Exception:
+                        pass
 
         if account not in self.talk_history:
             self.talk_history[account] = []

@@ -814,7 +814,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         a2a_mgr,
         peer_jid: str,
         commands: list,
-        per_cmd_timeout: float = 5.0,
+        per_cmd_timeout: float = 10.0,
     ) -> None:
         """Probe each discovered ad-hoc command for its XEP-0004 form schema.
 
@@ -841,6 +841,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                         command_node=node,
                         form_data=None,
                         inspect_only=True,
+                        timeout_per_resource=4.0,
                     ),
                     timeout=per_cmd_timeout,
                 )
@@ -1106,6 +1107,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         *,
         max_calls: int = 3,
         per_call_timeout: float = 30.0,
+        adhoc_timeout_per_resource: float = 12.0,
     ):
         """Parse remote agent response for a2a_call JSON, validate, execute locally.
 
@@ -1165,7 +1167,9 @@ I am participating in a virtual social game based on Google Maps. Players role-p
             try:
                 result = await asyncio.wait_for(
                     a2a_mgr.call_adhoc_command(
-                        req_item["peer_jid"], node, form_data=req_item["form_data"]
+                        req_item["peer_jid"], node,
+                        form_data=req_item["form_data"],
+                        timeout_per_resource=adhoc_timeout_per_resource,
                     ),
                     timeout=per_call_timeout,
                 )

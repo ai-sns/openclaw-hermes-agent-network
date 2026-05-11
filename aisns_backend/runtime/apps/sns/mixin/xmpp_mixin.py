@@ -103,12 +103,6 @@ class XmppMixin:
             except Exception:
                 active_account = ""
 
-            # Send chat message to UI
-            try:
-                self.send_talk_message(account, self.aisns_cfg.account, content)
-            except Exception as e:
-                logger.error(f"Failed to send talk message to UI: {e}")
-
             # Manage chat history
             if account not in self.talk_history:
                 self.talk_history[account] = []
@@ -118,6 +112,12 @@ class XmppMixin:
 
             is_active_peer = bool(active_account) and active_account == account
             if is_active_peer:
+                # Show chat bubble immediately for active peer (avatar already positioned)
+                try:
+                    self.send_talk_message(account, self.aisns_cfg.account, content)
+                except Exception as e:
+                    logger.error(f"Failed to send talk message to UI: {e}")
+
                 self.current_talk_history.append("Friend:" + content)
                 try:
                     if hasattr(self, "_touch_conversation_activity"):

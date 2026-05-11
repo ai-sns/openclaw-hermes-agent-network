@@ -537,6 +537,7 @@ class XMPPA2AManager:
         command_node: str,
         form_data: Optional[Dict[str, Any]] = None,
         inspect_only: bool = False,
+        timeout_per_resource: float = 20.0,
     ) -> dict:
         """
         Invoke any XEP-0050 ad-hoc command on a peer — fully generic.
@@ -582,18 +583,35 @@ class XMPPA2AManager:
             try:
                 result = await asyncio.wait_for(
                     self._call_adhoc_impl(resolved_jid, command_node, form_data, inspect_only),
-                    timeout=300,
+                    timeout=timeout_per_resource,
                 )
                 return result
             except asyncio.TimeoutError:
-                logger.warning("[XMPP-A2A] call_adhoc: TIMEOUT (300s) peer=%s node=%s", resolved_jid, command_node)
-                last_error = {"ok": False, "error": "timeout", "detail": "XMPP ad-hoc command timed out (300s)"}
-                break  # timeout is fatal, do not retry
+                logger.warning(
+                    "[XMPP-A2A] call_adhoc: TIMEOUT (%.0fs) peer=%s node=%s (attempt %d/%d)",
+                    timeout_per_resource, resolved_jid, command_node, idx + 1, len(candidates),
+                )
+                last_error = {"ok": False, "error": "timeout", "detail": f"XMPP ad-hoc command timed out ({timeout_per_resource:.0f}s)"}
+                # Timeout is retryable — resource may not support commands
+                if idx < len(candidates) - 1:
+                    logger.info(
+                        "[XMPP-A2A] call_adhoc: resource %s timed out, trying next resource",
+                        resolved_jid,
+                    )
+                    continue
+                break
             except Exception as e:
                 if IqTimeout is not None and isinstance(e, IqTimeout):
                     logger.warning("[XMPP-A2A] call_adhoc: IQ timeout peer=%s node=%s", resolved_jid, command_node)
                     last_error = {"ok": False, "error": "peer_unreachable", "detail": "IQ timeout (peer offline or unresponsive)"}
-                    break  # IQ timeout is fatal
+                    # IQ timeout is retryable — resource may not support commands
+                    if idx < len(candidates) - 1:
+                        logger.info(
+                            "[XMPP-A2A] call_adhoc: resource %s IQ timeout, trying next resource",
+                            resolved_jid,
+                        )
+                        continue
+                    break
                 if IqError is not None and isinstance(e, IqError):
                     cond = "unknown"
                     try:

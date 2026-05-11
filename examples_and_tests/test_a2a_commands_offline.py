@@ -488,6 +488,23 @@ def test_tool_executor_has_path_import() -> None:
     assert_true(ToolPath is RealPath, "tool_executor.Path must be pathlib.Path")
 
 
+@test
+def test_call_adhoc_command_has_timeout_per_resource_param() -> None:
+    """call_adhoc_command must accept timeout_per_resource for per-resource timeout control."""
+    import inspect
+    from runtime.apps.sns.xmpp_a2a import XMPPA2AManager
+
+    sig = inspect.signature(XMPPA2AManager.call_adhoc_command)
+    params = list(sig.parameters.keys())
+    assert_true("timeout_per_resource" in params,
+                "call_adhoc_command must have timeout_per_resource parameter")
+    default = sig.parameters["timeout_per_resource"].default
+    assert_true(isinstance(default, (int, float)) and default > 0,
+                f"timeout_per_resource default must be a positive number, got {default}")
+    assert_true(default <= 30,
+                f"timeout_per_resource default should be <=30s for fast fallback, got {default}")
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 #  Main runner
 # ═══════════════════════════════════════════════════════════════════════════

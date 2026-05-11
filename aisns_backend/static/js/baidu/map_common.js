@@ -702,15 +702,31 @@ function incoming_talk_to_me(nation_id) {
         map.setTilt(60);
     }, 4500);
 
-    // Load sender's 3D model
-    loadModel(person_sender);
-
     // Move sender's avatar to south of me (my_lat - 0.01)
     var sender_new_point = new BMapGL.Point(my_point.lng, my_point.lat - 0.01);
-    setPersonModelPointByNationId(nation_id, sender_new_point);
     setPersonPointByNationId(nation_id, sender_new_point.lng, sender_new_point.lat);
 
-    // Rotate sender's model to face north (toward me)
+    // Load sender's 3D model after updating data position, then move it when ready.
+    loadModel(person_sender);
+
+    (function __moveIncomingSenderModelWhenReady(retriesLeft) {
+        try {
+            if (model_loaded_list && model_loaded_list[nation_id]) {
+                setPersonModelPointByNationId(nation_id, sender_new_point);
+                rotateModelToFaceNorthByNationId(nation_id);
+                return;
+            }
+        } catch (e) {
+            console.warn('incoming_talk_to_me model move retry failed:', e);
+        }
+        if (retriesLeft > 0) {
+            setTimeout(function () {
+                __moveIncomingSenderModelWhenReady(retriesLeft - 1);
+            }, 200);
+        }
+    })(40);
+
+    // Rotate sender's model to face north (toward me), with its own retry loop.
     rotateModelToFaceNorthByNationId(nation_id);
 
     // Hide sender's marker/point

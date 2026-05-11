@@ -3178,15 +3178,31 @@ function incoming_talk_to_me(nation_id) {
         map.setHeading(270);
     }, 2800);
 
-    // Load sender's 3D model
-    loadModel(person_sender);
-
     // Move sender's avatar to south of me (my_lat - 0.005)
     var sender_new_point = new google.maps.LatLng(my_point.lat() - 0.005, my_point.lng());
-    setPersonModelPointByNationId(__nationId, sender_new_point);
     setPersonPointByNationId(__nationId, sender_new_point.lng(), sender_new_point.lat());
 
-    // Rotate sender's model to face north (toward me)
+    // Load sender's 3D model after updating data position, then move it when ready.
+    loadModel(person_sender);
+
+    (function __moveIncomingSenderModelWhenReady(retriesLeft) {
+        try {
+            if (model_loaded_list && model_loaded_list[__nationId]) {
+                setPersonModelPointByNationId(__nationId, sender_new_point);
+                rotateModelToFaceNorthByNationId(__nationId);
+                return;
+            }
+        } catch (e) {
+            console.warn('incoming_talk_to_me model move retry failed:', e);
+        }
+        if (retriesLeft > 0) {
+            setTimeout(function () {
+                __moveIncomingSenderModelWhenReady(retriesLeft - 1);
+            }, 200);
+        }
+    })(40);
+
+    // Rotate sender's model to face north (toward me), with its own retry loop.
     rotateModelToFaceNorthByNationId(__nationId);
 }
 
