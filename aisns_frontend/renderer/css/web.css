@@ -96,7 +96,6 @@
     padding: 0.875rem 1rem;
     min-height: 48px;
     cursor: pointer;
-    user-select: none;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border-color);
     transition: background 0.2s ease;

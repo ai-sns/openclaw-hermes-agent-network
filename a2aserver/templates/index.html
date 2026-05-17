@@ -40,10 +40,13 @@
         }
         .toast.success { background: #059669; color: #fff; }
         .toast.error { background: #dc2626; color: #fff; }
+        .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; }
-        th { color: #94a3b8; font-weight: 500; }
-        td { color: #e2e8f0; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; vertical-align: top; }
+        th { color: #94a3b8; font-weight: 500; white-space: nowrap; }
+        td { color: #e2e8f0; word-break: break-all; }
+        td.col-time, th.col-time { white-space: nowrap; word-break: normal; }
+        td.col-actions, th.col-actions { white-space: nowrap; word-break: normal; }
         .empty-msg { color: #64748b; text-align: center; padding: 24px; }
         .badge { display: inline-block; padding: 2px 8px; background: #1e293b; border-radius: 4px; font-size: 11px; color: #94a3b8; }
     </style>
@@ -104,35 +107,40 @@
 
         <h2>Received Cards <span class="badge" id="cardCount">0</span></h2>
         <div class="card">
-            <table id="receivedTable">
-                <thead>
-                    <tr>
-                        <th>Name</th><th>Company</th><th>Title</th>
-                        <th>Email</th><th>XMPP</th><th>Received</th><th></th>
-                    </tr>
-                </thead>
-                <tbody id="receivedBody">
-                    <tr><td colspan="7" class="empty-msg">No cards received yet</td></tr>
-                </tbody>
-            </table>
+            <div class="table-wrap">
+                <table id="receivedTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th><th>Company</th><th>Title</th>
+                            <th>Email</th><th>XMPP</th>
+                            <th class="col-time">Received</th><th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="receivedBody">
+                        <tr><td colspan="7" class="empty-msg">No cards received yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
         <h2>Greeting History <span class="badge" id="greetCount">0</span></h2>
         <div class="card">
-            <table id="greetTable">
-                <thead>
-                    <tr>
-                        <th>Sender JID</th>
-                        <th>Their Greeting</th>
-                        <th>My Greeting</th>
-                        <th>Time</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="greetBody">
-                    <tr><td colspan="5" class="empty-msg">No greeting records yet</td></tr>
-                </tbody>
-            </table>
+            <div class="table-wrap">
+                <table id="greetTable">
+                    <thead>
+                        <tr>
+                            <th>Sender JID</th>
+                            <th>Their Greeting</th>
+                            <th>My Greeting</th>
+                            <th class="col-time">Time</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="greetBody">
+                        <tr><td colspan="5" class="empty-msg">No greeting records yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
@@ -211,8 +219,8 @@
                             <td>${esc(c.title)}</td>
                             <td>${esc(c.email)}</td>
                             <td>${esc(c.xmpp || c.sender_jid)}</td>
-                            <td>${esc(c.received_at || '')}</td>
-                            <td><button class="btn btn-danger btn-sm" onclick="deleteCard(${c.id})">Delete</button></td>
+                            <td class="col-time">${esc(formatTime(c.received_at))}</td>
+                            <td class="col-actions"><button class="btn btn-danger btn-sm" onclick="deleteCard(${c.id})">Delete</button></td>
                         </tr>
                     `).join('');
                 } else {
@@ -247,6 +255,18 @@
             return d.innerHTML;
         }
 
+        // Normalize ISO-like timestamps to 'YYYY-MM-DD HH:MM:SS':
+        //   replace the 'T' separator with a space and drop any fractional
+        //   seconds / timezone suffix. Falls back to the raw string if it
+        //   does not match the expected shape.
+        function formatTime(s) {
+            if (!s) return '';
+            const str = String(s);
+            const m = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+            if (m) return m[1] + ' ' + m[2];
+            return str.replace('T', ' ');
+        }
+
         async function loadGreetings() {
             try {
                 const res = await fetch('/api/greetings');
@@ -261,8 +281,8 @@
                             <td>${esc(g.sender_jid)}</td>
                             <td>${esc(g.sender_greeting)}</td>
                             <td>${esc(g.my_greeting)}</td>
-                            <td>${esc(g.created_at || '')}</td>
-                            <td><button class="btn btn-danger btn-sm" onclick="deleteGreeting(${g.id})">Delete</button></td>
+                            <td class="col-time">${esc(formatTime(g.created_at))}</td>
+                            <td class="col-actions"><button class="btn btn-danger btn-sm" onclick="deleteGreeting(${g.id})">Delete</button></td>
                         </tr>
                     `).join('');
                 } else {

@@ -73,11 +73,13 @@ class TestA2APeer(slixmpp.ClientXMPP):
         my_card: Dict[str, str],
         response_text: str,
         result_echo: bool,
+        a2a_url: str,
     ):
         super().__init__(jid, password)
         self.my_card = my_card
         self.response_text = response_text
         self.result_echo = result_echo
+        self.a2a_url = a2a_url
         self._shutdown_event: Optional[asyncio.Event] = None
         self._session_ready = asyncio.Event()
         self._registered_features: List[str] = []
@@ -343,29 +345,29 @@ class TestA2APeer(slixmpp.ClientXMPP):
                     for field_name in CARD_FIELDS
                 ],
             },
-            {
-                "node": A2A_ADHOC_GREETING_NODE,
-                "name": "Greeting Exchange",
-                "description": (
-                    "Exchange friendly greetings between agents. "
-                    "Supports: handshake, hug, bow, high_five, fist_bump, nod, wave. "
-                    "Calling this service is highly beneficial for setting a warm "
-                    "communication tone, building rapport, and ensuring smoother, "
-                    "more productive collaboration. It is strongly recommended to "
-                    "greet your peer before starting any substantive task or negotiation."
-                ),
-                "handler": self._handle_greeting_command,
-                "source": "test_peer",
-                "form_fields": [
-                    {
-                        "var": "greeting_type",
-                        "type": "list-single",
-                        "label": "Greeting Type (leave empty for random)",
-                        "default": "",
-                        "options": list(GREETING_TYPES),
-                    }
-                ],
-            },
+            # {
+            #     "node": A2A_ADHOC_GREETING_NODE,
+            #     "name": "Greeting Exchange",
+            #     "description": (
+            #         "Exchange friendly greetings between agents. "
+            #         "Supports: handshake, hug, bow, high_five, fist_bump, nod, wave. "
+            #         "Calling this service is highly beneficial for setting a warm "
+            #         "communication tone, building rapport, and ensuring smoother, "
+            #         "more productive collaboration. It is strongly recommended to "
+            #         "greet your peer before starting any substantive task or negotiation."
+            #     ),
+            #     "handler": self._handle_greeting_command,
+            #     "source": "test_peer",
+            #     "form_fields": [
+            #         {
+            #             "var": "greeting_type",
+            #             "type": "list-single",
+            #             "label": "Greeting Type (leave empty for random)",
+            #             "default": "",
+            #             "options": list(GREETING_TYPES),
+            #         }
+            #     ],
+            # },
         ]
         for command in commands:
             try:
@@ -442,7 +444,7 @@ class TestA2APeer(slixmpp.ClientXMPP):
         agent_card = {
             "name": name,
             "description": "An agent that exposes A2A ad-hoc commands for testing.",
-            "url": "http://localhost:8789/a2a/",
+            "url": self.a2a_url,
             "version": "1.0.0",
             "protocolVersion": "0.3",
             "capabilities": {
@@ -467,6 +469,59 @@ class TestA2APeer(slixmpp.ClientXMPP):
                 "source": command.get("source", ""),
                 "form_fields": command.get("form_fields", []),
             })
+
+        # ── Advertise HTTP JSON-RPC greeting service ─────────────────────
+        # The agent at agent_card["url"] also exposes a JSON-RPC endpoint for
+        # greetings. We declare it as a separate skill with transport metadata
+        # so an LLM peer can choose between XMPP ad-hoc and direct HTTP call.
+        jsonrpc_endpoint = agent_card.get("url", "").strip()
+        if jsonrpc_endpoint:
+            agent_card["skills"].append({
+                "id": "greeting-jsonrpc",
+                "name": "Greeting Exchange (HTTP JSON-RPC)",
+                "description": (
+                    "Exchange friendly greetings via HTTP JSON-RPC. "
+                    "POST a JSON-RPC 2.0 request to the endpoint with method "
+                    "'greeting/exchange'. Supports the same 7 greeting types as "
+                    "the XMPP variant: handshake, hug, bow, high_five, fist_bump, "
+                    "nod, wave. Leave greeting_type empty for a random pick. "
+                    "Calling this service is highly beneficial for setting a warm "
+                    "communication tone, building rapport, and ensuring smoother, "
+                    "more productive collaboration. It is strongly recommended to "
+                    "greet your peer before starting any substantive task."
+                ),
+                "transport": "http_jsonrpc",
+                "endpoint": jsonrpc_endpoint,
+                "method": "greeting/exchange",
+                "params_schema": {
+                    "greeting_type": {
+                        "type": "string",
+                        "enum": list(GREETING_TYPES),
+                        "description": "One of the 7 greeting types; omit or empty for random.",
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "properties": {
+                            "sender_jid": {
+                                "type": "string",
+                                "description": "Caller's identifier (JID or any unique string).",
+                            },
+                        },
+                    },
+                },
+                "example_request": {
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "greeting/exchange",
+                    "params": {
+                        "greeting_type": "handshake",
+                        "metadata": {"sender_jid": "alice@example.com"},
+                    },
+                },
+                "tags": ["greeting", "jsonrpc", "http", "icebreaker", "rapport"],
+                "source": "http_jsonrpc",
+            })
+
         self._agent_card = agent_card
         return agent_card
 
@@ -1256,6 +1311,11 @@ def parse_args() -> argparse.Namespace:
         "--no-interactive", action="store_true",
         help="Disable the interactive command console (server-only mode)",
     )
+    parser.add_argument(
+        "--a2a-url",
+        default="http://localhost:8789/a2a/",
+        help="HTTP A2A JSON-RPC endpoint advertised in the agent card",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable verbose slixmpp debug logs")
     return parser.parse_args()
 
@@ -1278,6 +1338,7 @@ async def main() -> int:
         my_card=my_card,
         response_text=args.response_text,
         result_echo=not args.no_echo,
+        a2a_url=args.a2a_url,
     )
 
     # Start the interactive console thread (unless disabled)

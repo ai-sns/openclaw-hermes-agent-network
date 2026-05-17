@@ -130,7 +130,7 @@ body {
     color: var(--text-primary);
     background-color: var(--bg-body);
     overflow: hidden;
-    user-select: none;
+    user-select: text;
 }
 
 a {

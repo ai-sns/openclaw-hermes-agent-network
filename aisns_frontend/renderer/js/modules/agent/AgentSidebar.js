@@ -827,11 +827,7 @@ const AgentSidebar = {
             }
         });
 
-        dialog.addEventListener('click', async (e) => {
-            if (e.target === dialog) {
-                await this.closeAgentManageDialog();
-            }
-        });
+        // Clicking the overlay no longer closes the dialog to prevent accidental dismissal
     },
 
     async closeAgentManageDialog() {

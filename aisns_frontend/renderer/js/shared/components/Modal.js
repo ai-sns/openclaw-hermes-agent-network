@@ -13,7 +13,7 @@ class Modal {
         this.confirmText = options.confirmText || 'Confirm';
         this.cancelText = options.cancelText || 'Cancel';
         this.showCancel = options.showCancel !== false;
-        this.closeOnClickOutside = options.closeOnClickOutside !== false; // Allow clicking outside to close by default
+        this.closeOnClickOutside = options.closeOnClickOutside === true; // Disable clicking outside to close by default
         this.width = options.width || '500px';
         this.element = null;
         this.handleKeydown = null;

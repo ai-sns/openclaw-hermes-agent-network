@@ -1,10 +1,12 @@
 import json
 import os
+import queue
+import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, AsyncIterable, Iterable, Optional
 
 try:
     from fastapi import FastAPI, Request
@@ -373,8 +375,18 @@ async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]
     return {"message": message_obj}
 
 
-def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[str]:
-    """Simulate streaming for LangChain (non-streaming backend, emit single SSE frame)."""
+_SENTINEL = object()
+_HEARTBEAT_INTERVAL = 15  # seconds between SSE keep-alive comments
+
+
+async def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> AsyncIterable[str]:
+    """Async SSE generator with heartbeat keep-alive.
+
+    LangChain / DeepAgents execution runs in a background thread.  While it
+    blocks, this generator sends SSE comment lines (``: heartbeat``) every
+    ``_HEARTBEAT_INTERVAL`` seconds so the downstream caller's read-timeout
+    does not fire.
+    """
     if req_id is None:
         return
 
@@ -385,14 +397,44 @@ def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[s
 
         api_key = _resolve_api_key(cfg.langchain.api_key, cfg.langchain.api_key_env)
 
-        assistant_content = _invoke_langchain(
-            base_url=cfg.langchain.base_url,
-            api_key=api_key,
-            model_name=cfg.langchain.model,
-            message=text,
-            backend_root_dir=cfg.langchain.backend_root_dir,
-            virtual_mode=cfg.langchain.virtual_mode,
-        )
+        # Run blocking LangChain execution in a thread; bridge via queue.
+        q: queue.Queue = queue.Queue()
+
+        def _worker() -> None:
+            try:
+                result = _invoke_langchain(
+                    base_url=cfg.langchain.base_url,
+                    api_key=api_key,
+                    model_name=cfg.langchain.model,
+                    message=text,
+                    backend_root_dir=cfg.langchain.backend_root_dir,
+                    virtual_mode=cfg.langchain.virtual_mode,
+                )
+                q.put(result)
+            except Exception as exc:
+                q.put(exc)
+            finally:
+                q.put(_SENTINEL)
+
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+
+        assistant_content = None
+        while True:
+            try:
+                item = q.get(timeout=_HEARTBEAT_INTERVAL)
+            except queue.Empty:
+                yield ": heartbeat\n\n"
+                continue
+
+            if item is _SENTINEL:
+                break
+            if isinstance(item, Exception):
+                raise item
+            assistant_content = item
+
+        if assistant_content is None:
+            raise RuntimeError("LangChain returned no result")
 
         context_id = None
         task_id = None

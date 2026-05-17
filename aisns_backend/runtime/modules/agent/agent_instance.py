@@ -6,6 +6,7 @@ Each agent has its own LLM configuration, role, tools, knowledge bases, and memo
 import logging
 import json
 import asyncio
+import uuid
 from typing import Dict, Any, List, Optional, AsyncIterator
 from datetime import datetime
 import openai
@@ -1060,6 +1061,42 @@ IMPORTANT Tool Usage Guidelines:
                         },
                     },
                 })
+            if 'a2a_jsonrpc_call' not in existing_names:
+                tools_schema.append({
+                    "type": "function",
+                    "function": {
+                        "name": "a2a_jsonrpc_call",
+                        "description": (
+                            "Invoke a peer's HTTP JSON-RPC service directly. "
+                            "Use this when the peer's agent card lists a skill with "
+                            "transport='http_jsonrpc' (it will provide endpoint, method, "
+                            "and params_schema fields). The tool wraps the request in "
+                            "JSON-RPC 2.0 envelope and returns the parsed response. "
+                            "Example skill in card: greeting-jsonrpc with method "
+                            "'greeting/exchange' — call with endpoint=<skill.endpoint>, "
+                            "method=<skill.method>, params={greeting_type:'handshake', "
+                            "metadata:{sender_jid:'<your jid>'}}."
+                        ),
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "endpoint": {
+                                    "type": "string",
+                                    "description": "Full URL of the JSON-RPC endpoint (from skill.endpoint or agent_card.url, e.g. http://localhost:8789/a2a/)",
+                                },
+                                "method": {
+                                    "type": "string",
+                                    "description": "JSON-RPC method name (e.g. 'greeting/exchange', 'tasks/send')",
+                                },
+                                "params": {
+                                    "type": "object",
+                                    "description": "JSON-RPC params object — fill according to the skill's params_schema",
+                                },
+                            },
+                            "required": ["endpoint", "method"],
+                        },
+                    },
+                })
         except Exception:
             pass
 
@@ -1116,6 +1153,10 @@ IMPORTANT Tool Usage Guidelines:
             # Handle generic XMPP ad-hoc command invocation
             if tool_name == 'a2a_xmpp_adhoc':
                 return await self._execute_a2a_xmpp_adhoc(tool_args or {})
+
+            # Handle generic HTTP JSON-RPC peer invocation
+            if tool_name == 'a2a_jsonrpc_call':
+                return await self._execute_a2a_jsonrpc_call(tool_args or {})
 
             # Check whether this is a code execution request
             if tool_name == 'execute_python_code' and self.code_executor:
@@ -1191,6 +1232,81 @@ IMPORTANT Tool Usage Guidelines:
             form_data=form_data,
             inspect_only=inspect_only,
         )
+        return json.dumps(result, ensure_ascii=False)
+
+    async def _execute_a2a_jsonrpc_call(self, tool_args: Dict[str, Any]) -> str:
+        """
+        Execute a JSON-RPC 2.0 call against a peer's HTTP endpoint.
+
+        Wraps the request in a standard JSON-RPC envelope and POSTs it.
+        Returns the raw response body as a JSON-serialized string so the LLM
+        can read either the result or the error directly.
+        """
+        endpoint = str(tool_args.get('endpoint') or '').strip()
+        method = str(tool_args.get('method') or '').strip()
+        params = tool_args.get('params')
+
+        if not endpoint:
+            return json.dumps({"ok": False, "error": "'endpoint' is required"}, ensure_ascii=False)
+        if not method:
+            return json.dumps({"ok": False, "error": "'method' is required"}, ensure_ascii=False)
+        if params is not None and not isinstance(params, dict):
+            return json.dumps({"ok": False, "error": "'params' must be an object"}, ensure_ascii=False)
+
+        rpc_id = uuid.uuid4().hex[:12]
+        envelope = {
+            "jsonrpc": "2.0",
+            "id": rpc_id,
+            "method": method,
+            "params": params or {},
+        }
+
+        logger.info(
+            "[A2A-JSONRPC] tool call: endpoint=%s method=%s params_keys=%s",
+            endpoint, method, list((params or {}).keys()),
+        )
+
+        def _do_post() -> Dict[str, Any]:
+            import urllib.request
+            import urllib.error
+            body = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
+            req = urllib.request.Request(
+                endpoint,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    raw = resp.read().decode("utf-8", errors="replace")
+            except urllib.error.HTTPError as he:
+                try:
+                    raw = he.read().decode("utf-8", errors="replace")
+                except Exception:
+                    raw = ""
+                return {
+                    "ok": False,
+                    "error": f"HTTP {he.code}: {he.reason}",
+                    "body": raw,
+                }
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+
+            try:
+                parsed = json.loads(raw)
+            except Exception:
+                return {"ok": True, "raw": raw}
+
+            if isinstance(parsed, dict) and "error" in parsed and parsed.get("error"):
+                return {"ok": False, "jsonrpc_error": parsed["error"], "response": parsed}
+            return {"ok": True, "response": parsed}
+
+        try:
+            result = await asyncio.to_thread(_do_post)
+        except Exception as e:
+            logger.error("[A2A-JSONRPC] tool call failed: %s", e, exc_info=True)
+            return json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False)
+
         return json.dumps(result, ensure_ascii=False)
 
     async def chat(

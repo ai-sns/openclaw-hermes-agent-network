@@ -83,7 +83,7 @@ def get_my_card() -> dict:
 def save_my_card(data: dict) -> dict:
     """Save own business card."""
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat(timespec="seconds")
     conn.execute("""
         UPDATE my_card SET
             name = ?, company = ?, title = ?, email = ?,
@@ -118,7 +118,7 @@ def get_received_cards() -> list:
 def add_received_card(card: dict) -> int:
     """Store a received business card. Returns the new row ID."""
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat(timespec="seconds")
     cur = conn.execute("""
         INSERT INTO received_cards
             (sender_jid, name, company, title, email, xmpp, website, phone, memo, raw_json, received_at)
@@ -157,7 +157,7 @@ def delete_received_card(card_id: int) -> bool:
 def add_greeting(sender_jid: str, sender_greeting: str, my_greeting: str) -> int:
     """Store a greeting exchange record. Returns the new row ID."""
     conn = _get_conn()
-    now = datetime.utcnow().isoformat()
+    now = datetime.now().isoformat(timespec="seconds")
     cur = conn.execute("""
         INSERT INTO greetings (sender_jid, sender_greeting, my_greeting, created_at)
         VALUES (?, ?, ?, ?)

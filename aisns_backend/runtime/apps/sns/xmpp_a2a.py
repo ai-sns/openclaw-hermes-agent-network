@@ -924,7 +924,17 @@ class XMPPA2AManager:
 
     @staticmethod
     def _derive_adhoc_node_from_skill(skill: dict) -> Optional[str]:
-        """Derive command node URI from an agent card skill entry."""
+        """Derive command node URI from an agent card skill entry.
+
+        Returns None if the skill is explicitly advertised over a non-XMPP
+        transport (e.g. transport='http_jsonrpc' / 'http' / 'https'). Such
+        skills must NOT be exposed to peers as XMPP ad-hoc commands —
+        otherwise an LLM would try to invoke them via XEP-0050 and the peer
+        would reply with item-not-found.
+        """
+        transport = (skill.get('transport') or '').strip().lower()
+        if transport and transport not in ('xmpp', 'xmpp_adhoc', 'adhoc'):
+            return None
         # Check explicit node fields
         for key in ('xmpp_adhoc_node', 'adhoc_node', 'command_node', 'node'):
             val = skill.get(key)

@@ -315,11 +315,11 @@ class AgentAdapter:
         except Exception:
             pass
 
-        timeout = httpx.Timeout(60.0, read=30.0)
+        timeout = httpx.Timeout(60.0, read=300.0)
         out_parts = []
         seen_content = False
         last_content_ts = time.monotonic()
-        idle_timeout_after_content_seconds = 5.0
+        idle_timeout_after_content_seconds = 120.0
 
         try:
             async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
@@ -366,6 +366,11 @@ class AgentAdapter:
                             continue
                         s = line.strip()
                         if not s:
+                            continue
+                        # SSE comment lines (e.g. ': heartbeat') are keep-alive
+                        # signals from the adapter; reset the idle timer but skip.
+                        if s.startswith(':'):
+                            last_content_ts = now
                             continue
                         if s.startswith('data:'):
                             s = s[5:].strip()
@@ -450,7 +455,7 @@ class AgentAdapter:
         except Exception:
             pass
 
-        timeout = httpx.Timeout(60.0, read=60.0)
+        timeout = httpx.Timeout(60.0, read=300.0)
         try:
             async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                 resp = await client.post(

@@ -326,12 +326,7 @@ const AgentToolsDialog = {
             cancelBtn.addEventListener('click', () => this.close());
         }
 
-        // Click overlay to close (modal-overlay is the dialog container)
-        dialog.addEventListener('click', (e) => {
-            if (e.target.id === 'agentToolsDialog') {
-                this.close();
-            }
-        });
+        // Clicking the overlay no longer closes the dialog to prevent accidental data loss
 
         // Tab switch
         dialog.querySelectorAll('.tab-btn').forEach(btn => {

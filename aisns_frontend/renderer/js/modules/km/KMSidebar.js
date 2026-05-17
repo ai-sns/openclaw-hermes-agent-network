@@ -832,11 +832,7 @@ const KMSidebar = {
             }
         });
 
-        dialog.addEventListener('click', async (e) => {
-            if (e.target === dialog) {
-                await this.closeKMManageDialog();
-            }
-        });
+        // Clicking the overlay no longer closes the dialog to prevent accidental dismissal
     },
 
     async closeKMManageDialog() {
@@ -1073,11 +1069,7 @@ const KMSidebar = {
             backdrop.remove();
         });
 
-        backdrop.addEventListener('click', (e) => {
-            if (e.target === backdrop) {
-                backdrop.remove();
-            }
-        });
+        // Clicking the backdrop no longer closes the panel to prevent accidental dismissal
     },
 
     /**

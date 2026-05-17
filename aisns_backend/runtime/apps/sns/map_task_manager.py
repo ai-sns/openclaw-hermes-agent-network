@@ -916,6 +916,47 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 "  })"
             )
 
+        # HTTP JSON-RPC transport — list any skills declaring transport=http_jsonrpc
+        try:
+            jsonrpc_skills = [
+                s for s in (card.get("skills") or [])
+                if isinstance(s, dict) and str(s.get("transport", "")).lower() == "http_jsonrpc"
+            ]
+        except Exception:
+            jsonrpc_skills = []
+        if jsonrpc_skills:
+            parts.append(
+                "Option C — HTTP JSON-RPC (peer declares one or more skills with transport='http_jsonrpc'):\n"
+                "Use a2a_jsonrpc_call to invoke these directly. The tool wraps your params in a JSON-RPC 2.0 envelope.\n"
+                "Usage:\n"
+                '  a2a_jsonrpc_call(endpoint="<skill.endpoint>", method="<skill.method>", params={...})'
+            )
+            for sk in jsonrpc_skills:
+                sid = sk.get("id", "")
+                sname = sk.get("name", "")
+                ep = sk.get("endpoint") or a2a_url
+                meth = sk.get("method", "")
+                desc = (sk.get("description") or "").strip()
+                if len(desc) > 200:
+                    desc = desc[:200].rstrip() + "..."
+                parts.append(f'  - id="{sid}" name="{sname}"')
+                if desc:
+                    parts.append(f"      description: {desc}")
+                parts.append(f'      endpoint="{ep}" method="{meth}"')
+                schema = sk.get("params_schema")
+                if isinstance(schema, dict) and schema:
+                    try:
+                        parts.append("      params_schema: " + json.dumps(schema, ensure_ascii=False))
+                    except Exception:
+                        pass
+                example = sk.get("example_request")
+                if isinstance(example, dict) and example:
+                    try:
+                        params_example = example.get("params") or {}
+                        parts.append("      example params: " + json.dumps(params_example, ensure_ascii=False))
+                    except Exception:
+                        pass
+
         # XMPP transport — generic ad-hoc commands
         if has_jid:
             parts.append(
@@ -1098,6 +1139,207 @@ I am participating in a virtual social game based on Google Maps. Players role-p
 
         return (None, -1, -1)
 
+    @staticmethod
+    def _extract_jsonrpc_call_json(raw_response: str):
+        """Extract jsonrpc_call/jsonrpc_calls JSON from remote agent response.
+
+        Returns (parsed_obj, start_idx, end_idx) or (None, -1, -1) if not found.
+        Only matches JSON objects containing 'jsonrpc_call' or 'jsonrpc_calls' keys.
+        """
+        import re as _re
+
+        _JSONRPC_KEYS = {"jsonrpc_call", "jsonrpc_calls"}
+
+        def _has_key(obj):
+            return isinstance(obj, dict) and bool(_JSONRPC_KEYS & set(obj.keys()))
+
+        # Strategy 1: fenced JSON block  ```json ... ``` or ``` ... ```
+        fence_pattern = _re.compile(r'```(?:json)?\s*\n(.*?)\n\s*```', _re.DOTALL)
+        for m in fence_pattern.finditer(raw_response):
+            try:
+                parsed = json.loads(m.group(1))
+                if _has_key(parsed):
+                    return (parsed, m.start(), m.end())
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+        # Strategy 2: balanced { ... } scan
+        i = 0
+        text_len = len(raw_response)
+        while i < text_len:
+            if raw_response[i] == '{':
+                depth = 0
+                j = i
+                in_string = False
+                escape_next = False
+                while j < text_len:
+                    ch = raw_response[j]
+                    if escape_next:
+                        escape_next = False
+                    elif ch == '\\' and in_string:
+                        escape_next = True
+                    elif ch == '"' and not escape_next:
+                        in_string = not in_string
+                    elif not in_string:
+                        if ch == '{':
+                            depth += 1
+                        elif ch == '}':
+                            depth -= 1
+                            if depth == 0:
+                                candidate = raw_response[i:j + 1]
+                                try:
+                                    parsed = json.loads(candidate)
+                                    if _has_key(parsed):
+                                        return (parsed, i, j + 1)
+                                except (json.JSONDecodeError, ValueError):
+                                    pass
+                                break
+                    j += 1
+            i += 1
+
+        return (None, -1, -1)
+
+    async def _execute_remote_jsonrpc_requests(
+        self,
+        raw_response: str,
+        *,
+        max_calls: int = 3,
+        per_call_timeout: float = 30.0,
+    ):
+        """Parse remote agent response for jsonrpc_call JSON, validate, execute locally.
+
+        Returns:
+            (jsonrpc_result_text, cleaned_remote_text) tuple.
+            - jsonrpc_result_text: formatted execution result string, or None.
+            - cleaned_remote_text: raw_response with the jsonrpc JSON block removed.
+        """
+        obj, start, end = self._extract_jsonrpc_call_json(raw_response)
+        if obj is None:
+            return (None, raw_response)
+
+        # Normalize to list of requests
+        if "jsonrpc_calls" in obj and isinstance(obj["jsonrpc_calls"], list):
+            requests = obj["jsonrpc_calls"]
+        elif "jsonrpc_call" in obj and isinstance(obj["jsonrpc_call"], dict):
+            requests = [obj["jsonrpc_call"]]
+        else:
+            return (None, raw_response)
+
+        # Validate each request (basic structural checks only)
+        valid_requests = []
+        for req in requests:
+            if not isinstance(req, dict):
+                logger.info("[A2A-JSONRPC] remote jsonrpc request rejected: not a dict")
+                continue
+            req_endpoint = (req.get("endpoint") or "").strip()
+            req_method = (req.get("method") or "").strip()
+            req_params = req.get("params")
+
+            if not req_endpoint:
+                logger.warning("[A2A-JSONRPC] remote jsonrpc request rejected: empty endpoint")
+                continue
+            if not req_method:
+                logger.warning("[A2A-JSONRPC] remote jsonrpc request rejected: empty method")
+                continue
+            if req_params is not None and not isinstance(req_params, dict):
+                logger.warning("[A2A-JSONRPC] remote jsonrpc request rejected: params is not dict or None")
+                continue
+
+            valid_requests.append({"endpoint": req_endpoint, "method": req_method, "params": req_params})
+            if len(valid_requests) >= max_calls:
+                break
+
+        if not valid_requests:
+            logger.info("[A2A-JSONRPC] remote jsonrpc: no valid requests after validation")
+            return (None, raw_response)
+
+        # Execute via the same HTTP POST logic as _execute_a2a_jsonrpc_call
+        async def _exec_one(req_item):
+            import uuid as _uuid
+            import urllib.request
+            import urllib.error
+
+            endpoint = req_item["endpoint"]
+            method = req_item["method"]
+            params = req_item["params"] or {}
+            rpc_id = _uuid.uuid4().hex[:12]
+            envelope = {
+                "jsonrpc": "2.0",
+                "id": rpc_id,
+                "method": method,
+                "params": params,
+            }
+            logger.info(
+                "[A2A-JSONRPC] remote proxy call: endpoint=%s method=%s",
+                endpoint, method,
+            )
+
+            def _do_post():
+                body = json.dumps(envelope, ensure_ascii=False).encode("utf-8")
+                http_req = urllib.request.Request(
+                    endpoint,
+                    data=body,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+                try:
+                    with urllib.request.urlopen(http_req, timeout=int(per_call_timeout)) as resp:
+                        raw = resp.read().decode("utf-8", errors="replace")
+                except urllib.error.HTTPError as he:
+                    try:
+                        raw = he.read().decode("utf-8", errors="replace")
+                    except Exception:
+                        raw = ""
+                    return {"ok": False, "error": f"HTTP {he.code}: {he.reason}", "body": raw}
+                except Exception as e:
+                    return {"ok": False, "error": str(e)}
+
+                try:
+                    parsed = json.loads(raw)
+                except Exception:
+                    return {"ok": True, "raw": raw}
+
+                if isinstance(parsed, dict) and "error" in parsed and parsed.get("error"):
+                    return {"ok": False, "jsonrpc_error": parsed["error"], "response": parsed}
+                return {"ok": True, "response": parsed}
+
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.to_thread(_do_post),
+                    timeout=per_call_timeout,
+                )
+                logger.info("[A2A-JSONRPC] remote proxy call: method=%s status=ok", method)
+                return {"method": method, "endpoint": endpoint, "status": "ok", "data": result}
+            except asyncio.TimeoutError:
+                logger.warning("[A2A-JSONRPC] remote proxy call: method=%s timeout", method)
+                return {"method": method, "endpoint": endpoint, "status": "error", "error": f"timeout after {per_call_timeout:.0f}s"}
+            except Exception as exc:
+                logger.warning("[A2A-JSONRPC] remote proxy call: method=%s error=%s", method, exc)
+                return {"method": method, "endpoint": endpoint, "status": "error", "error": str(exc)}
+
+        results = await asyncio.gather(*[_exec_one(r) for r in valid_requests])
+
+        # Format result text
+        lines = ["[Local JSON-RPC Proxy Execution Result]"]
+        for res in results:
+            lines.append(f"- method={res['method']} endpoint={res['endpoint']} status={res['status']}")
+            if res["status"] == "ok":
+                data = res.get("data")
+                if isinstance(data, dict):
+                    try:
+                        lines.append(f"    result: {json.dumps(data, ensure_ascii=False)}")
+                    except Exception:
+                        lines.append(f"    result: {data}")
+                elif data is not None:
+                    lines.append(f"    result: {data}")
+            elif res.get("error"):
+                lines.append(f"    error: {res['error']}")
+
+        jsonrpc_text = "\n".join(lines)
+        # Clean: remove the jsonrpc JSON block from raw response
+        cleaned = (raw_response[:start] + raw_response[end:]).strip()
+        return (jsonrpc_text, cleaned)
+
     async def _execute_remote_a2a_requests(
         self,
         raw_response: str,
@@ -1228,6 +1470,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
         tool_context = ""
         # Hoist key variables so they are always accessible in result processing
         discovered_commands: list = []
+        jsonrpc_skills: list = []
         peer_jid: str = (active.get("account") or "").strip()
         a2a_mgr = None
         is_remote: bool = self.parent.is_current_agent_remote()
@@ -1279,6 +1522,18 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                             logger.info("[XMPP-A2A][DIAG] tool_check_review: command discovery failed: %s", disc_err, exc_info=True)
 
                         logger.info("[XMPP-A2A][DIAG] tool_check_review: discovered_commands count=%d nodes=%s", len(discovered_commands), [c.get("node") for c in discovered_commands])
+
+                        # Extract jsonrpc skills from agent card for remote hybrid channel
+                        try:
+                            card_dict_for_skills = json.loads(card_json) if card_json else {}
+                            jsonrpc_skills = [
+                                s for s in (card_dict_for_skills.get("skills") or [])
+                                if isinstance(s, dict) and str(s.get("transport", "")).lower() == "http_jsonrpc"
+                            ]
+                        except Exception:
+                            jsonrpc_skills = []
+                        if jsonrpc_skills:
+                            logger.info("[A2A-JSONRPC][DIAG] tool_check_review: found %d jsonrpc skills in card", len(jsonrpc_skills))
 
                         # Inspect each discovered command's form schema so the LLM
                         # knows exactly which fields are required/optional.
@@ -1342,6 +1597,44 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                             '- If no ad-hoc call is needed, do NOT include a JSON block.'
                         )
 
+                    # Hybrid mode: tell remote agent how to request local JSON-RPC execution
+                    if jsonrpc_skills:
+                        skill_lines = []
+                        for sk in jsonrpc_skills:
+                            sid = sk.get("id", "")
+                            ep = sk.get("endpoint", "")
+                            meth = sk.get("method", "")
+                            desc = (sk.get("description") or "").strip()
+                            skill_lines.append(f'  - id="{sid}" endpoint="{ep}" method="{meth}"')
+                            if desc:
+                                skill_lines.append(f'      description: {desc[:200]}')
+                            ps = sk.get("params_schema")
+                            if isinstance(ps, dict) and ps:
+                                try:
+                                    skill_lines.append("      params_schema: " + json.dumps(ps, ensure_ascii=False))
+                                except Exception:
+                                    pass
+                        context_parts.append(
+                            "\n--- Remote Agent: How to request JSON-RPC service invocation ---\n"
+                            "If you need the local system to invoke a peer's HTTP JSON-RPC service,\n"
+                            "include a JSON block (fenced or inline) in your response:\n"
+                            '\n'
+                            '  {"jsonrpc_call": {"endpoint": "<endpoint>", "method": "<method>", "params": {...}}}\n'
+                            '\n'
+                            'For multiple calls:\n'
+                            '  {"jsonrpc_calls": [...]}\n'
+                            '\n'
+                            'Available JSON-RPC skills:\n'
+                            + "\n".join(skill_lines) + "\n"
+                            '\n'
+                            'Rules:\n'
+                            '- Only use endpoint and method values from the Available JSON-RPC skills above.\n'
+                            '- Fill params according to the skill\'s params_schema.\n'
+                            '- Keep your own tool results in the same response; do NOT remove them.\n'
+                            '- The local system will execute and merge the JSON-RPC result with your response.\n'
+                            '- If no JSON-RPC call is needed, do NOT include a jsonrpc_call JSON block.'
+                        )
+
                 question = "\n".join(context_parts)
                 logger.info(
                     "[XMPP-A2A][DIAG] tool_check_review: FINAL question (len=%d, is_remote=%s):\n=== BEGIN QUESTION ===\n%s\n=== END QUESTION ===",
@@ -1372,24 +1665,28 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                 tool_result = (tool_result or "").strip()
                 logger.info("[XMPP-A2A][DIAG] tool_check_review: raw_tool_result[:500]=%r", tool_result[:500] if tool_result else "")
 
-                # Hybrid merge: remote agent may embed a2a_call JSON alongside its own tool results
+                # Hybrid merge: remote agent may embed a2a_call / jsonrpc_call JSON alongside its own tool results
                 adhoc_text = None
+                jsonrpc_text = None
                 remote_text = tool_result
                 if is_remote and tool_result and discovered_commands and a2a_mgr and peer_jid:
                     try:
                         adhoc_text, remote_text = await self._execute_remote_a2a_requests(
-                            tool_result, a2a_mgr, peer_jid, discovered_commands,
+                            remote_text, a2a_mgr, peer_jid, discovered_commands,
                         )
                     except Exception as hybrid_err:
                         logger.warning("[XMPP-A2A] tool_check_review: remote a2a execution failed: %s", hybrid_err, exc_info=True)
+                if is_remote and remote_text and jsonrpc_skills:
+                    try:
+                        jsonrpc_text, remote_text = await self._execute_remote_jsonrpc_requests(
+                            remote_text,
+                        )
+                    except Exception as jsonrpc_err:
+                        logger.warning("[A2A-JSONRPC] tool_check_review: remote jsonrpc execution failed: %s", jsonrpc_err, exc_info=True)
 
-                # Merge remote text and local ad-hoc result
-                if remote_text and adhoc_text:
-                    tool_result = remote_text + "\n\n" + adhoc_text
-                elif adhoc_text:
-                    tool_result = adhoc_text
-                else:
-                    tool_result = remote_text
+                # Merge remote text, local ad-hoc result, and local jsonrpc result
+                merge_parts = [p for p in (remote_text, adhoc_text, jsonrpc_text) if p]
+                tool_result = "\n\n".join(merge_parts) if merge_parts else remote_text
 
                 # Determine if result is useful.
                 # If local ad-hoc was executed, always treat as useful even when
@@ -1409,7 +1706,7 @@ I am participating in a virtual social game based on Google Maps. Players role-p
                     marker in result_lower[:500]
                     for marker in error_markers
                 )
-                has_useful_result = bool(adhoc_text) or (
+                has_useful_result = bool(adhoc_text) or bool(jsonrpc_text) or (
                     bool(tool_result)
                     and "NO_TOOL_NEEDED" not in result_upper
                     and not is_plain_error

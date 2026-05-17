@@ -142,11 +142,7 @@ const AgentKnowledgeBaseDialog = {
         if (closeBtn) closeBtn.addEventListener('click', () => this.close());
         if (cancelBtn) cancelBtn.addEventListener('click', () => this.close());
 
-        dialog.addEventListener('click', (e) => {
-            if (e.target && e.target.id === 'agentKnowledgeBaseDialog') {
-                this.close();
-            }
-        });
+        // Clicking the overlay no longer closes the dialog to prevent accidental data loss
 
         const searchInput = dialog.querySelector('#kbSearchInput');
         if (searchInput) {

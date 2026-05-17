@@ -61,7 +61,7 @@ class Modal {
         this.confirmText = options.confirmText || 'Confirm';
         this.cancelText = options.cancelText || 'Cancel';
         this.showCancel = options.showCancel !== false;
-        this.closeOnClickOutside = options.closeOnClickOutside !== false;
+        this.closeOnClickOutside = options.closeOnClickOutside === true;
         this.width = options.width || '500px';
         this.element = null;
     }

@@ -1,10 +1,13 @@
+import asyncio
 import json
 import os
+import queue
+import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, AsyncIterable, Iterable, Optional
 
 try:
     import requests
@@ -420,7 +423,19 @@ async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]
     return {"message": message_obj}
 
 
-def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[str]:
+_SENTINEL = object()  # marks end of the gateway stream
+_HEARTBEAT_INTERVAL = 15  # seconds between SSE keep-alive comments
+
+
+async def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> AsyncIterable[str]:
+    """Async SSE generator with heartbeat keep-alive.
+
+    The upstream OpenClaw gateway call (synchronous ``requests``) runs in a
+    background thread.  While it blocks waiting for multi-step skill output,
+    this generator sends SSE comment lines (``: heartbeat``) every
+    ``_HEARTBEAT_INTERVAL`` seconds so the downstream caller's read-timeout
+    does not fire.
+    """
     if req_id is None:
         return
 
@@ -445,14 +460,42 @@ def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[s
         created = int(time.time())
         stream_id = f"chatcmpl-{uuid.uuid4().hex}"
 
-        for chunk in _gateway_chat_stream(
-            base_url=cfg.gateway.base_url,
-            token=token,
-            agent_id=cfg.gateway.agent_id,
-            message=text,
-            session_key=cfg.gateway.session_key,
-            timeout_seconds=cfg.gateway.timeout_seconds,
-        ):
+        # Run the blocking gateway stream in a thread; bridge via queue.
+        q: queue.Queue = queue.Queue()
+
+        def _stream_worker() -> None:
+            try:
+                for chunk in _gateway_chat_stream(
+                    base_url=cfg.gateway.base_url,
+                    token=token,
+                    agent_id=cfg.gateway.agent_id,
+                    message=text,
+                    session_key=cfg.gateway.session_key,
+                    timeout_seconds=cfg.gateway.timeout_seconds,
+                ):
+                    q.put(chunk)
+            except Exception as exc:
+                q.put(exc)
+            finally:
+                q.put(_SENTINEL)
+
+        thread = threading.Thread(target=_stream_worker, daemon=True)
+        thread.start()
+
+        while True:
+            try:
+                item = q.get(timeout=_HEARTBEAT_INTERVAL)
+            except queue.Empty:
+                # No data yet — send SSE comment as keep-alive
+                yield ": heartbeat\n\n"
+                continue
+
+            if item is _SENTINEL:
+                break
+            if isinstance(item, Exception):
+                raise item
+
+            chunk = item
             choice0 = chunk.get("choices", [{}])[0] if isinstance(chunk, dict) else {}
             if not isinstance(choice0, dict):
                 continue

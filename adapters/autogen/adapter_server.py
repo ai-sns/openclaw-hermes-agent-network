@@ -1,11 +1,13 @@
 import asyncio
 import json
 import os
+import queue
+import threading
 import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, AsyncIterable, Iterable, Optional
 
 try:
     from fastapi import FastAPI, Request
@@ -367,8 +369,18 @@ async def _handle_send_message(*, params: Any, cfg: AppConfig) -> dict[str, Any]
     return {"message": message_obj}
 
 
-def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[str]:
-    """Simulate streaming for AutoGen (non-streaming backend, emit single SSE frame)."""
+_SENTINEL = object()
+_HEARTBEAT_INTERVAL = 15  # seconds between SSE keep-alive comments
+
+
+async def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> AsyncIterable[str]:
+    """Async SSE generator with heartbeat keep-alive.
+
+    AutoGen team execution runs in a background thread.  While it blocks,
+    this generator sends SSE comment lines (``: heartbeat``) every
+    ``_HEARTBEAT_INTERVAL`` seconds so the downstream caller's read-timeout
+    does not fire.
+    """
     if req_id is None:
         return
 
@@ -379,11 +391,41 @@ def _send_message_sse(*, req_id: Any, params: Any, cfg: AppConfig) -> Iterable[s
 
         team_file = _resolve_team_file(cfg.autogen.team_file, cfg.autogen.team_file_env)
 
-        openai_resp = _run_autogen_team_sync(
-            team_file=team_file,
-            message=text,
-            model=cfg.autogen.model,
-        )
+        # Run blocking AutoGen execution in a thread; bridge via queue.
+        q: queue.Queue = queue.Queue()
+
+        def _worker() -> None:
+            try:
+                result = _run_autogen_team_sync(
+                    team_file=team_file,
+                    message=text,
+                    model=cfg.autogen.model,
+                )
+                q.put(result)
+            except Exception as exc:
+                q.put(exc)
+            finally:
+                q.put(_SENTINEL)
+
+        thread = threading.Thread(target=_worker, daemon=True)
+        thread.start()
+
+        openai_resp = None
+        while True:
+            try:
+                item = q.get(timeout=_HEARTBEAT_INTERVAL)
+            except queue.Empty:
+                yield ": heartbeat\n\n"
+                continue
+
+            if item is _SENTINEL:
+                break
+            if isinstance(item, Exception):
+                raise item
+            openai_resp = item
+
+        if openai_resp is None:
+            raise RuntimeError("AutoGen team returned no result")
 
         assistant_content = openai_resp.get("choices", [{}])[0].get("message", {}).get("content", "")
 

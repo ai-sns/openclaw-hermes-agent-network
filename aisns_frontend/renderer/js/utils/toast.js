@@ -348,14 +348,7 @@ const Toast = {
                 if (onCancel) onCancel();
             });
 
-            // Handle backdrop click
-            backdrop.addEventListener('click', (e) => {
-                if (e.target === backdrop) {
-                    backdrop.remove();
-                    resolve(false);
-                    if (onCancel) onCancel();
-                }
-            });
+            // Clicking the backdrop no longer closes the dialog to prevent accidental dismissal
 
             // Handle ESC key
             const handleEsc = (e) => {
@@ -520,11 +513,7 @@ const Toast = {
             okBtn.addEventListener('click', onOk);
             cancelBtn.addEventListener('click', onCancel);
 
-            backdrop.addEventListener('click', (e) => {
-                if (e.target === backdrop) {
-                    onCancel();
-                }
-            });
+            // Clicking the backdrop no longer closes the dialog to prevent accidental dismissal
 
             const handleEsc = (e) => {
                 if (e.key === 'Escape') {

@@ -108,7 +108,6 @@ const toolsHandlers = {
             el.addEventListener('click', (e) => {
                 const t = e.target;
                 if (!t) return;
-                if (t.id === dialogId) return cleanup(false);
                 if (t.closest('[data-confirm-close]')) return cleanup(false);
                 if (t.closest('[data-confirm-cancel]')) return cleanup(false);
                 if (t.closest('[data-confirm-ok]')) return cleanup(true);
@@ -166,7 +165,6 @@ const toolsHandlers = {
             el.addEventListener('click', (e) => {
                 const t = e.target;
                 if (!t) return;
-                if (t.id === dialogId) return cleanup(null);
                 if (t.closest('[data-choice-close]')) return cleanup(null);
                 if (t.closest('[data-choice-cancel]')) return cleanup(null);
 
@@ -228,7 +226,6 @@ const toolsHandlers = {
             el.addEventListener('click', (e) => {
                 const t = e.target;
                 if (!t) return;
-                if (t.id === dialogId) return cleanup(null);
                 if (t.closest('[data-import-close]')) return cleanup(null);
                 if (t.closest('[data-import-cancel]')) return cleanup(null);
                 if (t.closest('[data-import-confirm]')) {
@@ -328,7 +325,6 @@ const toolsHandlers = {
             el.addEventListener('click', (e) => {
                 const t = e.target;
                 if (!t) return;
-                if (t.id === dialogId) return cleanup(null);
                 if (t.closest('[data-mcpjson-close]')) return cleanup(null);
                 if (t.closest('[data-mcpjson-cancel]')) return cleanup(null);
                 if (t.closest('[data-mcpjson-import]')) return cleanup(String(editor.value || ''));

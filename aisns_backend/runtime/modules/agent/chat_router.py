@@ -313,11 +313,11 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
     except Exception:
         pass
 
-    timeout = httpx.Timeout(60.0, read=30.0)
+    timeout = httpx.Timeout(60.0, read=300.0)
     out_parts: List[str] = []
     seen_content = False
     last_content_ts = time.monotonic()
-    idle_timeout_after_content_seconds = 5.0
+    idle_timeout_after_content_seconds = 120.0
 
     async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
         try:
@@ -375,6 +375,11 @@ async def _remote_agent_collect_stream_text(*, rpc_url: str, text: str, context_
                         continue
                     s = line.strip()
                     if not s:
+                        continue
+                    # SSE comment lines (e.g. ': heartbeat') are keep-alive
+                    # signals from the adapter; reset the idle timer but skip.
+                    if s.startswith(':'):
+                        last_content_ts = now
                         continue
                     if s.startswith('data:'):
                         s = s[5:].strip()
@@ -489,7 +494,7 @@ async def _remote_agent_send_message(*, rpc_url: str, text: str, context_id: str
     if not rpc_url:
         raise ValueError('A2A Endpoint URL is empty')
 
-    timeout = httpx.Timeout(60.0, read=60.0)
+    timeout = httpx.Timeout(60.0, read=300.0)
     req_id = new_request_id()
     try:
         log_llm_request(
@@ -653,7 +658,7 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
         yield f"data: {json.dumps({'error': 'A2A Endpoint URL is empty'})}\n\n"
         return
 
-    timeout = httpx.Timeout(60.0, read=30.0)
+    timeout = httpx.Timeout(60.0, read=300.0)
     req_id = new_request_id()
     try:
         log_llm_request(
@@ -783,7 +788,7 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
 
                 # Some implementations keep the SSE connection open even after completion.
                 # Break if no new *content* has arrived for a while (even if keep-alive blank lines arrive).
-                idle_timeout_after_content_seconds = 5.0
+                idle_timeout_after_content_seconds = 120.0
                 last_content_ts = time.monotonic()
                 seen_content = False
 
@@ -797,6 +802,11 @@ async def _remote_agent_stream(*, rpc_url: str, text: str, context_id: str):
                             continue
                         s = line.strip()
                         if not s:
+                            continue
+                        # SSE comment lines (e.g. ': heartbeat') are keep-alive
+                        # signals from the adapter; reset the idle timer but skip.
+                        if s.startswith(':'):
+                            last_content_ts = now
                             continue
                         if s.startswith('data:'):
                             s = s[5:].strip()
