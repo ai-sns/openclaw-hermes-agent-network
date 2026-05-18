@@ -18,6 +18,7 @@ openai>=1.0.0
 anthropic
 httpx
 requests
+aiohttp
 
 # Vector Database
 chromadb
