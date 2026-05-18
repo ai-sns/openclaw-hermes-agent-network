@@ -245,10 +245,22 @@ const toolsHandlers = {
             input.style.display = 'none';
             document.body.appendChild(input);
 
-            input.addEventListener('change', () => {
-                const file = input.files && input.files[0] ? input.files[0] : null;
+            let resolved = false;
+            const finish = (file) => {
+                if (resolved) return;
+                resolved = true;
                 try { input.remove(); } catch (e) {}
                 resolve(file);
+            };
+
+            input.addEventListener('change', () => {
+                const file = input.files && input.files[0] ? input.files[0] : null;
+                finish(file);
+            }, { once: true });
+
+            // Resolve with null when the user cancels the file dialog
+            input.addEventListener('cancel', () => {
+                finish(null);
             }, { once: true });
 
             input.click();
@@ -1011,7 +1023,9 @@ const toolsHandlers = {
                     if (!choice) return;
 
                     const usedInSns = choice === 'sns';
-                    await this.importRendererPluginZip({ usedInSns });
+                    const result = await this.importRendererPluginZip({ usedInSns });
+                    // User cancelled the file dialog
+                    if (!result) return;
                     this.showMessage('Imported successfully', 'success');
                     await this.loadCategoryContent(category);
                 } catch (e) {
@@ -1132,7 +1146,9 @@ const toolsHandlers = {
         if (category === 'skill') {
             (async () => {
                 try {
-                    await this.importDocSkillZip();
+                    const result = await this.importDocSkillZip();
+                    // User cancelled the file dialog
+                    if (!result) return;
                     this.showMessage('Imported successfully', 'success');
                     await this.loadCategoryContent(category);
                 } catch (e) {
