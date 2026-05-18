@@ -26,7 +26,9 @@ const KMSidebar = {
 
         if (kbs.length === 0) {
             console.warn('[KMSidebar] No available knowledge bases');
+            // Still render the empty hint + KM Management button so the user can create a KB
             this.renderEmptyState();
+            this.bindEvents();
             return;
         }
 
@@ -340,14 +342,23 @@ const KMSidebar = {
      */
     renderEmptyState() {
         const kmList = document.getElementById('kmList');
-        if (kmList) {
-            kmList.innerHTML = `
-                <div class="empty-state" style="padding: 20px; text-align: center; color: #999;">
-                    <p>No available knowledge bases</p>
-                    <p style="font-size: 12px; margin-top: 10px;">Please create a knowledge base in KM Management</p>
-                </div>
-            `;
-        }
+        if (!kmList) return;
+        // Keep the KM Management entry visible so the user can still create a KB.
+        const managementButton = `
+            <div class="km-item km-management" data-page="km-management">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58z"/>
+                </svg>
+                <span class="web-section-title">KM Management</span>
+            </div>
+        `;
+        kmList.innerHTML = `
+            <div class="empty-state" style="padding: 20px; text-align: center; color: #999;">
+                <p>No available knowledge bases</p>
+                <p style="font-size: 12px; margin-top: 10px;">Please create a knowledge base in KM Management</p>
+            </div>
+            ${managementButton}
+        `;
     },
 
     /**
@@ -1097,6 +1108,8 @@ const KMSidebar = {
         if (kbs.length === 0) {
             console.warn('[KMSidebar] No available knowledge bases');
             this.renderEmptyState();
+            // Bind events so KM Management button works in empty state
+            this.bindEvents();
             return;
         }
 

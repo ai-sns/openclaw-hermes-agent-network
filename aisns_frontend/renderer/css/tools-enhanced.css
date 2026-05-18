@@ -1379,3 +1379,18 @@ body.theme-dark .tool-edit-form .form-check-label {
     background: #3b82f6;
 }
 
+/* Centered empty state for tools (MCP / Skill / Plugin) */
+.tools-page-ref .plugin-grid:has(> .empty-state-centered) {
+    display: block;
+}
+
+.tools-page-ref .empty-state-centered {
+    width: 100%;
+    min-height: calc(100vh - 280px);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
