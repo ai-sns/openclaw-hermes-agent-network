@@ -414,7 +414,12 @@
 }
 
 /* Dark theme support */
-body.theme-dark .empty-state h3,
+body.theme-dark .empty-state h3 {
+    color: #f9fafb;
+    background: transparent;
+    border: none;
+}
+
 body.theme-dark .tool-card {
     color: #f9fafb;
     background: #1f2937;
