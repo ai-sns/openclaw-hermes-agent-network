@@ -128,7 +128,7 @@ const AgentSettingsDialog = {
                 <!-- Tab navigation -->
                 <div class="settings-tabs">
                     <button class="settings-tab-btn active" data-tab="basic" data-target="${basicTabId}">Basic Information</button>
-                    <button class="settings-tab-btn" data-tab="a2a" data-target="${a2aTabId}">A2A Protocol</button>
+                    <button class="settings-tab-btn" data-tab="a2a" data-target="${a2aTabId}">Agent card</button>
                 </div>
 
                 <!-- Basic Information tab -->
@@ -218,7 +218,7 @@ const AgentSettingsDialog = {
                     </div>
                 </div>
 
-                <!-- A2A Protocol tab -->
+                <!-- Agent card tab -->
                 <div class="settings-tab-pane" id="${a2aTabId}" data-tab="a2a">
                     <div class="dialog-section">
                         <h4>Agent Card</h4>
@@ -226,93 +226,6 @@ const AgentSettingsDialog = {
                             <label>A2A Agent Card URL</label>
                             <input type="text" class="form-input" id="agentCardUrl" value="${this.escapeHtml(data.agent_card_url || '')}" placeholder="http://app.example.com/a2a/.well-known/agent-card.json">
                             <small class="form-hint">URL to the agent's A2A agent card JSON</small>
-                        </div>
-                    </div>
-
-                    <div class="agent-local-only">
-                        <div class="dialog-section">
-                            <h4>Protocol Details</h4>
-                            <div class="form-row">
-                                <div class="form-group" style="flex: 1;">
-                                    <label>Agent Version</label>
-                                    <input type="text" class="form-input" id="agentVersion" value="${this.escapeHtml(data.version)}" placeholder="1.0.0">
-                                </div>
-                                <div class="form-group" style="flex: 1;">
-                                    <label>Protocol Version</label>
-                                    <input type="text" class="form-input" id="agentProtocolVersion" value="${this.escapeHtml(data.protocol_version)}" placeholder="0.3">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="dialog-section">
-                            <h4>Capabilities</h4>
-                            <div class="form-group">
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="capStreaming" ${data.capabilities?.streaming ? 'checked' : ''}>
-                                        <span>Streaming</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="capPushNotifications" ${data.capabilities?.pushNotifications ? 'checked' : ''}>
-                                        <span>Push Notifications</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="capStateHistory" ${data.capabilities?.stateTransitionHistory ? 'checked' : ''}>
-                                        <span>State Transition History</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="dialog-section">
-                            <h4>Interaction Modes</h4>
-                            <div class="form-row">
-                                <div class="form-group" style="flex: 1;">
-                                    <label>Input Modes</label>
-                                    <select class="form-input" id="agentInputModes" multiple size="3">
-                                        <option value="text" ${data.default_input_modes?.includes('text') ? 'selected' : ''}>Text</option>
-                                        <option value="image" ${data.default_input_modes?.includes('image') ? 'selected' : ''}>Image</option>
-                                        <option value="audio" ${data.default_input_modes?.includes('audio') ? 'selected' : ''}>Audio</option>
-                                        <option value="video" ${data.default_input_modes?.includes('video') ? 'selected' : ''}>Video</option>
-                                        <option value="file" ${data.default_input_modes?.includes('file') ? 'selected' : ''}>File</option>
-                                    </select>
-                                    <small class="form-hint">Hold Ctrl to select multiple</small>
-                                </div>
-                                <div class="form-group" style="flex: 1;">
-                                    <label>Output Modes</label>
-                                    <select class="form-input" id="agentOutputModes" multiple size="3">
-                                        <option value="text" ${data.default_output_modes?.includes('text') ? 'selected' : ''}>Text</option>
-                                        <option value="image" ${data.default_output_modes?.includes('image') ? 'selected' : ''}>Image</option>
-                                        <option value="audio" ${data.default_output_modes?.includes('audio') ? 'selected' : ''}>Audio</option>
-                                        <option value="video" ${data.default_output_modes?.includes('video') ? 'selected' : ''}>Video</option>
-                                        <option value="file" ${data.default_output_modes?.includes('file') ? 'selected' : ''}>File</option>
-                                    </select>
-                                    <small class="form-hint">Hold Ctrl to select multiple</small>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="dialog-section">
-                            <h4>Provider Info</h4>
-                            <div class="form-group">
-                                <label>Provider Organization</label>
-                                <input type="text" class="form-input" id="agentProviderOrg" value="${this.escapeHtml(data.provider_organization)}" placeholder="AI-SNS Platform">
-                            </div>
-
-                            <div class="form-group">
-                                <label>Provider URL</label>
-                                <input type="text" class="form-input" id="agentProviderUrl" value="${this.escapeHtml(data.provider_url)}" placeholder="https://ai-sns.com">
-                            </div>
-
-                            <div class="form-group">
-                                <label>Documentation URL</label>
-                                <input type="text" class="form-input" id="agentDocUrl" value="${this.escapeHtml(data.documentation_url || '')}" placeholder="https://docs.ai-sns.com">
-                            </div>
-
-                            <div class="form-group">
-                                <label>Icon URL</label>
-                                <input type="text" class="form-input" id="agentIconUrl" value="${this.escapeHtml(data.icon_url || '')}" placeholder="https://ai-sns.com/icon.png">
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -517,10 +430,11 @@ const AgentSettingsDialog = {
             }
 
             // Collect A2A protocol fields
-            const url = document.getElementById('agentUrl').value.trim();
+            const url = (document.getElementById('agentUrl')?.value || '').trim();
             const agentCardUrl = document.getElementById('agentCardUrl')?.value?.trim() || '';
 
-            if (!url) {
+            // A2A endpoint URL is required only for remote agents
+            if (isRemote && !url) {
                 if (typeof Notification !== 'undefined') {
                     Notification.error('Please enter A2A endpoint URL');
                 }
@@ -578,22 +492,11 @@ const AgentSettingsDialog = {
                 }
             }
 
-            const version = isRemote ? undefined : document.getElementById('agentVersion')?.value?.trim();
-            const protocolVersion = isRemote ? undefined : document.getElementById('agentProtocolVersion')?.value?.trim();
-
-            const capabilities = isRemote ? undefined : {
-                streaming: document.getElementById('capStreaming')?.checked,
-                pushNotifications: document.getElementById('capPushNotifications')?.checked,
-                stateTransitionHistory: document.getElementById('capStateHistory')?.checked
-            };
-
-            const inputModes = isRemote ? undefined : Array.from(document.getElementById('agentInputModes')?.selectedOptions || []).map(opt => opt.value);
-            const outputModes = isRemote ? undefined : Array.from(document.getElementById('agentOutputModes')?.selectedOptions || []).map(opt => opt.value);
-
-            const providerOrg = isRemote ? undefined : document.getElementById('agentProviderOrg')?.value?.trim();
-            const providerUrl = isRemote ? undefined : document.getElementById('agentProviderUrl')?.value?.trim();
-            const docUrl = isRemote ? undefined : document.getElementById('agentDocUrl')?.value?.trim();
-            const iconUrl = isRemote ? undefined : document.getElementById('agentIconUrl')?.value?.trim();
+            // NOTE: protocol details / capabilities / interaction modes / provider
+            // info are no longer exposed in this dialog. We intentionally do NOT
+            // include them in the request payload so the backend update endpoint
+            // (which uses exclude_unset / exclude_none) preserves whatever values
+            // are already stored in the database.
 
             // Build request data
             const data = {
@@ -601,30 +504,19 @@ const AgentSettingsDialog = {
                 description,
 
                 agent_type: agentType,
-                url,
                 agent_card_url: agentCardUrl,
                 is_active: true
             };
 
             if (isRemote) {
+                data.url = url;
                 data.framework = framework;
                 data.framework_other = framework === 'Other' ? frameworkOther : '';
                 data.llm_provider = llmProvider;
                 data.model_description = modelDescription;
-            }
-
-            if (!isRemote) {
+            } else {
                 data.model_config_id = modelConfigId;
                 data.role_id = roleId;
-                data.version = version;
-                data.protocol_version = protocolVersion;
-                data.capabilities = capabilities;
-                data.default_input_modes = inputModes;
-                data.default_output_modes = outputModes;
-                data.provider_organization = providerOrg;
-                data.provider_url = providerUrl;
-                data.documentation_url = docUrl;
-                data.icon_url = iconUrl;
             }
 
             // Send request

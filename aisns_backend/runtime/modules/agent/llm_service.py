@@ -143,10 +143,10 @@ class LLMConfigService:
                 result = await asyncio.wait_for(
                     client.create(
                         model=test_data.model_name,
-                        system="",
+                        system="You are a helpful assistant.",
                         messages=[{"role": "user", "content": "hello"}],
                         tools=None,
-                        max_tokens=32,
+                        max_tokens=512,
                         temperature=0,
                     ),
                     timeout=15.0,
@@ -156,12 +156,15 @@ class LLMConfigService:
 
             latency_ms = int((time.perf_counter() - t0) * 1000)
             reply = str((result or {}).get('text') or '').strip()
+
+            success_message = "Connection test succeeded"
             if not reply:
-                raise RuntimeError('Empty response from model')
+                reply = '(model returned empty content)'
+                success_message = "Connection succeeded (model returned empty content)"
 
             return {
                 "status": "success",
-                "message": "Connection test succeeded",
+                "message": success_message,
                 "latency_ms": latency_ms,
                 "reply": reply,
                 "model": test_data.model_name,
@@ -183,7 +186,7 @@ class LLMConfigService:
                     model=test_data.model_name,
                     messages=messages,
                     temperature=0,
-                    max_tokens=32,
+                    max_tokens=512,
                 ),
                 timeout=15.0,
             )
@@ -196,17 +199,30 @@ class LLMConfigService:
                 pass
 
         latency_ms = int((time.perf_counter() - t0) * 1000)
+        # Try regular content first, then fall back to reasoning_content for
+        # reasoning models (e.g. DeepSeek-Reasoner) which may emit the visible
+        # answer under a different field.
         reply = ''
         try:
-            reply = (resp.choices[0].message.content or '').strip()
+            msg = resp.choices[0].message
+            reply = (getattr(msg, 'content', None) or '').strip()
+            if not reply:
+                reply = (getattr(msg, 'reasoning_content', None) or '').strip()
         except Exception:
             reply = ''
+
+        # If the API call returned successfully (no exception) but produced no
+        # visible text, the connection itself is still considered working: the
+        # endpoint, key and model are valid. Report success with a placeholder
+        # reply so the UI does not surface a misleading error.
+        success_message = "Connection test succeeded"
         if not reply:
-            raise RuntimeError('Empty response from model')
+            reply = '(model returned empty content)'
+            success_message = "Connection succeeded (model returned empty content)"
 
         return {
             "status": "success",
-            "message": "Connection test succeeded",
+            "message": success_message,
             "latency_ms": latency_ms,
             "reply": reply,
             "model": test_data.model_name,

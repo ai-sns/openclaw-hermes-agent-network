@@ -731,7 +731,11 @@ IMPORTANT Tool Usage Guidelines:
                 return 'high'
             return None
 
-        if p == 'openai':
+        if p in {'openai', 'custom'}:
+            # `custom` is treated as OpenAI-compatible (e.g. DeepSeek, Qwen,
+            # third-party gateways). The user explicitly opts into custom and
+            # is responsible for backend compatibility, so we honor their
+            # Thinking effort toggle and forward reasoning_effort verbatim.
             if l in {'minimal', 'low'}:
                 return 'low'
             if l == 'medium':
@@ -741,6 +745,24 @@ IMPORTANT Tool Usage Guidelines:
             return None
 
         return None
+
+    def _is_openai_reasoning_model(self, model_name: Optional[str]) -> bool:
+        """Return True only for OpenAI models that accept `reasoning_effort`.
+
+        Non-reasoning chat models (e.g. gpt-4o, gpt-4o-mini, gpt-4.1) reject
+        this parameter with HTTP 400, and some OpenAI-compatible gateways
+        translate the rejection into 503. We therefore restrict the parameter
+        to known reasoning-capable model families.
+        """
+        m = str(model_name or '').strip().lower()
+        if not m:
+            return False
+        # Known OpenAI reasoning model prefixes
+        reasoning_prefixes = ('o1', 'o3', 'o4', 'gpt-5')
+        for p in reasoning_prefixes:
+            if m == p or m.startswith(p + '-') or m.startswith(p + '.'):
+                return True
+        return False
 
     def _is_claude_adaptive_model(self, model_name: Optional[str]) -> bool:
         m = str(model_name or '').strip().lower()
@@ -802,8 +824,18 @@ IMPORTANT Tool Usage Guidelines:
             if show_token_usage:
                 kwargs['stream_options'] = {'include_usage': True}
 
-        if self.get_thinking_effort_enabled() and self._provider in {'openai', 'gemini'}:
-            effort = self._map_effort_level(self.get_thinking_effort_level(), self._provider, self.get_model_name())
+        if self.get_thinking_effort_enabled() and self._provider in {'openai', 'gemini', 'custom'}:
+            model_name = self.get_model_name()
+            # For provider=openai (api.openai.com), only reasoning-capable
+            # models accept `reasoning_effort`; sending it to non-reasoning
+            # models (e.g. gpt-4o-mini) causes 400 on OpenAI and 503 on some
+            # OpenAI-compatible gateways. For provider=custom we trust the
+            # user's choice (DeepSeek/Qwen/etc. reasoning models handle the
+            # parameter themselves).
+            allow_effort = True
+            if self._provider == 'openai' and not self._is_openai_reasoning_model(model_name):
+                allow_effort = False
+            effort = self._map_effort_level(self.get_thinking_effort_level(), self._provider, model_name) if allow_effort else None
             if effort:
                 extra_body = kwargs.get('extra_body')
                 if not isinstance(extra_body, dict):

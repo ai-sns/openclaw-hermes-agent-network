@@ -127,26 +127,31 @@ const KMManagementDialog = {
                     <label class="form-label">
                         Type <span class="required-mark">*</span>
                     </label>
-                    <select
-                        id="kmTypeSelect"
-                        class="form-select ${isEdit ? 'disabled' : ''}"
-                        ${isEdit ? 'disabled' : ''}
-                    >
-                        <option value="1" ${kb?.kmtype === 1 ? 'selected' : ''}>Note (Rich Text Editor)</option>
-                        <option value="0" ${kb?.kmtype === 0 ? 'selected' : ''}>File (Document Upload & Vector Search)</option>
-                        <option value="2" ${kb?.kmtype === 2 ? 'selected' : ''}>Key-Value (Simple Data Storage)</option>
-                    </select>
-                    ${isEdit ? '<div class="form-hint">Type cannot be changed after creation</div>' : ''}
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input
-                            type="checkbox"
-                            id="kmShowCheckbox"
-                            ${kb?.is_show !== false ? 'checked' : ''}
-                        >
-                        <span>Show in sidebar</span>
-                    </label>
+                    ${(() => {
+                        const kmTypeNum = isEdit ? Number(kb?.kmtype) : NaN;
+                        const typeLabel = kmTypeNum === 1
+                            ? 'Note (Rich Text Editor)'
+                            : kmTypeNum === 0
+                                ? 'File (Document Upload & Vector Search)'
+                                : kmTypeNum === 2
+                                    ? 'Key-Value (Simple Data Storage)'
+                                    : '';
+                        if (isEdit) {
+                            // Read-only display reflecting the actual KB type
+                            return `
+                                <input type="hidden" id="kmTypeSelect" value="${Number.isFinite(kmTypeNum) ? kmTypeNum : 1}">
+                                <input type="text" class="form-input" value="${this.escapeHtml(typeLabel)}" readonly disabled>
+                                <div class="form-hint">Type cannot be changed after creation</div>
+                            `;
+                        }
+                        return `
+                            <select id="kmTypeSelect" class="form-select">
+                                <option value="1">Note (Rich Text Editor)</option>
+                                <option value="0">File (Document Upload & Vector Search)</option>
+                                <option value="2">Key-Value (Simple Data Storage)</option>
+                            </select>
+                        `;
+                    })()}
                 </div>
             </div>
             <div class="dialog-footer">
@@ -326,7 +331,6 @@ const KMManagementDialog = {
         const nameInput = dialog.querySelector('#kmNameInput');
         const memoInput = dialog.querySelector('#kmMemoInput');
         const typeSelect = dialog.querySelector('#kmTypeSelect');
-        const showCheckbox = dialog.querySelector('#kmShowCheckbox');
 
         saveBtn.addEventListener('click', () => {
             const name = nameInput.value.trim();
@@ -340,7 +344,8 @@ const KMManagementDialog = {
                 name,
                 memo: memoInput.value.trim(),
                 kmtype: parseInt(typeSelect.value),
-                is_show: showCheckbox.checked
+                // Preserve existing visibility on edit; default to visible on create
+                is_show: isEdit ? (kb?.is_show !== false) : true
             };
 
             if (isEdit) {

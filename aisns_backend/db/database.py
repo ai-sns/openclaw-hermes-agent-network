@@ -229,6 +229,8 @@ def _load_seed_data_if_empty():
     from db.models.aisns import AISnsCfg
     from db.models.system import SystemCfg, SystemInit
     from db.models.web import WebMng
+    from db.models.tools import McpMng
+    from db.models.km import KMCfg
     from db.seed_data import (
         AGENT_CFG_SEED,
         AISNS_CFG_SEED,
@@ -238,6 +240,8 @@ def _load_seed_data_if_empty():
         WEB_MNG_SEED,
         LLM_CONFIG_SEED,
         ROLE_CONFIG_SEED,
+        MCP_MNG_SEED,
+        KM_CFG_SEED,
     )
 
     def _convert_datetime(data: dict, datetime_fields: list) -> dict:
@@ -330,6 +334,24 @@ def _load_seed_data_if_empty():
                 record = RoleConfig(**converted)
                 session.add(record)
             logger.info("Seed data loaded: role_config (%d records)", len(ROLE_CONFIG_SEED))
+
+        # Check and populate mcp_mng
+        count = session.scalar(select(func.count()).select_from(McpMng))
+        if count == 0 and MCP_MNG_SEED:
+            for data in MCP_MNG_SEED:
+                converted = _convert_datetime(data, ["create_time"])
+                record = McpMng(**converted)
+                session.add(record)
+            logger.info("Seed data loaded: mcp_mng (%d records)", len(MCP_MNG_SEED))
+
+        # Check and populate km_cfg
+        count = session.scalar(select(func.count()).select_from(KMCfg))
+        if count == 0 and KM_CFG_SEED:
+            for data in KM_CFG_SEED:
+                converted = _convert_datetime(data, ["create_time"])
+                record = KMCfg(**converted)
+                session.add(record)
+            logger.info("Seed data loaded: km_cfg (%d records)", len(KM_CFG_SEED))
 
         session.commit()
     except Exception as e:

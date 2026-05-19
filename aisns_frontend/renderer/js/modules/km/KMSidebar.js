@@ -62,10 +62,13 @@ const KMSidebar = {
      */
     async loadKnowledgeBasesFromAPI() {
         try {
-            const url = (typeof window !== 'undefined' && typeof window.resolveAgentServerUrl === 'function')
+            const base = (typeof window !== 'undefined' && typeof window.resolveAgentServerUrl === 'function')
                 ? window.resolveAgentServerUrl('/api/km')
                 : '/api/km';
-            const response = await fetch(url);
+            // Cache-bust to make sure the sidebar always sees the latest data
+            // immediately after a KB update (e.g. rename).
+            const url = `${base}${base.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+            const response = await fetch(url, { cache: 'no-store' });
             const result = await response.json();
 
             if (result.success && result.data) {
