@@ -586,17 +586,38 @@ const InitializationWizard = {
                     };
 
                     const modelCandidatesMap = {
-                        openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
-                        custom: ['deepseek-chat', 'deepseek-reasoner', 'gpt-4o-mini'],
-                        gemini: ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'],
-                        claude: ['claude-3-5-sonnet-20240620', 'claude-3-5-haiku-20241022', 'claude-3-haiku-20240307']
+                        openai: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+                        gemini: ['gemini-3.1-flash-lite-preview'],
+                        claude: ['claude-sonnet-4-6', 'claude-haiku-4-5']
+                    };
+
+                    // For OpenAI-compatible (custom) endpoints, auto-detect the
+                    // upstream provider from the endpoint URL so we only test a
+                    // small set of relevant model names. Falls back to generic
+                    // candidates when the endpoint is unrecognized.
+                    const detectCustomCandidates = (rawEndpoint) => {
+                        const u = String(rawEndpoint || '').toLowerCase();
+                        if (u.includes('deepseek.com'))                       return ['deepseek-v4-flash', 'deepseek-v4-pro'];
+                        if (u.includes('dashscope') || u.includes('aliyuncs')) return ['qwen-plus', 'qwen-turbo'];
+                        if (u.includes('api.x.ai') || u.includes('//x.ai'))    return ['grok-4-fast', 'grok-3-mini'];
+                        if (u.includes('bigmodel.cn'))                         return ['glm-4-flash', 'glm-4-plus'];
+                        if (u.includes('minimax'))                             return ['MiniMax-M1', 'abab6.5s-chat'];
+                        if (u.includes('moonshot'))                            return ['kimi-k2-0711-preview', 'moonshot-v1-8k'];
+                        if (u.includes('mistral'))                             return ['mistral-small-latest'];
+                        if (u.includes('volces') || u.includes('ark.cn'))      return ['doubao-seed-1-6', 'doubao-1-5-pro-32k-250115'];
+                        if (u.includes('hunyuan') || u.includes('tencent'))    return ['hunyuan-turbos-latest', 'hunyuan-lite'];
+                        if (u.includes('qianfan') || u.includes('baidubce'))   return ['ernie-speed-128k', 'ernie-4.5-turbo-128k'];
+                        if (u.includes('openrouter'))                          return ['openrouter/auto'];
+                        return ['gpt-4o-mini', 'deepseek-v4-flash'];
                     };
 
                     const provider = providerMap[this.state.llm] || 'custom';
-                    const candidates = modelCandidatesMap[provider] || modelCandidatesMap.custom;
-
                     const endpoint = String(this.state.llm_server || '').trim();
                     const apiKey = String(this.state.api_key || '').trim();
+
+                    const candidates = (provider === 'custom')
+                        ? detectCustomCandidates(endpoint)
+                        : (modelCandidatesMap[provider] || ['gpt-4o-mini']);
 
                     let lastErr = null;
                     let okResult = null;

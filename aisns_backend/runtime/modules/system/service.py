@@ -23,7 +23,8 @@ from runtime.modules.map.file_replace import (
     BAIDU_MAP_ID_SENTINEL,
     replace_map_config_in_files,
 )
-from db.repositories import WebMngRepository, SystemInitRepository, AISnsCfgRepository
+from db.repositories import WebMngRepository, SystemInitRepository, AISnsCfgRepository, LLMConfigRepository
+from runtime.shared.llm_endpoints import normalize_openai_base_url, normalize_anthropic_base_url
 from db.models.web import WebMng
 
 logger = logging.getLogger(__name__)
@@ -390,6 +391,47 @@ class SystemInitWizardService:
             }
             for key in keys
         ]
+
+    @staticmethod
+    def _sync_llm_config_from_wizard(record) -> None:
+        """Sync LLM settings from wizard draft to the matching llm_config record."""
+        llm_label = (getattr(record, 'llm', None) or '').strip()
+        llm_server = (getattr(record, 'llm_server', None) or '').strip()
+        api_key = (getattr(record, 'api_key', None) or '').strip()
+
+        if not llm_label or not api_key:
+            return
+
+        # Map wizard LLM label to provider value used in llm_config table
+        provider_map = {
+            'OpenAI': 'openai',
+            'DeepSeek': 'custom',
+            'Claude': 'claude',
+            'Gemini': 'gemini',
+            'OpenAI Compatible Provider': 'custom',
+            'DeepSeek Compatible Provider': 'custom',
+        }
+        provider = provider_map.get(llm_label)
+        if not provider:
+            logger.warning("Unknown LLM label from wizard: %s", llm_label)
+            return
+
+        # Normalize the endpoint URL to match the format stored in llm_config
+        if provider == 'claude':
+            api_endpoint = normalize_anthropic_base_url(llm_server) if llm_server else ''
+        else:
+            api_endpoint = normalize_openai_base_url(llm_server) if llm_server else ''
+
+        repo = LLMConfigRepository()
+        existing = repo.get_one(provider=provider, is_delete=False)
+        if existing:
+            update_fields = {"api_key": api_key}
+            if api_endpoint:
+                update_fields["api_endpoint"] = api_endpoint
+            repo.update(existing.id, **update_fields)
+            logger.info("Updated llm_config (provider=%s) with wizard settings", provider)
+        else:
+            logger.warning("No llm_config record found for provider=%s; skipping LLM sync", provider)
 
     @staticmethod
     def _save_uploaded_avatar(file_bytes: bytes, filename: str) -> str:
@@ -799,6 +841,7 @@ class SystemInitWizardService:
                 nationid=nation_id,
                 avatar=record.avatar,
                 name=record.name,
+                nickname=record.name,
                 nationpassword=record.password,
                 sign=record.profile,
                 avatar3d=record.avatar3d,
@@ -814,6 +857,7 @@ class SystemInitWizardService:
                 nationid=nation_id,
                 avatar=record.avatar,
                 name=record.name,
+                nickname=record.name,
                 nationpassword=record.password,
                 sign=record.profile,
                 avatar3d=record.avatar3d,
@@ -824,6 +868,12 @@ class SystemInitWizardService:
                 map_api_key=combined["map_api_key"],
                 map_id=combined["map_id"],
             )
+
+        # Sync LLM configuration to llm_config table
+        try:
+            self._sync_llm_config_from_wizard(record)
+        except Exception as e:
+            logger.error("Failed to sync LLM config from init wizard: %s", e)
 
         try:
             new_api_keys = combined.get("map_api_key", "").split(',') if combined.get("map_api_key") else ['', '']

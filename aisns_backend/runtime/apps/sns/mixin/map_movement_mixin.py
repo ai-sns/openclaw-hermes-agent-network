@@ -165,9 +165,23 @@ class MapMovementMixin:
         if radius <= 0:
             return "Move is blocked because move_point is 0."
 
-        # Initialize current and last position
-        current_position = Point(self.aisns_cfg_record.current_position[1], self.aisns_cfg_record.current_position[0])
-        last_position = Point(self.aisns_cfg_record.last_position[1], self.aisns_cfg_record.last_position[0])
+        def to_point(raw_position):
+            if not isinstance(raw_position, (list, tuple)) or len(raw_position) < 2:
+                return None
+            try:
+                lng = float(raw_position[0])
+                lat = float(raw_position[1])
+            except Exception:
+                return None
+            if not (-180.0 <= lng <= 180.0 and -90.0 <= lat <= 90.0):
+                return None
+            return Point(lat, lng)
+
+        current_position = to_point(self.aisns_cfg_record.current_position)
+        if current_position is None:
+            return "Move is blocked because current_position is not initialized."
+
+        last_position = to_point(self.aisns_cfg_record.last_position) or current_position
 
         # If positions are the same, skip quadrant exclusion
         if current_position == last_position:

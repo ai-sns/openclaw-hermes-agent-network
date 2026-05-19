@@ -57,7 +57,7 @@ class VectorService:
         collection_name = f"kb_{km_id}"
         return self.client.get_or_create_collection(
             name=collection_name,
-            metadata={"km_id": km_id}
+            metadata={"km_id": km_id, "hnsw:space": "cosine"}
         )
 
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
@@ -227,13 +227,15 @@ class VectorService:
                 n_results=top_k
             )
 
-            # Format results
             formatted_results = []
             if results['documents'] and results['documents'][0]:
                 for i in range(len(results['documents'][0])):
+                    distance = float(results['distances'][0][i])
+                    score = max(0.0, min(1.0, 1.0 - distance))
                     formatted_results.append({
                         "content": results['documents'][0][i],
-                        "score": 1 - results['distances'][0][i],  # Convert distance to similarity
+                        "score": score,
+                        "distance": distance,
                         "metadata": results['metadatas'][0][i]
                     })
 
