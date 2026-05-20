@@ -1,8 +1,0 @@
-langchain chroma数据库操作
-https://python.langchain.com/docs/integrations/vectorstores/chroma/
-https://blog.csdn.net/engchina/article/details/131868860
-https://github.com/langchain-ai/langchain/discussions/17797
-https://www.cnblogs.com/rude3knife/p/chroma_tutorial.html
-https://blog.csdn.net/weixin_57028107/article/details/132214687
-https://github.com/langchain-ai/langchain/discussions/9495
-https://medium.com/@lemooljiang/chroma%E5%90%91%E9%87%8F%E6%95%B0%E6%8D%AE%E5%BA%93%E5%AE%8C%E5%85%A8%E6%89%8B%E5%86%8C-4248b15679ea

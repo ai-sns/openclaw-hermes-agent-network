@@ -1,5 +1,0 @@
-实现llama3大模型,llama3实现 
-https://github.com/naklecha/llama3-from-scratch
-https://github.com/wdndev/llama3-from-scratch-zh
-https://github.com/datawhalechina/llms-from-scratch-cn
-https://github.com/FareedKhan-dev/Building-llama3-from-scratch

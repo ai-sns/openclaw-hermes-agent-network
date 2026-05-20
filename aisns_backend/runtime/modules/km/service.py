@@ -13,7 +13,7 @@ from db.DBFactory import (
     update_KMCfg,
     delete_KMCfg
 )
-from .vector_service import get_vector_service
+from .vector_service import get_vector_service, EmbeddingConfigError
 from .document_loader import DocumentLoader
 
 logger = logging.getLogger(__name__)
@@ -232,6 +232,23 @@ class KMService:
                     ), {"chunks": _chunks, "fid": _fid})
                 db_write(_do_update_vec, description="km_service_update_vectorization")
                 logger.info(f"Vectorized file {filename} into {chunks_count} chunks")
+            except EmbeddingConfigError as e:
+                # Vectorization failed because the embedding service is not
+                # configured correctly. Rollback the inserted row and the
+                # on-disk file so the user can retry after fixing LLM Setting.
+                logger.warning(f"Embedding service unavailable while adding {filename}: {e}")
+                _fid = file_id
+                def _do_rollback(session):
+                    session.execute(sa_text("DELETE FROM km_data WHERE id = :fid"), {"fid": _fid})
+                try:
+                    db_write(_do_rollback, description="km_service_rollback_failed_embedding")
+                except Exception as rollback_err:
+                    logger.error(f"Failed to rollback km_data row {file_id}: {rollback_err}")
+                try:
+                    file_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+                raise ValueError(str(e)) from e
             except Exception as e:
                 logger.error(f"Error vectorizing file {filename}: {e}")
                 # Leave waitvectorization=1 to indicate pending/failed vectorization

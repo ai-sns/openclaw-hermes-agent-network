@@ -621,6 +621,10 @@ const KMNotePage = {
             });
 
             // On color button click, save selection and open color picker
+            colorBtn.addEventListener('mousedown', () => {
+                saveSelection();
+            });
+
             colorBtn.addEventListener('click', (e) => {
                 if (e && e.shiftKey) {
                     e.preventDefault();
@@ -630,7 +634,13 @@ const KMNotePage = {
                     return;
                 }
 
+                const color = colorPicker.value || '#000000';
+                const indicator = document.getElementById('colorIndicator');
+                if (indicator) indicator.setAttribute('fill', color);
+                restoreSelection();
+                document.execCommand('foreColor', false, color);
                 saveSelection();
+                this.restoreFocus();
                 setTimeout(() => {
                     colorPicker.click();
                 }, 10);
@@ -978,13 +988,15 @@ const KMNotePage = {
             content: `
                 <div class="form-group">
                     <label class="form-label">Source</label>
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                        <button type="button" id="uploadTabBtn" class="btn btn-primary" style="flex: 1;">
-                            Upload
-                        </button>
-                        <button type="button" id="urlTabBtn" class="btn btn-secondary" style="flex: 1;">
-                            Image URL
-                        </button>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                        <label id="uploadTabBtn" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--color-primary); border-radius: 8px; background: var(--color-primary-bg); color: var(--text-primary); cursor: pointer;">
+                            <input type="radio" name="imageSourceType" value="upload" checked>
+                            <span>Upload from device</span>
+                        </label>
+                        <label id="urlTabBtn" style="display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); cursor: pointer;">
+                            <input type="radio" name="imageSourceType" value="url">
+                            <span>Use image URL</span>
+                        </label>
                     </div>
                 </div>
 
@@ -992,16 +1004,16 @@ const KMNotePage = {
                 <div id="uploadArea" class="form-group">
                     <label class="form-label">Choose image</label>
                     <input type="file" id="imageFileInput" class="form-input" accept="image/*" style="display: none;">
-                    <div id="dropZone" style="border: 2px dashed #ddd; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; background: #fafafa;">
-                        <div style="color: #666; font-size: 14px;">
+                    <div id="dropZone" style="border: 2px dashed var(--border-color); border-radius: 8px; padding: 40px; text-align: center; cursor: pointer; transition: all 0.3s; background: var(--bg-secondary);">
+                        <div style="color: var(--text-secondary); font-size: 14px;">
                             <div style="font-size: 32px; margin-bottom: 10px;">📷</div>
                             <div>Click to choose or drag an image here</div>
-                            <div style="font-size: 12px; color: #999; margin-top: 5px;">Supports JPG, PNG, GIF, WebP</div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">Supports JPG, PNG, GIF, WebP</div>
                         </div>
                     </div>
                     <div id="imagePreviewContainer" style="margin-top: 15px; display: none;">
                         <label class="form-label">Preview</label>
-                        <img id="imagePreview" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid #ddd;">
+                        <img id="imagePreview" style="max-width: 100%; max-height: 300px; border-radius: 8px; border: 1px solid var(--border-color);">
                         <button type="button" id="removeImageBtn" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">
                             Choose again
                         </button>
@@ -1041,7 +1053,7 @@ const KMNotePage = {
                 </div>
 
                 <div id="uploadProgress" style="display: none; margin-top: 10px;">
-                    <div style="text-align: center; color: #666;">
+                    <div style="text-align: center; color: var(--text-secondary);">
                         <div class="spinner" style="display: inline-block;"></div>
                         <div style="margin-top: 5px;">Uploading...</div>
                     </div>
@@ -1056,12 +1068,19 @@ const KMNotePage = {
 
                 let imageUrl = '';
 
-                // If there is a preview image, use its src
-                if (imagePreview && imagePreview.src && imagePreview.src !== '') {
-                    imageUrl = imagePreview.src;
-                } else if (imageUrlInput && imageUrlInput.value && imageUrlInput.value.trim()) {
-                    // Otherwise, use the input URL
-                    imageUrl = imageUrlInput.value.trim();
+                // Pick source based on the currently active radio so the
+                // value the user can see in the dialog is the value used.
+                const activeSource = (modal.element.querySelector('input[name="imageSourceType"]:checked') || {}).value || 'upload';
+                if (activeSource === 'url') {
+                    if (imageUrlInput && imageUrlInput.value && imageUrlInput.value.trim()) {
+                        imageUrl = imageUrlInput.value.trim();
+                    }
+                } else {
+                    if (modal.element.dataset.uploadedImageUrl) {
+                        imageUrl = modal.element.dataset.uploadedImageUrl;
+                    } else if (imagePreview && imagePreview.dataset.imageUrl) {
+                        imageUrl = imagePreview.dataset.imageUrl;
+                    }
                 }
 
                 if (imageUrl) {
@@ -1109,19 +1128,27 @@ const KMNotePage = {
 
                 // Switch tabs
                 const switchToUpload = () => {
-                    uploadTabBtn.classList.remove('btn-secondary');
-                    uploadTabBtn.classList.add('btn-primary');
-                    urlTabBtn.classList.remove('btn-primary');
-                    urlTabBtn.classList.add('btn-secondary');
+                    const uploadRadio = uploadTabBtn.querySelector('input[type="radio"]');
+                    const urlRadio = urlTabBtn.querySelector('input[type="radio"]');
+                    if (uploadRadio) uploadRadio.checked = true;
+                    if (urlRadio) urlRadio.checked = false;
+                    uploadTabBtn.style.borderColor = 'var(--color-primary)';
+                    uploadTabBtn.style.background = 'var(--color-primary-bg)';
+                    urlTabBtn.style.borderColor = 'var(--border-color)';
+                    urlTabBtn.style.background = 'var(--bg-primary)';
                     uploadArea.style.display = 'block';
                     urlArea.style.display = 'none';
                 };
 
                 const switchToUrl = () => {
-                    urlTabBtn.classList.remove('btn-secondary');
-                    urlTabBtn.classList.add('btn-primary');
-                    uploadTabBtn.classList.remove('btn-primary');
-                    uploadTabBtn.classList.add('btn-secondary');
+                    const uploadRadio = uploadTabBtn.querySelector('input[type="radio"]');
+                    const urlRadio = urlTabBtn.querySelector('input[type="radio"]');
+                    if (uploadRadio) uploadRadio.checked = false;
+                    if (urlRadio) urlRadio.checked = true;
+                    urlTabBtn.style.borderColor = 'var(--color-primary)';
+                    urlTabBtn.style.background = 'var(--color-primary-bg)';
+                    uploadTabBtn.style.borderColor = 'var(--border-color)';
+                    uploadTabBtn.style.background = 'var(--bg-primary)';
                     urlArea.style.display = 'block';
                     uploadArea.style.display = 'none';
                 };
@@ -1142,20 +1169,20 @@ const KMNotePage = {
                 // Drag-and-drop upload
                 dropZone.addEventListener('dragover', (e) => {
                     e.preventDefault();
-                    dropZone.style.borderColor = '#2196F3';
-                    dropZone.style.background = '#e3f2fd';
+                    dropZone.style.borderColor = 'var(--color-primary)';
+                    dropZone.style.background = 'var(--color-primary-bg)';
                 });
 
                 dropZone.addEventListener('dragleave', (e) => {
                     e.preventDefault();
-                    dropZone.style.borderColor = '#ddd';
-                    dropZone.style.background = '#fafafa';
+                    dropZone.style.borderColor = 'var(--border-color)';
+                    dropZone.style.background = 'var(--bg-secondary)';
                 });
 
                 dropZone.addEventListener('drop', async (e) => {
                     e.preventDefault();
-                    dropZone.style.borderColor = '#ddd';
-                    dropZone.style.background = '#fafafa';
+                    dropZone.style.borderColor = 'var(--border-color)';
+                    dropZone.style.background = 'var(--bg-secondary)';
 
                     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
                         await handleImageUpload(e.dataTransfer.files[0]);
@@ -1188,13 +1215,18 @@ const KMNotePage = {
                         const result = await response.json();
 
                         if (result.success && result.data) {
-                            uploadedImageUrl = result.data.url;
+                            const rawImageUrl = result.data.url || '';
+                            uploadedImageUrl = (typeof window !== 'undefined' && typeof window.resolveAgentServerUrl === 'function')
+                                ? window.resolveAgentServerUrl(rawImageUrl)
+                                : rawImageUrl;
+                            modal.element.dataset.uploadedImageUrl = uploadedImageUrl;
 
                             // Show preview
                             dropZone.style.display = 'none';
                             uploadProgress.style.display = 'none';
                             imagePreviewContainer.style.display = 'block';
                             imagePreview.src = uploadedImageUrl;
+                            imagePreview.dataset.imageUrl = uploadedImageUrl;
 
                             // Clear file input
                             imageFileInput.value = '';
@@ -1212,7 +1244,9 @@ const KMNotePage = {
                 // Remove image
                 removeImageBtn.addEventListener('click', () => {
                     uploadedImageUrl = '';
+                    delete modal.element.dataset.uploadedImageUrl;
                     imagePreview.src = '';
+                    delete imagePreview.dataset.imageUrl;
                     imagePreviewContainer.style.display = 'none';
                     dropZone.style.display = 'block';
                 });

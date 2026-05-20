@@ -1,2 +1,0 @@
-托盘、状态栏显示图标 in python
-https://blog.51cto.com/u_16175525/9021201

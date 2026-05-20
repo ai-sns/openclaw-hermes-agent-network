@@ -1,8 +1,0 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0//EN" "http://www.w3.org/TR/REC-html40/strict.dtd">
-<html><head><meta name="qrichtext" content="1" /><style type="text/css">
-p, li { white-space: pre-wrap; }
-</style></head><body style=" font-family:'Microsoft YaHei'; font-size:9.216pt; font-weight:400; font-style:normal;">
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;">实现llama3大模型,</span><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;">llama3实现 </span><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;"><br />https://github.com/naklecha/llama3-from-scratch</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;">https://github.com/wdndev/llama3-from-scratch-zh</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;">https://github.com/datawhalechina/llms-from-scratch-cn</span></p>
-<p style=" margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;"><span style=" font-family:'JetBrains Mono','monospace'; font-size:9.8pt; color:#000000;">https://github.com/FareedKhan-dev/Building-llama3-from-scratch</span></p></body></html>

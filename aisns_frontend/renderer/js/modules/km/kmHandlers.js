@@ -936,11 +936,17 @@ const kmHandlers = {
     bindFileListEvents(kbId) {
         const fileTree = document.getElementById(`fileTree-${kbId}`);
         if (!fileTree) return;
+        if (fileTree.dataset.kmFileListBound === '1') return;
+        fileTree.dataset.kmFileListBound = '1';
 
         // Click file item
         fileTree.addEventListener('click', (e) => {
             const item = e.target.closest('.km-file-item[data-file-id]');
             if (item) {
+                const now = Date.now();
+                const lastOpenAt = Number(item.dataset.lastOpenAt || 0);
+                if (now - lastOpenAt < 1000) return;
+                item.dataset.lastOpenAt = String(now);
                 const fileId = parseInt(item.dataset.fileId);
                 const files = this.files[kbId] || [];
                 const file = files.find(f => f.id === fileId);

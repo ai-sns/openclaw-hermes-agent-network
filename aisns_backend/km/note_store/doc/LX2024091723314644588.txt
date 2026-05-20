@@ -1,5 +1,0 @@
-错误：
-  File "C:\dev\ai-sns\PyTalk\pytalk\noteeditor\msword.py", line 596, in save
-    file.write(self.text.toHtml())
-UnicodeEncodeError: 'utf-8' codec can't encode character '\ud83d' in position 1250: surrogates not allowed
-python-BaseException

@@ -12,6 +12,7 @@ from .schemas import KMConfig, KMResponse
 from .service import KMService
 from .dependencies import get_km_service
 from .note_router import router as note_router
+from .vector_service import EmbeddingConfigError
 from db.DBFactory import Session, KMCfg
 
 logger = logging.getLogger(__name__)
@@ -327,6 +328,9 @@ async def vector_search(
         top_k = request.get("top_k", 5)
         results = service.vector_search(kb_id, query, top_k)
         return {"success": True, "data": results}
+    except EmbeddingConfigError as e:
+        logger.warning(f"Embedding service unavailable on search: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error performing search: {e}")
         raise HTTPException(status_code=500, detail=str(e))

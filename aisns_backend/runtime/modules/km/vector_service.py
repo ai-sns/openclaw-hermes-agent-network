@@ -5,7 +5,7 @@ Vector Service - ChromaDB integration for knowledge base vectorization
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import chromadb
 from chromadb.config import Settings
 from openai import OpenAI
@@ -14,6 +14,23 @@ from runtime.modules.agent.llm_service import LLMConfigService
 from runtime.shared.llm_endpoints import normalize_openai_base_url
 
 logger = logging.getLogger(__name__)
+
+
+EMBEDDING_CONFIG_HINT = (
+    "The embedding service call failed. Please open Agent > LLM Setting, "
+    "configure an OpenAI LLM and mark it as default. The knowledge base "
+    "currently uses OpenAI's embedding model, so a default OpenAI LLM must "
+    "be configured."
+)
+
+
+class EmbeddingConfigError(RuntimeError):
+    """Raised when the embedding service cannot be reached or rejects the request."""
+
+    def __init__(self, original: Exception):
+        self.original = original
+        detail = str(original).strip() or original.__class__.__name__
+        super().__init__(f"{EMBEDDING_CONFIG_HINT} (details: {detail})")
 
 
 class VectorService:
@@ -29,11 +46,13 @@ class VectorService:
             settings=Settings(anonymized_telemetry=False)
         )
 
-        # Initialize OpenAI client from the default LLM config in DB, with env overrides.
+        self.embedding_model = 'text-embedding-3-small'
+        self.openai_client = None
+        self._openai_client_cache_key = None
+
+    def _resolve_openai_config(self) -> Tuple[Optional[str], Optional[str]]:
         api_key = os.environ.get('OPENAI_API_KEY')
         api_base = os.environ.get('OPENAI_API_BASE')
-        self.embedding_model = 'text-embedding-3-small'
-
         if not api_key:
             try:
                 default_cfg = LLMConfigService().get_default_config()
@@ -45,12 +64,44 @@ class VectorService:
             except Exception as e:
                 logger.warning(f"Failed to load default LLM config for embedding: {e}")
 
+        return api_key, api_base
+
+    def _get_openai_client(self) -> OpenAI:
+        api_key, api_base = self._resolve_openai_config()
+        cache_key = (api_key or '', api_base or '')
+        if self.openai_client is not None and self._openai_client_cache_key == cache_key:
+            return self.openai_client
+
+        if self.openai_client is not None:
+            try:
+                self.openai_client.close()
+            except Exception:
+                pass
+
         if api_key and api_base:
             self.openai_client = OpenAI(api_key=api_key, base_url=api_base)
         elif api_key:
             self.openai_client = OpenAI(api_key=api_key)
         else:
             self.openai_client = OpenAI()
+        self._openai_client_cache_key = cache_key
+        return self.openai_client
+
+    def _get_embedding_with_client(self, client: OpenAI, text: str, model: Optional[str] = None) -> List[float]:
+        try:
+            response = client.embeddings.create(
+                input=text,
+                model=model or self.embedding_model
+            )
+            return response.data[0].embedding
+        except EmbeddingConfigError:
+            raise
+        except Exception as e:
+            # Any failure from the OpenAI SDK (auth, model not found, network,
+            # etc.) is surfaced as EmbeddingConfigError so the API layer can
+            # show a single, user-facing instruction to configure a default
+            # OpenAI LLM in Agent > LLM Setting.
+            raise EmbeddingConfigError(e) from e
 
     def get_or_create_collection(self, km_id: str):
         """Get or create a collection for a knowledge base"""
@@ -63,11 +114,7 @@ class VectorService:
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
         """Get embedding from OpenAI"""
         try:
-            response = self.openai_client.embeddings.create(
-                input=text,
-                model=model or self.embedding_model
-            )
-            return response.data[0].embedding
+            return self._get_embedding_with_client(self._get_openai_client(), text, model)
         except Exception as e:
             logger.error(f"Error getting embedding: {e}")
             raise
@@ -98,10 +145,11 @@ class VectorService:
             embeddings = []
             documents = []
             metadatas = []
+            openai_client = self._get_openai_client()
 
             for i, chunk in enumerate(chunks):
                 chunk_id = f"note_{note_id}_chunk_{i}"
-                embedding = self.get_embedding(chunk)
+                embedding = self._get_embedding_with_client(openai_client, chunk)
                 ids.append(chunk_id)
                 embeddings.append(embedding)
                 documents.append(chunk)
@@ -179,10 +227,11 @@ class VectorService:
             embeddings = []
             documents = []
             metadatas = []
+            openai_client = self._get_openai_client()
 
             for i, chunk in enumerate(chunks):
                 chunk_id = f"file_{file_id}_chunk_{i}"
-                embedding = self.get_embedding(chunk)
+                embedding = self._get_embedding_with_client(openai_client, chunk)
 
                 ids.append(chunk_id)
                 embeddings.append(embedding)

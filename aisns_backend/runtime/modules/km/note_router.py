@@ -12,7 +12,7 @@ from sqlalchemy import and_
 
 from db.DBFactory import Session as SessionLocal
 from db.models.km import NoteMng
-from .vector_service import get_vector_service
+from .vector_service import get_vector_service, EmbeddingConfigError
 
 from .note_schemas import NoteCreate, NoteUpdate, NoteResponse
 from .note_service import NoteService
@@ -205,6 +205,9 @@ async def vectorize_note(note_id: int, request: dict):
 
     except HTTPException:
         raise
+    except EmbeddingConfigError as e:
+        logger.warning(f"Embedding service unavailable while vectorizing note: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error vectorizing note: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -227,6 +230,9 @@ async def vector_search_notes(request: dict):
         return {"success": True, "data": results}
     except HTTPException:
         raise
+    except EmbeddingConfigError as e:
+        logger.warning(f"Embedding service unavailable on note vector search: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error performing note vector search: {e}")
         raise HTTPException(status_code=500, detail=str(e))
