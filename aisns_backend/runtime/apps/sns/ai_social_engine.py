@@ -26,7 +26,7 @@ from db.DBFactory import (query_AgentCfg, add_AIChatMessages, get_prompt_by_titl
                           update_map_trade, add_map_trade, query_single_map_trade,
                           update_AISnsCfg_by_user_id, update_AISnsCfg_map, query_AISnsCfg_map, add_mcp_mng, query_mcp_mng,
                           delete_map_preset_msg, query_map_preset_msg_all, add_map_preset_msg, query_AISnsCfg_map_setting)
-from db.DBFactory import query_SystemCfg, upsert_prompt_by_title_with_tags
+from db.DBFactory import query_SystemCfg
 
 from runtime.i18n import lt
 from enum import Enum
@@ -379,12 +379,6 @@ class AISocialEngine(
                 except Exception as _mem_err:
                     logger.warning("Memory preload failed: %s", _mem_err)
 
-                # Seed default SNS prompts if they do not exist yet
-                try:
-                    self._ensure_sns_prompts()
-                except Exception as _prompt_err:
-                    logger.warning("SNS prompt seeding failed: %s", _prompt_err)
-
                 t = asyncio.create_task(self.taskmng.process_task(action="process_activity"))
                 self._background_tasks.add(t)
                 t.add_done_callback(lambda _t: self._background_tasks.discard(_t))
@@ -407,88 +401,6 @@ class AISocialEngine(
             self.started_flag = False
             self.map_task_status = "error"
             raise
-
-    # ------------------------------------------------------------------
-    # Prompt seeding – ensure default SNS prompts exist in the DB
-    # ------------------------------------------------------------------
-    _SNS_PROMPT_SEEDS = {
-        "__tool_check_before_activity__": (
-            "You are an AI agent playing a virtual social life game on Google Maps.\n"
-            "You are about to decide your next action in the game.\n"
-            "Before proceeding, review the current situation below and determine "
-            "if any of your available tools could help you make a better decision.\n\n"
-            "If you find a useful tool, call it now and return the result.\n"
-            "If no tool is needed, simply reply with the single phrase: NO_TOOL_NEEDED\n\n"
-            "Keep your response concise. Do NOT plan or choose the next game action "
-            "— just focus on whether a tool call would provide useful information right now."
-        ),
-        "__tool_check_before_review__": (
-            "You are an AI agent playing a virtual social life game on Google Maps.\n"
-            "You are currently in a conversation with another player.\n"
-            "Before reviewing this conversation, check if any of your available tools "
-            "could provide useful context (e.g., price lookup, information search, "
-            "knowledge retrieval).\n\n"
-            "If you find a useful tool, call it now and return the result.\n"
-            "If no tool is needed, simply reply with the single phrase: NO_TOOL_NEEDED\n\n"
-            "Keep your response concise. Do NOT evaluate or continue the conversation "
-            "— just focus on whether a tool call would be helpful."
-        ),
-        "__plan_summary_output_requirements__": (
-            "Output requirements:\n"
-            "- Provide updated goals only.\n"
-            "- Include BOTH sections with these exact labels:\n"
-            "  Long-Term Goals:\n"
-            "  Short-Term Goals:\n"
-            "- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions."
-        ),
-        "__pick_people_strict_retry__": (
-            "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
-            "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
-            "Missing/invalid keys: __missing_keys__. Previous raw output: __raw_result__"
-        ),
-        "__remote_agent_tool_check_activity__": (
-            "--- Instructions for Remote Agent ---\n"
-            "Based on the context above, use any tools or capabilities you have "
-            "to gather information that would help decide the next action.\n"
-            "Return only the result. If no tool call is needed, respond with NO_TOOL_NEEDED."
-        ),
-        "__remote_agent_tool_check_review__": (
-            "--- Instructions for Remote Agent ---\n"
-            "Review the conversation above. If you have tools that can enrich "
-            "your analysis (e.g., lookup, search, query), use them and return the result.\n"
-            "If no tool call is needed, respond with NO_TOOL_NEEDED."
-        ),
-        "__ask_agent_use_service_question__": (
-            "The current objective is: __objective__. Based on the task requirements, "
-            "select the appropriate services. If no suitable service is available, return an empty list."
-        ),
-        "__review_conversation_question__": (
-            "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
-            "## Chat history \n__messages_history__"
-        ),
-        "__review_conversation_retry_question__": (
-            "Please output a single JSON object only, with no explanations or extra text. \n"
-            "## Conversation history \n__talk_history__"
-        ),
-        "__memory_recall_header__": (
-            "## Memory Recall\n"
-            "The following memories from your past experience may be relevant:\n"
-            "\n"
-            "__memory_entries__\n"
-            "Use these memories to inform your decision, but prioritize current context."
-        ),
-    }
-
-    def _ensure_sns_prompts(self):
-        """Seed default SNS prompts into the DB if they do not already exist."""
-        for title, content in self._SNS_PROMPT_SEEDS.items():
-            try:
-                existing = get_prompt_by_title(title)
-                if existing is None:
-                    upsert_prompt_by_title_with_tags(title, content, tags="SNS")
-                    logger.info("Seeded SNS prompt: %s", title)
-            except Exception as e:
-                logger.warning("Failed to seed SNS prompt %s: %s", title, e)
 
     async def pause_engine(self):
         """
@@ -727,7 +639,7 @@ class AISocialEngine(
         if not self.started_flag:
             return
 
-        role_prompt = get_prompt_by_title("__main_control__")
+        role_prompt = get_prompt_by_title("__main_control__") or ""
         process_info_list_str = "\n".join(f"{index + 1}. {info}" for index, info in enumerate(self.taskmng.process_info_list))
         # question_to_llm = ask_content + "Please tell me what I should do next; pick specifically from the function list."
         question_to_llm = ask_content
@@ -758,7 +670,7 @@ class AISocialEngine(
         question_to_llm = question_to_llm.replace("### 游戏攻略", "### 相关思考")
         question_to_llm = question_to_llm.replace("### 当前状况回顾", "### 行动前状况")
 
-        prompt = get_prompt_by_title("__current_status__")
+        prompt = get_prompt_by_title("__current_status__") or ""
         prompt = prompt.replace(f"__task_description__", task_description)
         prompt = prompt.replace(f"__last_instruction__", question_to_llm)
         # prompt = prompt.replace(f"__current_task_list__", self.current_task_list)
@@ -1249,7 +1161,7 @@ class AISocialEngine(
             logger.warning("Engine not started when processing human instruction, skipping")
             return
 
-        role_prompt = get_prompt_by_title("__human_instruction_to_process_activity_role__")
+        role_prompt = get_prompt_by_title("__human_instruction_to_process_activity_role__") or ""
         task_description = self.taskmng.get_task_summary()
         question_to_llm = ask_content
         full_ask_content = self.compose_full_ask_content_human(task_description,  question_to_llm)
@@ -1274,7 +1186,7 @@ class AISocialEngine(
             self.decline_energy()
             self.energy_decline_counter = 0
 
-        prompt = get_prompt_by_title("__human_instruction_to_process_activity_content__")
+        prompt = get_prompt_by_title("__human_instruction_to_process_activity_content__") or ""
         prompt = prompt.replace(f"__human_instruction__", question_to_llm)
         prompt = prompt.replace(f"__service_list__", json.dumps(self.get_service_list(), indent=4, ensure_ascii=False))
         prompt = prompt.replace(f"__people_list__", json.dumps(self.get_people_list(), indent=4, ensure_ascii=False))

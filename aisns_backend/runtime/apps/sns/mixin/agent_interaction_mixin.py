@@ -15,6 +15,29 @@ logger = logging.getLogger(__name__)
 
 class AgentInteractionMixin:
 
+    def _append_person_memory_recall(self, question: str) -> str:
+        """Append person-specific memory recall section (about the active conversation
+        partner) to a question prompt, when memory is enabled and we have an active
+        conversation. Returns the (possibly augmented) question string.
+
+        Shared by review-conversation flows in CommunicationMixin and TradeMixin.
+        """
+        try:
+            from runtime.apps.sns.memory.memory_config import MemoryConfig
+            mm = getattr(self, "memory_manager", None)
+            active = getattr(self, "active_conversation", None) or {}
+            acct = (active.get("account") or "").strip()
+            name = (active.get("nick_name") or acct)
+            if mm and acct and MemoryConfig.ENABLED:
+                person_section = mm.get_person_memory_prompt_section(
+                    acct, person_name=name, max_results=3, max_chars=600
+                )
+                if person_section:
+                    return question + "\n\n" + person_section
+        except Exception as _mem_err:
+            logger.warning("Memory recall failed for conversation review: %s", _mem_err)
+        return question
+
     def _format_goods_or_service_and_price(self) -> str:
         cfg = getattr(self, "aisns_cfg_record", None)
         description = (getattr(cfg, "goods_or_service_description", None) or "").strip()

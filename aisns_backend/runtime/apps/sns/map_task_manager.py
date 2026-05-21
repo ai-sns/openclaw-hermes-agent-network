@@ -149,9 +149,8 @@ class MapTaskManager:
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
-        strict_instruction = (get_prompt_by_title("__pick_people_strict_retry__") or "").strip()
-        if not strict_instruction:
-            strict_instruction = (
+
+        strict_instruction = (
                 "Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) "
                 "with EXACT keys: nation_id, account, nick_name, message. All values must be non-empty strings. "
                 "Missing/invalid keys: __missing_keys__. Previous raw output: __raw_result__"

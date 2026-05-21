@@ -1150,14 +1150,14 @@ def get_prompt_by_title(title):
     with _session_scope() as session:
         prompt = session.query(Prompt).filter_by(title=title).first()
 
-        return prompt.content if prompt else None
+        return prompt.content if prompt else ""
 
 
 def get_prompt_by_id(id):
     with _session_scope() as session:
         prompt = session.query(Prompt).filter_by(id=id).first()
 
-        return prompt.content if prompt else None
+        return prompt.content if prompt else ""
 
 
 def get_all_prompt(**kwargs):

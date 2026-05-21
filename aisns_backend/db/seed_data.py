@@ -596,7 +596,7 @@ SYSTEM_CFG_SEED = [{'autorun': 1,
   'language': 'en',
   'a2a_server_enabled': 1}]
 
-# Seed data for prompts table (rows whose tags contain 'SNS') (count=25)
+# Seed data for prompts table (rows whose tags contain 'SNS') (count=26)
 PROMPTS_SEED = [{'title': '__main_control__',
   'caption': 'Main process control-Guidelines',
   'content': '# Background Description\n'
@@ -871,7 +871,7 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'model_name': '',
   'position': None},
  {'title': '__review_conversation__',
-  'caption': 'Conversation Review',
+  'caption': 'Conversation Review-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are a professional chat expert, skilled at extracting key information from chat records, '
@@ -999,8 +999,17 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
+{'title': '__review_conversation_question__',
+ 'caption': 'Conversation Review-Context Factors',
+ 'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+            '## Chat history \n'
+            '__messages_history__',
+ 'question': None,
+ 'tags': 'SNS',
+ 'model_name': None,
+ 'position': None},
  {'title': '__start_to_sell_to_a_people__',
-  'caption': 'Promotion Guidelines',
+  'caption': 'Promotion-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are participating in a social game set in a virtual world.\n'
@@ -1093,14 +1102,14 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'model_name': '',
   'position': None},
  {'title': '__start_to_sell_to_a_people_content__',
-  'caption': 'Promotion Context Factors',
+  'caption': 'Promotion-Context Factors',
   'content': '### **Action Description**\n\n__action_desc__\n\n### **Candidate List**\n\n__people__to__select__',
   'question': '',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
  {'title': '__review_conversation_sell__',
-  'caption': 'Promotion Review',
+  'caption': 'Promotion Review-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are in a virtual social game, promoting your products or services to others, and you need to '
@@ -1190,8 +1199,17 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
+ {'title': '__review_conversation_sell_question__',
+  'caption': 'Promotion Review-Context Factors',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n'
+             '__messages_history__',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
  {'title': '__start_to_buy_from_a_people__',
-  'caption': 'Purchase Guidelines',
+  'caption': 'Purchase-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are participating in a social game set in a virtual world.\n'
@@ -1277,14 +1295,14 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'model_name': '',
   'position': None},
  {'title': '__start_to_buy_from_a_people_content__',
-  'caption': 'Purchase Context Factors',
+  'caption': 'Purchase-Context Factors',
   'content': '### **Action Description**\n\n__action_desc__\n\n### **Candidate List**\n\n__people__to__select__',
   'question': '',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
  {'title': '__review_conversation_buy__',
-  'caption': 'Purchase Review',
+  'caption': 'Purchase Review-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are a professional chat expert, skilled at extracting key information from chat records, '
@@ -1419,8 +1437,17 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
+ {'title': '__review_conversation_buy_question__',
+  'caption': 'Purchase Review-Context Factors',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n'
+             '__messages_history__',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
  {'title': '__human_instruction_to_process_activity_role__',
-  'caption': 'Human-Control Guidelines',
+  'caption': 'Human Control-Guidelines',
   'content': '# Background\n'
              '\n'
              '* You are participating in a virtual social game, and you need to determine which action to take next '
@@ -1484,7 +1511,7 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'model_name': '',
   'position': None},
  {'title': '__human_instruction_to_process_activity_content__',
-  'caption': 'Human-Control Context Factors',
+  'caption': 'Human-Control-Context Factors',
   'content': '### **Human Instruction**\n'
              '__human_instruction__\n'
              '\n'
@@ -1500,7 +1527,7 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'model_name': '',
   'position': None},
  {'title': '__ask_agent_use_service__',
-  'caption': 'Service Invocation',
+  'caption': 'Service Invocation-Guidelines',
   'content': 'As an intelligent assistant, your task is to select the service from the given service list that best '
              "meets the user's needs and automatically fill in the required parameters. Please read the following "
              'information carefully and choose the appropriate service according to the task description. The final '
@@ -1538,8 +1565,16 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
+{'title': '__ask_agent_use_service_question__',
+ 'caption': 'Service Invocation-Context Factors',
+ 'content': 'The current objective is: __objective__. Based on the task requirements, select the appropriate '
+            'services. If no suitable service is available, return an empty list.',
+ 'question': None,
+ 'tags': 'SNS',
+ 'model_name': None,
+ 'position': None},
  {'title': '__plan_manage__',
-  'caption': 'Goal Setting Guidelines',
+  'caption': 'Goal Setting-Guidelines',
   'content': 'Your primary objective is to maintain a stable and rational goal system rather than frequently changing '
              'goals.\n'
              '\n'
@@ -1786,6 +1821,18 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
+ {'title': '__plan_summary_output_requirements__',
+  'caption': 'Goal Setting-Output Requirements',
+  'content': 'Output requirements:\n'
+             '- Provide updated goals only.\n'
+             '- Include BOTH sections with these exact labels:\n'
+             '  Long-Term Goals:\n'
+             '  Short-Term Goals:\n'
+             '- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
  {'title': '__tool_check_before_activity__',
   'caption': 'Invoke Tools To Review Process Before Action Decision',
   'content': 'You are an AI agent playing a virtual social life game on Google Maps.\n'
@@ -1822,27 +1869,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': None,
   'position': None},
- {'title': '__plan_summary_output_requirements__',
-  'caption': 'Plan Summary Output Requirements',
-  'content': 'Output requirements:\n'
-             '- Provide updated goals only.\n'
-             '- Include BOTH sections with these exact labels:\n'
-             '  Long-Term Goals:\n'
-             '  Short-Term Goals:\n'
-             '- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
- {'title': '__pick_people_strict_retry__',
-  'caption': 'Pick People Strict Retry',
-  'content': 'Your previous output was invalid. Output ONLY one JSON object (no markdown, no extra text) with EXACT '
-             'keys: nation_id, account, nick_name, message. All values must be non-empty strings. Missing/invalid '
-             'keys: __missing_keys__. Previous raw output: __raw_result__',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
  {'title': '__remote_agent_tool_check_activity__',
   'caption': 'Remote Agent Tool Check Before Action Decision',
   'content': '--- Instructions for Remote Agent ---\n'
@@ -1863,39 +1889,25 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': None,
   'position': None},
- {'title': '__ask_agent_use_service_question__',
-  'caption': 'Ask Agent Use Service Question',
-  'content': 'The current objective is: __objective__. Based on the task requirements, select the appropriate '
-             'services. If no suitable service is available, return an empty list.',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
- {'title': '__review_conversation_question__',
-  'caption': 'Review Conversation Question',
-  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
-             '## Chat history \n'
-             '__messages_history__',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
- {'title': '__review_conversation_retry_question__',
-  'caption': 'Review Conversation Retry Question',
-  'content': 'Please output a single JSON object only, with no explanations or extra text. \n'
-             '## Conversation history \n'
-             '__talk_history__',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
  {'title': '__memory_recall_header__',
-  'caption': 'Memory Recall Header',
+  'caption': 'Guide The Agent To Recall Memory',
   'content': '## Memory Recall\n'
              'The following memories from your past experience may be relevant:\n'
              '\n'
              '__memory_entries__\n'
              'Use these memories to inform your decision, but prioritize current context.',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
+ {'title': '__send_goods_service__',
+  'caption': 'Guide The Agent To Send Goods Or Services',
+  'content': "- You have confirmed that the buyer's payment has been received, and now you need to deliver the "
+             'goods/service content to the buyer. \n'
+             '- Please infer what the buyer purchased based on the chat history below, and generate the delivery '
+             'content.\n'
+             '- Output requirements: only output the delivery content itself, do not explain; if you cannot infer, '
+             'output a short default delivery message (e.g., Payment received; detailed content will be sent later).',
   'question': None,
   'tags': 'SNS',
   'model_name': None,

@@ -1059,9 +1059,9 @@ talk_to_a_people
         provided_profile_list = json.dumps(people_list, indent=4, ensure_ascii=False)
         self._pending_talk_objective = objective_to_achieve
 
-        role_prompt = get_prompt_by_title("__start_to_talk_to_a_people__")
+        role_prompt = get_prompt_by_title("__start_to_talk_to_a_people__") or ""
 
-        content_prompt = get_prompt_by_title("__start_to_talk_to_a_people_content__")
+        content_prompt = get_prompt_by_title("__start_to_talk_to_a_people_content__") or ""
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
@@ -1115,9 +1115,9 @@ talk_to_a_people
         provided_profile_list = json.dumps(people_list, indent=4, ensure_ascii=False)
         self._pending_talk_objective = objective_to_achieve
 
-        role_prompt = get_prompt_by_title("__start_to_talk_to_a_people__")
+        role_prompt = get_prompt_by_title("__start_to_talk_to_a_people__") or ""
 
-        content_prompt = get_prompt_by_title("__start_to_talk_to_a_people_content__")
+        content_prompt = get_prompt_by_title("__start_to_talk_to_a_people_content__") or ""
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
@@ -1199,24 +1199,17 @@ talk_to_a_people
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
 
     async def ask_agent_to_review_conversation(self, conversation_target, messages_history):
-        role_prompt = get_prompt_by_title("__review_conversation__")
-        # role_prompt = role_prompt.replace("__conversation_target__", conversation_target)
-        # role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = "## Conversation history \n" + messages_history
+        role_prompt = get_prompt_by_title("__review_conversation__") or ""
+        question = (get_prompt_by_title("__review_conversation_question__") or "").strip()
+        if not question:
+            question = (
+                "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
+                "## Chat history \n__messages_history__"
+            )
+        question = question.replace("__messages_history__", messages_history or "")
 
         # Memory recall: inject past interactions with the current conversation partner
-        try:
-            from runtime.apps.sns.memory.memory_config import MemoryConfig
-            mm = getattr(self, "memory_manager", None)
-            active = getattr(self, "active_conversation", None) or {}
-            acct = (active.get("account") or "").strip()
-            name = (active.get("nick_name") or acct)
-            if mm and acct and MemoryConfig.ENABLED:
-                person_section = mm.get_person_memory_prompt_section(acct, person_name=name, max_results=3, max_chars=600)
-                if person_section:
-                    question += "\n\n" + person_section
-        except Exception as _mem_err:
-            logger.warning("Memory recall failed for conversation review: %s", _mem_err)
+        question = self._append_person_memory_recall(question)
 
         await   self.ask_agent_and_get_instruction(question, role_prompt)
 
@@ -1232,10 +1225,8 @@ talk_to_a_people
             if retry_count < 1:
                 setattr(self, "_review_comm_retry_count", retry_count + 1)
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
-                role_prompt = get_prompt_by_title("__review_conversation__")
-                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
-                if not question:
-                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                role_prompt = get_prompt_by_title("__review_conversation__") or ""
+                question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
                 question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:

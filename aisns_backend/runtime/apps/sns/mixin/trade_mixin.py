@@ -483,9 +483,9 @@ class TradeMixin:
         provided_profile_list = json.dumps(people_list, indent=4, ensure_ascii=False)
         self._pending_talk_objective = objective_to_achieve
 
-        role_prompt = get_prompt_by_title("__start_to_sell_to_a_people__")
+        role_prompt = get_prompt_by_title("__start_to_sell_to_a_people__") or ""
 
-        content_prompt = get_prompt_by_title("__start_to_sell_to_a_people_content__")
+        content_prompt = get_prompt_by_title("__start_to_sell_to_a_people_content__") or ""
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
@@ -522,9 +522,9 @@ class TradeMixin:
         objective_to_achieve = f"{human_objective_to_achieve}{objective_to_achieve}"
         self._pending_talk_objective = objective_to_achieve
 
-        role_prompt = get_prompt_by_title("__start_to_buy_from_a_people__")
+        role_prompt = get_prompt_by_title("__start_to_buy_from_a_people__") or ""
 
-        content_prompt = get_prompt_by_title("__start_to_buy_from_a_people_content__")
+        content_prompt = get_prompt_by_title("__start_to_buy_from_a_people_content__") or ""
         content_prompt = content_prompt.replace("__action_desc__", objective_to_achieve)
         content_prompt = content_prompt.replace("__people__to__select__", provided_profile_list)
 
@@ -665,27 +665,35 @@ class TradeMixin:
             asyncio.create_task(self.taskmng.process_task(event="agent_pick_people_list_fail"))
 
     async def ask_agent_to_review_conversation_sell(self, conversation_target, messages_history):
-        role_prompt = get_prompt_by_title("__review_conversation_sell__")
-        role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = (get_prompt_by_title("__review_conversation_question__") or "").strip()
+        role_prompt = get_prompt_by_title("__review_conversation_sell__") or ""
+        role_prompt = role_prompt.replace("__messages_history__", messages_history or "")
+        question = (get_prompt_by_title("__review_conversation_sell_question__") or "").strip()
         if not question:
             question = (
                 "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
                 "## Chat history \n__messages_history__"
             )
         question = question.replace("__messages_history__", messages_history or "")
+
+        # Memory recall: inject past interactions with the current conversation partner
+        question = self._append_person_memory_recall(question)
+
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     async def ask_agent_to_review_conversation_buy(self, conversation_target, messages_history):
-        role_prompt = get_prompt_by_title("__review_conversation_buy__")
-        role_prompt = role_prompt.replace("__messages_history__", messages_history)
-        question = (get_prompt_by_title("__review_conversation_question__") or "").strip()
+        role_prompt = get_prompt_by_title("__review_conversation_buy__") or ""
+        role_prompt = role_prompt.replace("__messages_history__", messages_history or "")
+        question = (get_prompt_by_title("__review_conversation_buy_question__") or "").strip()
         if not question:
             question = (
                 "Please evaluate strictly according to the requirements and output strictly in the required format.\n"
                 "## Chat history \n__messages_history__"
             )
         question = question.replace("__messages_history__", messages_history or "")
+
+        # Memory recall: inject past interactions with the current conversation partner
+        question = self._append_person_memory_recall(question)
+
         await  self.ask_agent_and_get_instruction(question, role_prompt)
 
     def handle_agent_review_conversation_sell_result(self, content):
@@ -700,11 +708,9 @@ class TradeMixin:
             if retry_count < 1:
                 setattr(self, "_review_sell_retry_count", retry_count + 1)
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
-                role_prompt = get_prompt_by_title("__review_conversation_sell__")
-                role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
-                if not question:
-                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                role_prompt = get_prompt_by_title("__review_conversation_sell__") or ""
+                role_prompt = role_prompt.replace("__messages_history__", talk_history_str or "")
+                question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
                 question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
@@ -763,11 +769,9 @@ class TradeMixin:
             if retry_count < 1:
                 setattr(self, "_review_buy_retry_count", retry_count + 1)
                 talk_history_str = json.dumps(self.current_talk_history, ensure_ascii=False)
-                role_prompt = get_prompt_by_title("__review_conversation_buy__")
-                role_prompt = role_prompt.replace("__messages_history__", talk_history_str)
-                question = (get_prompt_by_title("__review_conversation_retry_question__") or "").strip()
-                if not question:
-                    question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
+                role_prompt = get_prompt_by_title("__review_conversation_buy__") or ""
+                role_prompt = role_prompt.replace("__messages_history__", talk_history_str or "")
+                question = "Please output a single JSON object only, with no explanations or extra text. \n## Conversation history \n__talk_history__"
                 question = question.replace("__talk_history__", talk_history_str)
                 asyncio.create_task(self.ask_agent_and_get_instruction(question, role_prompt))
             else:
@@ -1072,10 +1076,14 @@ class TradeMixin:
                 return
 
             tool_name = handle_content
-            talk_history_str = "请用skill draw-image画只鸡.\n"
-            what_to_do = (
-                "请用skill draw-image画只鸡.\n"
-            )
+            send_goods_service_prompt = get_prompt_by_title("__send_goods_service__") or ""
+            what_to_do = f"""
+            {send_goods_service_prompt}
+
+            ## Chat history
+            {talk_history_str}
+            """.strip()
+
             tool_task = self.run_configured_tool_text_generation_sync(
                 tool_name,
                 what_to_do,

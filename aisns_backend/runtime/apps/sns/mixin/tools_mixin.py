@@ -125,7 +125,7 @@ class ToolsMixin:
     async def ask_agent_to_use_service(self, objective_to_achieve, human_objective_to_achieve=""):
         service_list = json.dumps(self.get_service_list(), indent=4, ensure_ascii=False)
         objective_to_achieve = f"{human_objective_to_achieve}{objective_to_achieve}"
-        role_prompt = get_prompt_by_title("__ask_agent_use_service__")
+        role_prompt = get_prompt_by_title("__ask_agent_use_service__") or ""
         role_prompt = role_prompt.replace("__service_list__", service_list)
         # role_prompt = role_prompt.replace("__objective_to_achieve__", objective_to_achieve)
 
