@@ -2,6 +2,7 @@
 """
 System module - API router
 """
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -409,6 +410,19 @@ async def submit_system_init(
         remote_res = await service.register_remote(register_data, avatar_map_filename)
         nation_id = remote_res.get("nation_id") or remote_res.get("nationId") or remote_res.get("nationid") or ""
         service.submit(record, nation_id)
+
+        # The XMPP client was skipped at startup because no account/password
+        # existed yet. Now that the init wizard has saved credentials to
+        # aisns_cfg, schedule a hot restart so SNS features (roster sync,
+        # messaging) come up without requiring a full backend restart. This
+        # mirrors the hot-reload behaviour in SNSService.update_ai_chat_config.
+        try:
+            from runtime.apps.sns.xmpp_client import XMPPClientManager
+            asyncio.create_task(XMPPClientManager.get_instance().restart())
+            logger.info("XMPP restart scheduled after init wizard submit")
+        except Exception as _xe:
+            logger.warning("Failed to schedule XMPP restart after init wizard submit: %s", _xe)
+
         return {"success": True, "data": remote_res}
     except httpx.HTTPStatusError as e:
         status_code = getattr(e.response, 'status_code', 502) if getattr(e, 'response', None) is not None else 502
