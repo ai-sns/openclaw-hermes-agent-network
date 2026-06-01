@@ -436,11 +436,16 @@ class MapService:
             return ""
 
     @classmethod
-    def _ensure_current_position(cls, cfg: Any) -> Dict[str, float]:
-        current_position = cls._normalize_position(getattr(cfg, "current_position", None))
-        if cls._has_valid_lng_lat(current_position):
-            return current_position
+    def generate_initial_position(cls) -> Dict[str, float]:
+        """Generate a diversified initial position around a base point.
 
+        The base point is fetched from the remote ai_sns_server when available,
+        otherwise a built-in default is used. A random point within a 10km
+        radius of the base is returned so that freshly registered users are
+        spread out instead of clustering on a single shared coordinate. This
+        helper does not touch any config record; callers decide where to
+        persist the result (local aisns_cfg and/or remote registration).
+        """
         base_lng = -121.88947550295555
         base_lat = 37.33200027587634
         remote_base = cls._get_ai_sns_server_base()
@@ -459,7 +464,15 @@ class MapService:
             except Exception as e:
                 logger.warning("Failed to fetch initial position from ai_sns_server: %s", e)
 
-        random_pos = cls._random_point_within_radius_m(base_lng, base_lat, 10000.0)
+        return cls._random_point_within_radius_m(base_lng, base_lat, 10000.0)
+
+    @classmethod
+    def _ensure_current_position(cls, cfg: Any) -> Dict[str, float]:
+        current_position = cls._normalize_position(getattr(cfg, "current_position", None))
+        if cls._has_valid_lng_lat(current_position):
+            return current_position
+
+        random_pos = cls.generate_initial_position()
         try:
             from db.DBFactory import update_AISnsCfg_map
             update_AISnsCfg_map(current_position=json.dumps(random_pos, ensure_ascii=False))

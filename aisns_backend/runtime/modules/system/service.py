@@ -928,11 +928,27 @@ class SystemInitWizardService:
                 )
             return resp.json()
 
-    def submit(self, draft: Dict[str, Any], nation_id: str) -> None:
+    def submit(self, draft: Dict[str, Any], nation_id: str,
+               current_position: Optional[Dict[str, float]] = None) -> None:
         record = self._get_first_record()
         if not record:
             raise ValueError("SystemInit not found")
         self.system_init_repo.update(record.id, status=1)
+
+        # Persist the initial position decided at registration time so the SNS
+        # Current Status / Resource panels can read a valid current_position
+        # without depending on the map iframe to initialize it later.
+        position_kwargs: Dict[str, Any] = {}
+        if current_position is not None:
+            lng = current_position.get("lng")
+            lat = current_position.get("lat")
+            if lng is not None and lat is not None:
+                try:
+                    position_kwargs["current_position"] = json.dumps(
+                        {"lng": float(lng), "lat": float(lat)}, ensure_ascii=False
+                    )
+                except (TypeError, ValueError):
+                    position_kwargs = {}
 
         sns_record = self.aisns_cfg_repo.get_map_config()
         old_api_keys = (getattr(sns_record, 'map_api_key', '') or '').split(',') if getattr(sns_record, 'map_api_key', None) else ['', '']
@@ -963,6 +979,7 @@ class SystemInitWizardService:
                 map_type=map_type_value,
                 map_api_key=combined["map_api_key"],
                 map_id=combined["map_id"],
+                **position_kwargs,
             )
         else:
             cfg_id = self.aisns_cfg_repo.create_with_id(
@@ -979,6 +996,7 @@ class SystemInitWizardService:
                 map_type=map_type_value,
                 map_api_key=combined["map_api_key"],
                 map_id=combined["map_id"],
+                **position_kwargs,
             )
 
         # Sync LLM configuration to llm_config table, then bind aisns_cfg.agent_id
