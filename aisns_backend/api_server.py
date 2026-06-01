@@ -160,6 +160,14 @@ try:
     if os.path.exists("resource"):
         app.mount("/resource", StaticFiles(directory="resource"), name="resource")
     if os.path.exists("static"):
+        # Ensure git-ignored map-config files exist (created from their
+        # *.example templates) before the /static mount serves them, so the
+        # map iframe never 404s even before any map config has been saved.
+        try:
+            from runtime.modules.map.file_replace import ensure_map_files_from_templates
+            ensure_map_files_from_templates(logger)
+        except Exception as _e:
+            logger.warning("Failed to ensure map-config files from templates: %s", _e)
         app.mount("/static", StaticFiles(directory="static"), name="static")
 
     # Create uploads directory if not exists

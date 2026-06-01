@@ -12,12 +12,66 @@ BAIDU_MAP_ID_SENTINEL = "do_not_need_map_id"
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
+# Map-config files that are git-ignored at runtime and shipped only as
+# ``*.example`` templates. They must exist on disk for the map iframe to load
+# (served via the ``/static`` mount).
+MAP_CONFIG_FILES = (
+    "static/googlemap3d.html",
+    "static/map.html",
+    "static/js/google/map_common.js",
+)
+
 
 def _should_skip(old_val: str, new_val: str) -> bool:
     """Return True when there is nothing useful to replace."""
     if not old_val or not new_val:
         return True
     return old_val == new_val
+
+
+def _create_from_template_if_missing(rel_path: str, logger: logging.Logger) -> bool:
+    """Ensure *rel_path* exists, creating it from its ``.example`` template
+    when missing. Returns True if the file exists (or was created)."""
+    abs_path = (_REPO_ROOT / rel_path).resolve()
+    if abs_path.exists():
+        return True
+
+    template_path = (_REPO_ROOT / (rel_path + ".example")).resolve()
+    if not template_path.exists():
+        logger.warning(
+            "Map-config file missing and no template exists: %s (template: %s)",
+            abs_path,
+            template_path,
+        )
+        return False
+
+    try:
+        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(template_path, abs_path)
+        logger.info(
+            "Created missing map-config file from template: %s -> %s",
+            template_path,
+            abs_path,
+        )
+        return True
+    except Exception as exc:
+        logger.error(
+            "Failed to create missing map-config file from template: %s -> %s (%s)",
+            template_path,
+            abs_path,
+            exc,
+        )
+        return False
+
+
+def ensure_map_files_from_templates(logger: logging.Logger) -> None:
+    """Create any missing map-config files from their ``.example`` templates.
+
+    Safe to call at startup. This guarantees the map iframe can always load
+    ``/static/googlemap3d.html`` and ``/static/map.html`` even before the user
+    has saved any map configuration (the real files are git-ignored)."""
+    for rel_path in MAP_CONFIG_FILES:
+        _create_from_template_if_missing(rel_path, logger)
 
 
 def _do_replace(
@@ -27,34 +81,10 @@ def _do_replace(
 ) -> None:
     """Read *rel_path* (relative to repo root), apply (old, new) string
     replacements in order, and write back only if something changed."""
-    abs_path = (_REPO_ROOT / rel_path).resolve()
-    if not abs_path.exists():
-        template_path = (_REPO_ROOT / (rel_path + ".example")).resolve()
-        if template_path.exists():
-            try:
-                abs_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(template_path, abs_path)
-                logger.info(
-                    "Created missing map-config file from template: %s -> %s",
-                    template_path,
-                    abs_path,
-                )
-            except Exception as exc:
-                logger.error(
-                    "Failed to create missing map-config file from template: %s -> %s (%s)",
-                    template_path,
-                    abs_path,
-                    exc,
-                )
-                return
-        else:
-            logger.warning(
-                "File not found for map-config replace and no template exists: %s (template: %s)",
-                abs_path,
-                template_path,
-            )
-            return
+    if not _create_from_template_if_missing(rel_path, logger):
+        return
 
+    abs_path = (_REPO_ROOT / rel_path).resolve()
     try:
         content = abs_path.read_text(encoding="utf-8")
     except Exception as exc:

@@ -760,9 +760,18 @@ const InitializationWizard = {
                 this.collectFormValues();
                 this.setInlineTestResult(null, '');
                 const mapType = String(this.state.map || '').trim();
-                const url = mapType === 'Google'
-                    ? 'http://localhost:8788/static/google3dmap_test.html'
+                const apiKey = String(this.state.map_api_key || '').trim();
+                const mapId = String(this.state.map_id || '').trim();
+                const qs = new URLSearchParams();
+                if (apiKey) qs.set('api_key', apiKey);
+                // Baidu test page no longer takes a Style ID, so map_id is
+                // only forwarded for Google.
+                if (mapType === 'Google' && mapId) qs.set('map_id', mapId);
+                const query = qs.toString();
+                const base = mapType === 'Google'
+                    ? 'http://localhost:8788/static/googlemap3d_test.html'
                     : 'http://localhost:8788/static/map_test.html';
+                const url = query ? `${base}?${query}` : base;
                 openUrlInDefaultBrowser(url);
             });
         }

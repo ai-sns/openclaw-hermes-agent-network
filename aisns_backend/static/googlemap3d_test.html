@@ -80,7 +80,7 @@
 
     <div class="input-group">
         <label for="mapId">Map ID (optional):</label>
-        <input type="text" id="mapId" placeholder="e.g., 8e0a97af938520ad (for testing vector maps or cloud styles)">
+        <input type="text" id="mapId" placeholder="e.g., 8e0a13af938xxxxx (for testing vector maps or cloud styles)">
         <div class="info">Note: Map ID is required for testing Advanced Markers.</div>
     </div>
 
@@ -99,6 +99,25 @@
         status.innerHTML = '<strong>Authentication Error:</strong> Your API Key may be invalid or this domain/IP is not authorized. Please check the restrictions in Google Cloud Console.';
         document.getElementById('map-container').innerHTML = 'Map loading failed';
     };
+
+    // Prefill API Key / Map ID from URL query (?api_key=...&map_id=...) so
+    // the Initialization Wizard can hand off the user's input directly to
+    // this test page.
+    (function prefillFromQuery() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const apiKey = params.get('api_key');
+            const mapId = params.get('map_id');
+            if (apiKey) {
+                const el = document.getElementById('apiKey');
+                if (el) el.value = apiKey;
+            }
+            if (mapId) {
+                const el = document.getElementById('mapId');
+                if (el) el.value = mapId;
+            }
+        } catch (e) {}
+    })();
 
     function loadMap() {
         const apiKey = document.getElementById('apiKey').value.trim();
