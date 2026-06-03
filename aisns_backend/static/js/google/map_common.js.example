@@ -2363,30 +2363,6 @@ function initMap() {
 
                 highlightedObject = intersections[0].object;
 
-                try {
-
-                    const mats = (highlightedObject && highlightedObject.material)
-
-                        ? (Array.isArray(highlightedObject.material) ? highlightedObject.material : [highlightedObject.material])
-
-                        : [];
-
-                    highlightedObjectOriginalColors = mats.map(m => (m && m.color) ? m.color.getHex() : null);
-
-                    for (const m of mats) {
-
-                        if (m && m.color) {
-
-                            m.color.setHex(HIGHLIGHT_COLOR);
-
-                        }
-
-                    }
-
-                } catch (e) {
-
-                }
-
                 if (highlightedObject.userData) {
 
                     if (highlightedObject.userData.nation_id) {
@@ -2395,13 +2371,18 @@ function initMap() {
 
                         nation_id = highlightedObject.userData.nation_id;
 
-                        currentModel = getPersonModelByNationId(nation_id);
-
                         mousePosition.x = 0;
 
                         mousePosition.y = 0;
 
-                        showprofile3d(currentModel);
+                        // Skip showing the profile popup when the clicked model is my own avatar
+                        if ((typeof nation_id_me === 'undefined') || String(nation_id) !== String(nation_id_me)) {
+
+                            currentModel = getPersonModelByNationId(nation_id);
+
+                            showprofile3d(currentModel);
+
+                        }
 
                     }
 

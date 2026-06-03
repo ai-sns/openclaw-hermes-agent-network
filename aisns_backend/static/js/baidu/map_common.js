@@ -1183,14 +1183,20 @@ map.addEventListener('click', function (e) {
         // alert(intersectedObject.userData.nation_id);
         // alert(intersectedObject.userData["nation_id"]);
         nation_id = intersectedObject.userData.nation_id;
-        currentModel = threeLayer.scene.getObjectByName(nation_id);
-        // showprofile3d(currentModel);
+        // Skip showing the profile popup when the clicked model is my own avatar
+        var __isMe = (typeof nation_id_me === 'undefined') ? false : (String(nation_id) === String(nation_id_me));
+        if (__isMe) {
+            currentModel = null;
+        } else {
+            currentModel = threeLayer.scene.getObjectByName(nation_id);
+            // showprofile3d(currentModel);
 // map.closeInfoWindow();
-        //use setTimeout to  wait for the next macrotask
-        setTimeout(function () {
-            showprofile3d(currentModel);
-        }, 0);
+            //use setTimeout to  wait for the next macrotask
+            setTimeout(function () {
+                showprofile3d(currentModel);
+            }, 0);
 // showprofile3d(currentModel);
+        }
 
     } else {
 
