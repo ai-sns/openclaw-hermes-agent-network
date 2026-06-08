@@ -11,7 +11,7 @@ database, and returns the response greeting to the caller.
 """
 import random
 import logging
-from a2aserver.db import add_greeting
+from a2aserver.db import add_or_update_greeting, normalize_bare_jid
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ def exchange_greeting(sender_jid: str, sender_greeting: str = "") -> dict:
 
     my_greeting = random_greeting()
 
-    # Persist to database
-    row_id = add_greeting(sender_jid, sender_greeting, my_greeting)
+    # Persist to database (upsert per bare JID)
+    row_id = add_or_update_greeting(normalize_bare_jid(sender_jid), sender_greeting, my_greeting)
     logger.info(
         "Greeting exchange id=%d: %s sent '%s', replied '%s'",
         row_id, sender_jid or "unknown", sender_greeting, my_greeting,

@@ -1062,6 +1062,16 @@ if 'main' in dir():
         finally:
             db.close()
 
+        # Setup stderr capture for diagnostics on Windows command-based MCPs
+        stderr_log_path = None
+        stderr_log_file = None
+        if mcp_type == 'stdio':
+            import tempfile
+            stderr_log_file = tempfile.NamedTemporaryFile(
+                mode='w', suffix='.log', prefix='mcp_stderr_', delete=False, encoding='utf-8'
+            )
+            stderr_log_path = stderr_log_file.name
+
         try:
             # Prepare environment with UTF-8 encoding (for Windows compatibility)
             env = os.environ.copy()
@@ -1104,37 +1114,49 @@ if 'main' in dir():
                 env=env
             )
 
-            # Connect to MCP server and execute tool
-            async with AsyncExitStack() as stack:
-                # Start stdio transport
-                stdio_transport = await stack.enter_async_context(
-                    stdio_client(server_params)
-                )
-                stdio, write = stdio_transport
+            # Command-based stdio MCPs (e.g. npx) can take a long time to start.
+            total_timeout = 180 if mcp_type == 'stdio' else 60
+            async with asyncio.timeout(total_timeout):
+                async with AsyncExitStack() as stack:
+                    # Start stdio transport
+                    # Pass errlog only if this mcp SDK version supports it.
+                    try:
+                        import inspect
+                        _supports_errlog = 'errlog' in inspect.signature(stdio_client).parameters
+                    except (ValueError, TypeError):
+                        _supports_errlog = False
 
-                # Create client session
-                session = await stack.enter_async_context(
-                    ClientSession(stdio, write)
-                )
+                    if _supports_errlog and stderr_log_file is not None:
+                        stdio_transport = await stack.enter_async_context(
+                            stdio_client(server_params, errlog=stderr_log_file)
+                        )
+                    else:
+                        stdio_transport = await stack.enter_async_context(stdio_client(server_params))
+                    stdio, write = stdio_transport
 
-                # Initialize connection
-                await session.initialize()
+                    # Create client session
+                    session = await stack.enter_async_context(
+                        ClientSession(stdio, write)
+                    )
 
-                # Call the specific tool
-                call_result = await session.call_tool(tool_name, arguments)
+                    # Initialize connection
+                    await session.initialize()
 
-                # Extract text content from result
-                result_text = ""
-                for content in call_result.content:
-                    if hasattr(content, 'text'):
-                        result_text += content.text
+                    # Call the specific tool
+                    call_result = await session.call_tool(tool_name, arguments)
 
-                self.log_execution("mcp_tool", mcp_id, "completed", f"Tool {tool_name} executed successfully")
+                    # Extract text content from result
+                    result_text = ""
+                    for content in call_result.content:
+                        if hasattr(content, 'text'):
+                            result_text += content.text
 
-                return {
-                    "success": True,
-                    "result": result_text
-                }
+                    self.log_execution("mcp_tool", mcp_id, "completed", f"Tool {tool_name} executed successfully")
+
+                    return {
+                        "success": True,
+                        "result": result_text
+                    }
 
         except asyncio.TimeoutError:
             error_msg = f"MCP tool execution timeout for {tool_name}"
@@ -1145,14 +1167,52 @@ if 'main' in dir():
             }
 
         except Exception as e:
-            error_msg = f"MCP tool execution failed: {str(e)}"
+            error_msg = str(e)
+
+            def _flatten_exc(exc, depth=0):
+                leaves = []
+                subs = getattr(exc, "exceptions", None)
+                if subs:
+                    for sub in subs:
+                        leaves.extend(_flatten_exc(sub, depth + 1))
+                else:
+                    leaves.append(f"{type(exc).__name__}: {exc}")
+                return leaves
+
+            leaf_errors = _flatten_exc(e)
+            if leaf_errors:
+                error_msg = f"{str(e)}; root-causes: {' | '.join(leaf_errors)}"
+
+            # Surface child stderr so we can see why the command-based MCP exited.
+            server_stderr = ""
+            try:
+                if stderr_log_file is not None:
+                    stderr_log_file.flush()
+                if stderr_log_path and os.path.exists(stderr_log_path):
+                    with open(stderr_log_path, 'r', encoding='utf-8', errors='replace') as fh:
+                        server_stderr = fh.read().strip()
+            except Exception:
+                pass
+            if server_stderr:
+                error_msg = f"{error_msg}; server-stderr: {server_stderr[:1500]}"
+
+            full_error = f"MCP tool execution failed: {error_msg}"
             error_trace = traceback.format_exc()
-            self.log_execution("mcp_tool", mcp_id, "error", error_msg, error_trace[:500])
+            self.log_execution("mcp_tool", mcp_id, "error", full_error, error_trace[:500])
 
             return {
                 "success": False,
-                "error": error_msg
+                "error": full_error,
+                "server_stderr": server_stderr[:1500],
             }
+        finally:
+            try:
+                if 'stderr_log_file' in locals() and stderr_log_file is not None:
+                    stderr_log_file.close()
+                if 'stderr_log_path' in locals() and stderr_log_path and os.path.exists(stderr_log_path):
+                    os.unlink(stderr_log_path)
+            except Exception:
+                pass
 
     async def _execute_screenshot(self, params: dict) -> dict:
         """Execute screenshot capture"""

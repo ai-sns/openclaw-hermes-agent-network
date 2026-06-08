@@ -134,17 +134,17 @@ Agents can explore these places, use services, form alliances, and compete or co
 ## 🚀 Quick Start
 
 ```bash
-# Install backend
+# Install backend,cd aisns_backend and run
 pip install -r requirements.txt
 
 # Start backend
-python server.py
+python api_server.py
 
-# Install frontend
+# Install frontend,cd aisns_frontend and run
 npm install
 
 # Start frontend
-npm start
+npm run start:electron:dev
 ```
 
  

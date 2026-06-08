@@ -23,6 +23,23 @@ def _get_conn() -> sqlite3.Connection:
     return conn
 
 
+def normalize_bare_jid(jid: str) -> str:
+    """Return the bare JID (strip any resource part after '/').
+
+    Examples:
+      'user@example.com/abc' -> 'user@example.com'
+      'user@example.com'     -> 'user@example.com'
+      ''                      -> ''
+    """
+    try:
+        s = str(jid or "")
+        if not s:
+            return ""
+        return s.split("/", 1)[0]
+    except Exception:
+        return str(jid or "")
+
+
 # Default agent card values (used on first init)
 _DEFAULT_AGENT_CARD = {
     "name": "AI-SNS Business Card Exchange Agent",
@@ -301,29 +318,109 @@ def get_received_cards() -> list:
 
 def add_received_card(card: dict) -> int:
     """Store a received business card. Returns the new row ID."""
+    # Normalize JIDs: both sender_jid and card.xmpp should be bare JIDs
+    c = dict(card or {})
+    c["sender_jid"] = normalize_bare_jid(c.get("sender_jid", ""))
+    c["xmpp"] = normalize_bare_jid(c.get("xmpp", ""))
+
     conn = _get_conn()
     now = datetime.now().isoformat(timespec="seconds")
-    cur = conn.execute("""
+    cur = conn.execute(
+        """
         INSERT INTO received_cards
             (sender_jid, name, company, title, email, xmpp, website, phone, memo, raw_json, received_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        card.get("sender_jid", ""),
-        card.get("name", ""),
-        card.get("company", ""),
-        card.get("title", ""),
-        card.get("email", ""),
-        card.get("xmpp", ""),
-        card.get("website", ""),
-        card.get("phone", ""),
-        card.get("memo", ""),
-        json.dumps(card, ensure_ascii=False),
-        now,
-    ))
+        """,
+        (
+            c.get("sender_jid", ""),
+            c.get("name", ""),
+            c.get("company", ""),
+            c.get("title", ""),
+            c.get("email", ""),
+            c.get("xmpp", ""),
+            c.get("website", ""),
+            c.get("phone", ""),
+            c.get("memo", ""),
+            json.dumps(c, ensure_ascii=False),
+            now,
+        ),
+    )
     conn.commit()
     row_id = cur.lastrowid
     conn.close()
     return row_id
+
+
+def add_or_update_received_card(card: dict) -> int:
+    """Upsert a received business card by sender_jid (bare JID).
+
+    If a record exists for the same sender_jid, update it and set
+    received_at to the latest time; otherwise insert a new record.
+
+    Returns the affected row ID (updated row id if available, or new id).
+    """
+    c = dict(card or {})
+    sender_bare = normalize_bare_jid(c.get("sender_jid", ""))
+    c["sender_jid"] = sender_bare
+    c["xmpp"] = normalize_bare_jid(c.get("xmpp", ""))
+    now = datetime.now().isoformat(timespec="seconds")
+
+    conn = _get_conn()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM received_cards WHERE sender_jid = ? ORDER BY id DESC LIMIT 1",
+            (sender_bare,),
+        ).fetchone()
+        if existing:
+            row_id = int(existing["id"]) if isinstance(existing, sqlite3.Row) else int(existing[0])
+            conn.execute(
+                """
+                UPDATE received_cards SET
+                    name = ?, company = ?, title = ?, email = ?, xmpp = ?,
+                    website = ?, phone = ?, memo = ?, raw_json = ?, received_at = ?
+                WHERE id = ?
+                """,
+                (
+                    c.get("name", ""),
+                    c.get("company", ""),
+                    c.get("title", ""),
+                    c.get("email", ""),
+                    c.get("xmpp", ""),
+                    c.get("website", ""),
+                    c.get("phone", ""),
+                    c.get("memo", ""),
+                    json.dumps(c, ensure_ascii=False),
+                    now,
+                    row_id,
+                ),
+            )
+            conn.commit()
+            return row_id
+        # No existing row — insert
+        cur = conn.execute(
+            """
+            INSERT INTO received_cards
+                (sender_jid, name, company, title, email, xmpp, website, phone, memo, raw_json, received_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                c.get("sender_jid", ""),
+                c.get("name", ""),
+                c.get("company", ""),
+                c.get("title", ""),
+                c.get("email", ""),
+                c.get("xmpp", ""),
+                c.get("website", ""),
+                c.get("phone", ""),
+                c.get("memo", ""),
+                json.dumps(c, ensure_ascii=False),
+                now,
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
 
 
 def delete_received_card(card_id: int) -> bool:
@@ -339,17 +436,67 @@ def delete_received_card(card_id: int) -> bool:
 # ── Greeting CRUD ─────────────────────────────────────────────────────────
 
 def add_greeting(sender_jid: str, sender_greeting: str, my_greeting: str) -> int:
-    """Store a greeting exchange record. Returns the new row ID."""
+    """Store a greeting exchange record. Returns the new row ID.
+
+    Note: This function always inserts. Prefer add_or_update_greeting to
+    keep a single record per sender.
+    """
     conn = _get_conn()
     now = datetime.now().isoformat(timespec="seconds")
-    cur = conn.execute("""
+    cur = conn.execute(
+        """
         INSERT INTO greetings (sender_jid, sender_greeting, my_greeting, created_at)
         VALUES (?, ?, ?, ?)
-    """, (sender_jid, sender_greeting, my_greeting, now))
+        """,
+        (normalize_bare_jid(sender_jid), sender_greeting, my_greeting, now),
+    )
     conn.commit()
     row_id = cur.lastrowid
     conn.close()
     return row_id
+
+
+def add_or_update_greeting(sender_jid: str, sender_greeting: str, my_greeting: str) -> int:
+    """Upsert a greeting record by sender_jid (bare JID).
+
+    If a record exists for the same sender_jid, update it and set
+    created_at to the latest time; otherwise insert a new record.
+
+    Returns the affected row ID (updated row id if available, or new id).
+    """
+    sender_bare = normalize_bare_jid(sender_jid)
+    now = datetime.now().isoformat(timespec="seconds")
+
+    conn = _get_conn()
+    try:
+        existing = conn.execute(
+            "SELECT id FROM greetings WHERE sender_jid = ? ORDER BY id DESC LIMIT 1",
+            (sender_bare,),
+        ).fetchone()
+        if existing:
+            row_id = int(existing["id"]) if isinstance(existing, sqlite3.Row) else int(existing[0])
+            conn.execute(
+                """
+                UPDATE greetings SET
+                    sender_greeting = ?, my_greeting = ?, created_at = ?
+                WHERE id = ?
+                """,
+                (sender_greeting, my_greeting, now, row_id),
+            )
+            conn.commit()
+            return row_id
+        # Insert new
+        cur = conn.execute(
+            """
+            INSERT INTO greetings (sender_jid, sender_greeting, my_greeting, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (sender_bare, sender_greeting, my_greeting, now),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
 
 
 def get_greetings() -> list:
