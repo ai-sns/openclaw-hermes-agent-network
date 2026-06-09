@@ -1,4 +1,12 @@
 {
+  "nav": {
+    "sns": "社交",
+    "agent": "智能体",
+    "km": "知识库",
+    "tools": "工具",
+    "web": "在线",
+    "home": "主页"
+  },
   "home": {
     "config": {
       "title": "\u914d\u7f6e",

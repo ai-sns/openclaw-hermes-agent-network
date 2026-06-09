@@ -36,14 +36,14 @@ This skill accepts a JSON object as input params.
 
 ## How to use
 
-1. Call `read_skill` with `skill_key: "draw-image"` to read this document.
-2. Then call `run_doc_skill` with `skill_key: "draw-image"` and `params`.
+1. Call `read_skill` with `skill_key: "draw_image"` to read this document.
+2. Then call `run_doc_skill` with `skill_key: "draw_image"` and `params`.
 
 Example:
 
 ```json
 {
-  "skill_key": "draw-image",
+  "skill_key": "draw_image",
   "prompt": "A futuristic cityscape at sunset with flying cars",
    "size": "1024x1024"
 

@@ -36,6 +36,17 @@ const App = {
         // Awaiting navigateTo ensures the initial page module's data load
         // completes before the bootstrap hides the global loading overlay.
         const initialPage = await this.getInitialPage();
+
+        // Localize the left navigation rail module names based on the
+        // configured language (loaded into window.appConfig by api.init()).
+        this.applyModuleLabels();
+
+        // Re-apply localized module names whenever the system config changes
+        // (e.g. user switches language in Home > Configuration).
+        window.addEventListener('app-config-updated', () => {
+            this.applyModuleLabels();
+        });
+
         await this.navigateTo(initialPage);
 
         // Initialize API client asynchronously (non-blocking).
@@ -182,6 +193,29 @@ const App = {
                     this.navigateTo(page);
                 }
             });
+        });
+    },
+
+    // Localized labels for the left navigation rail modules.
+    // Kept in sync with renderer/lang/{en,zh}.json -> "nav".
+    _navLabels: {
+        en: { sns: 'SNS', agent: 'Agent', km: 'KM', tools: 'Tools', web: 'Web', home: 'Home' },
+        zh: { sns: '社交', agent: '智能体', km: '知识库', tools: '工具', web: '在线', home: '主页' }
+    },
+
+    // Apply localized module names to the left navigation rail based on the
+    // current language stored in window.appConfig (set from system config).
+    applyModuleLabels() {
+        const lang = (window.appConfig && window.appConfig.language)
+            ? String(window.appConfig.language).toLowerCase()
+            : 'en';
+        const map = this._navLabels[lang] || this._navLabels.en;
+        document.querySelectorAll('.nav-icon-item[data-page]').forEach(item => {
+            const page = item.dataset.page;
+            const label = item.querySelector('.nav-label');
+            if (page && label && map[page]) {
+                label.textContent = map[page];
+            }
         });
     },
 

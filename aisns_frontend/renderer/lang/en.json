@@ -1,4 +1,12 @@
 {
+  "nav": {
+    "sns": "SNS",
+    "agent": "Agent",
+    "km": "KM",
+    "tools": "Tools",
+    "web": "Web",
+    "home": "Home"
+  },
   "home": {
     "config": {
       "title": "Configuration",

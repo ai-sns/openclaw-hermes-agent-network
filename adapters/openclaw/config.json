@@ -7,7 +7,7 @@
   },
   "gateway": {
     "baseUrl": "http://127.0.0.1:18789",
-    "token": "93d0ea4f28ee4b6f124a7ef60c3200e011ec6edbb27b9014",
+    "token": "your_openclaw_auth_token",
     "tokenEnv": [
       "OPENCLAW_GATEWAY_TOKEN",
       "CLAWDBOT_GATEWAY_TOKEN"

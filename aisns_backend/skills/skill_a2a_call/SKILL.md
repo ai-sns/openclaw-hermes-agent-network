@@ -6,7 +6,7 @@ runner:
   kind: python_file
   target: a2a_call.py
 requires:
-  os: win32
+  always: true
 ---
 
 This skill invokes A2A JSON-RPC methods on a remote agent endpoint.

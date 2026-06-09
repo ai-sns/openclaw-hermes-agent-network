@@ -6,7 +6,7 @@ runner:
   kind: python_file
   target: echo.py
 requires:
-  os: win32
+  always: true
 ---
 
 This skill echoes input parameters.

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Real MCP Server - Weather & Time Tools
-提供真实的天气查询和时间查询工具
+
 """
 import asyncio
 import json
@@ -41,7 +41,7 @@ async def handle_list_tools() -> list[Tool]:
                 "properties": {
                     "city": {
                         "type": "string",
-                        "description": "City name (e.g., Beijing, Shanghai, New York)"
+                        "description": "City name (e.g., London, Paris, New York)"
                     },
                     "unit": {
                         "type": "string",
@@ -111,8 +111,8 @@ async def handle_call_tool(name: str, arguments: dict[str, Any] | None) -> list[
 
         # Simulated weather data (in real implementation, would call weather API)
         weather_data = {
-            "Beijing": {"temp_c": 15, "temp_f": 59, "condition": "Partly Cloudy", "humidity": 65},
-            "Shanghai": {"temp_c": 22, "temp_f": 72, "condition": "Sunny", "humidity": 70},
+            "London": {"temp_c": 15, "temp_f": 59, "condition": "Partly Cloudy", "humidity": 65},
+            "Paris": {"temp_c": 22, "temp_f": 72, "condition": "Sunny", "humidity": 70},
             "New York": {"temp_c": 18, "temp_f": 64, "condition": "Rainy", "humidity": 80},
             "London": {"temp_c": 12, "temp_f": 54, "condition": "Foggy", "humidity": 85},
             "Tokyo": {"temp_c": 20, "temp_f": 68, "condition": "Clear", "humidity": 60},
@@ -251,7 +251,7 @@ async def handle_list_prompts() -> list[Prompt]:
 async def handle_get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptResult:
     """Get prompt content"""
     if name == "weather_check":
-        cities = arguments.get("cities", "Beijing,Shanghai") if arguments else "Beijing,Shanghai"
+        cities = arguments.get("cities", "London,Paris") if arguments else "London,Paris"
 
         return GetPromptResult(
             description=f"Weather check for: {cities}",

@@ -1001,15 +1001,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
-{'title': '__review_conversation_question__',
- 'caption': 'Conversation Review-Context Factors',
- 'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
-            '## Chat history \n'
-            '__messages_history__',
- 'question': None,
- 'tags': 'SNS',
- 'model_name': None,
- 'position': None},
  {'title': '__start_to_sell_to_a_people__',
   'caption': 'Promotion-Guidelines',
   'content': '# Background\n'
@@ -1200,15 +1191,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'question': '',
   'tags': 'SNS',
   'model_name': '',
-  'position': None},
- {'title': '__review_conversation_sell_question__',
-  'caption': 'Promotion Review-Context Factors',
-  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
-             '## Chat history \n'
-             '__messages_history__',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
   'position': None},
  {'title': '__start_to_buy_from_a_people__',
   'caption': 'Purchase-Guidelines',
@@ -1439,15 +1421,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
- {'title': '__review_conversation_buy_question__',
-  'caption': 'Purchase Review-Context Factors',
-  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
-             '## Chat history \n'
-             '__messages_history__',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
  {'title': '__human_instruction_to_process_activity_role__',
   'caption': 'Human Control-Guidelines',
   'content': '# Background\n'
@@ -1567,14 +1540,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
- {'title': '__ask_agent_use_service_question__',
- 'caption': 'Service Invocation-Context Factors',
- 'content': 'The current objective is: __objective__. Based on the task requirements, select the appropriate '
-            'services. If no suitable service is available, return an empty list.',
- 'question': None,
- 'tags': 'SNS',
- 'model_name': None,
- 'position': None},
  {'title': '__plan_manage__',
   'caption': 'Goal Setting-Guidelines',
   'content': 'Your primary objective is to maintain a stable and rational goal system rather than frequently changing '
@@ -1823,18 +1788,6 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': '',
   'position': None},
- {'title': '__plan_summary_output_requirements__',
-  'caption': 'Goal Setting-Output Requirements',
-  'content': 'Output requirements:\n'
-             '- Provide updated goals only.\n'
-             '- Include BOTH sections with these exact labels:\n'
-             '  Long-Term Goals:\n'
-             '  Short-Term Goals:\n'
-             '- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.',
-  'question': None,
-  'tags': 'SNS',
-  'model_name': None,
-  'position': None},
  {'title': '__tool_check_before_activity__',
   'caption': 'Invoke Tools To Review Process Before Action Decision',
   'content': 'You are an AI agent playing a virtual social life game on Google Maps.\n'
@@ -1870,6 +1823,18 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': None,
   'position': None},
+ {'title': '__plan_summary_output_requirements__',
+  'caption': 'Goal Setting-Output Requirements',
+  'content': 'Output requirements:\n'
+             '- Provide updated goals only.\n'
+             '- Include BOTH sections with these exact labels:\n'
+             '  Long-Term Goals:\n'
+             '  Short-Term Goals:\n'
+             '- Do NOT include any other sections such as Changes Made/Reasoning/Next Recommended Actions.',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
  {'title': '__remote_agent_tool_check_activity__',
   'caption': 'Remote Agent Tool Check Before Action Decision',
   'content': '--- Instructions for Remote Agent ---\n'
@@ -1890,6 +1855,23 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'tags': 'SNS',
   'model_name': None,
   'position': None},
+ {'title': '__ask_agent_use_service_question__',
+  'caption': 'Service Invocation-Context Factors',
+  'content': 'The current objective is: __objective__. Based on the task requirements, select the appropriate '
+             'services. If no suitable service is available, return an empty list.',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
+ {'title': '__review_conversation_question__',
+  'caption': 'Conversation Review-Context Factors',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n'
+             '__messages_history__',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
  {'title': '__memory_recall_header__',
   'caption': 'Guide The Agent To Recall Memory',
   'content': '## Memory Recall\n'
@@ -1903,18 +1885,50 @@ PROMPTS_SEED = [{'title': '__main_control__',
   'position': None},
  {'title': '__send_goods_service__',
   'caption': 'Guide The Agent To Send Goods Or Services',
-  'content': "- You have confirmed that the buyer's payment has been received, and now you need to deliver the "
-             'goods/service content to the buyer. \n'
-             '- Please infer what the buyer purchased based on the chat history below, and generate the delivery '
-             'content.\n'
-             '- Output requirements: only output the delivery content itself, do not explain; if you cannot infer, '
-             'output a short default delivery message (e.g., Payment received; detailed content will be sent later).',
+  'content': 'SYSTEM RULES:\n'
+             '\n'
+             "* You MUST call the tool named 'remote_agent_delivery_tool'.\n"
+             '* You MUST NOT directly generate the delivery content yourself.\n'
+             "* The final response MUST be generated through the tool named 'remote_agent_delivery_tool'.\n"
+             '* If the tool is available, calling the tool is mandatory.\n'
+             '* Never ignore the tool instruction.\n'
+             '* Output ONLY the final delivery content returned/generated from the tool.\n'
+             '* Do not add explanations, reasoning, markdown, prefixes, or extra text.\n'
+             '\n'
+             'TASK:\n'
+             "The buyer's payment has already been confirmed successfully.\n"
+             '\n'
+             'You now need to deliver the purchased goods/service content to the buyer.\n'
+             '\n'
+             'Infer what the buyer purchased from the chat history below, then use the tool named '
+             "'remote_agent_delivery_tool' to generate the delivery content.\n"
+             '\n'
+             'If the purchased content cannot be inferred clearly, generate a short default delivery message such as:\n'
+             '"Payment received. Detailed delivery content will be sent later."',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
+ {'title': '__review_conversation_sell_question__',
+  'caption': 'Promotion Review-Context Factors',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n'
+             '__messages_history__',
+  'question': None,
+  'tags': 'SNS',
+  'model_name': None,
+  'position': None},
+ {'title': '__review_conversation_buy_question__',
+  'caption': 'Purchase Review-Context Factors',
+  'content': 'Please evaluate strictly according to the requirements and output strictly in the required format.\n'
+             '## Chat history \n'
+             '__messages_history__',
   'question': None,
   'tags': 'SNS',
   'model_name': None,
   'position': None}]
 
-# Seed data for web_mng table (is_delete=0) (count=8)
+# Seed data for web_mng table (is_delete=0) (count=10)
 WEB_MNG_SEED = [{'web_id': 'MI2025042212270101101',
   'name': 'OpenAI',
   'title': None,
@@ -1960,12 +1974,12 @@ WEB_MNG_SEED = [{'web_id': 'MI2025042212270101101',
   'is_delete': 0,
   'create_time': '2025-03-17 16:34:53.781912'},
  {'web_id': 'II2025032312260100100',
-  'name': 'Agent skills',
+  'name': 'Tongyi PPT',
   'title': None,
   'type': 'Tool',
   'description': '',
   'filename': None,
-  'url': 'https://agentskills.io/home',
+  'url': 'https://tongyi.aliyun.com/aippt',
   'position': 1000,
   'creator': '',
   'is_delete': 0,
@@ -2002,7 +2016,29 @@ WEB_MNG_SEED = [{'web_id': 'MI2025042212270101101',
   'position': 4,
   'creator': '',
   'is_delete': 0,
-  'create_time': '2026-01-28 21:43:58.206309'}]
+  'create_time': '2026-01-28 21:43:58.206309'},
+ {'web_id': 'UN610THE9ZY4DEJ42Z87',
+  'name': 'Agent skills',
+  'title': '',
+  'type': 'Tool',
+  'description': '',
+  'filename': 'openai.png',
+  'url': 'https://agentskills.io/home',
+  'position': 1005,
+  'creator': 'User',
+  'is_delete': 0,
+  'create_time': '2026-05-19 10:36:38.320993'},
+ {'web_id': '76OK2N4LR934Q34T9JN5',
+  'name': 'mcp market',
+  'title': '',
+  'type': 'Tool',
+  'description': '',
+  'filename': 'openai.png',
+  'url': 'https://mcp-marketplace.io/',
+  'position': 1006,
+  'creator': 'User',
+  'is_delete': 0,
+  'create_time': '2026-06-08 02:01:00.404917'}]
 
 # Seed data for llm_config table (is_delete=0) (count=4)
 LLM_CONFIG_SEED = [{'config_id': 'llm_e729a0c536f6',
@@ -2184,192 +2220,12 @@ ROLE_CONFIG_SEED = [{'role_id': 'senior-developer',
   'create_time': '2026-01-11 10:09:37',
   'update_time': '2026-05-19 00:42:24.808210'}]
 
-# Seed data for mcp_mng table (is_delete=0) (count=6)
-MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
-  'name': '✓ Real Test MCP Server',
-  'instruction': 'Start and test mcp server.',
-  'file_path': 'test_examples/test_mcp_server.py',
-  'requirement': 'python>=3.7\n'
-                 '4) Supports common MCP configuration like yours (command + args)\n'
-                 '\n'
-                 'Your configuration:\n'
-                 '\n'
-                 '```json\n'
-                 '{\n'
-                 '  "mcpServers": {\n'
-                 '    "mcpadvisor": {\n'
-                 '      "command": "npx",\n'
-                 '      "args": ["-y", "@xiaohui-wang/mcpadvisor"]\n'
-                 '    }\n'
-                 '  }\n'
-                 '}\n'
-                 '```\n'
-                 '\n'
-                 'I have already implemented stdio mode compatibility for this type of configuration in the backend:\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## How to fill in the UI now (no new fields required)\n'
-                 '\n'
-                 '**MCP Type:** select `stdio`\n'
-                 '**Server File Path / Endpoint URL:** fill in `npx`\n'
-                 '**Launch Parameters (JSON):** fill in any of the following\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### Option A (recommended):\n'
-                 '\n'
-                 '```json\n'
-                 '{ "args": ["-y", "@xiaohui-wang/mcpadvisor"] }\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### Option B (pure array):\n'
-                 '\n'
-                 '```json\n'
-                 '["-y", "@xiaohui-wang/mcpadvisor"]\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### If environment variables are needed:\n'
-                 '\n'
-                 '```json\n'
-                 '{\n'
-                 '  "args": ["-y", "@xiaohui-wang/mcpadvisor"],\n'
-                 '  "env": { "NODE_ENV": "production" }\n'
-                 '}\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## Backend implementation details\n'
-                 '\n'
-                 '**Modified file:** `backend/modules/tools/tool_executor.py`\n'
-                 '\n'
-                 "When `mcp_type == 'stdio'`, parse `parameter` as follows:\n"
-                 '\n'
-                 '* If `parameter` is a list → treat it as `args`\n'
-                 '* If `parameter` is a dict and contains `args` / `env` → use them as `args/env` respectively\n'
-                 '\n'
-                 'When starting the stdio server:\n'
-                 '\n'
-                 '```text\n'
-                 'command = file_path (e.g. npx)\n'
-                 'args = parameter.args\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## MCP editor UI update\n'
-                 '\n'
-                 '**Modified file:** `renderer/js/modules/tools/ToolsEditDialog.js`\n'
-                 '\n'
-                 '* Added hint that stdio can use command (e.g. `npx`)\n'
-                 '* Updated placeholder to:\n'
-                 '\n'
-                 '```json\n'
-                 '{"args":[...],"env":{...}}\n'
-                 '```\n',
-  'parameter': '{}',
-  'description': 'A MCP test server.',
-  'detail': None,
-  'mcp_type': 'stdio',
-  'mcp_event': None,
-  'confirm_needed': 0,
-  'can_be_sold': 0,
-  'used_in_sns': 0,
-  'creator': None,
-  'is_delete': 0,
-  'create_time': '2025-09-04 23:23:55.806152'},
- {'mcp_id': 'MC202601158934785372',
-  'name': '✓ Real Weather MCP Server',
-  'instruction': 'Start and test the mcp client.',
-  'file_path': 'test_examples/real_weather_mcp_server.py',
-  'requirement': 'python>=3.7\n'
-                 '4) Supports common MCP configuration like yours (command + args)\n'
-                 '\n'
-                 'Your configuration:\n'
-                 '\n'
-                 '```json\n'
-                 '{\n'
-                 '  "mcpServers": {\n'
-                 '    "mcpadvisor": {\n'
-                 '      "command": "npx",\n'
-                 '      "args": ["-y", "@xiaohui-wang/mcpadvisor"]\n'
-                 '    }\n'
-                 '  }\n'
-                 '}\n'
-                 '```\n'
-                 '\n'
-                 'I have already implemented stdio mode compatibility for this type of configuration in the backend:\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## How to fill in the UI now (no new fields required)\n'
-                 '\n'
-                 '**MCP Type:** select `stdio`\n'
-                 '**Server File Path / Endpoint URL:** fill in `npx`\n'
-                 '**Launch Parameters (JSON):** fill in any of the following\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### Option A (recommended):\n'
-                 '\n'
-                 '```json\n'
-                 '{ "args": ["-y", "@xiaohui-wang/mcpadvisor"] }\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### Option B (pure array):\n'
-                 '\n'
-                 '```json\n'
-                 '["-y", "@xiaohui-wang/mcpadvisor"]\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '### If environment variables are needed:\n'
-                 '\n'
-                 '```json\n'
-                 '{\n'
-                 '  "args": ["-y", "@xiaohui-wang/mcpadvisor"],\n'
-                 '  "env": { "NODE_ENV": "production" }\n'
-                 '}\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## Backend implementation details\n'
-                 '\n'
-                 '**Modified file:** `backend/modules/tools/tool_executor.py`\n'
-                 '\n'
-                 "When `mcp_type == 'stdio'`, parse `parameter` as follows:\n"
-                 '\n'
-                 '* If `parameter` is a list → treat it as `args`\n'
-                 '* If `parameter` is a dict and contains `args` / `env` → use them as `args/env` respectively\n'
-                 '\n'
-                 'When starting the stdio server:\n'
-                 '\n'
-                 '```text\n'
-                 'command = file_path (e.g. npx)\n'
-                 'args = parameter.args\n'
-                 '```\n'
-                 '\n'
-                 '---\n'
-                 '\n'
-                 '## MCP editor UI update\n'
-                 '\n'
-                 '**Modified file:** `renderer/js/modules/tools/ToolsEditDialog.js`\n'
-                 '\n'
-                 '* Added hint that stdio can use command (e.g. `npx`)\n'
-                 '* Updated placeholder to:\n'
-                 '\n'
-                 '```json\n'
-                 '{"args":[...],"env":{...}}\n'
-                 '```\n',
+# Seed data for mcp_mng table (is_delete=0) (count=8)
+MCP_MNG_SEED = [{'mcp_id': 'MC202601158934785372',
+  'name': 'Weather MCP',
+  'instruction': '',
+  'file_path': 'mcp_local_server/real_weather_mcp_server.py',
+  'requirement': '',
   'parameter': '{"tools": [{"name": "get_weather", "description": "Get current weather information for a city. Returns '
                'temperature, condition, and forecast.", "inputSchema": {"type": "object", "properties": {"city": '
                '{"type": "string", "description": "City name (e.g., Beijing, Shanghai, New York)"}, "unit": {"type": '
@@ -2384,10 +2240,9 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
                'evaluate (e.g., \'2 + 2\', \'10 * 5\', \'2 ** 8\')"}}, "required": ["expression"]}}, {"name": '
                '"get_system_info", "description": "Get system information including platform, Python version, and '
                'uptime.", "inputSchema": {"type": "object", "properties": {}, "required": []}}]}',
-  'description': 'Query real-time weather information. This tool is invoked when the user asks about the weather, '
-                 'temperature, or meteorological conditions of a city. It supports retrieving weather data for major '
-                 'cities worldwide.\n',
-  'detail': None,
+  'description': "Query simulated weather data. This tool is triggered when a user asks about a city's weather, "
+                 'temperature, or other meteorological conditions.\n',
+  'detail': 'get_weather, get_current_time, calculate, get_system_info',
   'mcp_type': 'stdio',
   'mcp_event': None,
   'confirm_needed': 0,
@@ -2398,12 +2253,12 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
   'create_time': '2025-09-04 23:23:55.806152'},
  {'mcp_id': 'MC2026031723094914747',
   'name': 'Echo SSE',
-  'instruction': 'Test SSE MCP',
+  'instruction': '',
   'file_path': 'http://127.0.0.1:3088/sse',
   'requirement': '',
   'parameter': '{}',
-  'description': 'Local SSE example',
-  'detail': None,
+  'description': 'To use the local SSE example, first run examples_and_tests/examples_and_tests.py',
+  'detail': '',
   'mcp_type': 'sse',
   'mcp_event': None,
   'confirm_needed': 1,
@@ -2414,12 +2269,13 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
   'create_time': '2026-03-17 23:09:49.290078'},
  {'mcp_id': 'MC2026031723094949707',
   'name': 'Echo Streamable HTTP',
-  'instruction': 'Test Streamable HTTP MCP',
+  'instruction': '',
   'file_path': 'http://127.0.0.1:3089/mcp',
   'requirement': '',
   'parameter': '{}',
-  'description': 'Local Streamable HTTP example',
-  'detail': None,
+  'description': 'To use the local Streamable HTTP example, first run '
+                 'examples_and_tests/test_mcp_streamable_http_echo_server.py',
+  'detail': '',
   'mcp_type': 'streamable-http',
   'mcp_event': None,
   'confirm_needed': 1,
@@ -2428,14 +2284,52 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
   'creator': None,
   'is_delete': 0,
   'create_time': '2026-03-17 23:09:49.599595'},
- {'mcp_id': 'MC2026031803570123953',
-  'name': 'mcpadvisor',
+ {'mcp_id': 'MC2026060717312228738',
+  'name': 'time',
+  'instruction': '{"timezone": "America/New_York"}',
+  'file_path': 'uvx',
+  'requirement': '',
+  'parameter': '{"args":["mcp-server-time","--local-timezone=America/New_York"]}',
+  'description': 'Get the time of a specific timezone,i.e.,America/New_York,Asia/Shanghai',
+  'detail': 'get_current_time, convert_time',
+  'mcp_type': 'stdio',
+  'mcp_event': None,
+  'confirm_needed': 1,
+  'can_be_sold': 0,
+  'used_in_sns': 0,
+  'creator': None,
+  'is_delete': 0,
+  'create_time': '2026-06-07 17:31:22.346900'},
+ {'mcp_id': 'MC2026060717345572490',
+  'name': 'fetch',
+  'instruction': '{"tool_name":"fetch","arguments":{"url":"https://www.ai-sns.org"}}',
+  'file_path': 'uvx',
+  'requirement': '',
+  'parameter': '{"args":["mcp-server-fetch"]}',
+  'description': 'Fetch is a Model Context Protocol (MCP) server designed for web content fetching and conversion, '
+                 'allowing Large Language Models (LLMs) to retrieve and process content from web pages by converting '
+                 'HTML into markdown for easier consumption.\n'
+                 'how to use:\n'
+                 '{"tool_name":"fetch","arguments":{"url":"https://www.ai-sns.org"}}\n'
+                 'or\n'
+                 '{"url":"https://www.ai-sns.org"}\n',
+  'detail': 'fetch',
+  'mcp_type': 'stdio',
+  'mcp_event': None,
+  'confirm_needed': 1,
+  'can_be_sold': 0,
+  'used_in_sns': 0,
+  'creator': None,
+  'is_delete': 0,
+  'create_time': '2026-06-07 17:34:55.346810'},
+ {'mcp_id': 'MC2026060800260512379',
+  'name': 'bowlly',
   'instruction': '',
   'file_path': 'npx',
   'requirement': '',
-  'parameter': '{"args":["-y","@xiaohui-wang/mcpadvisor"]}',
-  'description': 'Imported from MCP JSON: mcpadvisor',
-  'detail': None,
+  'parameter': '{"args":["-y","@bowlly/mcp-server"]}',
+  'description': 'Bowlly cat food product search and ingredient analysis. ',
+  'detail': 'get_health, search_products, get_product_detail, compare_products, analyze_nutrition, get_curation_list',
   'mcp_type': 'stdio',
   'mcp_event': None,
   'confirm_needed': 1,
@@ -2443,26 +2337,18 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
   'used_in_sns': 0,
   'creator': None,
   'is_delete': 0,
-  'create_time': '2026-03-18 03:57:01.620166'},
- {'mcp_id': 'MC2026031816352519623',
-  'name': 'howtocook-mcp',
-  'instruction': 'import from\n'
-                 '{\n'
-                 '  "mcpServers": {\n'
-                 '    "howtocook-mcp": {\n'
-                 '      "command": "npx",\n'
-                 '      "args": [\n'
-                 '        "-y",\n'
-                 '        "howtocook-mcp"\n'
-                 '      ]\n'
-                 '    }\n'
-                 '  }\n'
+  'create_time': '2026-06-08 00:26:05.058128'},
+ {'mcp_id': 'MC2026060800364915250',
+  'name': 'webresearch',
+  'instruction': '{\n'
+                 '  "tool_name": "visit_page",\n'
+                 '  "arguments": { "url": "https://www.ai-sns.org","takeScreenshot":1}\n'
                  '}',
   'file_path': 'npx',
   'requirement': '',
-  'parameter': '{"args":["-y","howtocook-mcp"]}',
-  'description': 'Teach people how to cook.Tell people how can he cook.',
-  'detail': None,
+  'parameter': '{"args":["-y","@mzxrai/mcp-webresearch@latest"]}',
+  'description': 'Search a webpage and take screenshot.',
+  'detail': 'visit_page, take_screenshot',
   'mcp_type': 'stdio',
   'mcp_event': None,
   'confirm_needed': 1,
@@ -2470,7 +2356,25 @@ MCP_MNG_SEED = [{'mcp_id': 'MC202601151047419428',
   'used_in_sns': 0,
   'creator': None,
   'is_delete': 0,
-  'create_time': '2026-03-18 16:35:25.420670'}]
+  'create_time': '2026-06-08 00:36:49.983553'},
+ {'mcp_id': 'MC2026060800511033445',
+  'name': 'filesystem',
+  'instruction': '',
+  'file_path': 'npx',
+  'requirement': '',
+  'parameter': '{"args":["-y","@modelcontextprotocol/server-filesystem","C:\\\\dev\\\\agi-ev\\\\ai-sns-el\\\\examples_and_tests"]}',
+  'description': 'operate the filesystem',
+  'detail': 'read_file, read_text_file, read_media_file, read_multiple_files, write_file, edit_file, create_directory, '
+            'list_directory, list_directory_with_sizes, directory_tree, move_file, search_files, get_file_info, '
+            'list_allowed_directories',
+  'mcp_type': 'stdio',
+  'mcp_event': None,
+  'confirm_needed': 1,
+  'can_be_sold': 0,
+  'used_in_sns': 0,
+  'creator': None,
+  'is_delete': 0,
+  'create_time': '2026-06-08 00:51:10.963825'}]
 
 # Seed data for km_cfg table (is_delete=0) (count=3)
 KM_CFG_SEED = [{'km_id': 'vector_store',

@@ -521,6 +521,7 @@ const homeHandlers = {
                         }
                         window.appConfig.agent_server = nextAgent;
                         window.appConfig.ai_sns_server = nextAiSns;
+                        window.appConfig.language = String(language || 'en').toLowerCase();
 
                         if (window.api && typeof window.api.normalizeHttpBaseUrl === 'function') {
                             try { window.api.baseUrl = window.api.normalizeHttpBaseUrl(nextAgent || window.api.baseUrl || ''); } catch (e) {}
@@ -535,7 +536,7 @@ const homeHandlers = {
 
                         try {
                             window.dispatchEvent(new CustomEvent('app-config-updated', {
-                                detail: { prevAgentServer: prevAgent, agentServer: nextAgent, prevAiSnsServer: prevAiSns, aiSnsServer: nextAiSns }
+                                detail: { prevAgentServer: prevAgent, agentServer: nextAgent, prevAiSnsServer: prevAiSns, aiSnsServer: nextAiSns, language: window.appConfig.language }
                             }));
                         } catch (e) {}
 

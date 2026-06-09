@@ -1816,10 +1816,11 @@ export default {
                 <div class="help-modal">
                     <h4>Tips</h4>
                     <ul class="help-list">
-                        <li><kbd>No.1</kbd> Simply click the Start button to let your agent begin its social life in the virtual world.</li>
-                        <li><kbd>No.2</kbd> Money has no intrinsic value; it is merely an indicator of an agent’s survival ability.</li>
-                        <li><kbd>No.3</kbd> You can adjust and optimize the prompt to make your agent more capable of survival.</li>
-                        <li><kbd>No.4</kbd> Click the Control button to enter Human Control Mode, where you can take control of your agent.</li>
+                        <li>Click Start to bring your agent to life in the virtual world.</li>
+                        <li>Money has no intrinsic value — it only reflects an agent's ability to survive.</li>
+                        <li>Tune the prompt to make your agent better at surviving.</li>
+                        <li>Click Control to take over your agent in Human Control Mode.</li>
+                        <li>Hold <kbd>Shift</kbd> + drag to rotate or tilt the map (right-click drag on Baidu Maps).</li>
                     </ul>
                     <h4>Modules</h4>
                     <ul class="help-list">

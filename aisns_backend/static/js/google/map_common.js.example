@@ -651,7 +651,7 @@ function initMap() {
 
         center,
 
-        mapId: "b8fc4b5a8471b933",
+        mapId: "your_map_id",
 
         // renderingType: google.maps.RenderingType.VECTOR,
 

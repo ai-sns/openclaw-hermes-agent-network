@@ -1,6 +1,0 @@
-# A2A Server - Standalone FastAPI application for A2A protocol
-# Provides business card exchange service on port 8789
-# Run: python server.py
-
-fastapi>=0.104.0
-uvicorn>=0.24.0

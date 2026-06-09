@@ -6,7 +6,7 @@ runner:
   kind: python_file
   target: fetch_agent_card.py
 requires:
-  os: win32
+  always: true
 ---
 
 This skill fetches the agent card (JSON) from an A2A endpoint.

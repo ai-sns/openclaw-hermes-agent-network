@@ -188,6 +188,7 @@ const InitializationWizard = {
                 try {
                     const payload = {
                         ...this.state,
+                        avatar3d: this.avatar3dSubmitValue(this.state.avatar3d),
                         captcha_id: this.captcha.id,
                         captcha_code: captchaCode
                     };
@@ -278,6 +279,27 @@ const InitializationWizard = {
         } catch (e) {
             console.warn('Failed to load avatar3d list:', e);
         }
+    },
+
+    // Normalize an avatar3d value for submission. Local-host URLs
+    // (127.0.0.1/localhost) and plain paths are reduced to just their
+    // filename (e.g. "ctboychinese_0_0_0_0_1_0.glb"), matching the behavior
+    // of SNSAdvancedDialog. Remote custom URLs are kept as-is.
+    avatar3dSubmitValue(value) {
+        const raw = String(value || '').trim();
+        if (!raw) {
+            return '';
+        }
+
+        const isWeb = /^(https?:)?\/\//i.test(raw);
+        const isLocal = /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/i.test(raw);
+
+        if (isWeb && !isLocal) {
+            return raw;
+        }
+
+        const cleaned = raw.split('#')[0].split('?')[0];
+        return cleaned.split('/').pop().split('\\').pop();
     },
 
     apiBaseUrl() {
@@ -473,7 +495,7 @@ const InitializationWizard = {
 
     renderMapStep() {
         const avatarGrid = this.avatar3dItems.map(item => {
-            const selected = item.glb_url === this.state.avatar3d;
+            const selected = this.avatar3dSubmitValue(item.glb_url) === this.avatar3dSubmitValue(this.state.avatar3d);
             return `
                 <div class="avatar3d-item" data-glb-url="${this.escapeHtml(item.glb_url)}" style="cursor:pointer;border:1px solid ${selected ? '#1a73e8' : 'rgba(255,255,255,0.2)'};border-radius:10px;padding:6px;flex:0 0 auto;width:86px;">
                     <img src="${this.escapeHtml(item.png_url)}" style="width:72px;height:72px;object-fit:cover;border-radius:8px;display:block;margin:0 auto;" />
@@ -488,7 +510,10 @@ const InitializationWizard = {
         return `
             <div class="init-step init-step-map">
                 <div class="form-group">
-                    <label>Please choose your 3D avatar *</label>
+                    <div style="display:flex;align-items:baseline;gap:2ch;">
+                        <label style="margin:0;">Please choose your 3D avatar *</label>
+                        <a href="#" id="initAvatar3dLicensesLink" style="font-size:12px;white-space:nowrap;">Licenses</a>
+                    </div>
                     <div style="display:flex;align-items:center;gap:8px;">
                         <button class="btn btn-secondary" id="avatar3dPrevBtn" type="button" style="padding:6px 10px;">◀</button>
                         <div id="avatar3dGrid" style="display:flex;gap:10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;padding:6px 2px;flex:1;min-width:0;">
@@ -798,6 +823,15 @@ const InitializationWizard = {
             });
         }
 
+        const avatar3dLicensesLink = root.querySelector('#initAvatar3dLicensesLink');
+        if (avatar3dLicensesLink) {
+            avatar3dLicensesLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                openUrlInDefaultBrowser('https://ai-sns.gitbook.io/docs/documentation/more/3d-assets-licenses');
+            });
+        }
+
         const fileInput = root.querySelector('#initAvatarFile');
         const fileSelectBtn = root.querySelector('#initAvatarSelectBtn');
         const fileNameEl = root.querySelector('#initAvatarFileName');
@@ -917,7 +951,10 @@ const InitializationWizard = {
             avatarGrid.querySelectorAll('.avatar3d-item').forEach(item => {
                 item.addEventListener('click', async () => {
                     this._avatar3dScrollLeft = avatarGrid.scrollLeft;
-                    const glbUrl = item.dataset.glbUrl;
+                    // Store only the filename (e.g. "name.glb") for local/preset
+                    // avatars so the submitted avatar3d stays consistent with
+                    // SNSAdvancedDialog.
+                    const glbUrl = this.avatar3dSubmitValue(item.dataset.glbUrl);
                     // Preserve other inputs the user has typed on this step
                     // (Map API Key / Map ID / Map Type) before we re-render.
                     this.collectFormValues();

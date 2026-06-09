@@ -232,7 +232,10 @@ export class SNSAdvancedDialog {
 
                                 <!-- 3D Avatar Selection Section -->
                                 <div class="avatar-section">
-                                    <h4>Choose 3D Avatar</h4>
+                                    <div class="avatar-section-header" style="display: flex; align-items: baseline; gap: 2ch;">
+                                        <h4 style="margin: 0;">Choose 3D Avatar</h4>
+                                        <a href="#" id="avatar3dLicensesLink" class="avatar3d-licenses-link" style="font-size: 12px;">Licenses</a>
+                                    </div>
                                     <div class="avatar3d-grid" id="avatar3dGrid">
                                         <div class="loading">Loading...</div>
                                     </div>
@@ -557,6 +560,38 @@ export class SNSAdvancedDialog {
             avatar3dDetailLink.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     openAvatar3dCustomizeDetail(e);
+                }
+            });
+        }
+
+        const avatar3dLicensesLink = this._q('#avatar3dLicensesLink');
+        const openAvatar3dLicenses = (event) => {
+            try {
+                if (event && typeof event.preventDefault === 'function') {
+                    event.preventDefault();
+                }
+            } catch (e) {
+            }
+
+            const url = 'https://ai-sns.gitbook.io/docs/documentation/more/3d-assets-licenses';
+            try {
+                if (window.electronAPI && typeof window.electronAPI.openUrl === 'function') {
+                    window.electronAPI.openUrl(url);
+                    return;
+                }
+            } catch (e) {
+            }
+
+            try {
+                window.open(url, '_blank', 'noopener');
+            } catch (e) {
+            }
+        };
+        if (avatar3dLicensesLink) {
+            avatar3dLicensesLink.addEventListener('click', openAvatar3dLicenses);
+            avatar3dLicensesLink.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    openAvatar3dLicenses(e);
                 }
             });
         }

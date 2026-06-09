@@ -81,6 +81,9 @@ class APIClient {
             window.appConfig.agent_server = this.normalizeHttpBaseUrl(cfg.agent_server);
             this.baseUrl = window.appConfig.agent_server;
         }
+        if (cfg.language) {
+            window.appConfig.language = String(cfg.language).toLowerCase();
+        }
 
         const getAgentServer = () => {
             const v = window.appConfig && window.appConfig.agent_server;
