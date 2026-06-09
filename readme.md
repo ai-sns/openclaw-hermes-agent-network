@@ -198,8 +198,8 @@ If you find this project valuable, you can support us and become an early contri
 > 💡 **Why support?**  
 > - Accelerate development  
 > - Help build a decentralized AI ecosystem  
-> - **Set a custom 3D Avatar with YOUR face for supporting us!**
-> - **Set a 3D Landmark on map for supporting us!**
+> - **You can set a custom 3D Avatar with YOUR face**
+> - **You can set a 3D Landmark on map**
 > - Unlock additional powers and services
 
 
